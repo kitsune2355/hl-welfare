@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import { expect } from './_expect.js';
 import { ApiError } from '../web/assets/js/application/errors.js';
 import { validateInsurerForm } from '../web/assets/js/application/insurerFormRules.js';
-import { buildInsurerExport, buildSheetModel, exportCsvRows, formatFormDate, headerLayout } from '../web/assets/js/application/usecases/insurerExport.js';
+import { buildInsurerExport, exportCsvRows, formatFormDate } from '../web/assets/js/application/usecases/insurerExport.js';
 import { isValidThaiId, thaiIdCheckDigit } from '../web/assets/js/domain/thaiId.js';
 import { defaultInsurers } from '../web/assets/js/infrastructure/mock/insurers.js';
 import { MockApi } from '../web/assets/js/infrastructure/mock/mockApi.js';
@@ -10,7 +10,7 @@ import { buildSeed } from '../web/assets/js/infrastructure/mock/seed.js';
 
 const TODAY = '2026-10-15';
 const CYCLE = '2026-11-05';
-const [THAI_LIFE, MUANG_THAI] = defaultInsurers();
+const [THAI_LIFE] = defaultInsurers();
 
 describe('เลขบัตรประชาชน', () => {
   it('ตรวจ check digit', () => {
@@ -24,29 +24,18 @@ describe('เลขบัตรประชาชน', () => {
 });
 
 describe('แบบฟอร์มบริษัทประกัน', () => {
-  it('ตั้งต้น 2 แบบฟอร์มผ่านการตรวจ', () => {
+  it('ตั้งต้น 2 แบบฟอร์มผ่านการตรวจ (มีไฟล์แบบฟอร์ม + ตำแหน่งครบ)', () => {
     const forms = defaultInsurers();
     for (const f of forms) expect(validateInsurerForm(f, forms)).toEqual({});
   });
   it('เปิดใช้แบบฟอร์มที่บริษัทซ้ำกับแบบฟอร์มอื่น → error companies', () => {
     const forms = defaultInsurers();
-    const err = validateInsurerForm({ ...forms[1], active: true }, forms);
+    const err = validateInsurerForm({ ...forms[1], active: true, companies: [{ companyCode: 'HL', policyNo: '', holderName: '', plan: '1' }] }, forms);
     expect(err.companies.includes('HL')).toBe(true);
   });
-  it('ต้องมีชื่อ / คอลัมน์ / ความกว้างถูกต้อง', () => {
-    const err = validateInsurerForm({ ...THAI_LIFE, id: 9, active: false, name: '', columns: [{ source: 'seq', header: 'ลำดับ', width: 1 }] }, []);
-    expect(Object.keys(err).sort()).toEqual(['columns', 'name']);
-  });
-  it('หัวตาราง 2 ชั้น (เมืองไทย): กลุ่ม merge แนวนอน หัวที่ไม่มีกลุ่ม merge แนวตั้ง', () => {
-    const h = headerLayout(MUANG_THAI.columns);
-    expect(h.depth).toBe(3);
-    const has = (m) => h.merges.some((x) => x.join() === m.join());
-    expect(has([0, 3, 0, 11])).toBe(true); // ประกันชีวิตกลุ่ม... ครอบ เข้าใหม่+ยกเลิก+เปลี่ยนแปลง
-    expect(has([1, 3, 1, 7])).toBe(true); // เข้าใหม่ 5 คอลัมน์
-    expect(has([1, 9, 1, 11])).toBe(true); // เปลี่ยนแปลง 3 คอลัมน์
-    expect(has([0, 0, 2, 0])).toBe(true); // ลำดับ ยืด 3 แถว
-    expect(has([1, 13, 2, 13])).toBe(true); // ใต้กลุ่ม "หมายเหตุ" ยืด 2 แถว
-    expect(h.cells.find((c) => c.r === 1 && c.c === 8).v).toBe('ยกเลิก');
+  it('ต้องมีชื่อ', () => {
+    const err = validateInsurerForm({ ...THAI_LIFE, id: 9, active: false, name: '' }, []);
+    expect(Object.keys(err)).toEqual(['name']);
   });
   it('รูปแบบวันที่', () => {
     expect(formatFormDate('2026-02-05', 'DD/MM/YYYY', 'BE')).toBe('05/02/2569');
@@ -72,29 +61,10 @@ describe('ส่งออกไฟล์แจ้งประกัน', () => {
     const inIds = new Set(data.companies.flatMap((c) => c.in.map((r) => r.employee.id)));
     expect(data.missing.every((m) => inIds.has(m.employee.id))).toBe(true);
   });
-  it('โมเดลชีต: สรุป + ชีตละบริษัท · ค่าในเซลล์ตามแบบฟอร์ม', () => {
-    const model = buildSheetModel(data, { exportDate: TODAY });
-    expect(model.sheets.map((s) => s.name)).toEqual(['สรุป', 'AS', 'CIC', 'CNS', 'HL', 'PRO']);
-    expect(model.fileName).toBe('แจ้งเข้า-ออก ไทยประกันชีวิต 2026-11-05');
-    const sheet = model.sheets.find((s) => s.name === data.companies.find((c) => c.in.length).companyCode);
-    const first = data.companies.find((c) => c.companyCode === sheet.name).in[0];
-    const dataRow = Math.max(...sheet.headerRows) + 1;
-    const at = (c) => sheet.cells.find((x) => x.r === dataRow && x.c === c)?.v;
-    expect(at(0)).toBe(1);
-    expect(at(1)).toBe(first.employee.empCode);
-    expect(at(2)).toBe(`${first.employee.title}${first.employee.firstName} ${first.employee.lastName}`);
-    expect(at(13)).toBe('P'); // เข้าใหม่
-    expect(at(14)).toBe(''); // ลาออก
-    expect(at(17)).toBe('05/11/2026'); // วันที่มีผล = วันที่รอบ (ค.ศ.)
-    expect(sheet.cells.some((x) => String(x.v).includes('จี3-8002')) || sheet.name !== 'CNS').toBe(true);
-    const summary = model.sheets[0];
-    const total = summary.cells.filter((x) => x.r === 4 + data.companies.length && x.c === 6)[0].v;
-    expect(total).toBe(data.companies.reduce((a, c) => a + c.in.length + c.out.length, 0));
-  });
   it('CSV: ตารางเดียว คอลัมน์แรก = บริษัท', () => {
     const csv = exportCsvRows(data);
     expect(csv.header[0]).toBe('บริษัท');
-    expect(csv.header.length).toBe(THAI_LIFE.columns.length + 1);
+    expect(csv.header.length).toBe(THAI_LIFE.template.columns.filter((c) => c.source !== 'blank').length + 1);
     expect(csv.rows.length).toBe(data.companies.reduce((a, c) => a + c.in.length + c.out.length, 0));
   });
 });
@@ -128,7 +98,7 @@ describe('MockApi: ส่งออก = บันทึกว่าแจ้ง�
   it('CRUD แบบฟอร์ม + ตรวจบริษัทซ้ำ', async () => {
     const api = new MockApi(() => TODAY);
     const [mt] = (await api.listInsurers()).filter((f) => f.id === 2);
-    await expect(api.saveInsurer({ ...mt, active: true })).rejects.toBeInstanceOf(ApiError);
+    await expect(api.saveInsurer({ ...mt, active: true, companies: [{ companyCode: 'HL', policyNo: '', holderName: '', plan: '1' }] })).rejects.toBeInstanceOf(ApiError);
     const created = await api.saveInsurer({ ...mt, id: 0, name: 'ทดสอบ', shortName: 'ทดสอบ', active: false });
     expect(created.id).toBe(3);
     const upd = await api.saveInsurer({ ...created, companies: [{ companyCode: 'HL', policyNo: 'X-1', holderName: '', plan: '2' }] });

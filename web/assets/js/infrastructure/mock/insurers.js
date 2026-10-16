@@ -1,14 +1,12 @@
-// แบบฟอร์มตั้งต้นของบริษัทประกัน 2 ราย — จำลองโครงสร้างจากไฟล์ที่ HR ใช้จริง
-//   ไทยประกันชีวิต   ← "1. แจ้งเข้า-ออก 5-2-2569.xls"     (ตารางเดียว 20 คอลัมน์ · เครื่องหมาย P)
-//   เมืองไทยประกันชีวิต ← "1 PMAV-แจ้งเข้า ยกเลิก ก.พ. 68.xlsx" (หัวตาราง 2 ชั้น: เข้าใหม่ / ยกเลิก / เปลี่ยนแปลง)
-// ข้อมูลผู้แจ้ง (ชื่อ/โทร) เว้นว่างไว้ให้ HR กรอกในหน้า "แบบฟอร์มประกัน"
-const SUMMARY_TITLE = 'สรุปข้อมูลประกันชีวิตกลุ่ม สำหรับพนักงานกลุ่มบริษัทในเครือแฮปปี้แลนด์';
-const SIGNER = { name: '', department: 'สวัสดิการ สรรหา และฝึกอบรม · ฝ่ายบริหารทรัพยากรบุคคล', phone: '' };
-
-const col = (source, header, width, extra = {}) => ({ source, header, width, group: '', only: '', ...extra });
+// แบบฟอร์มตั้งต้นของบริษัทประกัน 2 ราย — ไฟล์ Excel อยู่ที่ assets/templates/ (โครงเดียวกับไฟล์ที่ HR ใช้ ไม่มีข้อมูลบุคคล)
+//   ไทยประกันชีวิต     ← โครงตาม "1. แจ้งเข้า-ออก 5-2-2569.xls"
+//   เมืองไทยประกันชีวิต ← โครงตาม "1 PMAV-แจ้งเข้า ยกเลิก ก.พ. 68.xlsx"
+// ตำแหน่ง (layout) ได้จากการอ่านไฟล์อัตโนมัติ (application/usecases/templateDetect.js) แบบเดียวกับตอน HR อัปโหลด
+// HR อัปโหลดไฟล์จริงของตัวเองแทนได้ที่หน้า "แบบฟอร์มประกัน" · ข้อมูลผู้แจ้ง (ชื่อ/โทร) เว้นว่างให้ HR กรอก
+const SIGNER = { name: '', department: 'สวัสดิการ สรรหา และฝึกอบรม', phone: '' };
+const SYSTEM = 'ระบบ (แบบฟอร์มตั้งต้น)';
 
 export function defaultInsurers() {
-  const MT = 'ประกันชีวิตกลุ่มและประกันสุขภาพกลุ่ม';
   return [
     {
       id: 1,
@@ -26,103 +24,447 @@ export function defaultInsurers() {
       dateEra: 'CE',
       inMark: 'P',
       outMark: 'P',
-      sheetName: '{companyCode}',
       fileName: 'แจ้งเข้า-ออก {insurer} {cycleDate}',
-      headerLines: [
-        { text: 'บริษัท ไทยประกันชีวิต จำกัด (มหาชน)', align: 'center', bold: true, size: 14 },
-        { text: 'รายการแจ้งปรับปรุงข้อมูลพนักงานระหว่างปีกรมธรรม์', align: 'center', bold: true, size: 12 },
-        { text: 'เลขที่กรมธรรม์ : {policyNo}        ชื่อผู้ถือกรมธรรม์ : {companyName}        ประจำเดือน {month}', align: 'left', bold: false, size: 11 },
-      ],
-      columns: [
-        col('seq', 'ลำดับที่\n(No)', 6),
-        col('empCode', 'รหัสพนักงาน\n(Emp. Code)', 11),
-        col('titleFullName', 'รายชื่อผู้เอาประกัน\n(Insured Name)', 28),
-        col('gender', 'เพศ\n(Sex)', 6, { only: 'IN' }),
-        col('blank', 'สถานะ\nพนักงาน (E)', 8),
-        col('birthDate', 'วันเดือนปีเกิด\n(Date of Birth)', 12, { only: 'IN' }),
-        col('position', 'ตำแหน่ง\n(Position)', 14, { only: 'IN' }),
-        col('nationalId', 'เลขที่\nบัตรประชาชน\n(ID card No.)', 16, { only: 'IN' }),
-        col('blank', 'ธนาคาร\n(Bank)', 9),
-        col('blank', 'เลขที่บัญชี\n(Account No.)', 12),
-        col('phone', 'หมายเลข\nโทรศัพท์มือถือ\n(Telephone number)', 13, { only: 'IN' }),
-        col('email', 'อีเมล์\n(E-Mail)', 16, { only: 'IN' }),
-        col('plan', 'แผนประกัน\n(Plan)', 8),
-        col('inMark', 'เข้าใหม่\n(New)', 8),
-        col('outMark', 'ลาออก\n(Retire)', 8),
-        col('blank', 'เปลี่ยนแปลง\n(Changed)', 9),
-        col('blank', 'มรณกรรม\n(Death)', 8),
-        col('cycleDate', 'วันที่มีผลบังคับ\n(Effective date)\nวัน / เดือน / ปี\n(DD/MM/YYYY)', 14),
-        col('blank', 'ใบคำขอ\nเอาประกันภัย\n(Application Form)', 11),
-        col('blank', 'หมายเหตุ\n(Remark)', 14),
-      ],
-      totalsLine: '',
-      footerLines: [
-        'หมายเหตุ : 1. วันที่มีผลบังคับของรายการลาออก หมายถึงวันที่พนักงานไม่ได้มาทำงานแล้ว',
-        '2. หากเป็นการเปลี่ยนแปลงโปรดระบุรายการที่เปลี่ยนแปลงในหมายเหตุ เช่น เปลี่ยนชื่อ-สกุล / ปรับเงินเดือน / บัตรหาย / โอนย้ายบริษัท',
-        '3. กรณีมีพนักงานลาออกและแจ้งล่าช้า หากมีค่ารักษาพยาบาลที่พนักงานนำไปใช้หลังวันลาออก ผู้ถือกรมธรรม์จะต้องเป็นผู้รับผิดชอบค่าใช้จ่ายที่เกิดขึ้น',
-        '',
-        'ผู้แจ้ง {signerName}        โทรศัพท์ติดต่อ {signerPhone}        วันที่แจ้ง {exportDate}',
-      ],
-      summarySheet: true,
-      summaryTitle: SUMMARY_TITLE,
+      sheetName: '{companyCode}',
       includeEmptySheets: true,
       signer: { ...SIGNER },
+      template: {
+        fileName: 'แจ้งเข้า-ออก ไทยประกันชีวิต (แบบฟอร์มตั้งต้น).xlsx',
+        url: 'assets/templates/thai-life.xlsx',
+        uploadedAt: null,
+        uploadedBy: SYSTEM,
+        converted: false,
+        ...{
+        sheet: 'AS',
+        headerRow: 8,
+        headerEnd: 10,
+        dataRow: 11,
+        footerRow: 12,
+        columns: [
+          {
+            col: 1,
+            header: 'ลำดับที่ (No)',
+            group: '',
+            source: 'seq',
+            only: ''
+          },
+          {
+            col: 2,
+            header: 'รหัสพนักงาน (Emp. Code)',
+            group: '',
+            source: 'empCode',
+            only: ''
+          },
+          {
+            col: 3,
+            header: 'รายชื่อผู้เอาประกัน (Insured Name)',
+            group: '',
+            source: 'titleFullName',
+            only: ''
+          },
+          {
+            col: 4,
+            header: 'เพศ (Sex)',
+            group: '',
+            source: 'gender',
+            only: 'IN'
+          },
+          {
+            col: 5,
+            header: 'สถานะ พนักงาน (E)',
+            group: '',
+            source: 'blank',
+            only: ''
+          },
+          {
+            col: 6,
+            header: 'วันเดือนปีเกิด (Date of Birth)',
+            group: '',
+            source: 'birthDate',
+            only: 'IN'
+          },
+          {
+            col: 7,
+            header: 'ตำแหน่ง (Position)',
+            group: '',
+            source: 'position',
+            only: 'IN'
+          },
+          {
+            col: 8,
+            header: 'เลขที่ บัตรประชาชน (ID card No.)',
+            group: '',
+            source: 'nationalId',
+            only: 'IN'
+          },
+          {
+            col: 9,
+            header: 'ธนาคาร (Bank)',
+            group: '',
+            source: 'blank',
+            only: ''
+          },
+          {
+            col: 10,
+            header: 'เลขที่บัญชี (Account No.)',
+            group: '',
+            source: 'blank',
+            only: ''
+          },
+          {
+            col: 11,
+            header: 'หมายเลข โทรศัพท์มือถือ (Telephone number)',
+            group: '',
+            source: 'phone',
+            only: 'IN'
+          },
+          {
+            col: 12,
+            header: 'อีเมล์ (E-Mail)',
+            group: '',
+            source: 'email',
+            only: 'IN'
+          },
+          {
+            col: 13,
+            header: 'แผนประกัน (Plan)',
+            group: '',
+            source: 'plan',
+            only: 'IN'
+          },
+          {
+            col: 14,
+            header: 'เข้าใหม่ (New)',
+            group: '',
+            source: 'inMark',
+            only: ''
+          },
+          {
+            col: 15,
+            header: 'ลาออก (Retire)',
+            group: '',
+            source: 'outMark',
+            only: ''
+          },
+          {
+            col: 16,
+            header: 'เปลี่ยนแปลง (Changed)',
+            group: '',
+            source: 'blank',
+            only: ''
+          },
+          {
+            col: 17,
+            header: 'มรณกรรม (Death)',
+            group: '',
+            source: 'blank',
+            only: ''
+          },
+          {
+            col: 18,
+            header: 'วันที่มีผลบังคับ (Effective date) วัน / เดือน / ปี (DD/MM/YYYY)',
+            group: '',
+            source: 'cycleDate',
+            only: ''
+          },
+          {
+            col: 19,
+            header: 'ใบคำขอ เอาประกันภัย (Application Form)',
+            group: '',
+            source: 'blank',
+            only: ''
+          },
+          {
+            col: 20,
+            header: 'หมายเหตุ (Remark)',
+            group: '',
+            source: 'blank',
+            only: ''
+          }
+        ],
+        cells: {
+          C6: '{policyNo}',
+          H6: '{companyName}',
+          T6: '{month}',
+          N13: '{signerName}',
+          N14: '{signerPhone}',
+          N15: '{exportDate}'
+        },
+        summary: {
+          sheet: 'สรุป',
+          headerRow: 4,
+          headerEnd: 4,
+          dataRow: 5,
+          footerRow: 6,
+          columns: [
+            {
+              col: 1,
+              header: 'ลำดับ',
+              group: '',
+              source: 'seq',
+              only: ''
+            },
+            {
+              col: 2,
+              header: 'สังกัดบริษัท',
+              group: '',
+              source: 'companyName',
+              only: ''
+            },
+            {
+              col: 3,
+              header: 'ตัวย่อ',
+              group: '',
+              source: 'companyCode',
+              only: ''
+            },
+            {
+              col: 4,
+              header: 'แจ้งเข้าใหม่',
+              group: '',
+              source: 'in',
+              only: ''
+            },
+            {
+              col: 5,
+              header: 'แจ้งออก',
+              group: '',
+              source: 'out',
+              only: ''
+            },
+            {
+              col: 6,
+              header: 'โอนย้าย/เปลี่ยนแปลง',
+              group: '',
+              source: 'change',
+              only: ''
+            },
+            {
+              col: 7,
+              header: 'รวม',
+              group: '',
+              source: 'total',
+              only: ''
+            }
+          ],
+          cells: {
+            A3: 'ประจำเดือน  {month}',
+            D6: '{in}',
+            E6: '{out}',
+            F6: '0',
+            G6: '{total}'
+          }
+        }
+      },
+      },
     },
     {
       id: 2,
       name: 'บริษัท เมืองไทยประกันชีวิต จำกัด (มหาชน)',
       shortName: 'เมืองไทยประกันชีวิต',
-      // ปิดไว้ก่อน: ไฟล์ล่าสุด (ก.พ. 69) ส่งไทยประกันชีวิตครบทุกบริษัท — เปิดใช้แล้วย้ายบริษัทมาที่แบบฟอร์มนี้ได้
+      // ปิดไว้ก่อน: ไฟล์ล่าสุด (ก.พ. 69) ส่งไทยประกันชีวิตครบทุกบริษัท — ผูกบริษัทใหม่ได้ที่หน้า "แบบฟอร์มประกัน"
       active: false,
-      companies: [
-        { companyCode: 'AS', policyNo: '', holderName: 'บริษัท อาเชี่ยน คอนสตรั๊คชั่น จำกัด', plan: '1' },
-        { companyCode: 'CNS', policyNo: '', holderName: 'บริษัท คลีนนิ่ง โซลูชั่น จำกัด', plan: '1' },
-        { companyCode: 'HL', policyNo: '', holderName: 'บริษัท แฮปปี้แลนด์ จำกัด', plan: '1' },
-        { companyCode: 'PRO', policyNo: '', holderName: 'บริษัท โปรแอ็คทีฟ แมเนจเม้นท์ จำกัด', plan: '1' },
-      ],
+      companies: [],
       dateFormat: 'D/M/YYYY',
       dateEra: 'BE',
       inMark: 'P',
       outMark: 'P',
-      sheetName: '{companyCode}',
       fileName: 'PMAV-แจ้งเข้า ยกเลิก {insurer} {cycleDate}',
-      headerLines: [
-        { text: 'บริษัท เมืองไทยประกันชีวิต จำกัด (มหาชน)        โทรสาร 02-277-9170', align: 'center', bold: true, size: 14 },
-        { text: 'แบบฟอร์มแจ้งสมาชิก เข้าใหม่ / ยกเลิก / เปลี่ยนแปลง', align: 'center', bold: true, size: 12 },
-        { text: 'ประกันชีวิตกลุ่ม ประกันสุขภาพกลุ่ม และสัญญาเพิ่มเติม', align: 'center', bold: true, size: 12 },
-        { text: 'วันที่แจ้ง {exportDate}', align: 'left', bold: false, size: 11 },
-        { text: 'ชื่อนายจ้าง / ผู้ถือกรมธรรม์  {companyName}', align: 'left', bold: false, size: 11 },
-        { text: 'เลขที่กรมธรรม์ : ชีวิตกลุ่ม  {policyNo}', align: 'left', bold: false, size: 11 },
-      ],
-      columns: [
-        col('seq', 'ลำดับ', 7),
-        col('empCode', 'รหัสพนักงาน', 12),
-        col('titleFullName', 'ชื่อ - สกุล สมาชิก', 33),
-        col('plan', 'แผนประกัน', 9, { group: `${MT} > เข้าใหม่` }),
-        col('inEffectiveDate', 'วันที่มีผลบังคับ', 12, { group: `${MT} > เข้าใหม่` }),
-        col('birthDate', 'ว/ด/ป/ เกิด', 12, { group: `${MT} > เข้าใหม่`, only: 'IN' }),
-        col('salary', 'เงินเดือน', 11, { group: `${MT} > เข้าใหม่`, only: 'IN' }),
-        col('nationalId', 'เลขที่บัตรประชาชน', 18, { group: `${MT} > เข้าใหม่`, only: 'IN' }),
-        col('outEffectiveDate', 'วันที่มีผลบังคับ', 12, { group: `${MT} > ยกเลิก` }),
-        col('blank', 'ความคุ้มครอง\nจากแผน', 9, { group: `${MT} > เปลี่ยนแปลง` }),
-        col('blank', 'ความคุ้มครอง\nเป็นแผน', 9, { group: `${MT} > เปลี่ยนแปลง` }),
-        col('blank', 'วันที่มีผลบังคับ', 12, { group: `${MT} > เปลี่ยนแปลง` }),
-        col('blank', 'หมายเลขบัญชี', 15),
-        col('blank', 'เปลี่ยนแปลงอื่นๆ (ระบุ)\nเช่น เลขที่บัญชี', 28, { group: 'หมายเหตุ' }),
-      ],
-      totalsLine: 'เข้าใหม่ {in} คน        เปลี่ยนแปลง 0 คน        ลาออก {out} คน        รวมทั้งหมด {total} คน',
-      footerLines: [
-        'ลงชื่อผู้แจ้ง  {signerName}',
-        'แผนก / ฝ่าย  {signerDept}',
-        'โทร  {signerPhone}',
-        'วันที่  {exportDate}',
-        '',
-        'บันทึกโดยบริษัท เมืองไทยประกันชีวิต จำกัด (มหาชน)    (ลงนาม) ......................................    วันที่ ......................................',
-      ],
-      summarySheet: true,
-      summaryTitle: SUMMARY_TITLE,
+      sheetName: '{companyCode}',
       includeEmptySheets: true,
       signer: { ...SIGNER },
+      template: {
+        fileName: 'PMAV-แจ้งเข้า ยกเลิก (แบบฟอร์มตั้งต้น).xlsx',
+        url: 'assets/templates/muang-thai.xlsx',
+        uploadedAt: null,
+        uploadedBy: SYSTEM,
+        converted: false,
+        ...{
+        sheet: 'AS',
+        headerRow: 8,
+        headerEnd: 11,
+        dataRow: 12,
+        footerRow: 13,
+        columns: [
+          {
+            col: 1,
+            header: 'ลำดับ',
+            group: '',
+            source: 'seq',
+            only: ''
+          },
+          {
+            col: 2,
+            header: 'รหัสพนักงาน',
+            group: '',
+            source: 'empCode',
+            only: ''
+          },
+          {
+            col: 3,
+            header: 'ชื่อ - สกุล สมาชิก',
+            group: '',
+            source: 'titleFullName',
+            only: ''
+          },
+          {
+            col: 4,
+            header: 'แผนประกัน',
+            group: 'ประกันชีวิตกลุ่มและประกันสุขภาพกลุ่ม > เข้าใหม่',
+            source: 'plan',
+            only: 'IN'
+          },
+          {
+            col: 5,
+            header: 'วันที่มีผลบังคับ',
+            group: 'ประกันชีวิตกลุ่มและประกันสุขภาพกลุ่ม > เข้าใหม่',
+            source: 'inEffectiveDate',
+            only: ''
+          },
+          {
+            col: 6,
+            header: 'ว/ด/ป/ เกิด',
+            group: 'ประกันชีวิตกลุ่มและประกันสุขภาพกลุ่ม > เข้าใหม่',
+            source: 'birthDate',
+            only: 'IN'
+          },
+          {
+            col: 7,
+            header: 'เงินเดือน',
+            group: 'ประกันชีวิตกลุ่มและประกันสุขภาพกลุ่ม > เข้าใหม่',
+            source: 'salary',
+            only: 'IN'
+          },
+          {
+            col: 8,
+            header: 'เลขที่บัตรประชาชน',
+            group: 'ประกันชีวิตกลุ่มและประกันสุขภาพกลุ่ม > เข้าใหม่',
+            source: 'nationalId',
+            only: 'IN'
+          },
+          {
+            col: 9,
+            header: 'ยกเลิก วันที่มีผลบังคับ',
+            group: 'ประกันชีวิตกลุ่มและประกันสุขภาพกลุ่ม',
+            source: 'outEffectiveDate',
+            only: ''
+          },
+          {
+            col: 10,
+            header: 'จากแผน',
+            group: 'เปลี่ยนแปลง > ความคุ้มครอง',
+            source: 'blank',
+            only: ''
+          },
+          {
+            col: 11,
+            header: 'เป็นแผน',
+            group: 'เปลี่ยนแปลง > ความคุ้มครอง',
+            source: 'blank',
+            only: ''
+          },
+          {
+            col: 12,
+            header: 'วันที่มีผลบังคับ',
+            group: 'ประกันชีวิตกลุ่มและประกันสุขภาพกลุ่ม > เปลี่ยนแปลง',
+            source: 'blank',
+            only: ''
+          },
+          {
+            col: 13,
+            header: 'หมายเลขบัญชี',
+            group: '',
+            source: 'blank',
+            only: ''
+          },
+          {
+            col: 14,
+            header: 'หมายเหตุ เปลี่ยนแปลงอื่นๆ (ระบุ) เช่น เลขที่บัญชี',
+            group: '',
+            source: 'blank',
+            only: ''
+          }
+        ],
+        cells: {
+          B4: '{exportDate}',
+          A5: 'ชื่อนายจ้าง / ผู้ถือกรรมธรรม์  {companyName}',
+          A6: 'เลขที่กรมธรรม์ : ชีวิตกลุ่ม {policyNo}',
+          C15: '{in}',
+          F15: '0',
+          I15: '{out}',
+          L15: '{total}',
+          C17: '{signerName}',
+          C18: '{signerDept}',
+          C20: '{signerPhone}',
+          C21: '{exportDate}'
+        },
+        summary: {
+          sheet: 'สรุป',
+          headerRow: 4,
+          headerEnd: 4,
+          dataRow: 5,
+          footerRow: 6,
+          columns: [
+            {
+              col: 1,
+              header: 'ลำดับ',
+              group: '',
+              source: 'seq',
+              only: ''
+            },
+            {
+              col: 2,
+              header: 'สังกัดบริษัท',
+              group: '',
+              source: 'companyName',
+              only: ''
+            },
+            {
+              col: 3,
+              header: 'ตัวย่อ',
+              group: '',
+              source: 'companyCode',
+              only: ''
+            },
+            {
+              col: 4,
+              header: 'แจ้งเข้าใหม่',
+              group: '',
+              source: 'in',
+              only: ''
+            },
+            {
+              col: 5,
+              header: 'แจ้งออก',
+              group: '',
+              source: 'out',
+              only: ''
+            },
+            {
+              col: 6,
+              header: 'โอนย้าย/เปลี่ยนแปลง',
+              group: '',
+              source: 'change',
+              only: ''
+            },
+            {
+              col: 7,
+              header: 'รวม',
+              group: '',
+              source: 'total',
+              only: ''
+            }
+          ],
+          cells: {
+            A3: 'ประจำเดือน  {month}',
+            D6: '{in}',
+            E6: '{out}',
+            F6: '0',
+            G6: '{total}'
+          }
+        }
+      },
+      },
     },
   ];
 }

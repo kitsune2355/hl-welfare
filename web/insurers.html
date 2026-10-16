@@ -19,24 +19,17 @@
     </script>
   </head>
   <body>
-    <!-- insurers.html?id=<แบบฟอร์ม>|new — ตั้งค่าแบบฟอร์ม Excel แจ้งเข้า-ออกของบริษัทประกัน (CRUD) -->
+    <!-- insurers.html                       ภาพรวม: บริษัทประกัน (ไฟล์แบบฟอร์ม) + ผูกบริษัทในเครือ ↔ บริษัทประกัน
+         insurers.html?id=<id>|new&step=   แก้แบบฟอร์ม: ไฟล์ → ตำแหน่งข้อมูล → ตั้งค่าการส่งออก -->
     <main id="page" class="page">
       <div class="page-head">
         <div>
           <h1>แบบฟอร์มประกัน</h1>
-          <p>หน้าตาไฟล์ Excel ที่ส่งออกให้บริษัทประกันแต่ละราย — บริษัทในเครือที่ใช้ เลขกรมธรรม์ คอลัมน์ หัว/ท้ายเอกสาร</p>
+          <p>อัปโหลดไฟล์ Excel ที่บริษัทประกันใช้ → ระบบอ่านตำแหน่งให้ → ผูกว่าบริษัทในเครือไหนส่งแจ้งกับบริษัทประกันไหน</p>
         </div>
-        <div class="page-actions">
-          <button class="btn btn-primary" id="add"><i data-icon="plus"></i> เพิ่มแบบฟอร์ม</button>
-        </div>
+        <div class="page-actions" id="head-actions"></div>
       </div>
-
-      <div class="ins-layout">
-        <!-- รายการแบบฟอร์ม -->
-        <aside class="ins-list" id="list" aria-label="แบบฟอร์มทั้งหมด"></aside>
-        <!-- ตัวแก้ไข (สร้างจาก JS) -->
-        <form class="ins-editor" id="editor" novalidate></form>
-      </div>
+      <div id="view"></div>
     </main>
     <script type="module" src="assets/js/pages/insurers.js"></script>
   </body>

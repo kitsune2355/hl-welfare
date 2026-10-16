@@ -172,7 +172,9 @@ hl-welfare/
 │       ├── css/app.css                ← design tokens (gradient น้ำเงิน→เขียว) + ทุก component + ธีม tour
 │       ├── css/login.css              ← หน้าเข้าสู่ระบบ + อนิเมชัน
 │       ├── vendor/driver.js/          ← driver.js 1.8.0 (MIT) เก็บในโปรเจกต์ ไม่ต้องพึ่ง CDN
-│       ├── vendor/exceljs/            ← ExcelJS 4.4.0 (MIT) สร้างไฟล์ .xlsx — โหลดเมื่อกดส่งออกครั้งแรกเท่านั้น
+│       ├── vendor/exceljs/            ← ExcelJS 4.4.0 (MIT) อ่าน/เขียน .xlsx พร้อมรูปแบบ — โหลดเมื่อใช้ครั้งแรก
+│       ├── vendor/sheetjs/            ← SheetJS 0.18.5 (Apache-2.0) แปลงไฟล์ .xls → .xlsx ตอนอัปโหลด — โหลดเมื่อใช้ครั้งแรก
+│       ├── templates/                 ← ไฟล์แบบฟอร์มตั้งต้น (thai-life.xlsx, muang-thai.xlsx) โครงเดียวกับไฟล์ของ HR ไม่มีข้อมูลบุคคล
 │       └── js/
 │           ├── config.js              ← ★ ตั้งค่า: apiMode 'mock' | 'http', apiBaseUrl, auth (เปิด/ปิด login, อายุ session)
 │           ├── domain/                ← ① กฎสวัสดิการ (pure)
@@ -190,7 +192,7 @@ hl-welfare/
 │           │   ├── errors.js          ← ApiError(message, status)
 │           │   ├── employeeRules.js   ← validateEmployee, normalizeEmployee
 │           │   ├── insurerFormRules.js ← validateInsurerForm, blankInsurerForm
-│           │   └── usecases/          ← dashboard, insuranceCycle, insurerExport (ไฟล์แจ้งประกัน), uniformPending, workQueue
+│           │   └── usecases/          ← dashboard, insuranceCycle, insurerExport (ใครอยู่ในไฟล์ + ค่าในเซลล์), templateDetect (อ่านตำแหน่งในไฟล์แบบฟอร์ม), uniformPending, workQueue
 │           ├── infrastructure/        ← ③ adapter
 │           │   ├── mock/              ← rules.js (กฎตั้งต้น), insurers.js (แบบฟอร์มตั้งต้น 2 บริษัทประกัน), seed.js (ข้อมูลจำลอง), users.js (ผู้ใช้ทดลอง), mockApi.js
 │           │   └── http/httpApi.js    ← fetch → PHP (เฟส 2)
@@ -202,8 +204,9 @@ hl-welfare/
 │           │   ├── combobox.js        ← <select data-combobox> ค้นหาได้
 │           │   ├── columnFilter.js    ← กรอง/เรียงที่หัวคอลัมน์ (ใช้ใน table.js และ datagrid.js)
 │           │   ├── loading.js         ← progress (แถบบนสุด), loader, spinner, busy
+│           │   ├── sheetPreview.js    ← แสดงชีต Excel เป็นตาราง (ระบายสีส่วน/คอลัมน์/เซลล์อัตโนมัติ)
 │           │   └── overlay.js         ← toast, openModal, confirmAction
-│           ├── app/                   ← ⑥ api.js, auth.js (session/login/logout), shell.js, tour.js
+│           ├── app/                   ← ⑥ api.js, auth.js (session/login/logout), shell.js, tour.js, excelTemplate.js (อ่าน/ล้าง/เติมไฟล์แบบฟอร์ม)
 │           ├── tour/                  ← ★ แนะนำการใช้งาน (driver.js) — dev ปรับได้
 │           │   ├── tour.config.js     ← ตั้งค่า: เปิด/ปิด, เปิดอัตโนมัติ, ข้อความปุ่ม, สีพื้นหลัง ฯลฯ
 │           │   └── steps.js           ← เนื้อหาแนะนำของแต่ละหน้า
@@ -485,20 +488,34 @@ export interface InsurerForm {
   id: number;
   name: string;                    // บริษัท ไทยประกันชีวิต จำกัด (มหาชน)
   shortName: string;               // ใช้ในชื่อไฟล์/หน้าส่งออก
-  active: boolean;                 // ปิด = ไม่แสดงในหน้าส่งออก
-  companies: { companyCode: CompanyCode; policyNo: string; holderName: string; plan: string }[];
+  active: boolean;                 // ปิด = ไม่แสดงในหน้าส่งออก (เปิดใช้ได้เมื่อมีไฟล์แบบฟอร์ม)
+  companies: { companyCode: CompanyCode; policyNo: string; holderName: string; plan: string }[]; // ผูกที่ตาราง "บริษัทในเครือส่งแจ้งกับบริษัทประกันไหน"
   dateFormat: 'DD/MM/YYYY' | 'D/M/YYYY' | 'D/M/YY';
   dateEra: 'BE' | 'CE';
   inMark: string; outMark: string; // เครื่องหมายในช่องเข้าใหม่/ลาออก เช่น "P"
   sheetName: string;               // ชื่อชีตต่อบริษัท เช่น "{companyCode}"
   fileName: string;                // เช่น "แจ้งเข้า-ออก {insurer} {cycleDate}"
-  headerLines: { text: string; align: 'left' | 'center'; bold: boolean; size: number }[];
-  columns: { source: ColumnSource; header: string; group: string; width: number; only: '' | 'IN' | 'OUT'; text?: string }[];
-  totalsLine: string;              // บรรทัดสรุปจำนวนใต้ตาราง (ว่าง = ไม่แสดง)
-  footerLines: string[];
-  summarySheet: boolean; summaryTitle: string;
   includeEmptySheets: boolean;
   signer: { name: string; department: string; phone: string };
+  template: InsurerTemplate | null; // ไฟล์ Excel ที่ HR อัปโหลด
+}
+
+/** ไฟล์แบบฟอร์ม + ตำแหน่งที่ระบบอ่านให้ (แก้ได้) — แถว/คอลัมน์เริ่มที่ 1 แบบ Excel */
+export interface TemplateLayout {
+  sheet: string;                   // ชื่อชีตในไฟล์
+  headerRow: number; headerEnd: number; // หัวตาราง (หลายแถวได้)
+  dataRow: number;                 // แถวข้อมูลต้นแบบ — ทุกแถวที่สร้างใช้รูปแบบแถวนี้
+  footerRow: number;               // ส่วนท้ายเริ่มแถวนี้ — เลื่อนลงตามจำนวนคน
+  columns: { col: number; header: string; group: string; source: ColumnSource | SummarySource; only: '' | 'IN' | 'OUT' }[];
+  cells: Record<string, string>;   // { 'C6': '{policyNo}', 'A5': 'ชื่อนายจ้าง / ผู้ถือกรมธรรม์  {companyName}' }
+}
+export interface InsurerTemplate extends TemplateLayout {
+  fileName: string;
+  data?: string;                   // ไฟล์ .xlsx (base64) หลังล้างข้อมูลบุคคล — หรือ
+  url?: string;                    // ไฟล์ตั้งต้นใน assets/templates/
+  converted: boolean;              // แปลงจาก .xls
+  uploadedAt: string | null; uploadedBy: string;
+  summary: TemplateLayout | null;  // ชีตสรุป (1 แถว = 1 บริษัท)
 }
 
 /** POST /insurance/exports — ข้อมูลสำหรับสร้างไฟล์ (usecase: buildInsurerExport) */
@@ -683,45 +700,34 @@ entitlements (limit = min(endDate, today)):
 
 ---
 
-### 7.4 ส่งออกไฟล์แจ้งบริษัทประกัน (แทนปุ่ม "ส่งแจ้ง")
-HR ใช้บริษัทประกันหลัก 2 ราย และส่ง**ไฟล์ Excel ตามแบบฟอร์มของแต่ละราย**ทุกรอบ (วันที่ 5) — ระบบจึงไม่มีปุ่มส่งแจ้ง แต่สร้างไฟล์ให้ตรงแบบฟอร์มแทน
+### 7.4 ส่งออกไฟล์แจ้งบริษัทประกัน — เติมลงไฟล์แบบฟอร์มที่ HR อัปโหลด
+HR ใช้บริษัทประกันหลัก 2 ราย แต่ละรายมี**ไฟล์ Excel แบบฟอร์มของตัวเอง** — ระบบไม่สร้างหน้าตาไฟล์เอง แต่ **เติมรายชื่อลงไฟล์แบบฟอร์มนั้น** (คงตัวอักษร เส้นขอบ merge ความกว้าง หมายเหตุ ช่องลงนาม ทุกอย่าง)
 
-| บริษัทประกัน | ไฟล์ต้นแบบที่ HR ใช้ | โครงสร้าง |
-|---|---|---|
-| ไทยประกันชีวิต (เปิดใช้ · ทุกบริษัท) | `1. แจ้งเข้า-ออก 5-2-2569.xls` | ชีตสรุป + ชีตละบริษัท · หัว: ชื่อบริษัทประกัน / "รายการแจ้งปรับปรุงข้อมูลพนักงานระหว่างปีกรมธรรม์" / เลขกรมธรรม์ + ผู้ถือกรมธรรม์ + เดือน · ตาราง 20 คอลัมน์ (ลำดับ, รหัส, ชื่อ, เพศ, …, เลขบัตร, …, แผน, เข้าใหม่ **P**, ลาออก **P**, …, วันที่มีผล) · หมายเหตุ 3 ข้อ + ผู้แจ้ง |
-| เมืองไทยประกันชีวิต (ปิดไว้ · ใช้แบบเดิม ก.พ. 68) | `1 PMAV-แจ้งเข้า ยกเลิก ก.พ. 68.xlsx` | ชีตสรุป + ชีตละบริษัท · หัวตาราง **2 ชั้น**: ประกันชีวิตกลุ่มฯ › เข้าใหม่ (แผน, วันมีผล, วันเกิด, เงินเดือน, เลขบัตร) / ยกเลิก (วันมีผล) / เปลี่ยนแปลง · บรรทัดสรุปจำนวน + ช่องลงนาม |
+**ขั้นตอนในหน้า "แบบฟอร์มประกัน"**
+1. **อัปโหลดไฟล์** (.xlsx / .xls — .xls แปลงด้วย SheetJS; เส้นขอบบางส่วนอาจหาย ระบบใส่ให้หัวตาราง+แถวข้อมูล) → ระบบอ่านตำแหน่งให้ (`templateDetect.js`)
+2. **ตรวจตำแหน่งบนตัวอย่างไฟล์จริง** — คลิกคอลัมน์/เซลล์เพื่อแก้
+3. **ตั้งค่าการส่งออก** (เปิดใช้, รูปแบบวันที่, เครื่องหมาย, ชื่อไฟล์/ชีต, ผู้แจ้ง) + **ทดลองสร้างไฟล์** ด้วยข้อมูลสมมติ
+4. **บันทึก** → ล้างรายชื่อพนักงานในไฟล์ (ข้อมูลบุคคล) + เซลล์ที่ระบบเติม + ชีตที่ไม่ใช้ แล้วเก็บไฟล์ (`sanitizeTemplate`)
+5. **ผูกบริษัท** ที่ตาราง "บริษัทในเครือส่งแจ้งกับบริษัทประกันไหน" (1 บริษัท = 1 บริษัทประกัน + เลขกรมธรรม์ + ผู้ถือกรมธรรม์ + แผน) → `saveInsurerBindings`
 
-**ใครอยู่ในไฟล์ (`buildInsurerExport`)**
-- ใช้รายการรอบเดียวกับข้อ 7.1 กรองเฉพาะบริษัทในเครือที่ผูกกับแบบฟอร์มนั้น
-- = ยังไม่ส่งออก (รวมตกค้างจากรอบก่อน + แจ้งออกทันที) + ที่ส่งออกให้บริษัทประกันนี้ในรอบนี้แล้ว → **ส่งออกซ้ำได้รายชื่อเดิม**
-- เรียงต่อชีต: แจ้งเข้า → แจ้งออก (แจ้งออกทันทีรวมในแจ้งออก) ตามรหัสพนักงาน
-- `missing`: แถวเข้าใหม่ที่ขาดข้อมูลที่แบบฟอร์มใช้ (คำนำหน้า / เพศ / เลขบัตร) → เตือนพร้อมลิงก์ไปแก้ (โทร/อีเมลไม่เตือน)
+**ระบบอ่านตำแหน่งอย่างไร (`detectLayout`)**
 
-**บันทึกว่าแจ้งแล้ว** (ติ๊กเป็นค่าเริ่มต้นในหน้าส่งออก)
-- สร้าง `InsuranceBatch` ต่อประเภท (IN / OUT / URGENT) พร้อม `insurerId`, `insurerName` → รายชื่อไม่ตกค้างไปรอบถัดไป
-- ส่งออกรอบเดิม + บริษัทประกันเดิมอีกครั้ง = **แทนที่** batch เดิมของรอบนั้น (ไม่ซ้ำ)
-- ยกเลิกได้ที่แท็บประวัติการส่งออก (รายชื่อกลับไป "ยังไม่ส่งออก")
-- ไม่ติ๊ก = ดาวน์โหลดดูอย่างเดียว ไม่บันทึก
-
-**แบบฟอร์ม (`InsurerForm`) — ตั้งค่าที่ `insurers.html`**
-- บริษัทในเครือ 1 บริษัทผูกกับแบบฟอร์มที่**เปิดใช้**ได้ 1 แบบ (`validateInsurerForm` ตรวจซ้ำ) · แต่ละบริษัทมีชื่อผู้ถือกรมธรรม์ เลขกรมธรรม์ แผนประกัน
-- คอลัมน์: เลือก**ข้อมูล**จาก `COLUMN_SOURCES` (`domain/insurerForm.js`)
-
-| ข้อมูล | ค่า |
+| ส่วน | วิธีหา |
 |---|---|
-| `seq` `empCode` `title` `fullName` `titleFullName` `firstName` `lastName` | ลำดับ / รหัส / คำนำหน้า / ชื่อ (คำนำหน้าติดชื่อ เช่น "นายสุพจน์ …") |
-| `gender` `birthDate` `nationalId` `position` `phone` `email` `salary` `startDate` | ข้อมูลพนักงาน (position = ตำแหน่ง หรือ ฝ่าย) |
-| `companyCode` `siteName` `plan` | บริษัท / หน่วยงาน / แผนประกันของบริษัทนั้น (เฉพาะแถวเข้า) |
-| `inMark` `outMark` | เครื่องหมาย เช่น P ในแถวเข้า / ออก |
-| `effectiveDate` `inEffectiveDate` `outEffectiveDate` `cycleDate` | วันมีผล (เข้า = วันครบสิทธิ, ออก = วันออก) / เฉพาะแถวเข้า / เฉพาะแถวออก / วันที่รอบ |
-| `reason` `text` `blank` | เหตุผล / ข้อความคงที่ / ว่างให้กรอกเอง |
+| หัวตาราง | แถวที่มีคำหัวตารางมากที่สุด (ลำดับ รหัสพนักงาน ชื่อ เกิด บัตรประชาชน เข้าใหม่ ลาออก …) แล้วขยายขึ้น/ลงตาม merge แนวตั้ง |
+| กลุ่ม / ชื่อคอลัมน์ | เซลล์ที่ merge กว้างหลายคอลัมน์ = กลุ่ม (เช่น "ประกันชีวิตกลุ่ม…", "เข้าใหม่") · เซลล์คอลัมน์เดียวซ้อนกัน = ชื่อคอลัมน์ต่อกัน |
+| ข้อมูลของคอลัมน์ | จากคำในหัว: บัตร → เลขบัตร (เฉพาะเข้า) · เกิด → วันเกิด (เฉพาะเข้า) · วันที่มีผล ใต้ "เข้าใหม่"/"ยกเลิก" → วันมีผลเฉพาะเข้า/ออก · เข้าใหม่/ลาออก → เครื่องหมาย · เปลี่ยนแปลง/ธนาคาร/หมายเหตุ → ว่าง |
+| แถวข้อมูล / ส่วนท้าย | แถวถัดจากหัวตาราง · ส่วนท้าย = แถวแรกที่ขึ้นต้น หมายเหตุ / ลงชื่อ / ผู้แจ้ง / เข้าใหม่ … คน (รวมแถวว่างที่คั่น) |
+| เซลล์ที่เติมอัตโนมัติ | ป้ายต้นเซลล์ → เซลล์ทางขวา หรือส่วนที่เว้นไว้กรอกในเซลล์เดียวกัน: เลขที่กรมธรรม์ → `{policyNo}` · ผู้ถือกรมธรรม์/ชื่อนายจ้าง → `{companyName}` · ประจำเดือน → `{month}` · วันที่แจ้ง → `{exportDate}` · ผู้แจ้ง/โทร/แผนก → ผู้แจ้ง · เข้าใหม่/ลาออก/รวมทั้งหมด (ท้าย) → จำนวน |
+| ชีตสรุป | ชีตชื่อ "สรุป" ที่มีหัว ลำดับ/สังกัด/ตัวย่อ/แจ้งเข้า/แจ้งออก/รวม · แถว "รวม" = ส่วนท้าย (เติมยอดรวม) |
 
-- `group` = "ชั้น 1 > ชั้น 2" → คอลัมน์ติดกันที่กลุ่มเดียวกัน merge แนวนอน, หัวที่ไม่มีกลุ่ม merge แนวตั้ง (`headerLayout`)
-- `only` = แสดงค่าเฉพาะแถวเข้า/ออก (เช่น วันเกิด เลขบัตร เฉพาะแถวเข้า ตามไฟล์จริง)
-- ตัวแปรในหัว/ท้ายเอกสาร/ชื่อไฟล์: `{insurer} {companyCode} {companyName} {policyNo} {month} {cycleDate} {exportDate} {in} {out} {total} {signerName} {signerDept} {signerPhone}`
-- วันที่เขียนเป็น**ข้อความ**ตามรูปแบบที่เลือก (พ.ศ./ค.ศ.) — เปิดเครื่องไหนก็ไม่เพี้ยน · เลขบัตรเป็นข้อความ (ไม่กลายเป็น 1.1E+12)
+**ส่งออก (`fillTemplate`)**: ชีตสรุป (ถ้ามี) + ชีตละบริษัทในเครือที่ผูก · คัดลอกส่วนบนตามเดิม → สร้างแถวข้อมูลตามจำนวนคน (รูปแบบจากแถวข้อมูลต้นแบบ) → ส่วนท้ายเลื่อนลงตาม (merge ในส่วนท้ายเลื่อนด้วย) → เติมเซลล์อัตโนมัติ · สร้างไฟล์สำเร็จก่อนแล้วค่อย "บันทึกว่าแจ้งแล้ว" · ไม่มีไฟล์แบบฟอร์ม = ส่งออก CSV ได้อย่างเดียว
 
-**สร้างไฟล์**: `buildSheetModel` (เซลล์ + merge + ความกว้าง, ทดสอบได้ใน Node) → `shared/excel.js` แปลงเป็น .xlsx ด้วย ExcelJS (เส้นขอบ, หัวตารางพื้นเทา ตัวหนา ตัดบรรทัด, ตรึงหัวตาราง, พิมพ์แนวนอนพอดี 1 หน้ากว้าง) · CSV = ตารางเดียวทุกบริษัท (`exportCsvRows`)
+**ใครอยู่ในไฟล์ / บันทึกว่าแจ้งแล้ว** (เหมือนเดิม)
+- `buildInsurerExport`: ยังไม่ส่งออก (รวมตกค้าง + แจ้งออกทันที) + ที่ส่งออกให้บริษัทประกันนี้ในรอบนี้แล้ว → ส่งออกซ้ำได้รายชื่อเดิม · `missing` = แถวเข้าใหม่ที่ขาด คำนำหน้า/เพศ/เลขบัตร (ตามคอลัมน์ของแบบฟอร์ม)
+- บันทึก = `InsuranceBatch` ต่อประเภท พร้อม `insurerId`, `insurerName` · ส่งออกรอบเดิมซ้ำ = แทนที่ · ยกเลิกได้ที่แท็บประวัติ
+
+**แบบฟอร์มตั้งต้น** (`assets/templates/`): ไทยประกันชีวิต (เปิดใช้ · ทุกบริษัท) และเมืองไทยประกันชีวิต (ปิดไว้) — โครงเดียวกับไฟล์ที่ HR ใช้ (`1. แจ้งเข้า-ออก 5-2-2569.xls`, `1 PMAV-แจ้งเข้า ยกเลิก ก.พ. 68.xlsx`) สร้างผ่านขั้นตอนเดียวกับการอัปโหลด ไม่มีข้อมูลบุคคล — HR อัปโหลดไฟล์จริงแทนได้
 
 ## 8. API Contract
 
@@ -747,7 +753,8 @@ export interface WelfareApi {
   submitInsuranceBatch(input: { cycleDate: ISODate; type: BatchType; employeeIds: number[] }): Promise<InsuranceBatch>; // ใช้ภายใน/ทดสอบ — หน้าจอใช้ exportInsurance แทน
   exportInsurance(input: { cycleDate: ISODate; insurerId: number; record?: boolean }): Promise<InsurerExport>;
   listInsurers(): Promise<InsurerForm[]>;
-  saveInsurer(form: InsurerForm): Promise<InsurerForm>;   // id = 0 → สร้างใหม่ · 422 + errors เมื่อไม่ผ่าน validateInsurerForm
+  saveInsurer(form: InsurerForm): Promise<InsurerForm>;   // id = 0 → สร้างใหม่ · template.data = ไฟล์ .xlsx (base64) ที่ล้างข้อมูลบุคคลแล้ว · 422 + errors
+  saveInsurerBindings(b: { companyCode: CompanyCode; insurerId: number | null; policyNo: string; holderName: string; plan: string }[]): Promise<InsurerForm[]>;
   deleteInsurer(id: number): Promise<void>;
 
   listPvdMembers(): Promise<PvdRow[]>;
@@ -808,6 +815,7 @@ export interface WelfareApi {
 | POST | `/api/insurers` | `InsurerForm` | `InsurerForm` (201) / 422 `{error, errors}` |
 | PUT | `/api/insurers/{id}` | `InsurerForm` | `InsurerForm` / 422 |
 | DELETE | `/api/insurers/{id}` | – | 204 |
+| PUT | `/api/insurers/bindings` | `{bindings: [{companyCode, insurerId, policyNo, holderName, plan}]}` | `InsurerForm[]` (ผูกทุกบริษัทในครั้งเดียว · transaction) |
 | GET | `/api/pvd/members` | – | `PvdRow[]` |
 | GET | `/api/uniform/issues` | `?employeeId=` | `UniformIssue[]` |
 | POST | `/api/uniform/issues` | `{employeeId, entitlementKey, event, qty, size, issuedAt}` | `UniformIssue` (201) |
@@ -1196,7 +1204,7 @@ employees: {
 | **รายละเอียดพนักงาน** | Header: Avatar, ชื่อ, รหัส, Badge สถานะ, ปุ่มแก้ไข · แถบข้อมูลย่อ (บริษัท, หน่วยงาน, ประเภท, สัญญา, อายุงาน) · การ์ดประกันกลุ่ม · การ์ด PVD · การ์ดชุดฟอร์ม (ตารางแต่ละรอบ + เลือกไซซ์ + "บันทึกแจก" + ยกเลิกการแจก) · **ประวัติการเปลี่ยนแปลง** | การ์ดสิทธิ = Badge ใหญ่ + timeline (เริ่มงาน → ครบสิทธิ → รอบแจ้งเข้า → แจ้งออก) · ไม่มีสิทธิ = แสดงเหตุผลเป็นข้อๆ |
 | **ฟอร์มพนักงาน** | แบ่ง section: ข้อมูลส่วนตัว / **ข้อมูลแจ้งประกัน** (คำนำหน้า → เลือกเพศให้, เพศ, เลขบัตรประชาชน ตรวจหลักสุดท้าย + จัดรูปแบบ 1-2345-67890-12-3, โทร, อีเมล — ไม่บังคับ) / การจ้างงาน / การพ้นสภาพ · บริษัท→หน่วยงาน (กรองตามบริษัท), ประเภท (ส่วนกลางแสดงฝ่าย+ระดับ / Pro Site แสดงตำแหน่ง), สัญญา, เงินเดือน, วันเริ่มงาน, ผ่านทดลองงาน | ช่องที่ไม่เกี่ยวซ่อนอัตโนมัติ · validation ใต้ช่อง · ปุ่มบันทึก sticky ด้านล่าง · บันทึกสำเร็จ → Toast + กลับหน้ารายละเอียด |
 | **ประกันกลุ่ม** | เลือกรอบ (วันที่ 5, ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · **แท็บ**: แจ้งออกทันที / แจ้งเข้า / แจ้งออก / ประวัติการส่งออก — ตัวเลขบนแท็บ = จำนวนยังไม่ส่งออก (แดง/ฟ้า/เหลือง) · คอลัมน์ "บริษัทประกัน" · **ไม่มีปุ่มส่งแจ้ง/checkbox** · ปุ่ม **"ส่งออกไฟล์แจ้งประกัน"** → modal: การ์ดต่อบริษัทประกัน (จำนวนเข้า/ออกต่อบริษัท, เลขกรมธรรม์, เตือนข้อมูลไม่ครบพร้อมลิงก์แก้, ดาวน์โหลด Excel / CSV) + ติ๊ก "บันทึกว่าแจ้งรอบนี้แล้ว" + เตือนบริษัทที่ยังไม่ผูกแบบฟอร์ม (ข้อ 7.4) · **แท็บประวัติการส่ง**: คอลัมน์ "รายชื่อ" (2 ชื่อแรก + "+N" · ค้นหาชื่อที่หัวคอลัมน์ได้) · **คลิกแถว / "ดูรายชื่อ" → modal รายชื่อใน batch** (รหัส-ชื่อ ลิงก์ไปหน้าพนักงาน, บริษัท·ประเภท, หน่วยงาน, วันครบสิทธิ/วันมีผล, เหตุผล · ค้นหาในรายชื่อเมื่อ > 5 ราย · ส่งออก CSV เฉพาะ batch · ยกเลิกการส่ง) · ลิงก์ตรง `?batch=<id>` · **ยกเลิก batch** | ตัวนับในหัว section · เลือกทั้งหมด · Modal ยืนยัน "ส่งแจ้งเข้า 5 ราย รอบ 5 พ.ย. 69?" · แถวที่ส่งแล้วแสดง Badge เขียว checkbox ปิด |
-| **แบบฟอร์มประกัน** (`insurers.html?id=&tab=`, เมนูตั้งค่า) | ซ้าย: รายการแบบฟอร์ม (เปิดใช้/ปิดอยู่, บริษัทที่ผูก) · ขวา: ตัวแก้ไข **4 แท็บ** (แถบติดบน + จุดแดงเมื่อแท็บมีข้อมูลต้องแก้): ① ข้อมูลทั่วไป (ชื่อ, ชื่อย่อ, สวิตช์เปิดใช้, รูปแบบวันที่ + ปุ่ม พ.ศ./ค.ศ. + ตัวอย่างวันที่, เครื่องหมาย P, ชื่อไฟล์/ชีต, ชีตสรุป) ② บริษัท & กรมธรรม์ (การ์ดต่อบริษัท เรียง AS→PRO: สวิตช์ + ผู้ถือกรมธรรม์ + เลขกรมธรรม์ + แผน · ป้าย "ใช้กับ …") ③ คอลัมน์ (**รายการ + รายละเอียด**: ลากวาง / Alt+↑↓ / ปุ่ม ‹ › เพื่อย้าย · หัวคอลัมน์หลายบรรทัด · ข้อมูล + **ตัวอย่างค่าจริง** · แสดงในแถว ทุกแถว/เข้าใหม่/ลาออก · หัวกลุ่ม 2 ช่อง ชั้นบน › กลุ่มย่อย · ความกว้างแบบเลื่อน) ④ หัว–ท้ายเอกสาร (บรรทัดพร้อมแถบเครื่องมือ ชิดซ้าย/กึ่งกลาง/ตัวหนา/ขนาด/ขึ้น-ลง/ลบ · บรรทัดสรุป · บรรทัดท้ายเอกสาร · ผู้แจ้ง) · **ตัวอย่างไฟล์** แบบ Excel (แท็บชีต, merge จริง, คลิกคอลัมน์ในตัวอย่าง = ไปแก้คอลัมน์นั้น, พับได้) + ดาวน์โหลดไฟล์ตัวอย่าง · เพิ่ม / ทำสำเนา / ลบ / ยกเลิกการแก้ไข | **แทรกข้อมูลอัตโนมัติ**: ทุกช่องที่ใช้ตัวแปรได้มีปุ่ม "{ } แทรกข้อมูล" ของตัวเอง → เมนูแยกหมวด (บริษัทในเครือ / รอบและวันที่ / จำนวน / ผู้แจ้ง / บริษัทประกัน) พร้อมตัวอย่างค่า + ค้นหา · พิมพ์ `{` ในช่อง = เปิดเมนูเดียวกันแบบกรองตามที่พิมพ์ (↑↓ Enter Esc) · แทรกตรงตำแหน่งเคอร์เซอร์ · ใต้ช่องแสดง **"ผลลัพธ์"** ที่แทนค่าแล้ว (ส่วนจากตัวแปรเป็นแถบสี · ค่าว่างเป็นป้ายเหลือง · ตัวแปรที่ไม่รู้จักขีดแดง) · แถบล่างบอก "มีการแก้ไขที่ยังไม่บันทึก" · มีแก้ไขค้างแล้วสลับแบบฟอร์ม/ออกจากหน้า → ถามก่อน · มือถือ: แท็บเลื่อนได้, คอลัมน์เป็นรายการบน/รายละเอียดล่าง |
+| **แบบฟอร์มประกัน** (`insurers.html`, เมนูตั้งค่า) | **ภาพรวม**: ① การ์ดบริษัทประกัน (ไฟล์แบบฟอร์ม · ชีต · จำนวนคอลัมน์/ช่องอัตโนมัติ · ผู้อัปโหลด · บริษัทที่ผูก · แก้ไข / ดาวน์โหลดไฟล์แบบฟอร์ม) + การ์ด "เพิ่มบริษัทประกัน" ② ตาราง **บริษัทในเครือส่งแจ้งกับบริษัทประกันไหน** (เลือกบริษัทประกัน/ไม่ส่งแจ้ง + เลขกรมธรรม์ + ผู้ถือกรมธรรม์ + แผน · บันทึกทีเดียว) · **แก้แบบฟอร์ม** (`?id=&step=`): ขั้น ① ไฟล์แบบฟอร์ม (ชื่อ/ชื่อย่อ + ลากวางไฟล์ .xlsx/.xls) ② ตำแหน่งข้อมูล (เลือกชีตบริษัท/ชีตสรุป · แถวหัวตาราง/ข้อมูล/ท้าย · **ตัวอย่างไฟล์จริง** ระบายสี ฟ้า=หัวตาราง เขียว=แถวข้อมูล เทา=ส่วนท้าย ม่วง=เติมอัตโนมัติ · แถวป้าย "ข้อมูล" เหนือคอลัมน์ · คลิกคอลัมน์ → เลือกข้อมูล + ตัวอย่างค่า + เติมในแถว · คลิกเซลล์ → ข้อความที่ใส่ + ปุ่ม "+ เลขกรมธรรม์ / + เดือนของรอบ …" + ผลลัพธ์) ③ ตั้งค่าการส่งออก + ทดลองสร้างไฟล์ (ดูทุกชีต + ดาวน์โหลด) | ขั้น 2–3 ล็อกจนกว่าจะอัปโหลด · เตือนไฟล์ .xls · แจ้งว่าล้างรายชื่อในไฟล์ก่อนเก็บ · เตือนบริษัทที่ผูกกับแบบฟอร์มที่ปิด/ไม่มีไฟล์ · มีงานค้างแล้วออก → ถามก่อน |
 | **PVD** | Stat: สมาชิก, หักสะสมรวม/เดือน, สมทบรวม/เดือน · ตารางสมาชิก (วันเป็นสมาชิก, เงินเดือน, หัก, สมทบ, อายุสมาชิก, vesting) · ส่งออก CSV | Alert เหลืองถ้า vesting เป็นค่าตัวอย่าง · vesting แสดงเป็น progress bar |
 | **ชุดฟอร์ม** | แท็บ "ค้างแจก" (เลือกไซซ์ + บันทึกแจกในแถว) / "ประวัติการแจก" · สรุปจำนวนตามแบบเสื้อ (วางแผนสั่งผลิต) | แถวเกินกำหนด > 30 วัน Badge แดง · บันทึกแล้วแถวหายพร้อม Toast |
 | **เงื่อนไขสวัสดิการ** | แท็บ: ประกันกลุ่ม / PVD / ชุดฟอร์ม / ค่าตั้งค่า (read-only ในเฟส 1) + รายการประเด็นที่รอยืนยันกับ HR | |
@@ -1296,6 +1304,7 @@ $r->get('/api/insurers',                       [InsurerController::class, 'index
 $r->post('/api/insurers',                      [InsurerController::class, 'create']);
 $r->put('/api/insurers/{id}',                  [InsurerController::class, 'update']);
 $r->delete('/api/insurers/{id}',               [InsurerController::class, 'delete']);
+$r->put('/api/insurers/bindings',              [InsurerController::class, 'bindings']);
 $r->get('/api/pvd/members',                   [PvdController::class, 'index']);
 $r->get('/api/uniform/issues',                [UniformController::class, 'issues']);
 $r->post('/api/uniform/issues',               [UniformController::class, 'issue']);
@@ -1516,7 +1525,8 @@ CREATE TABLE insurer_forms (
   name         VARCHAR(150) NOT NULL,
   short_name   VARCHAR(60)  NOT NULL,
   active       TINYINT(1)   NOT NULL DEFAULT 1,
-  config_json  LONGTEXT     NOT NULL,             -- InsurerForm ส่วนที่เหลือ (companies, columns, headerLines, …)
+  config_json  LONGTEXT     NOT NULL,             -- InsurerForm ส่วนที่เหลือ (companies, dateFormat, signer, template layout …)
+  template_file LONGBLOB    NULL,                 -- ไฟล์ .xlsx แบบฟอร์ม (ล้างข้อมูลบุคคลแล้ว) — API ส่งเป็น base64
   updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -1716,7 +1726,7 @@ describe('ประกันกลุ่ม', () => {
 
 ### เฟส 1 — หน้าเว็บ (HTML + JS) + Mock ✅
 - [x] กฎสวัสดิการ `domain/*.js` + use-case `application/usecases/*.js` + validation `employeeRules.js`
-- [x] `npm test` ผ่าน 46/46 (รวม `tests/insurerExport.test.js`: เลขบัตร, ตรวจแบบฟอร์ม, หัวตาราง 2 ชั้น, รูปแบบวันที่, ใครอยู่ในไฟล์, โมเดลชีต, CSV, บันทึก/ส่งออกซ้ำ/ยกเลิก, CRUD) (node:test ไม่ต้องติดตั้งแพ็กเกจ)
+- [x] `npm test` ผ่าน 51/51 (รวม `tests/insurerExport.test.js` และ `tests/excelTemplate.test.js`: อ่านตำแหน่ง/หัว 2 ชั้น/เซลล์อัตโนมัติ, ล้างข้อมูลบุคคล, เติมข้อมูลลงแบบฟอร์ม + ส่วนท้ายเลื่อน, ผูกบริษัท — ใช้ ExcelJS ตัวเดียวกับในเว็บ) (node:test ไม่ต้องติดตั้งแพ็กเกจ)
 - [x] MockApi (localStorage, seed + edge cases, บันทึกกิจกรรม) + HttpApi (พร้อมใช้เฟส 2) + `config.js`
 - [x] `app.css` design tokens (โทนสว่าง + โหมดมืด) + responsive (มือถือ/แท็บเล็ต)
 - [x] UI: DataTable (แบ่งหน้า + การ์ดมือถือ), ExcelGrid, Combobox (`<select data-combobox>`), Modal/Toast/confirm, ไอคอน SVG ในตัว
@@ -1732,7 +1742,7 @@ describe('ประกันกลุ่ม', () => {
 - [x] หน้าพนักงาน: ช่องค้นหา + แท็กกรองเร็ว (แทน select 3 ช่อง)
 - [x] ประวัติการส่งแจ้ง: ดูรายชื่อพนักงานในแต่ละ batch (modal + ค้นหา + CSV) · `GET /api/insurance/batches/{id}`
 - [x] ประกันกลุ่ม: เลิกใช้ปุ่มส่งแจ้ง → **ส่งออกไฟล์ Excel ตามแบบฟอร์มของบริษัทประกัน** (ชีตสรุป + ชีตละบริษัท) + บันทึกว่าแจ้งแล้ว / ส่งออกซ้ำ / ยกเลิก
-- [x] หน้า "แบบฟอร์มประกัน" (CRUD) + แบบฟอร์มตั้งต้น ไทยประกันชีวิต / เมืองไทยประกันชีวิต ตามไฟล์จริง
+- [x] หน้า "แบบฟอร์มประกัน": **อัปโหลดไฟล์ Excel แบบฟอร์มของบริษัทประกัน** (.xlsx/.xls) → ระบบอ่านตำแหน่งให้ → แก้บนตัวอย่างไฟล์จริง → ล้างข้อมูลบุคคลก่อนเก็บ · ผูกบริษัทในเครือ ↔ บริษัทประกัน · แบบฟอร์มตั้งต้น 2 ราย
 - [x] พนักงาน: คำนำหน้า เพศ เลขบัตรประชาชน (ตรวจ check digit) โทร อีเมล
 - [x] Loading กลางทั้งระบบ (`ui/loading.js`): แถบบนสุดอัตโนมัติทุก api/เปลี่ยนหน้า, loader, ปุ่ม busy, spinner
 - [x] แถบแบ่งหน้าใหม่ทั้งระบบ: หน้าแรก/สุดท้าย, แถวต่อหน้าแบบ segmented, ช่องไปหน้า, มือถือพิมพ์เลขหน้าได้
@@ -1748,7 +1758,7 @@ describe('ประกันกลุ่ม', () => {
 - [ ] `Domain/Eligibility.php` + PHPUnit ผ่าน (case เดียวกับ JS)
 - [ ] Service + Controller ครบทุก endpoint ในข้อ 8 (รวม DELETE, `/monitor/tasks`, `/activity`)
 - [ ] `Application/Service/WorkQueueService` คู่แฝดของ `usecases/workQueue.js`
-- [ ] `InsurerExportService` คู่แฝดของ `usecases/insurerExport.js` (`buildInsurerExport`) + `InsurerController` (CRUD + `validateInsurerForm`) + ตาราง `insurer_forms` · ไฟล์ .xlsx ยังสร้างในเบราว์เซอร์ (PHP ส่งแค่ข้อมูล)
+- [ ] `InsurerExportService` คู่แฝดของ `usecases/insurerExport.js` (`buildInsurerExport`) + `InsurerController` (CRUD + bindings + `validateInsurerForm`) + ตาราง `insurer_forms` (เก็บไฟล์แบบฟอร์มใน `template_file`) · อ่านตำแหน่ง/ล้าง/เติมไฟล์ยังทำในเบราว์เซอร์ (PHP เก็บไฟล์ + ส่งข้อมูล)
 - [ ] `InsuranceCycleService::batchDetail()` คู่แฝดของ `buildBatchDetail` (`usecases/insuranceCycle.js`) + `GET /api/insurance/batches/{id}`
 - [ ] Validation + transaction + unique key กันซ้ำ
 - [ ] audit_log (user_name จาก session)

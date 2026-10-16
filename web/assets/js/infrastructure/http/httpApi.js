@@ -92,6 +92,9 @@ export class HttpApi {
   saveInsurer(input) {
     return input.id ? this.send('PUT', `/insurers/${input.id}`, input) : this.send('POST', '/insurers', input);
   }
+  saveInsurerBindings(bindings) {
+    return this.send('PUT', '/insurers/bindings', { bindings });
+  }
   deleteInsurer(id) {
     return this.del(`/insurers/${id}`);
   }

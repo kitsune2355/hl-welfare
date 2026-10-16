@@ -3,12 +3,13 @@
 // ไม่มีปุ่ม "ส่งแจ้ง" — HR กด "ส่งออกไฟล์แจ้งประกัน" ทุกรอบ ได้ไฟล์ Excel ตามแบบฟอร์มของแต่ละบริษัทประกัน (ตั้งค่าที่ insurers.html)
 import { api } from '../app/api.js';
 import { initPage, refreshCounts } from '../app/shell.js';
-import { buildSheetModel, exportCsvRows, thaiMonthYear } from '../application/usecases/insurerExport.js';
+import { exportFileName, fillTemplate, templateBuffer } from '../app/excelTemplate.js';
+import { exportCsvRows, thaiMonthYear } from '../application/usecases/insurerExport.js';
 import { addMonths, nextCycleDate, todayISO } from '../domain/date.js';
 import { EMPLOYEE_FIELD_LABEL } from '../domain/insurerForm.js';
 import { downloadCsv } from '../shared/csv.js';
 import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
-import { downloadBlob, sheetModelToXlsx } from '../shared/excel.js';
+import { XLSX_MIME, downloadBlob } from '../shared/excel.js';
 import { relativeDays, thaiDate, thaiDateLong, thaiDateTime } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import { BATCH_TONE, BATCH_TYPE_LABEL, EMPLOYEE_TYPE_LABEL } from '../shared/labels.js';
@@ -386,8 +387,11 @@ function exportCard(d) {
         </details>`
       : ''}
     ${d.alreadyExported ? html`<p class="export-note">${raw(icon('info'))} ส่งออกรอบนี้ไปแล้ว ${d.alreadyExported} ราย — ส่งออกอีกครั้งจะได้รายชื่อเดิม + ที่เพิ่มขึ้น และแทนที่ประวัติเดิม</p>` : ''}
+    ${f.template
+      ? html`<p class="export-note">${raw(icon('file-spreadsheet'))} ใช้แบบฟอร์ม <b>${f.template.fileName}</b></p>`
+      : alertBox({ tone: 'warning', title: 'ยังไม่มีไฟล์แบบฟอร์ม Excel', body: html`<a href="insurers.html?id=${f.id}">อัปโหลดแบบฟอร์มของบริษัทประกันนี้</a> — ระหว่างนี้ส่งออกเป็น CSV ได้` })}
     <footer class="export-actions">
-      <button class="btn btn-primary" data-export="xlsx" data-id="${f.id}">${raw(icon('download'))} ดาวน์โหลด Excel</button>
+      <button class="btn btn-primary" data-export="xlsx" data-id="${f.id}" ${f.template ? '' : 'disabled'}>${raw(icon('download'))} ดาวน์โหลด Excel</button>
       <button class="btn" data-export="csv" data-id="${f.id}">CSV</button>
     </footer>
   </article>`;
@@ -436,13 +440,18 @@ async function openExport() {
     others.forEach((b) => (b.disabled = true));
     try {
       await busy(btn, async () => {
-        const d = await api.exportInsurance({ cycleDate: cycle, insurerId: id, record });
-        const model = buildSheetModel(d, { exportDate: today });
-        if (format === 'xlsx') downloadBlob(await progress.track(sheetModelToXlsx(model)), `${model.fileName}.xlsx`);
-        else {
+        // สร้างไฟล์ให้สำเร็จก่อน แล้วค่อยบันทึกว่าแจ้งแล้ว (สร้างไฟล์ไม่ได้ = ไม่บันทึก)
+        let d = await api.exportInsurance({ cycleDate: cycle, insurerId: id, record: false });
+        // Excel = เติมข้อมูลลงไฟล์แบบฟอร์มของบริษัทประกัน (คงรูปแบบเดิมทั้งหมด)
+        const name = exportFileName(d.insurer, cycle);
+        if (format === 'xlsx') {
+          const out = await progress.track(templateBuffer(d.insurer.template).then((buf) => fillTemplate(buf, d, { exportDate: today })));
+          downloadBlob(new Blob([out], { type: XLSX_MIME }), `${name}.xlsx`);
+        } else {
           const csv = exportCsvRows(d);
-          downloadCsv(`${model.fileName}.csv`, csv.header, csv.rows);
+          downloadCsv(`${name}.csv`, csv.header, csv.rows);
         }
+        if (record) d = await api.exportInsurance({ cycleDate: cycle, insurerId: id, record: true });
         const n = countOf(d);
         toast.success(`ส่งออก${d.insurer.shortName} แล้ว — เข้า ${n.in} · ออก ${n.out} ราย${record ? ' · บันทึกว่าแจ้งแล้ว' : ''}`);
         if (record) {

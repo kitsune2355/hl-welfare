@@ -3,7 +3,7 @@ import { buildDashboard } from '../../application/usecases/dashboard.js';
 import { buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex } from '../../application/usecases/insuranceCycle.js';
 import { buildInsurerExport } from '../../application/usecases/insurerExport.js';
 import { buildUniformPending } from '../../application/usecases/uniformPending.js';
-import { validateInsurerForm } from '../../application/insurerFormRules.js';
+import { validateBindings, validateInsurerForm } from '../../application/insurerFormRules.js';
 import { buildWorkQueue } from '../../application/usecases/workQueue.js';
 import { todayISO } from '../../domain/date.js';
 import { benefitsOf } from '../../domain/eligibility.js';
@@ -12,7 +12,7 @@ import { pvdStatus } from '../../domain/pvd.js';
 import { buildSeed } from './seed.js';
 import { MOCK_USERS } from './users.js';
 
-const STORAGE_KEY = 'hl-welfare-mock-v5'; // v5: แบบฟอร์มบริษัทประกัน + ข้อมูลส่วนตัวพนักงาน (เพศ คำนำหน้า เลขบัตร โทร อีเมล)
+const STORAGE_KEY = 'hl-welfare-mock-v6'; // v6: แบบฟอร์มประกันจากไฟล์ Excel ที่อัปโหลด (template) + การผูกบริษัท
 
 const LATENCY_MS = 150;
 
@@ -302,6 +302,26 @@ export class MockApi {
       this.log('INSURER_FORM', 'CREATE', created.id, `เพิ่มแบบฟอร์ม ${created.shortName}`);
       this.persist();
       return created;
+    });
+  }
+  /**
+   * ผูกบริษัทในเครือ ↔ บริษัทประกัน ทั้งหมดในครั้งเดียว (1 บริษัท = 1 บริษัทประกัน หรือไม่ส่งแจ้ง)
+   * @param {{companyCode:string, insurerId:number|null, policyNo:string, holderName:string, plan:string}[]} bindings
+   */
+  saveInsurerBindings(bindings) {
+    return this.run(() => {
+      const errors = validateBindings(bindings, this.db.insurers);
+      if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
+      for (const f of this.db.insurers) {
+        f.companies = bindings
+          .filter((b) => b.insurerId === f.id)
+          .map(({ companyCode, policyNo, holderName, plan }) => ({ companyCode, policyNo: policyNo ?? '', holderName: holderName ?? '', plan: plan ?? '' }))
+          .sort((a, b) => a.companyCode.localeCompare(b.companyCode));
+      }
+      const summary = this.db.insurers.map((f) => `${f.shortName}: ${f.companies.map((c) => c.companyCode).join(', ') || '-'}`).join(' · ');
+      this.log('INSURER_FORM', 'UPDATE', 'bindings', `ผูกบริษัทกับบริษัทประกัน — ${summary}`);
+      this.persist();
+      return [...this.db.insurers].sort((a, b) => Number(b.active) - Number(a.active) || a.id - b.id);
     });
   }
   deleteInsurer(id) {
