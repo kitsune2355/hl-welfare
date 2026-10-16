@@ -14,7 +14,7 @@
     </script>
   </head>
   <body>
-    <main id="page" class="page">
+    <main id="page" class="page fit">
       <div class="page-head">
         <div>
           <h1>ศูนย์ติดตามงาน</h1>
@@ -33,7 +33,7 @@
       <!-- สรุปตามความเร่งด่วน (คลิกเพื่อกรอง) -->
       <div id="stats" class="grid grid-4 mb"></div>
 
-      <div class="grid grid-3">
+      <div class="grid grid-3 fill">
         <section class="card span-2">
           <header class="card-head">
             <div class="card-title">
@@ -51,10 +51,10 @@
             </div>
             <div class="chips" id="kinds" role="group" aria-label="กรองตามประเภทงาน"></div>
           </div>
-          <div id="tasks"></div>
+          <div id="tasks" class="fill-body"></div>
         </section>
 
-        <section class="card" style="align-self:start">
+        <section class="card">
           <header class="card-head">
             <div class="card-title">
               <span class="card-icon"><i data-icon="activity"></i></span>
@@ -71,7 +71,7 @@
               <option value="UNIFORM_ISSUE">ชุดฟอร์ม</option>
             </select>
           </header>
-          <div id="feed" style="max-height:640px;overflow-y:auto"></div>
+          <div id="feed" class="fill-body scroll"></div>
           <div class="card-foot hidden" id="more-wrap" style="text-align:center">
             <button class="btn btn-ghost btn-sm" id="more">โหลดเพิ่ม</button>
           </div>

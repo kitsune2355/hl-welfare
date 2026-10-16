@@ -8,6 +8,7 @@ import { enhanceSelects } from '../ui/combobox.js';
 import { badge } from '../ui/components.js';
 import { toast } from '../ui/overlay.js';
 import { API_MODE, api } from './api.js';
+import { initTour } from './tour.js';
 
 const MENU = [
   { id: 'dashboard', href: 'index.html', label: 'ภาพรวม', icon: 'layout-dashboard' },
@@ -54,8 +55,9 @@ function navLink(item, active) {
 /**
  * สร้าง sidebar + topbar รอบ <main id="page"> แล้วแปลง <i data-icon> และ <select data-combobox> ในหน้า
  * @param {string} active  id ของเมนูที่เลือก
+ * @param {{ tour?: string }} [opts]  tour = id ของเนื้อหาแนะนำใน tour/steps.js (ค่าเริ่มต้น = active)
  */
-export function initPage(active) {
+export function initPage(active, { tour = active } = {}) {
   const main = document.getElementById('page');
   const sidebar = document.createElement('aside');
   sidebar.className = 'sidebar';
@@ -83,6 +85,7 @@ export function initPage(active) {
       <span class="kbd">/</span>
     </form>
     <span class="spacer"></span>
+    <button class="btn-icon" id="help-btn" aria-label="แนะนำการใช้งาน" title="แนะนำการใช้งาน">${raw(icon('circle-help'))}</button>
     <button class="btn-icon" id="theme-btn"></button>
   </header>`);
 
@@ -127,6 +130,7 @@ export function initPage(active) {
   hydrateIcons(main);
   enhanceSelects(main);
   refreshCounts();
+  initTour(tour, document.getElementById('help-btn')); // แนะนำการใช้งาน (driver.js)
 }
 
 /** อัปเดตตัวนับงานค้างในเมนู (เรียกซ้ำหลังบันทึกข้อมูลได้) */

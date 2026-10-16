@@ -14,7 +14,7 @@
     </script>
   </head>
   <body>
-    <main id="page" class="page">
+    <main id="page" class="page fit">
       <div class="page-head">
         <div>
           <h1>พนักงาน</h1>
@@ -25,7 +25,7 @@
         </div>
       </div>
 
-      <section class="card">
+      <section class="card fill">
         <!-- ตัวกรอง: ค่าถูกเก็บใน URL (?q=&company=&type=&status=) -->
         <form class="filters" id="filters">
           <div class="input-icon grow">
@@ -55,7 +55,7 @@
           <button type="button" class="btn btn-ghost hidden" id="clear"><i data-icon="filter-x"></i> ล้างตัวกรอง</button>
         </form>
 
-        <div id="grid"></div>
+        <div id="grid" class="fill-body"></div>
       </section>
     </main>
     <script type="module" src="assets/js/pages/employees.js"></script>

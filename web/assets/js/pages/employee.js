@@ -20,7 +20,7 @@ import { confirmAction } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 import { activityFeed, enhanceIssueActions, issueAction, wireIssueActions } from './_shared.js';
 
-initPage('employees');
+initPage('employees', { tour: 'employee' });
 
 const id = Number(getParam('id'));
 const today = todayISO();

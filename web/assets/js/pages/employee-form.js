@@ -8,7 +8,7 @@ import { icon } from '../shared/icons.js';
 import { alertBox, errorState } from '../ui/components.js';
 import { errorMessage, toast } from '../ui/overlay.js';
 
-initPage('employees');
+initPage('employees', { tour: 'employee-form' });
 
 const id = Number(getParam('id')) || null;
 const form = $('#form');

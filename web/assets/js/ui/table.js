@@ -37,7 +37,7 @@ export function pagerHtml({ page, pageSize, total }) {
       <label class="pager-size row"
         >ต่อหน้า
         <select data-page-size data-combobox data-size="sm" aria-label="จำนวนต่อหน้า" class="combo">
-          ${PAGE_SIZES.map((s) => html`<option value="${s}" ${s === pageSize ? 'selected' : ''}>${s}</option>`)}
+          ${[...new Set([...PAGE_SIZES, pageSize])].sort((a, b) => a - b).map((s) => html`<option value="${s}" ${s === pageSize ? 'selected' : ''}>${s}</option>`)}
         </select></label
       >
     </div>

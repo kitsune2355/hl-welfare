@@ -43,7 +43,7 @@ const table = new DataTable($('#tasks'), {
       key: 'task',
       header: 'งาน',
       mobile: 'title',
-      cell: (t) => html`<span class="two-line" style="display:block;max-width:220px"
+      cell: (t) => html`<span class="two-line" style="display:block;max-width:180px"
         ><b class="truncate" style="display:block;font-weight:500" title="${t.title}">${t.title}</b
         ><span class="sub truncate" title="${t.detail}">${t.detail}</span></span
       >`,
@@ -69,7 +69,7 @@ const table = new DataTable($('#tasks'), {
       cls: 'nowrap',
       cell: (t) => {
         const l = taskLink(t);
-        return html`<a class="btn btn-sm ${t.severity === 'critical' ? 'btn-primary' : ''}" href="${l.href}">${raw(icon('arrow-right'))} ${l.label}</a>`;
+        return html`<a class="btn btn-sm ${t.severity === 'critical' ? 'btn-primary' : ''}" href="${l.href}" title="${l.label}" aria-label="${l.label}">${raw(icon('arrow-right'))}<span class="label-xl">${l.label}</span></a>`;
       },
     },
   ],
