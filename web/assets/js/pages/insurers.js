@@ -339,7 +339,7 @@ function drawEditor() {
   page.classList.add('editing');
   render(
     $('#head-actions'),
-    draft.id ? html`<button type="button" class="btn btn-ghost danger-text" id="del">${raw(icon('trash-2'))} ลบบริษัทประกันนี้</button>` : '',
+    draft.id ? html`<button type="button" class="btn danger-text" id="del">${raw(icon('trash-2'))} ลบบริษัทประกันนี้</button>` : '',
   );
   render(
     view,
@@ -563,10 +563,10 @@ function layoutPane() {
       ? html`<div class="lay-bar">
             ${tabs}
             <div class="lay-rows" aria-label="ส่วนของแบบฟอร์ม">
-              <span class="lg head">หัวตาราง</span> แถว <input class="input num row-in" type="number" min="1" data-row="headerRow" value="${L.headerRow}" aria-label="หัวตารางเริ่มแถว" /> ถึง <input class="input num row-in" type="number" min="1" data-row="headerEnd" value="${L.headerEnd}" aria-label="หัวตารางถึงแถว" />
-              <span class="lg data">ข้อมูลพนักงาน</span> <input class="input num row-in" type="number" min="1" data-row="dataRow" value="${L.dataRow}" aria-label="แถวข้อมูลพนักงานเริ่มแถว" />
-              <span class="lg foot">ส่วนท้าย</span> <input class="input num row-in" type="number" min="1" data-row="footerRow" value="${L.footerRow}" aria-label="ส่วนท้ายเริ่มแถว" />
-              <span class="lg auto">เติมอัตโนมัติ</span>
+              <span class="lay-lg head">หัวตาราง</span> แถว <input class="input num row-in" type="number" min="1" data-row="headerRow" value="${L.headerRow}" aria-label="หัวตารางเริ่มแถว" /> ถึง <input class="input num row-in" type="number" min="1" data-row="headerEnd" value="${L.headerEnd}" aria-label="หัวตารางถึงแถว" />
+              <span class="lay-lg data">ข้อมูลพนักงาน</span> <input class="input num row-in" type="number" min="1" data-row="dataRow" value="${L.dataRow}" aria-label="แถวข้อมูลพนักงานเริ่มแถว" />
+              <span class="lay-lg foot">ส่วนท้าย</span> <input class="input num row-in" type="number" min="1" data-row="footerRow" value="${L.footerRow}" aria-label="ส่วนท้ายเริ่มแถว" />
+              <span class="lay-lg auto">เติมอัตโนมัติ</span>
             </div>
           </div>
           <div class="lay-main">
