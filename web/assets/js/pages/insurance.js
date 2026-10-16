@@ -12,6 +12,8 @@ import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js'
 import { XLSX_MIME, downloadBlob } from '../shared/excel.js';
 import { relativeDays, thaiDate, thaiDateLong, thaiDateTime } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
+import { batchCounts } from '../application/usecases/insuranceCycle.js';
+import { cycleDays } from '../domain/insurance.js';
 import { BATCH_TONE, BATCH_TYPE_LABEL, EMPLOYEE_TYPE_LABEL } from '../shared/labels.js';
 import { alertBox, badge, emptyState, employeeCell, errorState, tabs } from '../ui/components.js';
 import { confirmAction, errorMessage, openModal, toast } from '../ui/overlay.js';
@@ -21,7 +23,18 @@ import { busy, loader, progress } from '../ui/loading.js';
 initPage('insurance');
 
 const today = todayISO();
-const current = nextCycleDate(today);
+// รอบในแต่ละเดือน: วันที่ 5 = พนักงานทั่วไป · วันที่ 6 = พนักงานรายวัน (ตั้งค่าที่เงื่อนไขสวัสดิการ)
+const settings = await api
+  .getRules()
+  .then((r) => r.settings)
+  .catch(() => ({ insuranceCycleDay: 5, insuranceCycleDayDaily: 6 }));
+const DAYS = cycleDays(settings);
+const groupOf = (date) => {
+  const day = Number(date.slice(8, 10));
+  if (DAYS.length === 1) return 'ทุกประเภท';
+  return day === settings.insuranceCycleDayDaily ? 'พนักงานรายวัน' : 'พนักงานทั่วไป';
+};
+const current = DAYS.map((d) => nextCycleDate(today, d)).reduce((a, b) => (a < b ? a : b));
 let cycle = getParam('cycle', current);
 let rows = null;
 let batches = [];
@@ -37,11 +50,13 @@ const SECTIONS = [
 const insurerOf = (companyCode) => insurers.find((f) => f.active && f.companies.some((c) => c.companyCode === companyCode));
 let tab = getParam('tab'); // ว่าง = เลือกให้อัตโนมัติหลังโหลด (แท็บแรกที่มีรายการรอส่ง)
 
-// ----- ตัวเลือกรอบ: ย้อนหลัง 6 / ล่วงหน้า 3 เดือน -----
+// ----- ตัวเลือกรอบ: ย้อนหลัง 6 / ล่วงหน้า 3 เดือน · เดือนละ 2 รอบ (ทั่วไป / รายวัน) -----
 const cycleSel = $('#cycle');
-cycleSel.innerHTML = Array.from({ length: 10 }, (_, i) => addMonths(current, i - 6))
+const monthStart = `${current.slice(0, 8)}01`;
+cycleSel.innerHTML = Array.from({ length: 10 }, (_, i) => addMonths(monthStart, i - 6))
+  .flatMap((m) => DAYS.map((d) => `${m.slice(0, 8)}${String(d).padStart(2, '0')}`))
   .reverse()
-  .map((c) => `<option value="${c}" data-hint="${relativeDays(c, today)}">รอบ ${thaiDate(c)}${c === current ? ' (ถัดไป)' : ''}</option>`)
+  .map((c) => `<option value="${c}" data-hint="${groupOf(c)} · ${relativeDays(c, today)}">รอบ ${thaiDate(c)} · ${groupOf(c)}${c === current ? ' (ถัดไป)' : ''}</option>`)
   .join('');
 cycleSel.value = cycle;
 cycleSel.refreshCombobox?.();
@@ -115,12 +130,27 @@ for (const s of SECTIONS) {
   });
 }
 
+/** จำนวนเข้า/ออกในการส่งออก 1 ครั้ง */
+function countLabel(b) {
+  const c = batchCounts(b);
+  return [c.in ? `เข้า ${c.in}` : '', c.urgent ? `ออกทันที ${c.urgent}` : '', c.out ? `ออก ${c.out}` : ''].filter(Boolean).join(' · ');
+}
+function countChips(b) {
+  const c = batchCounts(b);
+  return html`<span class="io-chips">
+    ${c.in ? html`<span class="io in" title="แจ้งเข้า">${raw(icon('user-plus'))}<b class="num">${c.in}</b></span>` : ''}
+    ${c.urgent ? html`<span class="io urgent" title="แจ้งออกทันที">${raw(icon('zap'))}<b class="num">${c.urgent}</b></span>` : ''}
+    ${c.out ? html`<span class="io out" title="แจ้งออก">${raw(icon('user-minus'))}<b class="num">${c.out}</b></span>` : ''}
+    <span class="io-total num">${c.total} ราย</span>
+  </span>`;
+}
+
 /** ตัวอย่างรายชื่อใน batch: 2 ชื่อแรก + "+N" */
 const PREVIEW_NAMES = 2;
 const fullName = (e) => `${e.firstName} ${e.lastName}`;
 function namesPreview(b) {
   const list = b.employees ?? [];
-  if (!list.length) return html`<span class="muted">${b.employeeIds.length} ราย</span>`;
+  if (!list.length) return html`<span class="muted">${b.items.length} ราย</span>`;
   const more = list.length - PREVIEW_NAMES;
   return html`<span class="names-preview">
     <span class="truncate">${list.slice(0, PREVIEW_NAMES).map(fullName).join(', ')}</span>
@@ -135,8 +165,7 @@ const batchTable = new DataTable($('#batches'), {
   columns: [
     { key: 'id', header: 'เลขที่', sort: (b) => b.id, cell: (b) => html`<span class="num muted">#${b.id}</span>` },
     { key: 'cycle', header: 'รอบ', sort: (b) => b.cycleDate, cell: (b) => html`<span class="num">${thaiDate(b.cycleDate)}</span>` },
-    { key: 'type', header: 'ประเภท', mobile: 'aside', cell: (b) => badge(BATCH_TYPE_LABEL[b.type], BATCH_TONE[b.type]) },
-    { key: 'insurer', header: 'บริษัทประกัน', hideOnMobile: true, text: (b) => b.insurerName ?? '–', cell: (b) => html`<span class="muted">${b.insurerName ?? '–'}</span>` },
+    { key: 'insurer', header: 'บริษัทประกัน', mobile: 'aside', text: (b) => b.insurerName ?? '–', cell: (b) => html`<span class="muted">${b.insurerName ?? '–'}</span>` },
     // กรองหัวคอลัมน์ "รายชื่อ" = ค้นหาชื่อ/รหัสพนักงานใน batch ได้
     {
       key: 'names',
@@ -145,7 +174,14 @@ const batchTable = new DataTable($('#batches'), {
       text: (b) => (b.employees ?? []).map((e) => `${fullName(e)} (${e.empCode})`).join(', '),
       cell: namesPreview,
     },
-    { key: 'n', header: 'จำนวน', align: 'right', sort: (b) => b.employeeIds.length, cell: (b) => html`<span class="num">${b.employeeIds.length} ราย</span>` },
+    {
+      key: 'n',
+      header: 'เข้า / ออก',
+      align: 'right',
+      sort: (b) => b.items.length,
+      text: (b) => countLabel(b),
+      cell: (b) => countChips(b),
+    },
     { key: 'at', header: 'ส่งออกเมื่อ', hideOnMobile: true, sort: (b) => b.submittedAt, cell: (b) => html`<span class="num muted">${thaiDateTime(b.submittedAt)}</span>` },
     { key: 'by', header: 'โดย', hideOnMobile: true, cell: (b) => html`<span class="muted">${b.submittedBy}</span>` },
     {
@@ -168,7 +204,7 @@ function batchCsv(d) {
     ['เลขที่', 'ประเภทแจ้ง', 'รอบ', 'รหัสพนักงาน', 'ชื่อ', 'นามสกุล', 'บริษัท', 'ประเภทพนักงาน', 'หน่วยงาน', 'วันมีผล', 'เหตุผล', 'ส่งเมื่อ', 'ส่งโดย'],
     d.items.map((it) => [
       d.id,
-      BATCH_TYPE_LABEL[d.type],
+      BATCH_TYPE_LABEL[it.type],
       d.cycleDate,
       it.employee.empCode,
       it.employee.firstName,
@@ -185,20 +221,20 @@ function batchCsv(d) {
 }
 
 function batchItemsHtml(d) {
-  const dateLabel = d.type === 'IN' ? 'วันครบสิทธิ' : 'วันมีผล';
   return html`<div class="batch-items" role="list">
     ${d.items.map(
       (it, i) => html`<div
         class="bi-row"
         role="listitem"
-        data-search="${`${it.employee.empCode} ${fullName(it.employee)} ${it.siteName} ${it.employee.companyCode ?? ''}`.toLowerCase()}"
+        data-search="${`${it.employee.empCode} ${fullName(it.employee)} ${it.siteName} ${it.employee.companyCode ?? ''} ${BATCH_TYPE_LABEL[it.type]}`.toLowerCase()}"
       >
         <span class="bi-no num">${i + 1}</span>
+        <span class="bi-type">${badge(BATCH_TYPE_LABEL[it.type], BATCH_TONE[it.type])}</span>
         <span class="bi-emp">${employeeCell(it.employee, { link: true })}</span>
         <span class="bi-co"
           ><span><b>${it.employee.companyCode ?? ''}</b> · ${EMPLOYEE_TYPE_LABEL[it.employee.employeeType] ?? ''}</span><small class="truncate">${it.siteName}</small></span
         >
-        <span class="bi-date"><small>${dateLabel}</small><b class="num">${it.effectiveDate ? thaiDate(it.effectiveDate) : '–'}</b></span>
+        <span class="bi-date"><small>${it.type === 'IN' ? 'วันครบสิทธิ' : 'วันมีผล'}</small><b class="num">${it.effectiveDate ? thaiDate(it.effectiveDate) : '–'}</b></span>
         <span class="bi-reason">${it.reason || ''}</span>
       </div>`,
     )}
@@ -211,8 +247,8 @@ async function openBatch(id) {
   setParams({ batch: id });
   const m = openModal({
     size: 'lg',
-    title: b ? `${BATCH_TYPE_LABEL[b.type]} #${id}` : `รายการส่งออก #${id}`,
-    description: b ? `${b.insurerName ? `${b.insurerName} · ` : ''}รอบ ${thaiDate(b.cycleDate)} · ส่งออกเมื่อ ${thaiDateTime(b.submittedAt)} โดย ${b.submittedBy}` : '',
+    title: b ? `ส่งออกไฟล์${b.insurerName ? `แจ้ง${b.insurerName}` : ''} #${id}` : `รายการส่งออก #${id}`,
+    description: b ? `รอบ ${thaiDate(b.cycleDate)} · ส่งออกเมื่อ ${thaiDateTime(b.submittedAt)} โดย ${b.submittedBy}` : '',
     body: html`<div data-batch-body>${loader({ text: 'กำลังโหลดรายชื่อ' })}</div>`,
     footer: html`<button class="btn btn-ghost danger-text foot-start" data-batch-cancel disabled>${raw(icon('undo-2'))} ยกเลิกการส่งออก</button>
       <button class="btn" data-batch-csv disabled>${raw(icon('download'))} ส่งออก CSV</button>
@@ -230,8 +266,7 @@ async function openBatch(id) {
   render(
     body,
     html`<div class="batch-summary">
-        ${badge(BATCH_TYPE_LABEL[d.type], BATCH_TONE[d.type])}
-        <span><b class="num">${d.items.length}</b> ราย</span>
+        ${countChips(d)}
         <span class="muted">รอบ <b class="num">${thaiDateLong(d.cycleDate)}</b></span>
       </div>
       ${d.items.length > 5
@@ -296,7 +331,7 @@ function drawSections() {
 }
 
 async function loadCycle() {
-  render($('#cycle-info'), html`รอบ <b style="color:var(--fg)">${thaiDateLong(cycle)}</b> · ${relativeDays(cycle, today)} · ส่งออกไฟล์แจ้งบริษัทประกันทุกวันที่ 5`);
+  render($('#cycle-info'), html`รอบ <b style="color:var(--fg)">${thaiDateLong(cycle)}</b> · ${relativeDays(cycle, today)} · <b style="color:var(--fg)">${groupOf(cycle)}</b> · ส่งออกไฟล์แจ้งประกันทุกวันที่ ${settings.insuranceCycleDay}${DAYS.length > 1 ? ` · พนักงานรายวันทุกวันที่ ${settings.insuranceCycleDayDaily}` : ''}`);
   rows = null;
   drawSections();
   try {
@@ -328,8 +363,8 @@ on(sections, 'click', '[data-cancel-batch]', (_e, btn) => cancelBatch(batches.fi
 
 function cancelBatch(b) {
   confirmAction({
-    title: `ยกเลิก${BATCH_TYPE_LABEL[b.type]} #${b.id}?`,
-    description: `${b.insurerName ? `${b.insurerName} · ` : ''}รอบ ${thaiDate(b.cycleDate)} · ${b.employeeIds.length} ราย`,
+    title: `ยกเลิกการส่งออก #${b.id}?`,
+    description: `${b.insurerName ? `${b.insurerName} · ` : ''}รอบ ${thaiDate(b.cycleDate)} · ${countLabel(b)}`,
     body: 'ใช้กรณีส่งออกผิด — รายชื่อจะกลับไปเป็น “ยังไม่ส่งออก” และอยู่ในไฟล์รอบถัดไป · ถ้าส่งไฟล์ให้บริษัทประกันแล้ว ต้องแจ้งยกเลิกด้วย',
     confirmLabel: 'ยกเลิกการส่งออก',
     successMessage: `ยกเลิก #${b.id} แล้ว — รายชื่อกลับไปเป็น “ยังไม่ส่งออก”`,
@@ -401,7 +436,7 @@ async function openExport() {
   const active = insurers.filter((f) => f.active);
   const m = openModal({
     size: 'lg',
-    title: `ส่งออกไฟล์แจ้งประกัน · รอบ ${thaiDate(cycle)}`,
+    title: `ส่งออกไฟล์แจ้งประกัน · รอบ ${thaiDate(cycle)} (${groupOf(cycle)})`,
     description: `ประจำเดือน ${thaiMonthYear(cycle)} · 1 ไฟล์ต่อบริษัทประกัน (ชีตสรุป + ชีตละบริษัทในเครือ) ตามแบบฟอร์มที่ตั้งไว้`,
     body: html`<div data-export-body>${loader({ text: 'กำลังเตรียมรายชื่อของแต่ละบริษัทประกัน', logo: true })}</div>`,
     footer: html`<a class="btn btn-ghost foot-start" href="insurers.html">${raw(icon('file-spreadsheet'))} ตั้งค่าแบบฟอร์ม</a>

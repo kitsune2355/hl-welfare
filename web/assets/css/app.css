@@ -2242,7 +2242,7 @@ button.stat:hover {
 }
 .bi-row {
   display: grid;
-  grid-template-columns: 32px minmax(200px, 1.5fr) minmax(170px, 1.3fr) 120px minmax(120px, 1fr);
+  grid-template-columns: 28px 96px minmax(200px, 1.5fr) minmax(170px, 1.3fr) 120px minmax(120px, 1fr);
   align-items: center;
   gap: 16px;
   padding: 12px 18px;
@@ -2285,6 +2285,45 @@ button.stat:hover {
 .bi-reason {
   color: var(--muted);
 }
+/* จำนวนเข้า/ออกในการส่งออก 1 ครั้ง (ประวัติการส่งออก) */
+.io-chips {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.io {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.io .icon {
+  width: 13px;
+  height: 13px;
+}
+.io.in {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.io.out {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.io.urgent {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.io-total {
+  color: var(--muted);
+  font-size: 12px;
+}
+.batch-summary .io-chips {
+  justify-content: flex-start;
+}
 .bi-none .empty {
   padding: 24px 16px;
 }
@@ -2297,6 +2336,9 @@ button.stat:hover {
   }
   .bi-no {
     display: none;
+  }
+  .bi-type {
+    grid-column: 1 / -1;
   }
   .bi-emp {
     grid-area: 1 / 1;
@@ -4839,4 +4881,136 @@ html:has(#ed),
 }
 .sp-td.auto.spill {
   white-space: nowrap;
+}
+
+/* =====================================================================
+   ขนาดกระชับ (จอคอมพิวเตอร์ ≥1024px) — ตัวอักษร/ปุ่ม/แถวตารางเล็กลง เห็นข้อมูลได้มากขึ้นในหน้าจอเดียว
+   (มือถือ/แท็บเล็ตคงขนาดเดิม ให้แตะง่าย)
+   ===================================================================== */
+@media (min-width: 1024px) {
+  :root {
+    --sidebar-w: 220px;
+    --radius: 10px;
+  }
+  body {
+    font-size: 13px;
+  }
+  .brand {
+    padding: 14px 16px;
+  }
+  .nav {
+    padding: 0 10px;
+  }
+  .nav a {
+    gap: 10px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .topbar {
+    height: 52px;
+    padding: 0 24px;
+  }
+  .topbar .search input {
+    height: 32px;
+  }
+  .topbar .search .icon {
+    top: 8px;
+  }
+  .kbd {
+    top: 6px;
+  }
+  .page {
+    --page-max: 1600px;
+    padding: 20px max(24px, calc((100% - var(--page-max)) / 2));
+  }
+  .page.fit {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+  .page-head,
+  .page.fit .page-head {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .page-head h1 {
+    font-size: 20px;
+  }
+  .page-head p {
+    margin-top: 2px;
+    font-size: 12.5px;
+  }
+  .btn {
+    gap: 6px;
+    height: 34px;
+    padding: 0 13px;
+  }
+  .btn-sm {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12.5px;
+  }
+  .btn-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .input {
+    height: 34px;
+    padding: 0 10px;
+  }
+  .card-head {
+    gap: 10px;
+    padding: 11px 16px;
+  }
+  .card-title h2 {
+    font-size: 14.5px;
+  }
+  .stat {
+    padding: 14px 16px;
+  }
+  .tab {
+    padding: 8px 10px;
+  }
+  .table {
+    font-size: 12.5px;
+  }
+  .table th {
+    padding: 6px 10px;
+    font-size: 11.5px;
+  }
+  .table td {
+    padding: 5px 10px;
+  }
+  .xgrid {
+    font-size: 12.5px;
+  }
+  .xgrid th {
+    padding: 6px 8px;
+    font-size: 11.5px;
+  }
+  .xgrid td {
+    height: 30px;
+  }
+  .form-footer {
+    padding: 8px 24px;
+  }
+  .io-chips {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+  .chip {
+    padding: 2px 10px;
+    font-size: 11.5px;
+  }
+  .sidebar-foot {
+    padding: 10px 12px;
+    gap: 6px;
+  }
+  .sidebar-user {
+    padding: 7px 8px;
+  }
+  .sidebar-user .avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
 }

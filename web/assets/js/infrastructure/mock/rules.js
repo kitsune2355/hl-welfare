@@ -138,6 +138,7 @@ export function defaultRules() {
     settings: {
       insuranceMaxAge: 65,
       insuranceCycleDay: 5,
+      insuranceCycleDayDaily: 6, // พนักงานรายวันส่งแจ้งแยก ทุกวันที่ 6
       absentExtraDays: 7,
       pvdEmployeeRate: 2,
       pvdCompanyRate: 2,

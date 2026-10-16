@@ -1,12 +1,22 @@
-import { insuranceStatus } from '../../domain/insurance.js';
+import { inCycleGroup, insuranceStatus } from '../../domain/insurance.js';
 import { END_REASON_LABEL } from '../../domain/labels.js';
 
 const directionOf = (t) => (t === 'IN' ? 'IN' : 'OUT');
 
+/**
+ * ประวัติการส่งออก 1 รายการ = ส่งออกไฟล์ 1 ครั้ง (1 บริษัทประกัน · 1 รอบ) มีทั้งคนเข้าและคนออก
+ *   items: [{ employeeId, type: 'IN' | 'OUT' | 'URGENT' }]
+ */
+export const batchIds = (b) => [...new Set(b.items.map((i) => i.employeeId))];
+export function batchCounts(b) {
+  const n = (t) => b.items.filter((i) => i.type === t).length;
+  return { in: n('IN'), out: n('OUT'), urgent: n('URGENT'), total: b.items.length };
+}
+
 /** employeeId → batch ที่แจ้งไปแล้ว แยกตามทิศทาง (URGENT นับเป็น OUT) */
 export function sentIndex(batches) {
   const idx = { IN: new Map(), OUT: new Map() };
-  for (const b of batches) for (const id of b.employeeIds) idx[directionOf(b.type)].set(id, b);
+  for (const b of batches) for (const it of b.items) idx[directionOf(it.type)].set(it.employeeId, b);
   return idx;
 }
 
@@ -14,12 +24,14 @@ export function sentIndex(batches) {
  * รายการแจ้งประกันของรอบ cycleDate
  * - แสดงรายการที่ยังไม่ส่ง (รวมที่ตกค้างจากรอบก่อน) + ที่ส่งแล้วในรอบนี้
  * - URGENT ที่ยังไม่ส่งแสดงทุกรอบจนกว่าจะส่ง
+ * - พนักงานรายวันอยู่ในรอบของตัวเอง (วันที่ 6) แยกจากประเภทอื่น (วันที่ 5)
  */
 export function buildInsuranceCycle(cycleDate, employees, sites, rules, batches) {
   const sent = sentIndex(batches);
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const rows = [];
   for (const emp of employees) {
+    if (!inCycleGroup(emp, rules.settings, cycleDate)) continue; // รอบวันที่ 6 = พนักงานรายวัน · วันที่ 5 = ประเภทอื่น
     const st = insuranceStatus(emp, siteById.get(emp.siteId) ?? null, rules);
     if (!st.eligible || !st.enrollCycleDate) continue;
     const inBatch = sent.IN.get(emp.id);
@@ -66,25 +78,26 @@ export const employeeLite = (e) => ({
 /**
  * รายละเอียด batch ที่ส่งแจ้งแล้ว — รายชื่อพนักงาน + วันมีผล + เหตุผล
  * วันมีผล/เหตุผลคำนวณด้วยกฎเดียวกับหน้ารอบ (buildInsuranceCycle ของรอบที่ส่ง) จึงตรงกับที่เห็นตอนส่ง
- * @returns {InsuranceBatch & {items: {employee, siteName, effectiveDate: string|null, reason: string}[]}}
+ * @returns {InsuranceBatch & {items: {type, employee, siteName, effectiveDate: string|null, reason: string}[]}}
  */
+const TYPE_ORDER = { URGENT: 0, IN: 1, OUT: 2 };
 export function buildBatchDetail(batch, employees, sites, rules, batches) {
-  const dir = directionOf(batch.type);
-  const cycleRows = buildInsuranceCycle(batch.cycleDate, employees, sites, rules, batches).rows.filter((r) => directionOf(r.type) === dir);
-  const rowOf = new Map(cycleRows.map((r) => [r.employee.id, r]));
+  const cycleRows = buildInsuranceCycle(batch.cycleDate, employees, sites, rules, batches).rows;
+  const rowOf = new Map(cycleRows.map((r) => [`${r.employee.id}|${directionOf(r.type)}`, r]));
   const empById = new Map(employees.map((e) => [e.id, e]));
   const siteById = new Map(sites.map((s) => [s.id, s]));
-  const items = batch.employeeIds
-    .map((id) => {
+  const items = batch.items
+    .map(({ employeeId: id, type }) => {
       const emp = empById.get(id);
-      const row = rowOf.get(id);
+      const row = rowOf.get(`${id}|${directionOf(type)}`);
       return {
+        type,
         employee: emp ? employeeLite(emp) : { id, empCode: `#${id}`, firstName: '(ไม่พบข้อมูลพนักงาน)', lastName: '' },
         siteName: emp ? (siteById.get(emp.siteId)?.name ?? '') : '',
         effectiveDate: row?.effectiveDate ?? null,
         reason: row?.reason ?? '',
       };
     })
-    .sort((a, b) => a.employee.empCode.localeCompare(b.employee.empCode));
+    .sort((a, b) => TYPE_ORDER[a.type] - TYPE_ORDER[b.type] || a.employee.empCode.localeCompare(b.employee.empCode));
   return { ...batch, items };
 }

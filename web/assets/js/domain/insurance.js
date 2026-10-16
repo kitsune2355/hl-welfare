@@ -1,5 +1,18 @@
 import { addDays, ageAt, nextCycleDate } from './date.js';
 
+/** วันที่รอบแจ้งประกันของพนักงาน — รายวันส่งแยกทุกวันที่ 6 (ตั้งค่าได้) · ประเภทอื่นทุกวันที่ 5 */
+export function cycleDayOf(emp, settings) {
+  return emp.employeeType === 'DAILY' ? (settings.insuranceCycleDayDaily ?? settings.insuranceCycleDay) : settings.insuranceCycleDay;
+}
+/** วันที่ของรอบทั้งหมดในเดือน เช่น [5, 6] */
+export function cycleDays(settings) {
+  return [...new Set([settings.insuranceCycleDay, settings.insuranceCycleDayDaily ?? settings.insuranceCycleDay])].sort((a, b) => a - b);
+}
+/** รอบนี้ (cycleDate) เป็นของพนักงานคนนี้ไหม — วันที่ 5 = ทุกประเภทยกเว้นรายวัน · วันที่ 6 = รายวัน */
+export function inCycleGroup(emp, settings, cycleDate) {
+  return cycleDayOf(emp, settings) === Number(cycleDate.slice(8, 10));
+}
+
 export function findInsuranceRule(emp, rules) {
   return (
     rules.find(
@@ -11,7 +24,7 @@ export function findInsuranceRule(emp, rules) {
 /** วันมีผลออกจากประกันกลุ่ม — null ถ้ายังไม่พ้นสภาพ */
 export function insuranceExit(emp, settings) {
   if (!emp.endReason && !emp.endDate) return null;
-  const day = settings.insuranceCycleDay;
+  const day = cycleDayOf(emp, settings);
   switch (emp.endReason) {
     case 'TERMINATED':
     case 'MISCONDUCT': {
@@ -56,7 +69,7 @@ export function insuranceStatus(emp, site, rules) {
     return none('หน่วยงานนี้ไม่ได้รับประกันกลุ่ม', { ruleId: rule.id });
   }
   const eligibleDate = addDays(emp.startDate, rule.waitDays);
-  const enrollCycleDate = nextCycleDate(eligibleDate, settings.insuranceCycleDay);
+  const enrollCycleDate = nextCycleDate(eligibleDate, cycleDayOf(emp, settings));
   const exit = insuranceExit(emp, settings);
   if (exit && exit.exitDate < enrollCycleDate) {
     return none('พ้นสภาพก่อนถึงรอบแจ้งเข้า — ไม่ต้องแจ้งเข้า/ออก', {

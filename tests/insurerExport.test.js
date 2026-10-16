@@ -79,8 +79,12 @@ describe('MockApi: ส่งออก = บันทึกว่าแจ้ง�
     const n = preview.companies.reduce((a, c) => a + c.in.length + c.out.length, 0);
 
     const rec = await api.exportInsurance({ cycleDate: CYCLE, insurerId: 1, record: true });
-    expect(rec.batches.every((b) => b.insurerId === 1 && b.cycleDate === CYCLE)).toBe(true);
-    expect(rec.batches.reduce((a, b) => a + b.employeeIds.length, 0)).toBe(n);
+    // ส่งออก 1 ครั้ง = ประวัติ 1 รายการ ที่มีทั้งคนเข้าและคนออก
+    expect(rec.batches.length).toBe(1);
+    const [batch] = rec.batches;
+    expect(batch.insurerId === 1 && batch.cycleDate === CYCLE).toBe(true);
+    expect(batch.items.length).toBe(n);
+    expect(new Set(batch.items.map((i) => i.type)).size > 1).toBe(true);
     expect((await api.getDashboard()).urgentPending).toBe(0);
 
     const again = await api.exportInsurance({ cycleDate: CYCLE, insurerId: 1, record: true });
@@ -89,7 +93,7 @@ describe('MockApi: ส่งออก = บันทึกว่าแจ้ง�
 
     // รอบถัดไปไม่มีรายการที่ส่งออกแล้วตกค้าง
     const next = await api.exportInsurance({ cycleDate: '2026-12-05', insurerId: 1 });
-    const ids = new Set(rec.batches.flatMap((b) => b.employeeIds));
+    const ids = new Set(batch.items.map((i) => i.employeeId));
     expect(next.companies.flatMap((c) => [...c.in, ...c.out]).some((r) => ids.has(r.employee.id) && r.type === 'URGENT')).toBe(false);
 
     for (const b of again.batches) await api.cancelInsuranceBatch(b.id);

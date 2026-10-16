@@ -76,7 +76,7 @@ describe('MockApi CRUD + monitoring', () => {
     await api.deleteEmployee(created.id);
     await expect(api.getEmployeeBenefits(created.id)).rejects.toMatchObject({ status: 404 });
     const batches = await api.listInsuranceBatches();
-    await expect(api.deleteEmployee(batches[0].employeeIds[0])).rejects.toMatchObject({ status: 409 });
+    await expect(api.deleteEmployee(batches[0].items[0].employeeId)).rejects.toMatchObject({ status: 409 });
   });
   it('ประวัติการส่ง: รายชื่อย่อในรายการ + รายละเอียด batch (วันมีผล/เหตุผลตรงกับหน้ารอบ)', async () => {
     const api = make();
@@ -157,5 +157,18 @@ describe('MockApi เข้าสู่ระบบ', () => {
     await api.createSite({ companyCode: 'HL', name: 'สาขาผู้ใช้', hasGroupInsurance: true, poloColor: 'BLACK' });
     const [top] = await api.listActivity({ limit: 1 });
     expect(top.user).toBe('สมใจ ใจดี');
+  });
+});
+
+describe('รอบแจ้งประกัน: พนักงานรายวันส่งแยกทุกวันที่ 6', () => {
+  it('รอบวันที่ 6 มีเฉพาะพนักงานรายวัน · รอบวันที่ 5 ไม่มีพนักงานรายวัน', async () => {
+    const api = make();
+    const r5 = (await api.getInsuranceCycle('2026-11-05')).rows;
+    const r6 = (await api.getInsuranceCycle('2026-11-06')).rows;
+    expect(r5.length > 0 && r6.length > 0).toBe(true);
+    expect(r5.some((r) => r.employee.employeeType === 'DAILY')).toBe(false);
+    expect(r6.every((r) => r.employee.employeeType === 'DAILY')).toBe(true);
+    const benefits = await api.getEmployeeBenefits(r6[0].employee.id);
+    expect(benefits.insurance.enrollCycleDate).toBe('2026-11-06'); // รอบแจ้งของพนักงานรายวันเป็นวันที่ 6
   });
 });

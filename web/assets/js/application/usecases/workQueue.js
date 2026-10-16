@@ -1,5 +1,5 @@
 import { addDays, diffDays, nextCycleDate } from '../../domain/date.js';
-import { insuranceStatus } from '../../domain/insurance.js';
+import { cycleDayOf, insuranceStatus } from '../../domain/insurance.js';
 import { END_REASON_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
 import { matchUniformRule } from '../../domain/uniform.js';
 import { sentIndex } from './insuranceCycle.js';
@@ -23,13 +23,13 @@ const RANK = { critical: 0, warning: 1, info: 2 };
 export function buildWorkQueue(today, employees, sites, rules, batches, issues) {
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const sent = sentIndex(batches);
-  const cycle = nextCycleDate(today, rules.settings.insuranceCycleDay);
   const tasks = [];
   const overdue = (due) => Math.max(0, diffDays(due, today));
   const cycleSeverity = (due) =>
     due < today ? 'critical' : diffDays(today, due) <= CYCLE_SOON_DAYS ? 'warning' : 'info';
   for (const e of employees) {
     const st = insuranceStatus(e, siteById.get(e.siteId) ?? null, rules);
+    const cycle = nextCycleDate(today, cycleDayOf(e, rules.settings)); // รอบถัดไปของพนักงานคนนี้ (รายวัน = วันที่ 6)
     if (st.eligible && st.enrollCycleDate && !sent.IN.has(e.id) && st.enrollCycleDate <= cycle) {
       tasks.push({
         id: `INSURANCE_IN:${e.id}`,

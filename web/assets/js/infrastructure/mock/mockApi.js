@@ -1,6 +1,6 @@
 import { ApiError } from '../../application/errors.js';
 import { buildDashboard } from '../../application/usecases/dashboard.js';
-import { buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex } from '../../application/usecases/insuranceCycle.js';
+import { batchCounts, batchIds, buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex } from '../../application/usecases/insuranceCycle.js';
 import { buildInsurerExport } from '../../application/usecases/insurerExport.js';
 import { buildUniformPending } from '../../application/usecases/uniformPending.js';
 import { validateBindings, validateInsurerForm } from '../../application/insurerFormRules.js';
@@ -28,6 +28,9 @@ function load(today) {
           for (const f of s.db.insurers ?? []) for (const k of ['inMark', 'outMark']) if (f[k] === 'P') f[k] = '✓';
           s.db.marksV2 = true;
         }
+        s.db.batches = mergeLegacyBatches(s.db.batches ?? []);
+        // พนักงานรายวันส่งแจ้งแยกทุกวันที่ 6
+        s.db.rules.settings.insuranceCycleDayDaily ??= 6;
         return s.db;
       }
     }
@@ -38,6 +41,24 @@ function load(today) {
 }
 
 const nextId = (xs) => Math.max(0, ...xs.map((x) => x.id)) + 1;
+
+/** ข้อมูลเดิม: ประวัติแยกตามประเภท ({type, employeeIds}) → รวมเป็นการส่งออกครั้งเดียว (รอบ + บริษัทประกัน + เวลาเดียวกัน) */
+function mergeLegacyBatches(list) {
+  if (list.every((b) => Array.isArray(b.items))) return list;
+  const groups = new Map();
+  for (const b of list) {
+    const items = b.items ?? b.employeeIds.map((employeeId) => ({ employeeId, type: b.type }));
+    const k = `${b.cycleDate}|${b.insurerId ?? ''}|${b.submittedAt}`;
+    const g = groups.get(k);
+    if (g) g.items.push(...items);
+    else groups.set(k, { id: b.id, cycleDate: b.cycleDate, insurerId: b.insurerId ?? null, insurerName: b.insurerName ?? null, items, submittedAt: b.submittedAt, submittedBy: b.submittedBy });
+  }
+  return [...groups.values()].sort((a, b) => a.id - b.id);
+}
+const countText = (b) => {
+  const c = batchCounts(b);
+  return `เข้า ${c.in} · ออก ${c.out + c.urgent} ราย`;
+};
 
 const nowStamp = () => {
   const d = new Date();
@@ -215,7 +236,7 @@ export class MockApi {
     return this.run(() => {
       const e = this.employee(id);
       const hasHistory =
-        this.db.batches.some((b) => b.employeeIds.includes(id)) || this.db.issues.some((i) => i.employeeId === id);
+        this.db.batches.some((b) => b.items.some((i) => i.employeeId === id)) || this.db.issues.some((i) => i.employeeId === id);
       if (hasHistory) throw new ApiError('ลบไม่ได้ — มีประวัติแจ้งประกัน/แจกชุดแล้ว ให้ใช้ “บันทึกพ้นสภาพ” แทน', 409);
       this.db.employees = this.db.employees.filter((x) => x.id !== id);
       this.log('EMPLOYEE', 'DELETE', id, `ลบพนักงาน ${fullName(e)} (${e.empCode})`);
@@ -238,7 +259,7 @@ export class MockApi {
       const byId = new Map(this.db.employees.map((e) => [e.id, e]));
       return [...this.db.batches]
         .sort((a, b) => b.id - a.id)
-        .map((b) => ({ ...b, employees: b.employeeIds.map((id) => byId.get(id)).filter(Boolean).map(employeeLite) }));
+        .map((b) => ({ ...b, employees: batchIds(b).map((id) => byId.get(id)).filter(Boolean).map(employeeLite) }));
     });
   }
   getInsuranceBatch(id) {
@@ -256,7 +277,15 @@ export class MockApi {
       const sent = sentIndex(this.db.batches)[input.type === 'IN' ? 'IN' : 'OUT'];
       const already = input.employeeIds.filter((id) => sent.has(id)).length;
       if (already > 0) throw new ApiError(`มีพนักงานที่ถูกแจ้งไปแล้ว ${already} ราย`, 409);
-      const batch = { id: nextId(this.db.batches), ...input, submittedAt: nowStamp(), submittedBy: this.actor };
+      const batch = {
+        id: nextId(this.db.batches),
+        cycleDate: input.cycleDate,
+        insurerId: input.insurerId ?? null,
+        insurerName: input.insurerName ?? null,
+        items: input.employeeIds.map((employeeId) => ({ employeeId, type: input.type })),
+        submittedAt: nowStamp(),
+        submittedBy: this.actor,
+      };
       this.db.batches.push(batch);
       const one = input.employeeIds.length === 1 ? input.employeeIds[0] : null;
       this.log(
@@ -279,7 +308,7 @@ export class MockApi {
         'INSURANCE_BATCH',
         'CANCEL',
         id,
-        `ยกเลิก${BATCH_TYPE_LABEL[b.type]} #${id} (${b.employeeIds.length} ราย)`,
+        `ยกเลิกการส่งออก${b.insurerName ? b.insurerName : ''} #${id} รอบ ${b.cycleDate} (${countText(b)})`,
       );
       this.persist();
     });
@@ -353,19 +382,17 @@ export class MockApi {
       const replaced = this.db.batches.filter((b) => b.cycleDate === cycleDate && b.insurerId === insurerId);
       this.db.batches = this.db.batches.filter((b) => !replaced.includes(b));
       const all = data.companies.flatMap((c) => [...c.in, ...c.out]);
+      // ส่งออก 1 ครั้ง = ประวัติ 1 รายการ (มีทั้งคนเข้าและคนออก)
       const created = [];
-      for (const type of ['IN', 'OUT', 'URGENT']) {
-        const ids = all.filter((r) => r.type === type).map((r) => r.employee.id);
-        if (!ids.length) continue;
+      if (all.length) {
         const batch = {
           id: nextId(this.db.batches),
           cycleDate,
-          type,
-          employeeIds: ids,
-          submittedAt: nowStamp(),
-          submittedBy: this.actor,
           insurerId,
           insurerName: insurer.shortName,
+          items: all.map((r) => ({ employeeId: r.employee.id, type: r.type })),
+          submittedAt: nowStamp(),
+          submittedBy: this.actor,
         };
         this.db.batches.push(batch);
         created.push(batch);

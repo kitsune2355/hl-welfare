@@ -108,7 +108,7 @@ function draw() {
         body: infoList(
           [
             { label: 'อายุสูงสุดประกันกลุ่ม', value: `${s.insuranceMaxAge} ปี` },
-            { label: 'วันที่รอบแจ้งประกัน', value: `ทุกวันที่ ${s.insuranceCycleDay}` },
+            { label: 'วันที่รอบแจ้งประกัน', value: `ทุกวันที่ ${s.insuranceCycleDay}${s.insuranceCycleDayDaily && s.insuranceCycleDayDaily !== s.insuranceCycleDay ? ` · พนักงานรายวันทุกวันที่ ${s.insuranceCycleDayDaily}` : ''}` },
             { label: 'ขาดงาน 3 วัน: วันออก', value: `วันทำงานสุดท้าย + ${s.absentExtraDays} วัน` },
             { label: 'PVD พนักงานหัก', value: `${s.pvdEmployeeRate}%` },
             { label: 'PVD บริษัทสมทบ', value: `${s.pvdCompanyRate}%` },

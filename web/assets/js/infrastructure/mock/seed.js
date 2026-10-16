@@ -1,5 +1,5 @@
-import { insuranceStatus } from '../../domain/insurance.js';
-import { BATCH_TYPE_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
+import { cycleDayOf, insuranceStatus } from '../../domain/insurance.js';
+import { UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
 import { addDays, nextCycleDate } from '../../domain/date.js';
 import { uniformStatus } from '../../domain/uniform.js';
 import { thaiIdCheckDigit } from '../../domain/thaiId.js';
@@ -382,15 +382,13 @@ export function buildSeed(today) {
   });
   const siteById = new Map(SITES.map((s) => [s.id, s]));
   // ----- ประวัติแจ้งประกัน: ทุกรายการที่รอบ < รอบปัจจุบันถือว่าส่งแล้ว -----
-  const currentCycle = nextCycleDate(today, rules.settings.insuranceCycleDay);
   const grouped = new Map();
-  const add = (cycle, type, id) => {
-    const k = `${cycle}|${type}`;
-    grouped.set(k, [...(grouped.get(k) ?? []), id]);
-  };
+  // ส่งออก 1 ครั้งต่อรอบ (มีทั้งคนเข้าและคนออก) · แจ้งออกทันทีส่งแยกในวันที่พ้นสภาพ
+  const add = (cycle, type, id) => grouped.set(cycle, [...(grouped.get(cycle) ?? []), { employeeId: id, type }]);
   for (const e of employees) {
     const st = insuranceStatus(e, siteById.get(e.siteId) ?? null, rules);
     if (!st.eligible || !st.enrollCycleDate) continue;
+    const currentCycle = nextCycleDate(today, cycleDayOf(e, rules.settings)); // รายวัน = รอบวันที่ 6
     if (st.enrollCycleDate < currentCycle) add(st.enrollCycleDate, 'IN', e.id);
     if (!st.exitCycleDate || !st.exitDate) continue;
     if (st.exitUrgent) {
@@ -402,19 +400,15 @@ export function buildSeed(today) {
   const insurers = defaultInsurers();
   const batches = [...grouped.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, ids], i) => {
-      const [cycleDate, type] = k.split('|');
-      return {
-        id: i + 1,
-        cycleDate,
-        type,
-        employeeIds: ids,
-        submittedAt: `${addDays(cycleDate, -1)}T10:00:00`,
-        submittedBy: SYSTEM_USER,
-        insurerId: insurers[0].id,
-        insurerName: insurers[0].shortName,
-      };
-    });
+    .map(([cycleDate, items], i) => ({
+      id: i + 1,
+      cycleDate,
+      insurerId: insurers[0].id,
+      insurerName: insurers[0].shortName,
+      items,
+      submittedAt: `${addDays(cycleDate, -1)}T10:00:00`,
+      submittedBy: SYSTEM_USER,
+    }));
   // ----- ประวัติแจกชุด: ครบกำหนดเกิน 14 วัน → แจกแล้ว (เว้นบางส่วนให้ค้าง) -----
   const issues = [];
   const cutoff = addDays(today, -14);
@@ -448,8 +442,8 @@ export function buildSeed(today) {
         entity: 'INSURANCE_BATCH',
         entityId: String(b.id),
         action: 'CREATE',
-        summary: `ส่ง${BATCH_TYPE_LABEL[b.type]} ${b.employeeIds.length} ราย (รอบ ${b.cycleDate})`,
-        employeeId: b.employeeIds.length === 1 ? b.employeeIds[0] : null,
+        summary: `ส่งออกไฟล์แจ้ง${b.insurerName} รอบ ${b.cycleDate}: เข้า ${b.items.filter((x) => x.type === 'IN').length} · ออก ${b.items.filter((x) => x.type !== 'IN').length} ราย`,
+        employeeId: b.items.length === 1 ? b.items[0].employeeId : null,
       })),
     ...issues
       .filter((i) => i.issuedAt >= since)

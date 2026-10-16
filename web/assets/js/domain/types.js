@@ -115,11 +115,13 @@
 /** @typedef {{ cycleDate: ISODate, rows: InsuranceCycleRow[] }} InsuranceCycle */
 
 /**
+ * ประวัติการส่งออก 1 รายการ = ส่งออกไฟล์แจ้งบริษัทประกัน 1 ครั้ง (มีทั้งคนเข้าและคนออก)
  * @typedef {Object} InsuranceBatch
  * @property {number} id
  * @property {ISODate} cycleDate
- * @property {BatchType} type
- * @property {number[]} employeeIds
+ * @property {number|null} insurerId
+ * @property {string|null} insurerName
+ * @property {{employeeId: number, type: BatchType}[]} items
  * @property {string} submittedAt
  * @property {string} submittedBy
  */
