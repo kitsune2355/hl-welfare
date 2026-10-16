@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ศูนย์ติดตามงาน · HL Welfare</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <script>
+      try { if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <main id="page" class="page">
+      <div class="page-head">
+        <div>
+          <h1>ศูนย์ติดตามงาน</h1>
+          <p>ทุกเรื่องที่ต้องทำและทุกการเปลี่ยนแปลงในระบบ — อยู่ในหน้าเดียว</p>
+        </div>
+        <div class="page-actions">
+          <span class="row small muted"><span class="live-dot" id="live-dot"></span><span id="updated">กำลังโหลด…</span></span>
+          <label class="row" style="font-size:13px">
+            <button type="button" class="switch" role="switch" aria-checked="true" aria-label="รีเฟรชอัตโนมัติ" id="auto"></button>
+            อัตโนมัติ (60 วิ)
+          </label>
+          <button class="btn btn-sm" id="refresh"><i data-icon="refresh-cw"></i> รีเฟรช</button>
+        </div>
+      </div>
+
+      <!-- สรุปตามความเร่งด่วน (คลิกเพื่อกรอง) -->
+      <div id="stats" class="grid grid-4 mb"></div>
+
+      <div class="grid grid-3">
+        <section class="card span-2">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="clipboard-list"></i></span>
+              <div>
+                <h2>คิวงาน <span id="task-count"></span></h2>
+                <p>เรียงตามความเร่งด่วน แล้วตามจำนวนวันที่เลยกำหนด</p>
+              </div>
+            </div>
+          </header>
+          <div style="padding:16px;border-bottom:1px solid var(--border);display:grid;gap:12px">
+            <div class="input-icon">
+              <i data-icon="search"></i>
+              <input class="input" id="q" placeholder="ค้นหาพนักงาน หรือ ชื่องาน" aria-label="ค้นหางาน" />
+            </div>
+            <div class="chips" id="kinds" role="group" aria-label="กรองตามประเภทงาน"></div>
+          </div>
+          <div id="tasks"></div>
+        </section>
+
+        <section class="card" style="align-self:start">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="activity"></i></span>
+              <div>
+                <h2>บันทึกกิจกรรม</h2>
+                <p>ใคร ทำอะไร เมื่อไร</p>
+              </div>
+            </div>
+            <select id="entity" data-combobox data-size="sm" aria-label="กรองกิจกรรม" class="combo" style="width:140px">
+              <option value="">ทุกประเภท</option>
+              <option value="EMPLOYEE">พนักงาน</option>
+              <option value="SITE">หน่วยงาน</option>
+              <option value="INSURANCE_BATCH">ประกันกลุ่ม</option>
+              <option value="UNIFORM_ISSUE">ชุดฟอร์ม</option>
+            </select>
+          </header>
+          <div id="feed" style="max-height:640px;overflow-y:auto"></div>
+          <div class="card-foot hidden" id="more-wrap" style="text-align:center">
+            <button class="btn btn-ghost btn-sm" id="more">โหลดเพิ่ม</button>
+          </div>
+        </section>
+      </div>
+
+      <p class="footnote">คิวงานคำนวณจากกฎสวัสดิการแบบสด · <a href="rules.html">ดูเงื่อนไข</a></p>
+    </main>
+    <script type="module" src="assets/js/pages/monitor.js"></script>
+  </body>
+</html>

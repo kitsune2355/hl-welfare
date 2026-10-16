@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>หน่วยงาน · HL Welfare</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <script>
+      try { if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <main id="page" class="page">
+      <div class="page-head">
+        <div>
+          <h1>หน่วยงาน</h1>
+          <p>เพิ่ม / แก้ไขในตารางได้ทันที — สวิตช์ประกันกลุ่มใช้กับแม่บ้าน CNS · สีโปโลใช้กับ Pro Site</p>
+        </div>
+        <div class="page-actions" id="summary"></div>
+      </div>
+
+      <section class="card">
+        <div id="grid"></div>
+      </section>
+    </main>
+    <script type="module" src="assets/js/pages/sites.js"></script>
+  </body>
+</html>

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>พนักงาน · HL Welfare</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <script>
+      try { if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <main id="page" class="page">
+      <div class="page-head">
+        <div>
+          <h1>พนักงาน</h1>
+          <p>แก้ไขได้ในตารางเหมือน Excel — บันทึกอัตโนมัติเมื่อกรอกครบ · บันทึกพ้นสภาพที่หน้ารายละเอียด</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn" href="employee-form.html"><i data-icon="file-text"></i> เพิ่มด้วยฟอร์มเต็ม</a>
+        </div>
+      </div>
+
+      <section class="card">
+        <!-- ตัวกรอง: ค่าถูกเก็บใน URL (?q=&company=&type=&status=) -->
+        <form class="filters" id="filters">
+          <div class="input-icon grow">
+            <i data-icon="search"></i>
+            <input class="input" name="q" placeholder="ค้นหารหัส หรือ ชื่อ-สกุล" aria-label="ค้นหา" autocomplete="off" />
+          </div>
+          <select name="company" data-combobox aria-label="บริษัท" class="combo">
+            <option value="">ทุกบริษัท</option>
+            <option>HL</option>
+            <option>PRO</option>
+            <option>CNS</option>
+            <option>CIC</option>
+            <option>AS</option>
+          </select>
+          <select name="type" data-combobox aria-label="ประเภท" class="combo">
+            <option value="">ทุกประเภท</option>
+            <option value="CENTRAL">ส่วนกลาง</option>
+            <option value="PRO_SITE">Pro Site</option>
+            <option value="DAILY">รายวัน</option>
+            <option value="MAID_CNS">แม่บ้าน CNS</option>
+          </select>
+          <select name="status" data-combobox aria-label="สถานะ" class="combo">
+            <option value="">ทุกสถานะ</option>
+            <option value="ACTIVE">ทำงานอยู่</option>
+            <option value="INACTIVE">พ้นสภาพ</option>
+          </select>
+          <button type="button" class="btn btn-ghost hidden" id="clear"><i data-icon="filter-x"></i> ล้างตัวกรอง</button>
+        </form>
+
+        <div id="grid"></div>
+      </section>
+    </main>
+    <script type="module" src="assets/js/pages/employees.js"></script>
+  </body>
+</html>

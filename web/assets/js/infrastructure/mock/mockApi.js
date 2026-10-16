@@ -1,0 +1,335 @@
+import { ApiError } from '../../application/errors.js';
+import { buildDashboard } from '../../application/usecases/dashboard.js';
+import { buildInsuranceCycle, sentIndex } from '../../application/usecases/insuranceCycle.js';
+import { buildUniformPending } from '../../application/usecases/uniformPending.js';
+import { buildWorkQueue } from '../../application/usecases/workQueue.js';
+import { todayISO } from '../../domain/date.js';
+import { benefitsOf } from '../../domain/eligibility.js';
+import { BATCH_TYPE_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
+import { pvdStatus } from '../../domain/pvd.js';
+import { buildSeed } from './seed.js';
+
+const STORAGE_KEY = 'hl-welfare-mock-v4'; // v4: seed ชุดฟอร์มค้างเฉพาะช่วง 120 วันล่าสุด
+
+const LATENCY_MS = 150;
+
+const CURRENT_USER = 'HR (mock)';
+
+function load(today) {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s?.db?.employees && s.db.activities) return s.db;
+    }
+  } catch {
+    /* localStorage ใช้ไม่ได้ → ใช้ seed ใหม่ */
+  }
+  return buildSeed(today);
+}
+
+const nextId = (xs) => Math.max(0, ...xs.map((x) => x.id)) + 1;
+
+const nowStamp = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${todayISO(d)}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+};
+
+const fullName = (e) => `${e.firstName} ${e.lastName}`;
+
+/** WelfareApi ในหน่วยความจำ + localStorage — ใช้ domain/use-case ชุดเดียวกับ PHP */
+export class MockApi {
+  db;
+  today;
+  constructor(today = () => todayISO()) {
+    this.today = today;
+    this.db = load(this.today());
+  }
+  // ---------- helpers ----------
+  async run(fn) {
+    await new Promise((r) => setTimeout(r, LATENCY_MS));
+    return structuredClone(fn());
+  }
+  persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ seededFor: this.today(), db: this.db }));
+    } catch {
+      /* เต็ม / ถูกบล็อก → ทำงานต่อในหน่วยความจำ */
+    }
+  }
+  /** = เขียน audit_log ฝั่ง PHP */
+  log(entity, action, entityId, summary, employeeId = null) {
+    this.db.activities.push({
+      id: nextId(this.db.activities),
+      at: nowStamp(),
+      user: CURRENT_USER,
+      entity,
+      entityId: String(entityId),
+      action,
+      summary,
+      employeeId,
+    });
+  }
+  site(id) {
+    return this.db.sites.find((s) => s.id === id) ?? null;
+  }
+  employee(id) {
+    const e = this.db.employees.find((x) => x.id === id);
+    if (!e) throw new ApiError('ไม่พบพนักงาน', 404);
+    return e;
+  }
+  // ---------- Dashboard / Monitor ----------
+  getDashboard() {
+    return this.run(() => {
+      const { employees, sites, rules, batches, issues } = this.db;
+      return buildDashboard(this.today(), employees, sites, rules, batches, issues);
+    });
+  }
+  getWorkQueue() {
+    return this.run(() => {
+      const { employees, sites, rules, batches, issues } = this.db;
+      return buildWorkQueue(this.today(), employees, sites, rules, batches, issues);
+    });
+  }
+  listActivity(filter = {}) {
+    return this.run(() =>
+      this.db.activities
+        .filter(
+          (a) =>
+            (!filter.entity || a.entity === filter.entity) &&
+            (filter.employeeId === undefined || a.employeeId === filter.employeeId),
+        )
+        .sort((a, b) => b.at.localeCompare(a.at) || b.id - a.id)
+        .slice(0, filter.limit ?? 200),
+    );
+  }
+  // ---------- Companies / Sites ----------
+  listCompanies() {
+    return this.run(() => this.db.companies);
+  }
+  listSites() {
+    return this.run(() => this.db.sites);
+  }
+  createSite(input) {
+    return this.run(() => {
+      if (!input.name.trim()) throw new ApiError('กรุณาระบุชื่อหน่วยงาน', 422);
+      if (this.db.sites.some((s) => s.companyCode === input.companyCode && s.name === input.name.trim())) {
+        throw new ApiError('มีหน่วยงานชื่อนี้ในบริษัทแล้ว', 409);
+      }
+      const site = { ...input, name: input.name.trim(), id: nextId(this.db.sites) };
+      this.db.sites.push(site);
+      this.log('SITE', 'CREATE', site.id, `เพิ่มหน่วยงาน “${site.name}” (${site.companyCode})`);
+      this.persist();
+      return site;
+    });
+  }
+  updateSite(id, patch) {
+    return this.run(() => {
+      const s = this.db.sites.find((x) => x.id === id);
+      if (!s) throw new ApiError('ไม่พบหน่วยงาน', 404);
+      if (patch.name !== undefined && !patch.name.trim()) throw new ApiError('กรุณาระบุชื่อหน่วยงาน', 422);
+      const changes = [];
+      if (patch.name !== undefined && patch.name !== s.name) changes.push(`ชื่อ → ${patch.name}`);
+      if (patch.hasGroupInsurance !== undefined && patch.hasGroupInsurance !== s.hasGroupInsurance)
+        changes.push(patch.hasGroupInsurance ? 'ได้รับประกันกลุ่ม' : 'ไม่ได้รับประกันกลุ่ม');
+      if (patch.poloColor !== undefined && patch.poloColor !== s.poloColor)
+        changes.push(`โปโลสี${patch.poloColor === 'NAVY' ? 'น้ำเงิน' : 'ดำ'}`);
+      Object.assign(s, patch);
+      if (changes.length) this.log('SITE', 'UPDATE', s.id, `แก้ไขหน่วยงาน “${s.name}”: ${changes.join(', ')}`);
+      this.persist();
+      return s;
+    });
+  }
+  deleteSite(id) {
+    return this.run(() => {
+      const s = this.db.sites.find((x) => x.id === id);
+      if (!s) throw new ApiError('ไม่พบหน่วยงาน', 404);
+      const n = this.db.employees.filter((e) => e.siteId === id).length;
+      if (n > 0) throw new ApiError(`ลบไม่ได้ — ยังมีพนักงานในหน่วยงานนี้ ${n} คน`, 409);
+      this.db.sites = this.db.sites.filter((x) => x.id !== id);
+      this.log('SITE', 'DELETE', id, `ลบหน่วยงาน “${s.name}”`);
+      this.persist();
+    });
+  }
+  // ---------- Employees ----------
+  listEmployees(filter = {}) {
+    return this.run(() => {
+      const q = filter.q?.trim().toLowerCase() ?? '';
+      return this.db.employees
+        .filter(
+          (e) =>
+            (!q || `${e.empCode} ${e.firstName} ${e.lastName}`.toLowerCase().includes(q)) &&
+            (!filter.companyCode || e.companyCode === filter.companyCode) &&
+            (!filter.employeeType || e.employeeType === filter.employeeType) &&
+            (!filter.status || e.status === filter.status),
+        )
+        .sort((a, b) => a.empCode.localeCompare(b.empCode));
+    });
+  }
+  getEmployeeBenefits(id) {
+    return this.run(() => {
+      const e = this.employee(id);
+      return benefitsOf(e, this.site(e.siteId), this.db.rules, this.db.issues, this.today());
+    });
+  }
+  saveEmployee(input) {
+    return this.run(() => {
+      const dup = this.db.employees.find((e) => e.empCode === input.empCode && e.id !== input.id);
+      if (dup) throw new ApiError('รหัสพนักงานซ้ำ', 409);
+      const site = this.site(input.siteId);
+      if (!site) throw new ApiError('ไม่พบหน่วยงาน', 422);
+      if (site.companyCode !== input.companyCode) throw new ApiError('หน่วยงานไม่ได้อยู่ในบริษัทที่เลือก', 422);
+      if (input.id) {
+        const e = this.employee(input.id);
+        const wasActive = e.status === 'ACTIVE';
+        Object.assign(e, input);
+        const terminated = wasActive && e.status === 'INACTIVE';
+        this.log(
+          'EMPLOYEE',
+          'UPDATE',
+          e.id,
+          terminated ? `บันทึกพ้นสภาพ ${fullName(e)} (${e.empCode})` : `แก้ไขข้อมูล ${fullName(e)} (${e.empCode})`,
+          e.id,
+        );
+        this.persist();
+        return e;
+      }
+      const created = { ...input, id: nextId(this.db.employees) };
+      this.db.employees.push(created);
+      this.log('EMPLOYEE', 'CREATE', created.id, `เพิ่มพนักงาน ${fullName(created)} (${created.empCode})`, created.id);
+      this.persist();
+      return created;
+    });
+  }
+  deleteEmployee(id) {
+    return this.run(() => {
+      const e = this.employee(id);
+      const hasHistory =
+        this.db.batches.some((b) => b.employeeIds.includes(id)) || this.db.issues.some((i) => i.employeeId === id);
+      if (hasHistory) throw new ApiError('ลบไม่ได้ — มีประวัติแจ้งประกัน/แจกชุดแล้ว ให้ใช้ “บันทึกพ้นสภาพ” แทน', 409);
+      this.db.employees = this.db.employees.filter((x) => x.id !== id);
+      this.log('EMPLOYEE', 'DELETE', id, `ลบพนักงาน ${fullName(e)} (${e.empCode})`);
+      this.persist();
+    });
+  }
+  getRules() {
+    return this.run(() => this.db.rules);
+  }
+  // ---------- Insurance ----------
+  getInsuranceCycle(cycleDate) {
+    return this.run(() => {
+      const { employees, sites, rules, batches } = this.db;
+      return buildInsuranceCycle(cycleDate, employees, sites, rules, batches);
+    });
+  }
+  listInsuranceBatches() {
+    return this.run(() => [...this.db.batches].sort((a, b) => b.id - a.id));
+  }
+  submitInsuranceBatch(input) {
+    return this.run(() => {
+      if (input.employeeIds.length === 0) throw new ApiError('ไม่มีรายการที่เลือก', 422);
+      input.employeeIds.forEach((id) => this.employee(id));
+      const sent = sentIndex(this.db.batches)[input.type === 'IN' ? 'IN' : 'OUT'];
+      const already = input.employeeIds.filter((id) => sent.has(id)).length;
+      if (already > 0) throw new ApiError(`มีพนักงานที่ถูกแจ้งไปแล้ว ${already} ราย`, 409);
+      const batch = { id: nextId(this.db.batches), ...input, submittedAt: nowStamp(), submittedBy: CURRENT_USER };
+      this.db.batches.push(batch);
+      const one = input.employeeIds.length === 1 ? input.employeeIds[0] : null;
+      this.log(
+        'INSURANCE_BATCH',
+        'CREATE',
+        batch.id,
+        `ส่ง${BATCH_TYPE_LABEL[input.type]} ${input.employeeIds.length} ราย (รอบ ${input.cycleDate})`,
+        one,
+      );
+      this.persist();
+      return batch;
+    });
+  }
+  cancelInsuranceBatch(id) {
+    return this.run(() => {
+      const b = this.db.batches.find((x) => x.id === id);
+      if (!b) throw new ApiError('ไม่พบรายการส่งแจ้ง', 404);
+      this.db.batches = this.db.batches.filter((x) => x.id !== id);
+      this.log(
+        'INSURANCE_BATCH',
+        'CANCEL',
+        id,
+        `ยกเลิก${BATCH_TYPE_LABEL[b.type]} #${id} (${b.employeeIds.length} ราย)`,
+      );
+      this.persist();
+    });
+  }
+  listPvdMembers() {
+    return this.run(() => {
+      const today = this.today();
+      const rows = [];
+      for (const employee of this.db.employees) {
+        const pvd = pvdStatus(employee, this.db.rules, today);
+        if (pvd.eligible) rows.push({ employee, pvd });
+      }
+      return rows.sort((a, b) => (a.pvd.joinDate ?? '').localeCompare(b.pvd.joinDate ?? ''));
+    });
+  }
+  // ---------- Uniform ----------
+  listUniformIssues(employeeId) {
+    return this.run(() =>
+      this.db.issues
+        .filter((i) => employeeId === undefined || i.employeeId === employeeId)
+        .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt) || b.id - a.id),
+    );
+  }
+  createUniformIssue(input) {
+    return this.run(() => {
+      const e = this.employee(input.employeeId);
+      if (!input.size.trim()) throw new ApiError('กรุณาเลือกไซซ์', 422);
+      if (this.db.issues.some((i) => i.employeeId === input.employeeId && i.entitlementKey === input.entitlementKey)) {
+        throw new ApiError('รายการนี้แจกไปแล้ว', 409);
+      }
+      const issue = { ...input, id: nextId(this.db.issues), issuedBy: CURRENT_USER };
+      this.db.issues.push(issue);
+      this.log(
+        'UNIFORM_ISSUE',
+        'CREATE',
+        issue.id,
+        `แจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[input.event]}) ${input.qty} ตัว ไซซ์ ${input.size} ให้ ${fullName(e)}`,
+        e.id,
+      );
+      this.persist();
+      return issue;
+    });
+  }
+  cancelUniformIssue(id) {
+    return this.run(() => {
+      const i = this.db.issues.find((x) => x.id === id);
+      if (!i) throw new ApiError('ไม่พบรายการแจก', 404);
+      const e = this.db.employees.find((x) => x.id === i.employeeId);
+      this.db.issues = this.db.issues.filter((x) => x.id !== id);
+      this.log(
+        'UNIFORM_ISSUE',
+        'CANCEL',
+        id,
+        `ยกเลิกการแจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[i.event]}) ของ ${e ? fullName(e) : `#${i.employeeId}`}`,
+        i.employeeId,
+      );
+      this.persist();
+    });
+  }
+  listUniformPending() {
+    return this.run(() => {
+      const { employees, sites, rules, issues } = this.db;
+      return buildUniformPending(employees, sites, rules, issues, this.today());
+    });
+  }
+  reset() {
+    return this.run(() => {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
+      this.db = buildSeed(this.today());
+    });
+  }
+}

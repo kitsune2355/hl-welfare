@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ภาพรวม · HL Welfare</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <script>
+      try { if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <main id="page" class="page">
+      <div class="page-head">
+        <div>
+          <h1 id="greeting">สวัสดี 👋</h1>
+          <p id="today">กำลังโหลด…</p>
+        </div>
+      </div>
+
+      <!-- แจ้งเตือนแจ้งออกทันที (แสดงเมื่อมีรายการค้าง) -->
+      <div id="urgent-alert" class="mb hidden"></div>
+
+      <div id="stats" class="grid grid-4"></div>
+
+      <div class="grid grid-3 mt">
+        <section class="card">
+          <header class="card-head">
+            <div class="card-title">
+              <div>
+                <h2>พนักงานแยกบริษัท</h2>
+                <p>เฉพาะที่ทำงานอยู่</p>
+              </div>
+            </div>
+          </header>
+          <div class="card-body" id="by-company"></div>
+        </section>
+
+        <section class="card span-2">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="calendar-clock"></i></span>
+              <div>
+                <h2>จะครบสิทธิใน 30 วัน</h2>
+                <p>ประกันกลุ่ม / กองทุนสำรองเลี้ยงชีพ</p>
+              </div>
+            </div>
+          </header>
+          <div id="upcoming"></div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="assets/js/pages/dashboard.js"></script>
+  </body>
+</html>
