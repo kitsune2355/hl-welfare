@@ -423,10 +423,10 @@ function exportCard(d) {
       : ''}
     ${d.alreadyExported ? html`<p class="export-note">${raw(icon('info'))} ส่งออกรอบนี้ไปแล้ว ${d.alreadyExported} ราย — ส่งออกอีกครั้งจะได้รายชื่อเดิม + ที่เพิ่มขึ้น และแทนที่ประวัติเดิม</p>` : ''}
     ${f.template
-      ? html`<p class="export-note">${raw(icon('file-spreadsheet'))} ใช้แบบฟอร์ม <b>${f.template.fileName}</b></p>`
+      ? html`<p class="export-note">${raw(icon('file-spreadsheet'))}<span>เติมรายชื่อลงไฟล์ <b>${f.template.fileName}</b> ของบริษัทประกัน</span></p>`
       : alertBox({ tone: 'warning', title: 'ยังไม่มีไฟล์แบบฟอร์ม Excel', body: html`<a href="insurers.html?id=${f.id}">อัปโหลดแบบฟอร์มของบริษัทประกันนี้</a> — ระหว่างนี้ส่งออกเป็น CSV ได้` })}
     <footer class="export-actions">
-      <button class="btn btn-primary" data-export="xlsx" data-id="${f.id}" ${f.template ? '' : 'disabled'}>${raw(icon('download'))} ดาวน์โหลด Excel</button>
+      <button class="btn btn-primary" data-export="xlsx" data-id="${f.id}" ${f.template ? '' : 'disabled'}>${raw(icon('download'))} ดาวน์โหลดไฟล์ Excel ที่เติมแล้ว</button>
       <button class="btn" data-export="csv" data-id="${f.id}">CSV</button>
     </footer>
   </article>`;
@@ -437,9 +437,9 @@ async function openExport() {
   const m = openModal({
     size: 'lg',
     title: `ส่งออกไฟล์แจ้งประกัน · รอบ ${thaiDate(cycle)} (${groupOf(cycle)})`,
-    description: `ประจำเดือน ${thaiMonthYear(cycle)} · 1 ไฟล์ต่อบริษัทประกัน (ชีตสรุป + ชีตละบริษัทในเครือ) ตามแบบฟอร์มที่ตั้งไว้`,
+    description: `ประจำเดือน ${thaiMonthYear(cycle)} · ระบบเติมรายชื่อลงไฟล์ Excel ของแต่ละบริษัทประกัน (ชีตสรุป + ชีตละบริษัทในเครือ) — หน้าตาเหมือนไฟล์ที่อัปโหลดไว้ทุกอย่าง`,
     body: html`<div data-export-body>${loader({ text: 'กำลังเตรียมรายชื่อของแต่ละบริษัทประกัน', logo: true })}</div>`,
-    footer: html`<a class="btn btn-ghost foot-start" href="insurers.html">${raw(icon('file-spreadsheet'))} ตั้งค่าแบบฟอร์ม</a>
+    footer: html`<a class="btn btn-ghost foot-start" href="insurers.html">${raw(icon('file-spreadsheet'))} ไฟล์ Excel ของบริษัทประกัน</a>
       <button class="btn btn-primary" data-close>ปิด</button>`,
   });
   const body = m.el.querySelector('[data-export-body]');

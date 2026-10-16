@@ -91,7 +91,7 @@ export function sheetPreviewHtml(grid, o = {}) {
     </tr>
     ${o.columns
       ? html`<tr class="sp-map">
-          <th class="sp-corner sp-map-label">ข้อมูล</th>
+          <th class="sp-corner sp-map-label" title="ข้อมูลที่ระบบเติมลงคอลัมน์นี้">ระบบเติม</th>
           ${Array.from({ length: nCols }, (_, i) => {
             const m = o.columns[i + 1];
             return html`<th class="${sel.col === i + 1 ? 'sel' : ''}${hid(i + 1) ? ' hid' : ''}" ${o.interactive ? raw(`data-col="${i + 1}"`) : ''}>

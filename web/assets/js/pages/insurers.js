@@ -1,8 +1,9 @@
 // หน้า: แบบฟอร์มประกัน (insurers.html)
 //
 //   ภาพรวม (ไม่มี ?id)     ① บริษัทประกัน + ไฟล์แบบฟอร์ม Excel   ② ผูกบริษัทในเครือ ↔ บริษัทประกัน (บันทึกทีเดียวทั้งตาราง)
-//   แก้แบบฟอร์ม (?id=)    ขั้น 1 ไฟล์แบบฟอร์ม (อัปโหลด .xlsx/.xls) → ขั้น 2 ตำแหน่งข้อมูล (ระบบอ่านให้ แก้ได้บนตัวอย่างไฟล์จริง)
-//                          → ขั้น 3 ตั้งค่าการส่งออก + ทดลองสร้างไฟล์
+//   แก้แบบฟอร์ม (?id=)    ขั้น 1 ไฟล์ Excel ของบริษัทประกัน (อัปโหลด .xlsx/.xls) → ขั้น 2 จุดที่ระบบเติมข้อมูล (ระบบหาให้ แก้ได้บนไฟล์)
+//                          → ขั้น 3 ทดลองเติมข้อมูล (ตั้งค่า + ดาวน์โหลดไฟล์ทดลองไปเปิดใน Excel)
+//   ระบบไม่สร้างแบบฟอร์มใหม่ — ตอนส่งออกเปิดไฟล์ที่อัปโหลดแล้วเติมรายชื่อลงไป (app/xlsxDirect.js)
 //
 // ไฟล์ที่อัปโหลดอยู่ในเบราว์เซอร์จนกด "บันทึก" — ตอนบันทึกจะล้างรายชื่อพนักงานในไฟล์ (ข้อมูลบุคคล) ก่อนเก็บ (app/excelTemplate.js)
 import { api } from '../app/api.js';
@@ -34,9 +35,9 @@ const view = $('#view');
 const page = $('#page');
 const CODES = [...COMPANY_CODES].sort(); // ลำดับชีต/ตาราง = ตามตัวอักษร (เหมือนไฟล์ของ HR)
 const STEPS = [
-  { id: 'file', label: 'ไฟล์แบบฟอร์ม', hint: 'อัปโหลด Excel' },
-  { id: 'layout', label: 'ตำแหน่งข้อมูล', hint: 'ตรวจ / แก้' },
-  { id: 'export', label: 'ตั้งค่าการส่งออก', hint: 'ทดลองสร้างไฟล์' },
+  { id: 'file', label: 'ไฟล์ Excel ของบริษัทประกัน', hint: 'อัปโหลดไฟล์ที่ใช้ส่งจริง' },
+  { id: 'layout', label: 'จุดที่ระบบเติมข้อมูล', hint: 'คอลัมน์ / ช่องที่จะเติม' },
+  { id: 'export', label: 'ทดลองเติมข้อมูล', hint: 'ตั้งค่า · เปิดไฟล์ใน Excel' },
 ];
 /** ตัวแปรที่แทรกได้ จัดหมวด (ปุ่มแทรกข้อมูล) */
 const VAR_GROUPS = [
@@ -207,7 +208,7 @@ function insurerCard(f) {
     </div>
     <footer class="ic-actions">
       <a class="btn btn-sm btn-primary" href="insurers.html?id=${f.id}">${raw(icon('pencil'))} แก้ไขแบบฟอร์ม</a>
-      ${t ? html`<button type="button" class="btn btn-sm" data-dl-template="${f.id}">${raw(icon('download'))} ดาวน์โหลดไฟล์แบบฟอร์ม</button>` : ''}
+      ${t ? html`<button type="button" class="btn btn-sm" data-dl-template="${f.id}">${raw(icon('download'))} ดาวน์โหลดไฟล์ Excel</button>` : ''}
     </footer>
   </article>`;
 }
@@ -239,7 +240,7 @@ function drawOverview() {
         <header class="ov-head">
           <span class="ov-no">1</span>
           <div>
-            <h2>แบบฟอร์มของบริษัทประกัน</h2>
+            <h2>ไฟล์ Excel ของบริษัทประกัน</h2>
             <p>ไฟล์ Excel ที่บริษัทประกันให้กรอก — ระบบเติมรายชื่อลงไฟล์นี้ตอนส่งออก โดยคงหน้าตาเดิมทุกอย่าง</p>
           </div>
         </header>
@@ -449,10 +450,16 @@ function filePane() {
     <label class="drop" id="drop" tabindex="0">
       <input type="file" id="file-input" accept=".xlsx,.xls,application/vnd.ms-excel,${XLSX_MIME}" hidden />
       <span class="drop-icon">${raw(icon('file-spreadsheet'))}</span>
-      <b>${t ? 'เปลี่ยนไฟล์แบบฟอร์ม' : 'อัปโหลดไฟล์แบบฟอร์ม Excel'}</b>
-      <span>ลากไฟล์มาวางที่นี่ หรือ <u>คลิกเพื่อเลือกไฟล์</u> (.xlsx หรือ .xls)</span>
-      <small>ใช้ไฟล์ที่เคยส่งบริษัทประกันได้เลย — ระบบอ่านหัวตาราง/คอลัมน์/ช่องเลขกรมธรรม์ให้อัตโนมัติ</small>
+      <b>${t ? 'เปลี่ยนไฟล์ Excel' : 'อัปโหลดไฟล์ Excel ที่ส่งบริษัทประกัน'}</b>
+      <span>ลากไฟล์มาวางที่นี่ หรือ <u>คลิกเพื่อเลือกไฟล์</u> (.xlsx แนะนำ · .xls)</span>
+      <small>ใช้ไฟล์ที่เคยส่งจริงได้เลย (มีรายชื่ออยู่ก็ได้) — ระบบหาให้ว่าควรเติมข้อมูลตรงไหน</small>
     </label>
+
+    <ol class="how" aria-label="ระบบทำงานอย่างไร">
+      <li><span class="how-no">1</span><b>ไฟล์ของบริษัทประกันตัวจริง</b><small>ระบบเก็บไฟล์นี้ไว้ (ล้างรายชื่อเดิมออก)</small></li>
+      <li><span class="how-no">2</span><b>กำหนดจุดที่ระบบเติม</b><small>คอลัมน์ไหนเติมข้อมูลอะไร · ช่องเลขกรมธรรม์ / เดือน / ผู้แจ้ง</small></li>
+      <li><span class="how-no">3</span><b>ส่งออก = เติมรายชื่อลงไฟล์นี้</b><small>ไม่สร้างแบบฟอร์มใหม่ — โลโก้ สี สูตร หน้ากระดาษ เหมือนเดิมทุกอย่าง</small></li>
+    </ol>
 
     ${t
       ? html`<div class="file-card${src?.fromUpload ? ' new' : ''}">
@@ -461,11 +468,12 @@ function filePane() {
             <b>${t.fileName}</b>
             <span class="muted small">${src?.fromUpload ? 'ไฟล์ใหม่ — ยังไม่บันทึก' : t.uploadedAt ? `อัปโหลด ${thaiDateTime(t.uploadedAt)} · ${t.uploadedBy}` : t.uploadedBy} · ชีต ${t.sheet}${t.summary ? ` + ${t.summary.sheet}` : ''}</span>
           </div>
-          <button type="button" class="btn btn-sm" data-goto="layout">ตรวจตำแหน่งข้อมูล ${raw(icon('chevron-right'))}</button>
+          ${src?.fromUpload ? '' : html`<button type="button" class="btn btn-sm" id="dl-current">${raw(icon('download'))} ดาวน์โหลดไฟล์ที่เก็บไว้</button>`}
+          <button type="button" class="btn btn-sm" data-goto="layout">จุดที่ระบบเติมข้อมูล ${raw(icon('chevron-right'))}</button>
         </div>`
       : ''}
     ${xlsNotice()}
-    <p class="privacy">${raw(icon('lock'))} รายชื่อพนักงานที่อยู่ในไฟล์ (ข้อมูลบุคคล) จะถูกล้างออกก่อนเก็บ — เก็บไว้เฉพาะหน้าตาแบบฟอร์ม · ชีตอื่นที่ไม่ใช้ไม่ถูกเก็บ</p>
+    <p class="privacy">${raw(icon('lock'))} รายชื่อพนักงานที่อยู่ในไฟล์ (ข้อมูลบุคคล) จะถูกล้างออกก่อนเก็บ — เก็บไว้เฉพาะแบบฟอร์มเปล่า · ชีตอื่นที่ไม่ใช้ไม่ถูกเก็บ</p>
   </div>`;
 }
 
@@ -556,7 +564,7 @@ function layoutPane() {
         <select id="pick-summary" data-pick-sheet="summary" data-combobox>${sheetOpts(t.summary?.sheet, true)}</select>
         <span class="hint">จำนวนเข้า/ออกต่อบริษัท (ถ้าไฟล์มี)</span>
       </div>
-      <button type="button" class="btn btn-sm" id="redetect" title="อ่านตำแหน่งจากไฟล์ใหม่ (ทับที่แก้ไว้)">${raw(icon('refresh-cw'))} ให้ระบบอ่านตำแหน่งใหม่</button>
+      <button type="button" class="btn btn-sm" id="redetect" title="ให้ระบบหาจุดเติมข้อมูลจากไฟล์ใหม่ (ทับที่แก้ไว้)">${raw(icon('refresh-cw'))} ให้ระบบหาจุดเติมใหม่</button>
     </div>
 
     ${L && grid
@@ -647,7 +655,7 @@ function sidePanel(L, kind, grid) {
   const cols = (L.columns ?? []).filter((c) => c.source !== 'blank');
   const cells = Object.entries(L.cells ?? {});
   return html`<div class="side-card side-help">
-    <p class="side-tip">${raw(icon('info'))}<span><b>คลิกในตัวอย่างไฟล์</b> เพื่อแก้ — คอลัมน์ (หัวตาราง/แถวข้อมูล) หรือเซลล์นอกตาราง เช่น ช่องเลขกรมธรรม์ วันที่แจ้ง</span></p>
+    <p class="side-tip">${raw(icon('info'))}<span>นี่คือ<b>ไฟล์ของคุณ</b> — ป้ายสีเขียว (คอลัมน์) และช่องสีม่วง คือจุดที่ระบบจะเติมข้อมูล ส่วนอื่นของไฟล์ไม่ถูกแก้ · <b>คลิกคอลัมน์หรือช่อง</b>เพื่อเปลี่ยน</span></p>
     <h4>คอลัมน์ที่ระบบเติม (${cols.length})</h4>
     <ul class="side-list">
       ${cols.map((c) => html`<li><button type="button" data-pick-col="${c.col}"><span class="side-tag sm">${colLetter(c.col)}</span><span class="truncate">${(kind === 'summary' ? SUMMARY_SOURCES[c.source] : COLUMN_SOURCES[c.source]?.label) ?? c.source}</span></button></li>`)}
@@ -830,15 +838,23 @@ function exportPane() {
         </div>
       </section>
       <section class="pane-block span-all" id="test-block">
-        <h3>ทดลองสร้างไฟล์ <span class="muted small">ข้อมูลสมมติ 3 คน (เข้า 2 · ออก 1) เติมลงแบบฟอร์มจริง</span></h3>
-        <div class="row wrap">
-          <button type="button" class="btn btn-primary" id="test-build">${raw(icon('file-spreadsheet'))} สร้างไฟล์ตัวอย่าง</button>
-          ${testResult ? html`<button type="button" class="btn" id="test-download">${raw(icon('download'))} ดาวน์โหลดไฟล์ตัวอย่าง</button>` : ''}
-        </div>
+        <h3>ทดลองเติมข้อมูลลงไฟล์ <span class="muted small">ข้อมูลสมมติ 3 คน (เข้า 2 · ออก 1) เติมลงไฟล์ Excel ของคุณ แล้วเปิดดูใน Excel ได้เลย</span></h3>
         ${testResult
-          ? html`<div class="xl-tabs">${testResult.sheets.map((s, i) => html`<button type="button" class="xl-tab${i === testResult.active ? ' active' : ''}" data-test-sheet="${i}">${s.name}</button>`)}</div>
+          ? html`<div class="test-done">
+                <span class="ic-xl">${raw(icon('file-spreadsheet'))}</span>
+                <div class="grow">
+                  <b>เติมข้อมูลลงไฟล์แล้ว · ${testResult.sheets.length} ชีต</b>
+                  <span class="muted small">${testResult.sheets.map((s) => s.name).join(' · ')} — ส่วนอื่นของไฟล์เหมือนต้นฉบับทุกอย่าง</span>
+                </div>
+                <button type="button" class="btn btn-primary" id="test-download">${raw(icon('download'))} ดาวน์โหลดไปเปิดใน Excel</button>
+                <button type="button" class="btn" id="test-build">${raw(icon('refresh-cw'))} เติมใหม่</button>
+              </div>
+              <p class="test-note">${raw(icon('eye'))}<span>ตัวอย่างด้านล่างแสดง<b>โดยประมาณ</b> — หน้าตาจริงดูจากไฟล์ที่ดาวน์โหลด</span></p>
+              <div class="xl-tabs">${testResult.sheets.map((s, i) => html`<button type="button" class="xl-tab${i === testResult.active ? ' active' : ''}" data-test-sheet="${i}">${s.name}</button>`)}</div>
               <div class="lay-sheet test">${sheetPreviewHtml(testResult.sheets[testResult.active].grid, { maxRows: 80 })}</div>`
-          : ''}
+          : html`<div class="row wrap">
+              <button type="button" class="btn btn-primary" id="test-build">${raw(icon('file-spreadsheet'))} เติมข้อมูลทดลอง</button>
+            </div>`}
       </section>
     </div>
   </div>`;
@@ -888,7 +904,10 @@ on(view, 'click', '#test-build', (_e, btn) =>
     testResult = { buffer: out, sheets, active: sheets.length > 1 ? 1 : 0 }; // เปิดชีตบริษัทแรก (ถัดจากสรุป)
     drawPane();
     $('#test-block').scrollIntoView({ block: 'start', behavior: 'smooth' });
-  }, { label: 'กำลังสร้างไฟล์' }).catch((err) => toast.error(errorMessage(err))),
+  }, { label: 'กำลังเติมข้อมูลลงไฟล์' }).catch((err) => toast.error(errorMessage(err))),
+);
+on(view, 'click', '#dl-current', (_e, btn) =>
+  busy(btn, async () => downloadBlob(new Blob([await templateBuffer(draft.template)], { type: XLSX_MIME }), draft.template.fileName.replace(/\.xlsx?$/i, '') + '.xlsx')).catch((err) => toast.error(errorMessage(err))),
 );
 on(view, 'click', '#test-download', () => downloadBlob(new Blob([testResult.buffer], { type: XLSX_MIME }), `ตัวอย่าง-${exportFileName(draft, cycle)}.xlsx`));
 on(view, 'click', '[data-test-sheet]', (_e, b) => {
