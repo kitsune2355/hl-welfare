@@ -15,6 +15,8 @@ const SHOW_AFTER = 80;
 /** เดินแถบช้าลงเรื่อย ๆ แต่ไม่ถึง 100% จนกว่าจะเสร็จ */
 const TRICKLE_MS = 250;
 const MAX_BEFORE_DONE = 0.9;
+/** แสดงแล้วต้องอยู่อย่างน้อยเท่านี้ (ms) — ไม่วูบหายจนมองไม่ทัน */
+const MIN_VISIBLE = 350;
 
 let bar = null;
 let pending = 0;
@@ -22,6 +24,8 @@ let width = 0;
 let showTimer = null;
 let trickleTimer = null;
 let hideTimer = null;
+let finishTimer = null;
+let shownAt = 0;
 
 function ensureBar() {
   if (bar) return bar;
@@ -40,6 +44,8 @@ function setWidth(w) {
 
 function show() {
   clearTimeout(hideTimer);
+  clearTimeout(finishTimer);
+  shownAt = performance.now();
   ensureBar().classList.add('active');
   document.documentElement.setAttribute('aria-busy', 'true');
   setWidth(Math.max(width, 0.08));
@@ -49,10 +55,20 @@ function show() {
 
 function finish() {
   clearTimeout(showTimer);
-  clearInterval(trickleTimer);
   showTimer = null;
+  if (!bar?.classList.contains('active')) {
+    document.documentElement.removeAttribute('aria-busy');
+    return;
+  }
+  // แสดงมาไม่ถึงขั้นต่ำ → รอให้ครบก่อนค่อยวิ่งเต็มแล้วหาย
+  const wait = MIN_VISIBLE - (performance.now() - shownAt);
+  if (wait > 0) {
+    clearTimeout(finishTimer);
+    finishTimer = setTimeout(() => pending === 0 && finish(), wait);
+    return;
+  }
+  clearInterval(trickleTimer);
   document.documentElement.removeAttribute('aria-busy');
-  if (!bar?.classList.contains('active')) return;
   setWidth(1);
   hideTimer = setTimeout(() => {
     bar.classList.remove('active');
@@ -131,7 +147,10 @@ export function installNavigationProgress() {
     if (url.origin !== location.origin || (url.pathname === location.pathname && url.hash)) return;
     progress.start();
   });
-  window.addEventListener('pageshow', () => {
+  // กลับมาด้วยปุ่ม Back (หน้าจาก bfcache) → แถบที่เริ่มตอนคลิกลิงก์ค้างอยู่ ให้ปิด
+  // (โหลดหน้าปกติไม่ต้องรีเซ็ต — api ของหน้ายังทำงานอยู่)
+  window.addEventListener('pageshow', (e) => {
+    if (!e.persisted) return;
     pending = 0;
     finish();
   });

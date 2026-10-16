@@ -3428,393 +3428,6 @@ input[type='radio'] {
   min-width: 0;
 }
 
-/* =====================================================================
-   หน้าแบบฟอร์มประกัน (insurers.html)
-   ===================================================================== */
-.check {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 13px;
-  cursor: pointer;
-}
-.check input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--primary);
-}
-.field .label {
-  font-size: 13px;
-  font-weight: 500;
-}
-.switch-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  min-height: 38px;
-  font-size: 13px;
-  color: var(--muted);
-}
-.ins-layout {
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
-  padding-bottom: 88px; /* เว้นที่ให้แถบปุ่มบันทึก */
-}
-.ins-list {
-  position: sticky;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ins-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  text-align: left;
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-.ins-item:hover {
-  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
-}
-.ins-item.active {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--ring);
-}
-.ins-item.new {
-  flex-direction: row;
-  align-items: center;
-  border-style: dashed;
-  color: var(--primary);
-}
-.ins-item-head {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 0;
-}
-.ins-item-cos {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  color: var(--fg);
-}
-.ins-card .card-head .row-actions {
-  flex-shrink: 0;
-}
-/* section ในตัวแก้ไข: หัวข้ออยู่บน เนื้อหาเต็มความกว้าง (ตารางคอลัมน์ต้องการพื้นที่) */
-.ins-card .form-section {
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-.ins-card .form-section > div:first-child p code {
-  padding: 1px 6px;
-  border-radius: 6px;
-  background: var(--surface-2);
-  font-size: 12px;
-}
-.ins-card .form-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.ins-card .form-grid .span-2 {
-  grid-column: span 2;
-}
-.ins-card .field .check + .check {
-  margin-top: 6px;
-}
-.ph-bar {
-  position: sticky;
-  top: -1px;
-  z-index: 3;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  margin: -4px 0 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
-.ph-bar .chip {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 11.5px;
-}
-.ins-table {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.ins-th,
-.ins-tr {
-  display: grid;
-  gap: 10px;
-  align-items: center;
-  padding: 8px 12px;
-}
-.ins-th {
-  background: var(--surface-2);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.ins-tr + .ins-tr,
-.ins-th + .ins-tr {
-  border-top: 1px solid var(--border);
-}
-.ins-tr.off {
-  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
-}
-.ins-tr.off .input {
-  opacity: 0.55;
-}
-.co-table .ins-th,
-.co-table .ins-tr {
-  grid-template-columns: 28px 90px minmax(0, 2fr) minmax(0, 1fr) 80px;
-}
-.co-code {
-  display: flex;
-  flex-direction: column;
-}
-.co-code .warn {
-  font-size: 11px;
-  color: var(--warning);
-}
-.col-table .ins-th,
-.col-table .ins-tr {
-  grid-template-columns: 40px minmax(0, 1.5fr) minmax(0, 1.3fr) minmax(0, 1.2fr) 118px 64px 104px;
-}
-.col-table .ins-tr {
-  align-items: start;
-}
-.col-table textarea.input {
-  min-height: 38px;
-  resize: vertical;
-  line-height: 1.35;
-}
-.col-letter {
-  display: grid;
-  place-items: center;
-  height: 36px;
-  border-radius: 8px;
-  background: var(--surface-2);
-  font-weight: 700;
-  color: var(--muted);
-}
-.col-src {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.add-row {
-  margin-top: 10px;
-}
-.ins-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ins-line {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.ins-line .grow {
-  flex: 1;
-  min-width: 0;
-}
-.ins-line .combo-btn,
-.ins-line .combo {
-  width: 120px;
-}
-.ins-line .size {
-  width: 64px;
-}
-/* ตัวอย่างแบบ Excel */
-.xl-wrap {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background: var(--surface);
-}
-.xl-tabs {
-  display: flex;
-  gap: 2px;
-  align-items: center;
-  padding: 6px 8px 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.xl-tab {
-  padding: 6px 14px;
-  border: 1px solid transparent;
-  border-bottom: 0;
-  border-radius: 8px 8px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.xl-tab.active {
-  border-color: var(--border);
-  background: var(--surface);
-  color: #107c41; /* สีเขียว Excel */
-  margin-bottom: -1px;
-}
-.xl-file {
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
-  margin-left: auto;
-  padding: 0 6px;
-  white-space: nowrap;
-}
-.xl-scroll {
-  max-height: 520px;
-  overflow: auto;
-}
-.xl-preview {
-  border-collapse: collapse;
-  table-layout: fixed;
-  font-family: Tahoma, var(--font);
-  font-size: 11px;
-  color: #111;
-  background: #fff;
-}
-.xl-preview td {
-  height: 20px;
-  padding: 2px 4px;
-  border: 1px solid #e5e7eb;
-  vertical-align: middle;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.xl-preview .xl-rn,
-.xl-preview .xl-cl {
-  position: sticky;
-  z-index: 1;
-  border: 1px solid #d4d4d8;
-  background: #f4f4f5;
-  color: #71717a;
-  font-size: 10px;
-  font-weight: 500;
-  text-align: center;
-}
-.xl-preview .xl-rn {
-  left: 0;
-}
-.xl-preview thead .xl-cl,
-.xl-preview thead .xl-rn {
-  top: 0;
-  z-index: 2;
-}
-.xl-preview td.th,
-.xl-preview td.sumTh {
-  border-color: #7f7f7f;
-  background: #edeff3;
-  font-weight: 700;
-  text-align: center;
-  white-space: normal;
-  line-height: 1.25;
-}
-.xl-preview td.td,
-.xl-preview td.tdCenter,
-.xl-preview td.tdNum,
-.xl-preview td.sumTd {
-  border-color: #7f7f7f;
-}
-.xl-preview td.tdCenter {
-  text-align: center;
-}
-.xl-preview td.tdNum {
-  text-align: right;
-}
-.xl-preview td.title,
-.xl-preview td.subtitle {
-  font-weight: 700;
-  text-align: center;
-}
-.xl-preview td.title {
-  font-size: 13px;
-}
-.xl-preview td.total,
-.xl-preview td.b {
-  font-weight: 700;
-}
-.xl-preview td.center {
-  text-align: center;
-}
-@media (max-width: 1279px) {
-  .ins-layout {
-    grid-template-columns: 220px minmax(0, 1fr);
-  }
-  .col-table .ins-th {
-    display: none;
-  }
-  .col-table .ins-tr {
-    grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .col-table .ins-tr > span:nth-child(n + 4) {
-    grid-column: auto;
-  }
-}
-@media (max-width: 1023px) {
-  .ins-layout {
-    grid-template-columns: 1fr;
-  }
-  .ins-list {
-    position: static;
-    flex-direction: row;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .ins-item {
-    min-width: 220px;
-  }
-  .ins-card .form-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 639px) {
-  .ins-card .form-grid {
-    grid-template-columns: 1fr;
-  }
-  .ins-card .form-grid .span-2 {
-    grid-column: auto;
-  }
-  .co-table .ins-th {
-    display: none;
-  }
-  .co-table .ins-tr {
-    grid-template-columns: 28px 1fr 1fr;
-  }
-  .co-table .ins-tr > span:nth-child(n + 3) {
-    grid-column: 2 / -1;
-  }
-  .col-table .ins-tr {
-    grid-template-columns: 36px minmax(0, 1fr);
-  }
-  .col-table .ins-tr > span:nth-child(n + 3) {
-    grid-column: 2;
-  }
-  .ins-line {
-    flex-wrap: wrap;
-  }
-  .ins-line .grow {
-    flex-basis: 100%;
-  }
-}
-
 /* หน้าที่มีแถบปุ่มบันทึกด้านล่าง: Toast ขึ้นไปอยู่เหนือแถบ (ไม่บังปุ่ม "บันทึก") */
 body:has(.form-footer) .toasts {
   bottom: 76px;
@@ -3827,33 +3440,6 @@ body:has(.form-footer) .toasts {
     bottom: calc(76px + env(safe-area-inset-bottom));
   }
 }
-/* ตัวอย่างแบบ Excel: เว้นวรรคหลายช่องตามจริง */
-.xl-preview td.text,
-.xl-preview td.note,
-.xl-preview td.total,
-.xl-preview td.td {
-  white-space: pre;
-}
-.ins-card textarea.input {
-  height: auto;
-  padding-top: 8px;
-  padding-bottom: 8px;
-}
-.ins-card #f-foot {
-  min-height: 132px;
-  line-height: 1.5;
-}
-@media (max-width: 1279px) {
-  /* ตารางคอลัมน์แบบการ์ด: ป้ายกำกับเหนือแต่ละช่อง */
-  .col-table .ins-tr > span[data-label]::before {
-    content: attr(data-label);
-    display: block;
-    margin-bottom: 3px;
-    font-size: 11px;
-    color: var(--muted);
-  }
-}
-
 /* หน้าที่มีแถบปุ่มบันทึกติดล่าง: เลื่อนหา/โฟกัสช่องแล้วต้องไม่ไปอยู่ใต้แถบ */
 html:has(.form-footer),
 .page:has(.form-footer) {
@@ -4027,5 +3613,1129 @@ html:has(.form-footer),
   .ld-dots i,
   .top-progress i::after {
     animation: none;
+  }
+}
+
+/* =====================================================================
+   หน้าแบบฟอร์มประกัน (insurers.html)
+   ===================================================================== */
+.field .label {
+  font-size: 13px;
+  font-weight: 500;
+}
+.ins-layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  padding-bottom: 88px; /* เว้นที่ให้แถบปุ่มบันทึก */
+}
+/* รายการแบบฟอร์ม */
+.ins-list {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ins-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.ins-item:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+}
+.ins-item.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.ins-item.new {
+  border-style: dashed;
+}
+.ins-item-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--grad-soft);
+  color: var(--primary);
+}
+.ins-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.ins-item-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+.ins-item-cos {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+}
+/* หัวตัวแก้ไข + แท็บขั้นตอน */
+.ins-card {
+  overflow: visible;
+}
+.ins-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 18px 20px 14px;
+}
+.ins-head h2 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 17px;
+  font-weight: 600;
+}
+.ins-head p {
+  font-size: 13px;
+}
+.ins-head .grow {
+  flex: 1;
+  min-width: 0;
+}
+.ins-steps {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px 12px;
+  border-block: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+.ins-step {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-align: left;
+  color: var(--muted);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.ins-step:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+.ins-step.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.ins-step-no {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ins-step.active .ins-step-no {
+  border-color: transparent;
+  background: var(--grad);
+  color: #fff;
+}
+.ins-step-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ins-step-text b {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ins-step-text small {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.ins-step-err {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ins-pane {
+  padding: 20px;
+}
+.pane-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.pane-block {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-2) 35%, var(--surface));
+}
+.pane-block.span-all {
+  grid-column: 1 / -1;
+}
+.pane-block h3 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  font-size: 14px;
+  font-weight: 600;
+}
+.pane-block .form-grid.g2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.pane-block .form-grid.g3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.pane-intro {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--info-soft);
+  color: var(--info);
+  font-size: 13px;
+}
+.pane-intro .icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.example-line {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.example-line b {
+  color: var(--fg);
+}
+.example-line .icon {
+  flex-shrink: 0;
+}
+.mark-input {
+  max-width: 120px;
+  font-weight: 700;
+  text-align: center;
+}
+/* สวิตช์ + คำอธิบาย */
+.sw-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.sw-row span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+}
+.sw-row small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.sub-field {
+  margin-top: 10px;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+}
+/* ปุ่มแบ่งส่วน (พ.ศ./ค.ศ., แสดงในแถว) */
+.seg-lg {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.seg-lg button {
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.seg-lg button.on {
+  background: var(--surface);
+  color: var(--primary);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.12);
+}
+
+/* ===== ช่องที่แทรกข้อมูลได้ ===== */
+.vf {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.vf > label {
+  font-size: 13px;
+  font-weight: 500;
+}
+.vf-box {
+  position: relative;
+  display: flex;
+}
+.vf-box .vf-input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 128px;
+}
+.vf-btn {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  transform: translateY(-50%);
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+}
+.vf-btn:hover {
+  background: color-mix(in srgb, var(--primary) 16%, var(--surface));
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.vf-out {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.vf-out-label {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.vf-out-text {
+  min-width: 0;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.vf-out mark {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--grad-end) 18%, transparent);
+  color: inherit;
+  box-shadow: inset 0 -1.5px 0 color-mix(in srgb, var(--grad-end) 60%, transparent);
+}
+.vf-out mark.empty {
+  background: var(--warning-soft);
+  color: var(--warning);
+  box-shadow: none;
+  font-size: 11.5px;
+}
+.vf-out mark.bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+  box-shadow: none;
+  text-decoration: wavy underline;
+}
+.vf.compact .vf-out {
+  font-size: 12px;
+}
+/* เมนูแทรกข้อมูล */
+.vf-menu {
+  position: fixed;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  max-height: min(440px, 70vh);
+  padding: 0;
+  overflow: hidden;
+}
+.vf-menu-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--grad-soft);
+}
+.vf-menu-head b {
+  font-size: 13px;
+}
+.vf-menu-head span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.vf-menu .popover-search {
+  margin: 8px 8px 0;
+}
+.vf-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+}
+.vf-group {
+  padding: 8px 8px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+}
+.vf-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 13px;
+}
+.vf-item:hover,
+.vf-item.active {
+  background: var(--primary-soft);
+}
+.vf-item.active {
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.vf-label {
+  font-weight: 500;
+}
+.vf-ex {
+  overflow: hidden;
+  max-width: 55%;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.vf-ex i {
+  font-style: normal;
+  color: var(--warning);
+}
+.vf-none {
+  padding: 18px;
+  text-align: center;
+  color: var(--muted);
+}
+.vf-menu-foot {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+}
+.vf-menu-foot kbd {
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+/* ===== บริษัท & กรมธรรม์ ===== */
+.co-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.co-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.co-card.on {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.06);
+}
+.co-card.clash {
+  border-color: var(--danger);
+}
+.co-card header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.co-code {
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+.co-used {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--info-soft);
+  color: var(--info);
+  font-size: 11px;
+}
+.co-used.bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.co-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.co-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px;
+  gap: 10px;
+}
+.co-off {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ===== คอลัมน์ (รายการ + รายละเอียด) ===== */
+.colx {
+  display: grid;
+  grid-template-columns: minmax(250px, 340px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.colx-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.colx-side-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 2px 4px;
+}
+.colx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 560px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 3px;
+  list-style: none;
+}
+.colx-item {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+.colx-item:hover {
+  border-color: var(--border);
+}
+.colx-item.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.colx-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.colx-item.dragging {
+  opacity: 0.4;
+}
+.colx-item.drop-before::before,
+.colx-item.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--grad);
+}
+.colx-item.drop-before::before {
+  top: -4px;
+}
+.colx-item.drop-after::after {
+  bottom: -4px;
+}
+.colx-grip {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  cursor: grab;
+  opacity: 0.6;
+}
+.colx-letter {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.colx-item.active .colx-letter,
+.colx-letter.big {
+  background: var(--grad);
+  color: #fff;
+}
+.colx-letter.big {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+.colx-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.colx-main b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.colx-meta {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.colx-meta .tag {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.colx-meta .tag.grp {
+  overflow: hidden;
+  max-width: 90px;
+  background: var(--info-soft);
+  color: var(--info);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.colx-add {
+  justify-content: center;
+}
+.colx-pane {
+  min-width: 0;
+}
+.colx-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.colx-dhead {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.colx-dhead h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+.colx-dhead .grow {
+  flex: 1;
+  min-width: 0;
+}
+.colx-detail textarea.input {
+  height: auto;
+  min-height: 58px;
+  padding-block: 8px;
+  line-height: 1.45;
+  resize: vertical;
+}
+.grp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.range {
+  width: 100%;
+  accent-color: var(--primary);
+}
+
+/* ===== หัว–ท้ายเอกสาร ===== */
+.doc-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.doc-line {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.doc-line.row-line {
+  flex-direction: row;
+  align-items: flex-start;
+}
+.doc-line.row-line .grow {
+  flex: 1;
+  min-width: 0;
+}
+.doc-line.row-line .doc-no,
+.doc-line.row-line .tool {
+  margin-top: 6px;
+}
+.doc-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.doc-tools .grow {
+  flex: 1;
+}
+.doc-no {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-right: 4px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.tool {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--muted);
+}
+.tool:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+.tool.on {
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.tool:disabled {
+  opacity: 0.35;
+}
+.tool-size {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tool-size select {
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+}
+.doc-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ===== ตัวอย่างไฟล์ ===== */
+.ins-preview {
+  margin-top: 16px;
+  overflow: hidden;
+}
+.ins-preview-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+}
+.ins-preview-toggle {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  text-align: left;
+}
+.ins-preview-toggle .icon {
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+.ins-preview.closed .ins-preview-toggle .icon {
+  transform: rotate(-90deg);
+}
+.ins-preview-toggle span {
+  display: flex;
+  flex-direction: column;
+}
+.ins-preview-toggle small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ins-preview.closed .xl-wrap {
+  display: none;
+}
+.ins-preview .xl-wrap {
+  margin: 0 16px 16px;
+}
+.xl-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
+}
+.xl-tabs {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.xl-tab {
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.xl-tab.active {
+  margin-bottom: -1px;
+  border-color: var(--border);
+  background: var(--surface);
+  color: #107c41; /* สีเขียว Excel */
+}
+.xl-file {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.xl-scroll {
+  max-height: 460px;
+  overflow: auto;
+}
+.xl-preview {
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: Tahoma, var(--font);
+  font-size: 11px;
+  color: #111;
+  background: #fff;
+}
+.xl-preview td {
+  height: 20px;
+  padding: 2px 4px;
+  border: 1px solid #e5e7eb;
+  vertical-align: middle;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.xl-preview td.text,
+.xl-preview td.note,
+.xl-preview td.total,
+.xl-preview td.td {
+  white-space: pre;
+}
+.xl-preview .xl-rn,
+.xl-preview .xl-cl {
+  position: sticky;
+  z-index: 1;
+  border: 1px solid #d4d4d8;
+  background: #f4f4f5;
+  color: #71717a;
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+}
+.xl-preview .xl-rn {
+  left: 0;
+}
+.xl-preview thead .xl-cl,
+.xl-preview thead .xl-rn {
+  top: 0;
+  z-index: 2;
+}
+.xl-preview .xl-cl[data-c] {
+  cursor: pointer;
+}
+.xl-preview .xl-cl.sel {
+  background: #107c41;
+  color: #fff;
+}
+.xl-preview td.th,
+.xl-preview td.sumTh {
+  border-color: #7f7f7f;
+  background: #edeff3;
+  font-weight: 700;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.25;
+}
+.xl-preview td.td,
+.xl-preview td.tdCenter,
+.xl-preview td.tdNum,
+.xl-preview td.sumTd {
+  border-color: #7f7f7f;
+}
+.xl-preview td.tdCenter {
+  text-align: center;
+}
+.xl-preview td.tdNum {
+  text-align: right;
+}
+.xl-preview td.title,
+.xl-preview td.subtitle {
+  font-weight: 700;
+  text-align: center;
+}
+.xl-preview td.title {
+  font-size: 13px;
+}
+.xl-preview td.total,
+.xl-preview td.b {
+  font-weight: 700;
+}
+.xl-preview td.center {
+  text-align: center;
+}
+.xl-preview td.colcell {
+  cursor: pointer;
+}
+.xl-preview td.colcell:hover {
+  background-color: #f0fdf4;
+}
+.xl-preview td.sel {
+  background-color: #e7f6ec;
+  box-shadow:
+    inset 2px 0 0 #107c41,
+    inset -2px 0 0 #107c41;
+}
+.xl-preview td.th.sel {
+  background-color: #cdebd8;
+}
+/* แถบบันทึก: บอกว่ามีการแก้ไขค้าง */
+.dirty-note {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--warning);
+}
+.dirty-note .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  animation: ld-breathe 1.6s ease-in-out infinite;
+}
+
+@media (max-width: 1279px) {
+  .ins-layout {
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+  .pane-grid {
+    grid-template-columns: 1fr;
+  }
+  .colx {
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  }
+}
+@media (max-width: 1023px) {
+  .ins-layout {
+    grid-template-columns: 1fr;
+  }
+  .ins-list {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .ins-item {
+    min-width: 230px;
+  }
+  .ins-steps {
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .colx {
+    grid-template-columns: 1fr;
+  }
+  .colx-list {
+    max-height: 280px;
+  }
+}
+@media (max-width: 639px) {
+  .ins-pane {
+    padding: 14px;
+  }
+  .ins-head {
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+  .pane-block {
+    padding: 14px;
+  }
+  .pane-block .form-grid.g2,
+  .pane-block .form-grid.g3 {
+    grid-template-columns: 1fr;
+  }
+  .vf-box .vf-input {
+    padding-right: 46px;
+  }
+  .vf-btn span {
+    display: none;
+  }
+  .vf-btn {
+    padding: 0 8px;
+  }
+  .ins-preview-head {
+    flex-wrap: wrap;
+  }
+  .dirty-note {
+    display: none;
+  }
+}
+/* แถบแท็บติดบน: เลื่อนหา/โฟกัสช่องแล้วต้องไม่ไปอยู่ใต้แถบ */
+html:has(.ins-steps),
+.page:has(.ins-steps) {
+  scroll-padding-top: 84px;
+}
+/* จอแคบ: คอลัมน์ต้องหดได้ (1fr เฉย ๆ = กว้างตามบรรทัดภาษาไทยที่ยาวที่สุด → ล้นการ์ด) */
+.vf-out-text {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1279px) {
+  .pane-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 1023px) {
+  .ins-layout,
+  .colx {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

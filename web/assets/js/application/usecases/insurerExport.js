@@ -69,7 +69,8 @@ export function formatFormDate(iso, format = 'DD/MM/YYYY', era = 'BE') {
 /** "กุมภาพันธ์ 2569" */
 export const thaiMonthYear = (iso) => `${THAI_MONTHS_FULL[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(0, 4)) + 543}`;
 
-function cellValue(col, row, seq, form, company, cycleDate) {
+/** ค่าในเซลล์ของคอลัมน์ col สำหรับแถว row (ใช้ทั้งสร้างไฟล์และแสดงตัวอย่างในหน้าตั้งค่า) */
+export function cellValue(col, row, seq, form, company, cycleDate) {
   const e = row.employee;
   const date = (d) => formatFormDate(d, form.dateFormat, form.dateEra);
   const isIn = row.type === 'IN';
