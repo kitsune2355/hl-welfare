@@ -241,17 +241,11 @@ function openMenu(field, { fromBrace = false } = {}) {
   const caret = fromBrace ? (field.selectionStart ?? field.value.length) : Number(field.dataset.caret ?? field.value.length);
   const caretEnd = fromBrace ? caret : Number(field.dataset.caretEnd ?? caret);
   menu = { el, field, query: '', active: 0, start: fromBrace ? caret - 1 : caret, end: caretEnd, fromBrace };
-  // ตำแหน่ง: ใต้ช่อง ชิดขวา · ล้นล่างจอ → ขึ้นด้านบน
-  const r = field.closest('.vf-box').getBoundingClientRect();
-  const w = Math.min(400, window.innerWidth - 16);
-  el.style.width = `${w}px`;
-  el.style.left = `${Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))}px`;
-  const below = window.innerHeight - r.bottom;
-  if (below < 360 && r.top > below) el.style.bottom = `${window.innerHeight - r.top + 4}px`;
-  else el.style.top = `${r.bottom + 4}px`;
+  positionMenu();
   drawMenu();
   const search = el.querySelector('.popover-search input');
-  search?.focus();
+  // จอสัมผัส: ไม่โฟกัสช่องค้นหาเอง (แป้นพิมพ์จะเด้งขึ้นมาบังเมนู) — แตะช่องค้นหาเองได้
+  if (!matchMedia('(pointer: coarse)').matches) search?.focus();
   search?.addEventListener('input', () => {
     menu.query = search.value.trim();
     menu.active = 0;
@@ -263,6 +257,25 @@ function openMenu(field, { fromBrace = false } = {}) {
     if (it) insertToken(it.dataset.token);
   });
   el.addEventListener('keydown', menuKeys);
+}
+
+/** วางเมนูใต้ช่อง ชิดขวา · ล้นล่างจอ → ขึ้นด้านบน · ช่องเลื่อนพ้นจอ → ปิด */
+function positionMenu() {
+  if (!menu) return;
+  const r = menu.field.closest('.vf-box').getBoundingClientRect();
+  if (r.bottom < 0 || r.top > window.innerHeight) return closeMenu();
+  const el = menu.el;
+  const w = Math.min(400, window.innerWidth - 16);
+  el.style.width = `${w}px`;
+  el.style.left = `${Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))}px`;
+  const below = window.innerHeight - r.bottom;
+  if (below < 360 && r.top > below) {
+    el.style.top = '';
+    el.style.bottom = `${window.innerHeight - r.top + 4}px`;
+  } else {
+    el.style.bottom = '';
+    el.style.top = `${r.bottom + 4}px`;
+  }
 }
 
 function menuKeys(e) {
@@ -301,13 +314,13 @@ function insertToken(token) {
 document.addEventListener('mousedown', (e) => {
   if (menu && !menu.el.contains(e.target) && !e.target.closest?.(`[data-var-open="${menu.field.id}"]`) && e.target !== menu.field) closeMenu();
 });
-window.addEventListener('resize', closeMenu);
-// ปิดเมนูเมื่อพื้นที่ที่ "มีช่องนั้นอยู่" เลื่อน (ช่องย้ายที่) — ไม่นับการเลื่อนข้อความภายในช่องเอง/ในเมนู
+window.addEventListener('resize', positionMenu); // รวมตอนแป้นพิมพ์มือถือเด้งขึ้น
+// พื้นที่ที่ "มีช่องนั้นอยู่" เลื่อน → เมนูเลื่อนตามช่อง (ไม่นับการเลื่อนข้อความภายในช่องเอง/ในเมนู)
 document.addEventListener(
   'scroll',
   (e) => {
     if (!menu || e.target === menu.field || menu.el.contains(e.target)) return;
-    if (e.target === document || e.target.contains?.(menu.field)) closeMenu();
+    if (e.target === document || e.target.contains?.(menu.field)) positionMenu();
   },
   true,
 );
