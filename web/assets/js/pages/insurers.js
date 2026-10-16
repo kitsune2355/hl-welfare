@@ -31,6 +31,7 @@ initPage('insurers', { tour: () => (getParam('id') ? 'insurer-edit' : 'insurers'
 const today = todayISO();
 const cycle = nextCycleDate(today);
 const view = $('#view');
+const page = $('#page');
 const CODES = [...COMPANY_CODES].sort(); // ลำดับชีต/ตาราง = ตามตัวอักษร (เหมือนไฟล์ของ HR)
 const STEPS = [
   { id: 'file', label: 'ไฟล์แบบฟอร์ม', hint: 'อัปโหลด Excel' },
@@ -230,6 +231,7 @@ function bindingRow(b) {
 }
 
 function drawOverview() {
+  page.classList.remove('editing');
   render($('#head-actions'), html`<a class="btn btn-primary" href="insurers.html?id=new">${raw(icon('plus'))} เพิ่มบริษัทประกัน</a>`);
   render(
     view,
@@ -334,6 +336,7 @@ function stepState(id) {
 }
 
 function drawEditor() {
+  page.classList.add('editing');
   render(
     $('#head-actions'),
     draft.id ? html`<button type="button" class="btn btn-ghost danger-text" id="del">${raw(icon('trash-2'))} ลบบริษัทประกันนี้</button>` : '',
@@ -343,6 +346,7 @@ function drawEditor() {
     html`<a class="back-link" href="insurers.html" id="back">${raw(icon('chevron-left'))} แบบฟอร์มของบริษัทประกันทั้งหมด</a>
       <form id="ed" novalidate>
         <section class="card ed">
+          <div class="ed-top">
           <header class="ed-head">
             <span class="ic-icon">${raw(icon('shield-plus'))}</span>
             <div class="grow">
@@ -360,6 +364,7 @@ function drawEditor() {
               </button>`;
             })}
           </nav>
+          </div>
           <div class="ed-pane" id="pane"></div>
         </section>
         <div class="form-footer">
@@ -394,6 +399,20 @@ async function drawPane() {
   } else render(pane, exportPane());
   enhanceSelects(pane);
   refreshDirty();
+}
+
+/** ช่องเครื่องหมายเข้าใหม่/ลาออก + ปุ่มเลือกเร็ว (พิมพ์ ✓ เองยาก) */
+const MARKS = ['✓', '✗', 'X', 'P'];
+function markField(id, key, label) {
+  return html`<div class="field">
+    <label for="${id}">${label}</label>
+    <div class="mark-row">
+      <input class="input mark-input" id="${id}" data-k="${key}" value="${draft[key]}" maxlength="5" />
+      <div class="mark-picks" role="group" aria-label="เลือกเครื่องหมาย">
+        ${MARKS.map((m) => html`<button type="button" class="mark-pick${draft[key] === m ? ' on' : ''}" data-set="${key}" data-value="${m}" aria-pressed="${draft[key] === m ? 'true' : 'false'}" title="ใช้ ${m}">${m}</button>`)}
+      </div>
+    </div>
+  </div>`;
 }
 
 // ---------- ขั้น 1: ไฟล์แบบฟอร์ม ----------
@@ -505,6 +524,12 @@ function layoutPane() {
   const sheetOpts = (value, none) => html`${none ? html`<option value="">— ไม่มีชีตสรุป —</option>` : ''}${src.sheets.map((s) => html`<option value="${s.name}" ${s.name === value ? 'selected' : ''}>${s.name}</option>`)}`;
   const cells = {};
   for (const [a, text] of Object.entries(L?.cells ?? {})) cells[a] = richText(text, 'token');
+  const tabs = t.summary
+    ? html`<div class="seg-lg lay-tabs" role="tablist">
+        <button type="button" role="tab" class="${kind === 'company' ? 'on' : ''}" aria-selected="${kind === 'company'}" data-preview="company">ชีตบริษัท · ${t.sheet}</button>
+        <button type="button" role="tab" class="${kind === 'summary' ? 'on' : ''}" aria-selected="${kind === 'summary'}" data-preview="summary">ชีตสรุป · ${t.summary.sheet}</button>
+      </div>`
+    : '';
   return html`<div class="ed-body lay">
     ${errors.template ? alertBox({ tone: 'danger', title: errors.template }) : ''}
     <div class="lay-sheets">
@@ -521,19 +546,15 @@ function layoutPane() {
       <button type="button" class="btn btn-sm" id="redetect" title="อ่านตำแหน่งจากไฟล์ใหม่ (ทับที่แก้ไว้)">${raw(icon('refresh-cw'))} ให้ระบบอ่านตำแหน่งใหม่</button>
     </div>
 
-    ${t.summary
-      ? html`<div class="seg-lg lay-tabs" role="tablist">
-          <button type="button" role="tab" class="${kind === 'company' ? 'on' : ''}" aria-selected="${kind === 'company'}" data-preview="company">ชีตบริษัท · ${t.sheet}</button>
-          <button type="button" role="tab" class="${kind === 'summary' ? 'on' : ''}" aria-selected="${kind === 'summary'}" data-preview="summary">ชีตสรุป · ${t.summary.sheet}</button>
-        </div>`
-      : ''}
-
     ${L && grid
-      ? html`<div class="lay-rows" aria-label="ส่วนของแบบฟอร์ม">
-            <span class="lg head">หัวตาราง</span> แถว <input class="input num row-in" type="number" min="1" data-row="headerRow" value="${L.headerRow}" aria-label="หัวตารางเริ่มแถว" /> ถึง <input class="input num row-in" type="number" min="1" data-row="headerEnd" value="${L.headerEnd}" aria-label="หัวตารางถึงแถว" />
-            <span class="lg data">แถวข้อมูลพนักงาน</span> เริ่มแถว <input class="input num row-in" type="number" min="1" data-row="dataRow" value="${L.dataRow}" aria-label="แถวข้อมูลเริ่ม" />
-            <span class="lg foot">ส่วนท้าย</span> เริ่มแถว <input class="input num row-in" type="number" min="1" data-row="footerRow" value="${L.footerRow}" aria-label="ส่วนท้ายเริ่ม" />
-            <span class="lg auto">เติมอัตโนมัติ</span>
+      ? html`<div class="lay-bar">
+            ${tabs}
+            <div class="lay-rows" aria-label="ส่วนของแบบฟอร์ม">
+              <span class="lg head">หัวตาราง</span> แถว <input class="input num row-in" type="number" min="1" data-row="headerRow" value="${L.headerRow}" aria-label="หัวตารางเริ่มแถว" /> ถึง <input class="input num row-in" type="number" min="1" data-row="headerEnd" value="${L.headerEnd}" aria-label="หัวตารางถึงแถว" />
+              <span class="lg data">ข้อมูลพนักงาน</span> <input class="input num row-in" type="number" min="1" data-row="dataRow" value="${L.dataRow}" aria-label="แถวข้อมูลพนักงานเริ่มแถว" />
+              <span class="lg foot">ส่วนท้าย</span> <input class="input num row-in" type="number" min="1" data-row="footerRow" value="${L.footerRow}" aria-label="ส่วนท้ายเริ่มแถว" />
+              <span class="lg auto">เติมอัตโนมัติ</span>
+            </div>
           </div>
           <div class="lay-main">
             <div class="lay-sheet">
@@ -548,7 +569,7 @@ function layoutPane() {
             </div>
             <aside class="lay-side" id="side">${sidePanel(L, kind, grid)}</aside>
           </div>`
-      : emptyState({ iconName: 'file-spreadsheet', title: 'เลือกชีตด้านบน' })}
+      : html`${tabs}${emptyState({ iconName: 'file-spreadsheet', title: 'เลือกชีตด้านบน' })}`}
   </div>`;
 }
 
@@ -768,14 +789,8 @@ function exportPane() {
               ].map(([v, l]) => html`<button type="button" role="radio" aria-checked="${draft.dateEra === v}" class="${draft.dateEra === v ? 'on' : ''}" data-set="dateEra" data-value="${v}">${l}</button>`)}
             </div>
           </div>
-          <div class="field">
-            <label for="f-in">เครื่องหมาย “เข้าใหม่”</label>
-            <input class="input mark-input" id="f-in" data-k="inMark" value="${draft.inMark}" maxlength="5" />
-          </div>
-          <div class="field">
-            <label for="f-out">เครื่องหมาย “ลาออก”</label>
-            <input class="input mark-input" id="f-out" data-k="outMark" value="${draft.outMark}" maxlength="5" />
-          </div>
+          ${markField('f-in', 'inMark', 'เครื่องหมาย “เข้าใหม่”')}
+          ${markField('f-out', 'outMark', 'เครื่องหมาย “ลาออก”')}
         </div>
         <div class="example-line">${raw(icon('eye'))}<span>วันที่ในไฟล์ เช่น <b class="num" id="date-example">${formatFormDate(cycle, draft.dateFormat, draft.dateEra)}</b></span></div>
       </section>

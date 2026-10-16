@@ -492,7 +492,7 @@ export interface InsurerForm {
   companies: { companyCode: CompanyCode; policyNo: string; holderName: string; plan: string }[]; // ผูกที่ตาราง "บริษัทในเครือส่งแจ้งกับบริษัทประกันไหน"
   dateFormat: 'DD/MM/YYYY' | 'D/M/YYYY' | 'D/M/YY';
   dateEra: 'BE' | 'CE';
-  inMark: string; outMark: string; // เครื่องหมายในช่องเข้าใหม่/ลาออก เช่น "P"
+  inMark: string; outMark: string; // เครื่องหมายในช่องเข้าใหม่/ลาออก เช่น "✓" (ค่าเริ่มต้น · ช่องที่ใช้ฟอนต์ Wingdings เขียนเป็นตัวอักษรของฟอนต์นั้นให้)
   sheetName: string;               // ชื่อชีตต่อบริษัท เช่น "{companyCode}"
   fileName: string;                // เช่น "แจ้งเข้า-ออก {insurer} {cycleDate}"
   includeEmptySheets: boolean;

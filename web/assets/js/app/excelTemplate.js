@@ -12,6 +12,10 @@ import { addr, detectLayout, guessSheets, parseAddr } from '../application/useca
 import { fillPlaceholders } from '../domain/insurerForm.js';
 import { base64ToBuffer, loadExcelJs, loadSheetJs } from '../shared/excel.js';
 
+// เซลล์ที่ใช้ฟอนต์สัญลักษณ์ (Wingdings) → ✓/✗ ต้องเขียนเป็นตัวอักษรของฟอนต์นั้น ไม่งั้นจะแสดงเป็นสัญลักษณ์อื่น
+const SYMBOL_FONTS = { 'wingdings 2': { '✓': 'P', '✗': 'O' }, wingdings: { '✓': 'ü', '✗': 'û' } };
+const symbolGlyph = (cell, v) => SYMBOL_FONTS[String(cell.font?.name ?? '').trim().toLowerCase()]?.[v] ?? v;
+
 // ---------- อ่านชีตเป็น grid (ข้อความ + merge + รูปแบบคร่าว ๆ สำหรับแสดงตัวอย่าง) ----------
 const pad = (n) => String(n).padStart(2, '0');
 function valueText(v) {
@@ -354,7 +358,8 @@ export async function fillTemplate(buffer, data, { exportDate }) {
         for (const col of t.columns) {
           if (col.source === 'blank') continue;
           const v = cellValue(col, rows[i], i + 1, form, company, data.cycleDate);
-          sheet.getCell(r, col.col).value = v === '' ? null : v;
+          const cell = sheet.getCell(r, col.col);
+          cell.value = v === '' ? null : symbolGlyph(cell, v);
         }
       },
     });

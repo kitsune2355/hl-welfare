@@ -468,5 +468,5 @@ export function buildSeed(today) {
       }),
   ];
   const activities = raw.sort((a, b) => a.at.localeCompare(b.at)).map((a, i) => ({ ...a, id: i + 1 }));
-  return { companies: COMPANIES, sites: SITES, employees, batches, issues, rules, activities, insurers };
+  return { companies: COMPANIES, sites: SITES, employees, batches, issues, rules, activities, insurers, marksV2: true };
 }

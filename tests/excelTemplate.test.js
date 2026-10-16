@@ -158,7 +158,7 @@ describe('เติมข้อมูลลงแบบฟอร์มตอน�
     expect(cns.text(8, 1)).toBe('ลำดับที่\n(No)'); // หัวตารางเดิม
     rows.forEach((row, i) => {
       expect(cns.text(11 + i, 2)).toBe(row.employee.empCode);
-      expect(cns.text(11 + i, row.type === 'IN' ? 14 : 15)).toBe('P');
+      expect(cns.text(11 + i, row.type === 'IN' ? 14 : 15)).toBe('✓');
     });
     const foot = 11 + rows.length + 1; // แถวว่างคั่น 1 แถว แล้วตามด้วยหมายเหตุ
     expect(cns.text(foot, 1).startsWith('หมายเหตุ')).toBe(true);
@@ -166,6 +166,19 @@ describe('เติมข้อมูลลงแบบฟอร์มตอน�
     const sum = grids[0].grid;
     const total = d.companies.reduce((n, x) => n + x.in.length + x.out.length, 0);
     expect(Number(sum.text(5 + d.companies.length, 7))).toBe(total);
+  });
+  it('ช่องเครื่องหมายที่ใช้ฟอนต์ Wingdings 2 → เขียน ✓ เป็น "P" ของฟอนต์นั้น', async () => {
+    const api = new MockApi(() => TODAY);
+    const d = await api.exportInsurance({ cycleDate: CYCLE, insurerId: 1 });
+    const t = d.insurer.template;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(seed('thai-life'));
+    const mark = wb.getWorksheet(t.sheet).getCell(t.dataRow, 14); // คอลัมน์เข้าใหม่
+    mark.style = { ...mark.style, font: { name: 'Wingdings 2', size: 12 } }; // style ใหม่ (ไม่แก้ style ที่ใช้ร่วมกับเซลล์อื่น)
+    const out = await T.fillTemplate(await wb.xlsx.writeBuffer(), d, { exportDate: '2026-10-16' });
+    const cns = (await T.gridsOf(out)).find((g) => g.name === 'CNS').grid;
+    const c = d.companies.find((x) => x.companyCode === 'CNS');
+    [...c.in, ...c.out].forEach((row, i) => expect(cns.text(11 + i, row.type === 'IN' ? 14 : 15)).toBe(row.type === 'IN' ? 'P' : '✓'));
   });
   it('บริษัทประกันที่ไม่มีบริษัทผูก → แจ้งว่าสร้างไม่ได้', async () => {
     const api = new MockApi(() => TODAY);

@@ -22,7 +22,14 @@ function load(today) {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      if (s?.db?.employees && s.db.activities) return s.db;
+      if (s?.db?.employees && s.db.activities) {
+        // ครั้งเดียว: เครื่องหมายค่าเริ่มต้นเดิม "P" → "✓" (หลังจากนี้ผู้ใช้เลือก "P" เองได้)
+        if (!s.db.marksV2) {
+          for (const f of s.db.insurers ?? []) for (const k of ['inMark', 'outMark']) if (f[k] === 'P') f[k] = '✓';
+          s.db.marksV2 = true;
+        }
+        return s.db;
+      }
     }
   } catch {
     /* localStorage ใช้ไม่ได้ → ใช้ seed ใหม่ */

@@ -3695,8 +3695,38 @@ html:has(.form-footer),
 .example-line .icon {
   flex-shrink: 0;
 }
+.mark-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.mark-picks {
+  display: flex;
+  gap: 4px;
+}
+.mark-pick {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-weight: 700;
+  color: var(--muted);
+}
+.mark-pick:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.mark-pick.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
 .mark-input {
-  max-width: 120px;
+  max-width: 72px;
   font-weight: 700;
   text-align: center;
 }
@@ -4618,6 +4648,160 @@ html:has(#ed),
   }
   .lg.auto {
     margin-left: 6px;
+  }
+}
+/* แท็บชีต + แถวของแบบฟอร์ม อยู่แถวเดียวกัน (ขึ้นบรรทัดใหม่เมื่อไม่พอ) */
+.lay-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: center;
+}
+.lay-bar .lay-rows {
+  flex: 1 1 auto;
+}
+/* insurers.html พอดีจอ (≥1024px) — ภาพรวม: ตารางผูกบริษัทยืด+เลื่อนภายใน · แก้แบบฟอร์ม: ตัวอย่างไฟล์ยืดเต็มที่เหลือ */
+@media (min-width: 1024px) {
+  #view.fill {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  #view > * {
+    flex: none;
+  }
+  #view > .ov {
+    margin-bottom: 16px;
+  }
+  #view > #bindings {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 250px;
+    margin-bottom: 0;
+  }
+  #bindings > * {
+    flex: none;
+  }
+  #bindings > .bt {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  #bindings .bt-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .ic {
+    gap: 10px;
+    padding: 14px;
+  }
+  .ic-file {
+    padding: 10px 12px;
+  }
+  .ic-grid:has(.ic) {
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  }
+  .ic-grid .ic-add:not(:only-child) {
+    display: none; /* มีปุ่ม "เพิ่มบริษัทประกัน" ที่หัวหน้าแล้ว */
+  }
+  .ic-head p,
+  .ic-file .small {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .ic-actions {
+    flex-wrap: nowrap;
+  }
+
+  .page.editing .page-head {
+    margin-bottom: 12px;
+  }
+  .page.editing .page-head p {
+    display: none;
+  }
+  .page.editing .back-link {
+    margin-bottom: 8px;
+  }
+  #view > #ed {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    padding-bottom: 64px; /* แถบปุ่มบันทึกติดล่าง */
+  }
+  #ed > .card.ed {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .ed-top {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .ed-top .ed-head {
+    flex: 1 1 280px;
+    min-width: 0;
+    padding: 12px 16px;
+  }
+  .ed-top .ed-head h2,
+  .ed-top .ed-head p {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .ed-top .ed-steps {
+    flex: 1 1 560px;
+    margin: 8px 12px;
+    padding: 4px;
+    border: 0;
+    border-radius: 12px;
+  }
+  .ed-top .ed-step {
+    padding: 6px 10px;
+  }
+  .ed-pane {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .ed-pane > * {
+    flex: none;
+  }
+  .ed-pane > .lay {
+    flex: 1 1 0;
+    min-height: 460px; /* จอเตี้ยมาก → เลื่อนทั้งขั้นแทนการบีบตัวอย่างไฟล์ */
+    gap: 12px;
+    padding: 16px 20px;
+  }
+  .page.editing .lay-sheets .hint {
+    display: none;
+  }
+  .page.editing .lay-sheets > .btn {
+    margin-top: 23px;
+  }
+  .lay > .lay-main {
+    flex: 1 1 0;
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+    min-height: 0;
+  }
+  .lay-main > .lay-sheet {
+    max-height: none;
+    min-height: 0;
+  }
+  .lay-main > .lay-side {
+    position: static;
+    min-height: 0;
+    overflow-y: auto;
   }
 }
 .sp-td.spill {
