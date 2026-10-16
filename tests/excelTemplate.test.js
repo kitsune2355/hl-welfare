@@ -294,3 +294,61 @@ describe('ไฟล์ส่งออกเหมือนแบบฟอร์�
     expect(back.getWorksheet('ฟอร์ม').getCell('A2').border?.bottom?.style).toBe('medium');
   });
 });
+
+describe('เติมลงไฟล์แบบฟอร์มตัวจริง (แก้ XML เฉพาะชีตที่เติม)', () => {
+  const sheetXml = async (buf, name) => {
+    const zip = await JSZip.loadAsync(buf);
+    const wb = await zip.file('xl/workbook.xml').async('string');
+    const rels = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+    const rid = [...wb.matchAll(/<sheet\b[^>]*>/g)].map((m) => m[0]).find((t) => t.includes(`name="${name}"`)).match(/r:id="([^"]+)"/)[1];
+    const target = [...rels.matchAll(/<Relationship\b[^>]*>/g)].map((m) => m[0]).find((t) => t.includes(`Id="${rid}"`)).match(/Target="([^"]+)"/)[1];
+    return zip.file(`xl/${target.replace(/^\/?xl\//, '')}`).async('string');
+  };
+  async function uploaded() {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await demoUpload());
+    const ws = wb.getWorksheet('HL');
+    ws.getCell('B13').value = { formula: 'COUNTA(B8:B10)' }; // สูตรในส่วนท้ายอ้างแถวข้อมูล
+    wb.addWorksheet('อื่น ๆ').getCell('A1').value = 'ชีตที่ไม่ใช้';
+    return wb.xlsx.writeBuffer();
+  }
+  const layoutOf = async (buf) => {
+    const r = await T.readTemplateFile({ name: 'x.xlsx', arrayBuffer: async () => buf });
+    const a = T.analyzeTemplate(r.sheets);
+    return { sheet: a.sheet, ...a.layout, summary: a.summary };
+  };
+  const exportData = async (t) => {
+    const d = await new MockApi(() => TODAY).exportInsurance({ cycleDate: CYCLE, insurerId: 1 });
+    d.insurer = { ...d.insurer, template: t, signer: { name: 'ผู้แจ้ง', department: '', phone: '' } };
+    return d;
+  };
+
+  it('ไฟล์ที่เพิ่งอัปโหลด: ชีตอื่นไม่ติดไปในไฟล์ส่งออก · สูตรในส่วนท้ายครอบแถวข้อมูลใหม่ · Excel คำนวณใหม่ตอนเปิด', async () => {
+    const buf = await uploaded();
+    const t = await layoutOf(buf);
+    const d = await exportData(t);
+    const out = await T.fillTemplate(buf, d, { exportDate: '2026-10-16' });
+    const names = (await T.gridsOf(out)).map((g) => g.name);
+    expect(names).toEqual(['สรุป', ...d.companies.map((c) => c.companyCode)]);
+    const c = d.companies.find((x) => x.companyCode === 'CNS');
+    const n = c.in.length + c.out.length;
+    const xml = await sheetXml(out, 'CNS');
+    expect(xml.includes(`<f>COUNTA(B8:B${8 + n - 1})</f>`)).toBe(true);
+    const wbXml = await (await JSZip.loadAsync(out)).file('xl/workbook.xml').async('string');
+    expect(wbXml.includes('fullCalcOnLoad="1"')).toBe(true);
+    expect((xml.match(/tabSelected="1"/g) ?? []).length).toBe(0); // แท็บที่เลือกมีแค่ชีตแรก
+  });
+
+  it('เก็บแบบฟอร์ม: ไม่เหลือรายชื่อตัวอย่างใน sharedStrings / ชื่อผู้สร้างไฟล์ · ส่วนอื่นของไฟล์ไม่ถูกเขียนใหม่', async () => {
+    const buf = await uploaded();
+    const t = await layoutOf(buf);
+    const clean = await T.sanitizeTemplate(buf, t);
+    const zip = await JSZip.loadAsync(clean);
+    let all = '';
+    for (const f of Object.keys(zip.files)) if (/\.xml$/.test(f)) all += await zip.file(f).async('string');
+    for (const leak of ['นายสมมติ ทดสอบ', '1101700230708', 'คนแจ้ง สมมติ', '090-000-0000', 'ชีตที่ไม่ใช้']) expect(all.includes(leak)).toBe(false);
+    const src = await JSZip.loadAsync(buf);
+    expect(await zip.file('xl/styles.xml').async('string')).toBe(await src.file('xl/styles.xml').async('string')); // รูปแบบเดิมทุกไบต์
+    expect(await zip.file('xl/theme/theme1.xml').async('string')).toBe(await src.file('xl/theme/theme1.xml').async('string'));
+  });
+});

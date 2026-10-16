@@ -1,14 +1,9 @@
-// ส่วนของไฟล์ .xlsx ที่ ExcelJS ไม่คงไว้ — แก้ที่ระดับ XML ด้วย JSZip เพื่อให้ไฟล์ส่งออก "เหมือนแบบฟอร์มต้นฉบับ"
-//
-//   partsOf(buffer)                           รูปภาพ / กล่องข้อความ / รูปทรง ของแต่ละชีต + จานสีของไฟล์ (แสดงในตัวอย่าง)
-//   carryParts(srcBuffer, outBuffer, sheets)  ใส่ส่วนที่หายกลับลงไฟล์ที่ ExcelJS เขียน:
-//       - drawing ของชีต (รูปภาพ กล่องข้อความ รูปทรง) — ตำแหน่งแถวเลื่อนตามส่วนท้าย
-//       - ธีมสี + จานสี (indexedColors) — สีในเซลล์ตรงกับต้นฉบับ
-//       - ฟอนต์ตั้งต้นของไฟล์ (มีผลกับความกว้างคอลัมน์และเซลล์ที่ไม่ได้กำหนดฟอนต์)
+// อ่านส่วนของไฟล์ .xlsx ที่ ExcelJS ไม่ให้ข้อมูล — ใช้แสดงตัวอย่างไฟล์ในหน้าเว็บ
+//   partsOf(buffer)   รูปภาพ / กล่องข้อความ / รูปทรง ของแต่ละชีต + จานสีของไฟล์
+// (การสร้างไฟล์ส่งออกอยู่ที่ xlsxDirect.js — แก้ไฟล์ต้นฉบับโดยตรง)
 import { loadJsZip } from '../shared/excel.js';
 
 const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/';
-const CT_DRAWING = 'application/vnd.openxmlformats-officedocument.drawing+xml';
 const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff', emf: 'image/x-emf', wmf: 'image/x-wmf', svg: 'image/svg+xml' };
 
 const unesc = (s) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
@@ -38,10 +33,6 @@ async function rels(zip, path) {
     return { id: a.Id, type: a.Type, target: a.Target, external: a.TargetMode === 'External', path: a.TargetMode === 'External' ? null : resolvePath(path, a.Target) };
   });
 }
-const relsXml = (list) =>
-  `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list
-    .map((r) => `<Relationship Id="${r.id}" Type="${r.type}" Target="${r.target.replace(/&/g, '&amp;')}"${r.external ? ' TargetMode="External"' : ''}/>`)
-    .join('')}</Relationships>`;
 
 /** ชื่อชีต → path ของ worksheet xml + path ของ theme/styles */
 async function workbookParts(zip) {
@@ -139,108 +130,4 @@ export async function partsOf(buffer) {
     if (items.length) out[name] = items;
   }
   return { drawings: out, indexed };
-}
-
-// ---------- ใส่ส่วนที่หายกลับลงไฟล์ ----------
-function shiftAnchors(xml, row) {
-  return xml.replace(/<((?:\w+:)?)(from|to)>([\s\S]*?)<\/\1\2>/g, (all, ns, tag, body) =>
-    `<${ns}${tag}>${body.replace(/<((?:\w+:)?)row>(\d+)<\/\1row>/, (_m, p, r) => `<${p}row>${row(Number(r) + 1) - 1}</${p}row>`)}</${ns}${tag}>`,
-  );
-}
-
-/** แทรก <drawing r:id> ในตำแหน่งที่ถูกต้องตาม schema ของ worksheet */
-function insertDrawingTag(sheetXml, rid) {
-  const tag = `<drawing r:id="${rid}"/>`;
-  const before = sheetXml.search(/<(legacyDrawing|legacyDrawingHF|picture|oleObjects|controls|webPublishItems|tableParts|extLst)\b|<\/worksheet>/);
-  let xml = sheetXml.slice(0, before) + tag + sheetXml.slice(before);
-  if (!/<worksheet\b[^>]*xmlns:r=/.test(xml)) xml = xml.replace(/<worksheet\b/, `<worksheet xmlns:r="${REL.slice(0, -1)}"`);
-  return xml;
-}
-
-/**
- * @param {ArrayBuffer} srcBuffer   ไฟล์ต้นฉบับ (แบบฟอร์ม)
- * @param {ArrayBuffer} outBuffer   ไฟล์ที่ ExcelJS เขียน
- * @param {{src:string, out:string, row:(r:number)=>number}[]} sheets   ชีตต้นฉบับ → ชีตในไฟล์ใหม่ + ตำแหน่งแถวใหม่ (1-based)
- * @returns {Promise<ArrayBuffer>}
- */
-export async function carryParts(srcBuffer, outBuffer, sheets) {
-  const JSZip = await loadJsZip();
-  const src = await JSZip.loadAsync(srcBuffer);
-  const out = await JSZip.loadAsync(outBuffer);
-  const S = await workbookParts(src);
-  const O = await workbookParts(out);
-  let types = (await text(out, '[Content_Types].xml')) ?? '';
-  const addType = (frag, test) => {
-    if (!test.test(types)) types = types.replace('</Types>', `${frag}</Types>`);
-  };
-
-  // ธีมสี
-  if (S.theme && O.theme) {
-    const theme = await text(src, S.theme);
-    if (theme) out.file(O.theme, theme);
-  }
-  // ฟอนต์ตั้งต้น = ฟอนต์แรกใน styles.xml · จานสี (ไฟล์เก่า/จาก .xls มักกำหนดจานสีเอง)
-  if (S.styles && O.styles) {
-    const first = (xml) => xml?.match(/<fonts\b[^>]*>\s*(<font\b[\s\S]*?<\/font>|<font\s*\/>)/)?.[1];
-    const ss = await text(src, S.styles);
-    let os = await text(out, O.styles);
-    const f = first(ss);
-    const g = first(os);
-    if (f && g) os = os.replace(g, f);
-    const colors = ss?.match(/<colors>[\s\S]*?<\/colors>/)?.[0];
-    if (colors) {
-      os = os.replace(/<colors>[\s\S]*?<\/colors>/, '');
-      const at = os.search(/<extLst\b|<\/styleSheet>/);
-      os = os.slice(0, at) + colors + os.slice(at);
-    }
-    out.file(O.styles, os);
-  }
-
-  // drawing ของแต่ละชีต
-  let nDrawing = 0;
-  let nMedia = 0;
-  const media = new Map(); // path ต้นฉบับ → path ในไฟล์ใหม่
-  for (const s of sheets) {
-    const srcPath = S.sheets.get(s.src);
-    const outPath = O.sheets.get(s.out);
-    if (!srcPath || !outPath) continue;
-    const d = await sheetDrawing(src, srcPath);
-    if (!d) continue;
-    const outRels = await rels(out, outPath);
-    if (outRels.some((r) => r.type === `${REL}drawing`)) continue; // ชีตมี drawing แล้ว (ไม่ทับ)
-
-    let xml = shiftAnchors(d.xml, s.row);
-    const keep = [];
-    for (const r of d.rels) {
-      if (r.external) keep.push(r);
-      else if (r.type === `${REL}image` && src.file(r.path)) {
-        if (!media.has(r.path)) {
-          while (out.file(`xl/media/form${++nMedia}.${extOf(r.path)}`));
-          const p = `xl/media/form${nMedia}.${extOf(r.path)}`;
-          out.file(p, await src.file(r.path).async('uint8array'));
-          media.set(r.path, p);
-          const ext = extOf(r.path);
-          if (MIME[ext]) addType(`<Default Extension="${ext}" ContentType="${MIME[ext]}"/>`, new RegExp(`Extension="${ext}"`, 'i'));
-        }
-        keep.push({ ...r, target: `../media/${media.get(r.path).split('/').pop()}` });
-      } else {
-        // ส่วนที่ไม่รองรับ (เช่น แผนภูมิ) → ตัด anchor ที่อ้างถึงออก ไม่ให้ไฟล์เสีย
-        xml = xml.replace(ANCHOR_RE, (all) => (new RegExp(`"${r.id}"`).test(all) ? '' : all));
-      }
-    }
-    while (out.file(`xl/drawings/drawing${++nDrawing}.xml`));
-    const dPath = `xl/drawings/drawing${nDrawing}.xml`;
-    out.file(dPath, xml);
-    if (keep.length) out.file(relsPath(dPath), relsXml(keep));
-    addType(`<Override PartName="/${dPath}" ContentType="${CT_DRAWING}"/>`, new RegExp(`PartName="/${dPath}"`));
-
-    let n = 1;
-    while (outRels.some((r) => r.id === `rIdForm${n}`)) n++;
-    const rid = `rIdForm${n}`;
-    outRels.push({ id: rid, type: `${REL}drawing`, target: `../drawings/drawing${nDrawing}.xml` });
-    out.file(relsPath(outPath), relsXml(outRels));
-    out.file(outPath, insertDrawingTag(await text(out, outPath), rid));
-  }
-  out.file('[Content_Types].xml', types);
-  return out.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
 }

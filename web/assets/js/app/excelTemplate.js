@@ -3,7 +3,9 @@
 //   readTemplateFile(file)              อ่าน .xlsx / .xls → { buffer(xlsx), converted, sheets:[{name, grid}] }
 //   analyzeTemplate(sheets)             เดาชีตต้นแบบ/ชีตสรุป + layout ของแต่ละชีต (application/usecases/templateDetect.js)
 //   sanitizeTemplate(buffer, t)         เก็บเฉพาะชีตที่ใช้ · ล้างแถวข้อมูลตัวอย่าง + เซลล์ที่ระบบเติม (ไม่เก็บข้อมูลบุคคลในระบบ)
-//   fillTemplate(buffer, data, opts)    สร้างไฟล์ส่งออก: ชีตสรุป + ชีตละบริษัท · คงรูปแบบเดิมทั้งหมด · ส่วนท้ายเลื่อนตามจำนวนคน
+//   fillTemplate(buffer, data, opts)    สร้างไฟล์ส่งออก: ชีตสรุป + ชีตละบริษัท · ส่วนท้ายเลื่อนตามจำนวนคน
+//   ทั้งสองแก้ "ไฟล์ของบริษัทประกันตัวจริง" โดยตรง (xlsxDirect.js) — ไม่สร้างไฟล์ใหม่เลียนแบบ ส่วนอื่นของไฟล์คงเดิมทุกไบต์
+//   ExcelJS ใช้อ่านไฟล์เพื่อหาตำแหน่ง/แสดงตัวอย่างเท่านั้น
 //   templateBuffer(template)            ไฟล์แบบฟอร์มที่เก็บไว้ (base64 ในข้อมูล หรือ url ของไฟล์ตั้งต้น)
 //
 // ทำงานได้ทั้งในเบราว์เซอร์ และใน Node (ทดสอบ — ส่ง ExcelJS เข้ามาด้วย useExcelLibs)
@@ -12,11 +14,12 @@ import { addr, detectLayout, guessSheets, parseAddr } from '../application/useca
 import { fillPlaceholders } from '../domain/insurerForm.js';
 import { base64ToBuffer, loadExcelJs, loadSheetJs } from '../shared/excel.js';
 import { resolveColor, themePalette } from '../shared/xlColor.js';
-import { carryParts, partsOf } from './xlsxParts.js';
+import { fillXlsx, sanitizeXlsx } from './xlsxDirect.js';
+import { partsOf } from './xlsxParts.js';
 
 // เซลล์ที่ใช้ฟอนต์สัญลักษณ์ (Wingdings) → ✓/✗ ต้องเขียนเป็นตัวอักษรของฟอนต์นั้น ไม่งั้นจะแสดงเป็นสัญลักษณ์อื่น
 const SYMBOL_FONTS = { 'wingdings 2': { '✓': 'P', '✗': 'O' }, wingdings: { '✓': 'ü', '✗': 'û' } };
-const symbolGlyph = (cell, v) => SYMBOL_FONTS[String(cell.font?.name ?? '').trim().toLowerCase()]?.[v] ?? v;
+const symbolGlyph = (fontName, v) => SYMBOL_FONTS[String(fontName ?? '').trim().toLowerCase()]?.[v] ?? v;
 
 // ---------- อ่านชีตเป็น grid (ข้อความ + merge + รูปแบบคร่าว ๆ สำหรับแสดงตัวอย่าง) ----------
 const pad = (n) => String(n).padStart(2, '0');
@@ -217,122 +220,6 @@ export function analyzeTemplate(sheets) {
   return { sheet, layout: company, summary: summary ? { sheet: g.summary, ...summary } : null };
 }
 
-// ---------- คัดลอกชีต (คงรูปแบบ) ----------
-const clone = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x)));
-function plainValue(v) {
-  if (v && typeof v === 'object' && !(v instanceof Date) && !v.richText) return 'result' in v || v.formula || v.sharedFormula ? (v.result ?? null) : v;
-  return v;
-}
-
-/**
- * เขียนชีตใหม่จากชีตต้นแบบ
- * @param {{dataRow:number, footerRow:number}} layout
- * @param {{rows:number, fill:(ws, r:number, i:number)=>void, cells?:Record<string,any>, blank?:Set<string>, keepData?:boolean, decorate?:boolean, headerRow?:number, headerEnd?:number}} o
- *   rows = จำนวนแถวข้อมูลที่จะสร้าง (แทนแถวข้อมูลเดิมทั้งหมด) · keepData = คงแถวข้อมูลเดิมไว้ (ใช้ตอนล้างแบบฟอร์ม)
- */
-function writeSheet(out, src, name, layout, o) {
-  const { dataRow, footerRow } = layout;
-  const used = usedExtent(src);
-  const span = footerRow - dataRow;
-  const n = o.keepData ? span : o.rows;
-  const delta = n - span;
-  const rowOf = (r) => (r >= footerRow ? r + delta : r);
-  const ps = clone(src.pageSetup) ?? {};
-  ps.printArea = ps.printArea ? String(ps.printArea).split(',').map((x) => shiftRange(x, rowOf, dataRow, footerRow, n)).filter(Boolean).join(',') || undefined : undefined;
-  if (ps.printTitlesRow && !(Number(String(ps.printTitlesRow).split(':').pop()) < dataRow)) ps.printTitlesRow = undefined;
-  const ws = out.addWorksheet(name, {
-    properties: clone(src.properties),
-    pageSetup: ps,
-    headerFooter: clone(src.headerFooter),
-    views: clone(src.views),
-  });
-  const grid = { merges: used.merges };
-  const nCols = used.cols;
-  // ความกว้าง/สีของทุกคอลัมน์ที่ไฟล์กำหนดไว้ (รวมคอลัมน์ว่างในพื้นที่พิมพ์ — ไม่งั้นหน้ากระดาษเลื่อน)
-  const definedCols = Math.min(256, Math.max(nCols, (src.columns ?? []).length));
-  for (let c = 1; c <= definedCols; c++) {
-    const sc = src.getColumn(c);
-    const dc = ws.getColumn(c);
-    if (sc.width) dc.width = sc.width;
-    if (sc.hidden) dc.hidden = true;
-    if (sc.outlineLevel) dc.outlineLevel = sc.outlineLevel;
-    const st = clone(sc.style);
-    if (st && Object.keys(st).length) dc.style = st; // สี/ฟอนต์ทั้งคอลัมน์
-  }
-  const isSlave = (r, c) => grid.merges.some((m) => r >= m.top && r <= m.bottom && c >= m.left && c <= m.right && (r !== m.top || c !== m.left));
-  const copyRow = (sr, dr, values) => {
-    // แถวที่ไม่มีในไฟล์ต้นฉบับ (ใช้ความสูงตั้งต้นของชีต) — ไม่สร้าง ไม่งั้น Excel จะปรับความสูงเอง
-    if (!src.findRow(sr)) return;
-    const s = src.getRow(sr);
-    const d = ws.getRow(dr);
-    if (s.height) d.height = s.height;
-    if (s.hidden) d.hidden = true;
-    if (s.outlineLevel) d.outlineLevel = s.outlineLevel;
-    for (let c = 1; c <= nCols; c++) {
-      const sc = s.getCell(c);
-      const dc = d.getCell(c);
-      dc.style = clone(sc.style) ?? {};
-      if (sc.dataValidation) dc.dataValidation = clone(sc.dataValidation);
-      if (!values) continue;
-      if (!isSlave(sr, c) && sc.value !== null && sc.value !== undefined) dc.value = structuredClone(plainValue(sc.value)); // structuredClone คง Date ไว้ (JSON จะกลายเป็นข้อความ)
-      if (sc.note) dc.note = clone(sc.note);
-    }
-  };
-  for (let r = 1; r < dataRow; r++) copyRow(r, r, true);
-  for (let i = 0; i < n; i++) {
-    copyRow(o.keepData ? dataRow + i : dataRow, dataRow + i, !!o.keepData && false);
-    o.fill?.(ws, dataRow + i, i);
-  }
-  for (let r = footerRow; r <= used.rows; r++) copyRow(r, r + delta, true);
-  // merge โดยไม่ทับรูปแบบของเซลล์ในช่วง (mergeCells จะใช้รูปแบบของเซลล์มุมบนซ้ายทั้งช่วง → เส้นขอบล่าง/ขวาหาย)
-  const merge = (ws.mergeCellsWithoutStyle ?? ws.mergeCells).bind(ws);
-  // merge: หัว/บนคงที่ · ส่วนท้ายเลื่อนตาม · ในพื้นที่ข้อมูลใช้ merge ของแถวต้นแบบซ้ำทุกแถว
-  for (const m of grid.merges) {
-    if (m.bottom < dataRow) merge(m.top, m.left, m.bottom, m.right);
-    else if (m.top >= footerRow) merge(m.top + delta, m.left, m.bottom + delta, m.right);
-    else if (m.top === dataRow && m.bottom === dataRow) for (let i = 0; i < n; i++) merge(dataRow + i, m.left, dataRow + i, m.right);
-  }
-  // เซลล์ที่ระบบเติม / ล้าง (ตำแหน่งในส่วนท้ายเลื่อนตาม)
-  const at = (a) => {
-    const p = parseAddr(a);
-    return p ? ws.getCell(p.r >= footerRow ? p.r + delta : p.r, p.c) : null;
-  };
-  for (const a of o.blank ?? []) {
-    const c = at(a);
-    if (c) c.value = null;
-  }
-  for (const [a, v] of Object.entries(o.cells ?? {})) {
-    const c = at(a);
-    if (c) c.value = v === '' ? null : v;
-  }
-  // ไฮไลต์ตามเงื่อนไข (conditional formatting) — ช่วงในส่วนท้ายเลื่อนตาม · ช่วงแถวข้อมูลขยายตามจำนวนคน
-  for (const cf of src.conditionalFormattings ?? []) {
-    const ref = String(cf.ref ?? '')
-      .split(/s+/)
-      .map((x) => shiftRange(x, rowOf, dataRow, footerRow, n))
-      .filter(Boolean)
-      .join(' ');
-    if (ref) ws.addConditionalFormatting({ ref, rules: clone(cf.rules) });
-  }
-  if (o.decorate) decorate(ws, { ...layout, nCols, delta });
-  return { ws, src: src.name, out: ws.name, row: rowOf };
-}
-
-/** ช่วงเซลล์ (A1:N40) ในไฟล์ใหม่ — ส่วนท้ายเลื่อน delta · ช่วงที่ครอบแถวข้อมูลขยาย/หดตามจำนวนแถว */
-function shiftRange(ref, rowOf, dataRow, footerRow, n) {
-  if (!ref) return ref;
-  const [a, b = a] = String(ref).replace(/$/g, '').split(':');
-  const p = parseAddr(a);
-  const q = parseAddr(b);
-  if (!p || !q) return ref;
-  let top = rowOf(p.r);
-  let bottom = rowOf(q.r);
-  if (p.r >= dataRow && p.r < footerRow) top = dataRow;
-  if (q.r >= dataRow && q.r < footerRow) bottom = dataRow + Math.max(0, n - 1);
-  if (bottom < top) return null;
-  return `${addr(top, p.c)}:${addr(bottom, q.c)}`;
-}
-
 /** ไฟล์ที่แปลงจาก .xls มักไม่มีเส้นขอบ — ใส่ให้หัวตาราง + แถวข้อมูลต้นแบบ */
 function decorate(ws, { headerRow, headerEnd, dataRow, nCols }) {
   const thin = { style: 'thin', color: { argb: 'FF000000' } };
@@ -365,28 +252,31 @@ function resolveCells(cells, vars) {
  * @returns {Promise<ArrayBuffer>}
  */
 export async function sanitizeTemplate(buffer, t, { converted = false } = {}) {
-  const ExcelJS = await loadExcelJs();
-  const src = new ExcelJS.Workbook();
-  await src.xlsx.load(buffer);
-  const out = new ExcelJS.Workbook();
-  out.creator = 'HL Welfare';
-  const parts = [];
-  const one = (sheetName, layout) => {
-    const ws = src.getWorksheet(sheetName);
-    if (!ws) throw new Error(`ไม่พบชีต “${sheetName}” ในไฟล์`);
-    // เหลือแถวข้อมูลต้นแบบ 1 แถว (ว่าง) — แถวตัวอย่างอื่นตัดทิ้ง
-    // เซลล์ที่ระบบเติม: เหลือเฉพาะป้าย (เช่น "เลขที่กรมธรรม์ : ชีวิตกลุ่ม") — ค่าเดิมในไฟล์ล้างออก
-    const labels = {};
+  // ไฟล์ที่แปลงจาก .xls ไม่มีเส้นขอบ — ใส่ให้หัวตาราง/แถวข้อมูลก่อน (ไฟล์ .xlsx จริงไม่แตะรูปแบบเลย)
+  if (converted) {
+    const ExcelJS = await loadExcelJs();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    for (const [name, layout] of [[t.sheet, t], ...(t.summary ? [[t.summary.sheet, t.summary]] : [])]) {
+      const ws = wb.getWorksheet(name);
+      if (ws) decorate(ws, { ...layout, nCols: usedExtent(ws).cols });
+    }
+    buffer = await wb.xlsx.writeBuffer();
+  }
+  // เซลล์ที่ระบบเติม: เหลือเฉพาะป้าย (เช่น "เลขที่กรมธรรม์ : ชีวิตกลุ่ม") — ค่าเดิมในไฟล์ล้างออก
+  const labels = (layout) => {
+    const out = {};
     for (const [a, text] of Object.entries(layout.cells ?? {})) {
       const label = String(text).replace(/\{\w+\}/g, '').replace(/\s+$/, '');
-      labels[a] = /[ก-๙a-z]/i.test(label) ? label : '';
+      out[a] = /[ก-๙a-z]/i.test(label) ? label : '';
     }
-    parts.push(writeSheet(out, ws, sheetName, layout, { rows: 1, cells: labels, decorate: converted }));
+    return out;
   };
-  if (t.summary) one(t.summary.sheet, t.summary);
-  one(t.sheet, t);
-  // รูปภาพ / กล่องข้อความ / ธีมสี / ฟอนต์ตั้งต้น จากไฟล์ต้นฉบับ
-  return carryParts(buffer, await out.xlsx.writeBuffer(), parts);
+  // แก้ไฟล์ต้นฉบับโดยตรง: เหลือชีตที่ใช้ · แถวข้อมูลตัวอย่างเหลือ 1 แถวว่าง (ส่วนอื่นของไฟล์คงเดิม)
+  return sanitizeXlsx(buffer, [
+    ...(t.summary ? [{ name: t.summary.sheet, layout: t.summary, cells: labels(t.summary) }] : []),
+    { name: t.sheet, layout: t, cells: labels(t) },
+  ]);
 }
 
 /** หลังล้าง: แถวข้อมูลเหลือ 1 แถว → ส่วนท้ายเลื่อนขึ้นมา (ตำแหน่งเซลล์ที่ระบบเติมในส่วนท้ายก็เลื่อนตาม) */
@@ -441,14 +331,8 @@ const summaryValue = (source, row, seq) => {
  * @param {import('../domain/types.js').InsurerExport} data   จาก api.exportInsurance
  */
 export async function fillTemplate(buffer, data, { exportDate }) {
-  const ExcelJS = await loadExcelJs();
   const form = data.insurer;
   const t = form.template;
-  const src = new ExcelJS.Workbook();
-  await src.xlsx.load(buffer);
-  const out = new ExcelJS.Workbook();
-  out.creator = 'HL Welfare';
-  out.created = new Date();
   const date = (d) => formatFormDate(d, form.dateFormat, form.dateEra);
   const base = {
     insurer: form.name,
@@ -460,7 +344,6 @@ export async function fillTemplate(buffer, data, { exportDate }) {
     signerPhone: form.signer?.phone ?? '',
   };
   const companies = data.companies;
-  const parts = [];
   const used = new Set();
   const sheetNameOf = (vars, fallback) => {
     let name = fillPlaceholders(form.sheetName || '{companyCode}', vars).replace(/[\\/?*[\]:]/g, '-').slice(0, 31) || fallback;
@@ -469,24 +352,22 @@ export async function fillTemplate(buffer, data, { exportDate }) {
     return name;
   };
 
+  let summary = null;
   if (t.summary) {
-    const ws = src.getWorksheet(t.summary.sheet);
     const sum = (k) => companies.reduce((a, c) => a + c[k].length, 0);
     const vars = { ...base, in: sum('in'), out: sum('out'), total: sum('in') + sum('out'), companyName: '', companyCode: '', policyNo: '' };
-    parts.push(writeSheet(out, ws, sheetNameOf({ ...vars, companyCode: ws.name }, ws.name), t.summary, {
-      rows: companies.length,
+    summary = {
+      sheet: t.summary.sheet,
+      name: sheetNameOf({ ...vars, companyCode: t.summary.sheet }, t.summary.sheet),
+      layout: t.summary,
+      n: Math.max(1, companies.length),
       cells: resolveCells(t.summary.cells, vars),
-      fill: (sheet, r, i) => {
-        for (const col of t.summary.columns) {
-          const v = summaryValue(col.source, companies[i], i + 1);
-          if (v !== null) sheet.getCell(r, col.col).value = v;
-        }
-      },
-    }));
+      rowValues: (i) =>
+        companies[i] ? t.summary.columns.map((col) => [col.col, summaryValue(col.source, companies[i], i + 1)]).filter(([, v]) => v !== null) : [],
+    };
   }
 
-  const tpl = src.getWorksheet(t.sheet);
-  if (!tpl) throw new Error(`แบบฟอร์มไม่มีชีต “${t.sheet}”`);
+  const sheets = [];
   for (const company of companies) {
     const rows = [...company.in, ...company.out];
     if (!rows.length && !form.includeEmptySheets) continue;
@@ -499,21 +380,18 @@ export async function fillTemplate(buffer, data, { exportDate }) {
       out: company.out.length,
       total: rows.length,
     };
-    parts.push(writeSheet(out, tpl, sheetNameOf(vars, company.companyCode), t, {
-      rows: rows.length,
+    sheets.push({
+      name: sheetNameOf(vars, company.companyCode),
+      n: Math.max(1, rows.length), // ไม่มีรายการ = คงแถวว่าง 1 แถวไว้ (หน้าตาแบบฟอร์ม)
       cells: resolveCells(t.cells, vars),
-      fill: (sheet, r, i) => {
-        for (const col of t.columns) {
-          if (col.source === 'blank') continue;
-          const v = cellValue(col, rows[i], i + 1, form, company, data.cycleDate);
-          const cell = sheet.getCell(r, col.col);
-          cell.value = v === '' ? null : symbolGlyph(cell, v);
-        }
-      },
-    }));
+      rowValues: (i) =>
+        rows[i]
+          ? t.columns.filter((col) => col.source !== 'blank').map((col) => [col.col, cellValue(col, rows[i], i + 1, form, company, data.cycleDate)])
+          : [],
+    });
   }
-  if (!out.worksheets.length) throw new Error('ไม่มีชีตให้สร้าง — ไม่มีบริษัทที่ผูกกับบริษัทประกันนี้');
-  return carryParts(buffer, await out.xlsx.writeBuffer(), parts);
+  // เติมลงไฟล์แบบฟอร์มตัวจริง (แก้ XML เฉพาะชีตที่เติม — ส่วนอื่นของไฟล์คงเดิม)
+  return fillXlsx(buffer, { summary, template: { sheet: t.sheet, layout: t }, sheets, glyph: symbolGlyph });
 }
 
 /** grid ของทุกชีตในไฟล์ (ใช้แสดงตัวอย่างไฟล์ที่สร้างแล้ว) */
