@@ -87,7 +87,7 @@ export function pagerHtml({ page, pageSize, total }) {
       <div class="page-sizes" role="group" aria-label="แถวต่อหน้า">
         <span class="muted">แถวต่อหน้า</span>
         <span class="seg">
-          ${sizes.map((s) => html`<button type="button" class="seg-btn${s === pageSize ? ' on' : ''}" data-page-size="${s}" aria-pressed="${s === pageSize}">${s}</button>`)}
+          ${sizes.map((s) => html`<button type="button" class="seg-btn${s === pageSize ? ' on' : ''}" data-page-size="${s}" aria-pressed="${s === pageSize ? 'true' : 'false'}">${s}</button>`)}
         </span>
       </div>
       ${pages >= JUMP_FROM_PAGES ? html`<label class="page-jump">ไปหน้า ${pageInput(' sm')}</label>` : ''}

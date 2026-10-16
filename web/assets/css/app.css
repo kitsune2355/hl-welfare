@@ -902,8 +902,27 @@ button.stat:hover {
     border-color 0.15s,
     color 0.15s;
 }
-.chip.empty {
+.chip.zero {
   opacity: 0.5;
+}
+/* แท็กกรองเร็ว: ขนาดปุ่มคงที่ — น้ำหนักตัวอักษรเท่ากันทุกสถานะ · ตัวเลขกว้างคงที่ 3 หลัก
+   และซ่อนไว้ (แต่จองที่) จนได้ข้อมูล + ฟอนต์พร้อม แล้วค่อย fade-in */
+.quick-tags {
+  transition: opacity 0.2s ease;
+}
+.quick-tags.pending {
+  visibility: hidden;
+  opacity: 0;
+}
+.quick-tags .chip {
+  font-weight: 500;
+}
+.quick-tags .chip .n {
+  display: inline-block;
+  min-width: 3ch;
+  margin-left: 2px;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
 }
 .chip-clear {
   border-style: dashed;

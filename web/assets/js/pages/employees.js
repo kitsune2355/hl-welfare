@@ -41,11 +41,14 @@ const filter = () => ({
 });
 /** พนักงานที่ตรงคำค้น (ยังไม่กรองด้วยแท็ก) — ใช้นับจำนวนบนแท็ก */
 let matched = [];
+/** แสดงแท็กเมื่อได้ข้อมูล + ฟอนต์โหลดเสร็จแล้วเท่านั้น — กันปุ่มขยายตอนตัวเลขจริง/ฟอนต์จริงมาถึง */
+let tagsReady = false;
 const matchTags = (e, f, except) => TAG_GROUPS.every((g) => g === except || !f[g.field] || e[g.field] === f[g.field]);
 
 function drawTags() {
   const f = filter();
   const any = TAG_GROUPS.some((g) => f[g.field]);
+  $('#quick-tags').classList.toggle('pending', !tagsReady);
   $('#quick-tags').innerHTML = String(html`${TAG_GROUPS.map((g) => {
       // นับแบบ faceted: ใช้ตัวกรองของกลุ่มอื่น แต่ไม่ใช้ของกลุ่มตัวเอง
       const pool = matched.filter((e) => matchTags(e, f, g));
@@ -53,7 +56,7 @@ function drawTags() {
         ${Object.entries(g.options).map(([value, label]) => {
           const on = f[g.field] === value;
           const n = pool.filter((e) => e[g.field] === value).length;
-          return html`<button type="button" class="chip${on ? ' active' : ''}${!n && !on ? ' empty' : ''}" data-tag="${g.param}" data-value="${value}" aria-pressed="${on}">${label} <span class="n num">${n}</span></button>`;
+          return html`<button type="button" class="chip${on ? ' active' : ''}${!n && !on ? ' zero' : ''}" data-tag="${g.param}" data-value="${value}" aria-pressed="${on ? 'true' : 'false'}">${label} <span class="n num">${n}</span></button>`;
         })}
       </span>`;
     })}
@@ -238,6 +241,10 @@ async function load() {
     const [list, siteList] = await Promise.all([api.listEmployees({ q: f.q }), sites.length ? sites : api.listSites()]);
     sites = siteList;
     matched = list;
+    if (!tagsReady) {
+      await document.fonts?.ready;
+      tagsReady = true;
+    }
     drawTags();
     grid.setRows(list.filter((e) => matchTags(e, f)));
   } catch (e) {
