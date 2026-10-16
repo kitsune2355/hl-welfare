@@ -16,8 +16,10 @@
 //
 // editor: 'text' | 'number' | 'date' | 'select' | 'switch' · ไม่ใส่ = อ่านอย่างเดียว
 // options(row) สำหรับ select · editable(row) = แก้ได้เฉพาะบางแถว · display(row) = HTML ที่แสดง
+// กรองคอลัมน์ที่หัวตาราง: เปิดอัตโนมัติ · filter: false = ปิด · text(row) = ข้อความที่ใช้กรอง (ไม่ใส่ = ข้อความที่แสดง)
 import { esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
+import { FilterState, filterSummary, headerFilterButton, openColumnFilter, stripHtml } from './columnFilter.js';
 import { openPicker } from './combobox.js';
 import { pagerHtml, wirePager } from './table.js';
 
@@ -37,6 +39,8 @@ export class ExcelGrid {
     this.page = opts.page ?? 1;
     this.size = opts.pageSize ?? 0;
     this.seq = 0;
+    this.filter = new FilterState();
+    this.pinned = new Set(); // แถวที่เพิ่งแก้ — แสดงต่อแม้ไม่ตรงตัวกรอง (ไม่หายระหว่างแก้)
     this.handled = false;
     this.bind();
     this.render();
@@ -61,12 +65,67 @@ export class ExcelGrid {
   }
 
   // ---------- data ----------
+  // ----- กรองคอลัมน์ -----
+  colByKey(key) {
+    return this.cols.find((c) => c.key === key);
+  }
+
+  canFilter(c) {
+    return c.filter !== false && !!c.header;
+  }
+
+  textOf = (row, key) => {
+    const c = this.colByKey(key);
+    if (c.text) return String(c.text(row) ?? '');
+    const v = c.value(row);
+    if (c.editor === 'switch') return v ? 'ใช่' : 'ไม่ใช่';
+    const opt = c.options?.(row)?.find((o) => o.value === fmt(v));
+    if (opt) return opt.label;
+    if (c.display) return stripHtml(c.display(row));
+    return fmt(v);
+  };
+
+  sortOf = (row, key) => this.colByKey(key).value(row);
+
+  filtered() {
+    if (!this.rows) return [];
+    return this.filter.apply(this.rows, this.textOf, this.sortOf, (r) => this.pinned.has(String(this.o.rowKey(r))));
+  }
+
+  openFilter(btn) {
+    const key = btn.dataset.colFilter;
+    const c = this.colByKey(key);
+    const base = this.filter.apply(this.rows ?? [], this.textOf, this.sortOf, undefined, key);
+    openColumnFilter({
+      anchor: btn.closest('th') ?? btn,
+      label: c.header,
+      values: base.map((r) => this.textOf(r, key)),
+      selected: this.filter.filters.get(key) ?? null,
+      sortDir: this.filter.sort?.key === key ? this.filter.sort.dir : 0,
+      onApply: ({ selected, sortDir }) => {
+        if (selected) this.filter.filters.set(key, selected);
+        else this.filter.filters.delete(key);
+        if (sortDir) this.filter.sort = { key, dir: sortDir };
+        else if (this.filter.sort?.key === key) this.filter.sort = null;
+        this.afterFilterChange();
+      },
+    });
+  }
+
+  afterFilterChange() {
+    this.pinned.clear();
+    this.page = 1;
+    this.active = null;
+    this.render();
+  }
+
   pageRows() {
     if (!this.rows) return [];
-    if (!this.size) return this.rows;
-    const pages = Math.max(1, Math.ceil(this.rows.length / this.size));
+    const rows = this.filtered();
+    if (!this.size) return rows;
+    const pages = Math.max(1, Math.ceil(rows.length / this.size));
     this.page = Math.min(Math.max(1, this.page), pages);
-    return this.rows.slice((this.page - 1) * this.size, this.page * this.size);
+    return rows.slice((this.page - 1) * this.size, this.page * this.size);
   }
 
   entries() {
@@ -106,6 +165,7 @@ export class ExcelGrid {
         if (this.active) this.active.r = Math.max(0, this.active.r - 1);
       } else {
         this.drafts.delete(entry.key);
+        this.pinned.add(entry.key);
         this.rows = this.rows.map((r) => (String(this.o.rowKey(r)) === entry.key ? saved : r));
         this.status.set(entry.key, { state: 'saved' });
       }
@@ -254,6 +314,12 @@ export class ExcelGrid {
       this.setActive(Number(td.dataset.r), Number(td.dataset.c));
     });
     root.addEventListener('click', (e) => {
+      const fb = e.target.closest('[data-col-filter]');
+      if (fb) return this.openFilter(fb);
+      if (e.target.closest('[data-clear-col-filters]')) {
+        this.filter.clear();
+        return this.afterFilterChange();
+      }
       const btn = e.target.closest('[data-grid-act]');
       if (btn) {
         const act = btn.dataset.gridAct;
@@ -391,13 +457,16 @@ export class ExcelGrid {
           </tr>`;
         });
 
-    const showPager = this.size && this.rows && this.rows.length > 0;
+    const total = this.filtered().length;
+    const showPager = this.size && this.rows && total > 0;
+    const noMatch = !loading && this.rows.length > 0 && total === 0 && !this.newRows.length;
     const hadFocus = this.root.contains(document.activeElement);
     this.root.innerHTML = String(html`<div class="grid-toolbar">
         ${newRow ? html`<button class="btn btn-primary btn-sm" data-grid-act="add">${raw(icon('plus'))} ${addLabel}</button>` : ''} ${toolbar ?? ''}
         <span class="help">ดับเบิลคลิก / Enter / พิมพ์ = แก้ไข · Tab, Enter = บันทึก · Esc = ยกเลิก · ←↑↓→ เลื่อนเซลล์</span>
         ${unsaved || errors ? html`<span class="unsaved ${errors ? 'error' : ''}">${errors ? `มีข้อผิดพลาด ${errors} แถว` : `ยังไม่บันทึก ${unsaved} แถว`}</span>` : ''}
       </div>
+      ${filterSummary(this.filter, (k) => this.colByKey(k).header)}
       <div class="xgrid-wrap" tabindex="0" role="grid" aria-rowcount="${entries.length}">
         <table class="xgrid" style="width:${width}px">
           <colgroup>
@@ -407,7 +476,16 @@ export class ExcelGrid {
           <thead>
             <tr>
               <th class="stick-left">#</th>
-              ${this.cols.map((c) => html`<th style="text-align:${c.align ?? 'left'}">${c.header}${c.required ? html`<span class="req">*</span>` : ''}</th>`)}
+              ${this.cols.map(
+                (c) =>
+                  html`<th>
+                    <span class="th-inner" style="justify-content:${c.align === 'right' ? 'flex-end' : c.align === 'center' ? 'center' : 'space-between'}"
+                      ><span class="truncate">${c.header}${c.required ? html`<span class="req">*</span>` : ''}</span>${this.canFilter(c) && !loading
+                        ? headerFilterButton(c.key, c.header, this.filter)
+                        : ''}</span
+                    >
+                  </th>`,
+              )}
               ${hasActions ? html`<th class="stick-right" aria-label="การทำงาน"></th>` : ''}
             </tr>
           </thead>
@@ -415,10 +493,10 @@ export class ExcelGrid {
             ${body}
           </tbody>
         </table>
-        ${!loading && entries.length === 0 ? (empty ?? '') : ''}
+        ${noMatch ? html`<div class="empty" style="padding:32px"><b>ไม่มีแถวที่ตรงกับตัวกรองคอลัมน์</b></div>` : !loading && entries.length === 0 ? (empty ?? '') : ''}
       </div>
       <div class="grid-error hidden" role="alert"></div>
-      ${showPager ? pagerHtml({ page: this.page, pageSize: this.size, total: this.rows.length }) : ''}`);
+      ${showPager ? pagerHtml({ page: this.page, pageSize: this.size, total }) : ''}`);
 
     if (showPager) {
       wirePager(this.root, {

@@ -14,34 +14,24 @@
     </script>
   </head>
   <body>
-    <!-- insurance.html?cycle=YYYY-MM-05 = เลือกรอบ -->
-    <main id="page" class="page">
+    <!-- insurance.html?cycle=YYYY-MM-05&tab=urgent|in|out|history -->
+    <main id="page" class="page fit">
       <div class="page-head">
         <div>
           <h1>ประกันกลุ่ม</h1>
-          <p>สร้างรายการแจ้งเข้า/ออกทุกวันที่ 5 ของเดือน และแจ้งออกทันทีกรณีเลิกจ้าง</p>
+          <p id="cycle-info">สร้างรายการแจ้งเข้า/ออกทุกวันที่ 5 ของเดือน และแจ้งออกทันทีกรณีเลิกจ้าง</p>
         </div>
         <div class="page-actions">
           <select id="cycle" data-combobox aria-label="เลือกรอบ" class="combo" style="width:230px"></select>
           <button class="btn" id="export"><i data-icon="download"></i> ส่งออก CSV</button>
         </div>
       </div>
-      <p class="small muted" id="cycle-info" style="margin:-12px 0 24px"></p>
 
-      <div class="stack">
-        <!-- 3 ส่วน: แจ้งออกทันที / แจ้งเข้า / แจ้งออก (สร้างจาก JS ตามข้อมูลรอบ) -->
-        <div id="sections" class="stack"></div>
+      <!-- แท็บ: แจ้งออกทันที / แจ้งเข้า / แจ้งออก / ประวัติ — ตัวเลข = จำนวนรอส่ง -->
+      <div id="tabs"></div>
 
-        <section class="card">
-          <header class="card-head">
-            <div class="card-title">
-              <span class="card-icon"><i data-icon="history"></i></span>
-              <div><h2>ประวัติการส่งแจ้ง</h2></div>
-            </div>
-          </header>
-          <div id="batches"></div>
-        </section>
-      </div>
+      <!-- เนื้อหาของแต่ละแท็บ (สร้างจาก JS) — แสดงทีละแท็บ ยืดเต็มจอ -->
+      <div id="sections" class="panel fill"></div>
     </main>
     <script type="module" src="assets/js/pages/insurance.js"></script>
   </body>

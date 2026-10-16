@@ -32,6 +32,7 @@ const pendingTable = new DataTable($('#pending'), {
     {
       key: 'ev',
       header: 'รอบ / แบบ',
+      text: (r) => UNIFORM_EVENT_LABEL[r.event],
       cell: (r) => html`<span class="two-line" style="display:block;max-width:240px"
         ><b style="font-weight:500">${UNIFORM_EVENT_LABEL[r.event]} · ${r.qtyLabel} ตัว</b><span class="sub truncate">${r.style}</span></span
       >`,
@@ -39,6 +40,8 @@ const pendingTable = new DataTable($('#pending'), {
     {
       key: 'due',
       header: 'ครบกำหนด',
+      sort: (r) => r.dueDate,
+      text: (r) => thaiDate(r.dueDate),
       hideOnMobile: true,
       cls: 'nowrap',
       cell: (r) =>
@@ -62,10 +65,10 @@ const historyTable = new DataTable($('#history'), {
   rowKey: (i) => i.id,
   pageSize: 25,
   columns: [
-    { key: 'date', header: 'วันที่แจก', mobile: 'field', cell: (i) => html`<span class="num">${thaiDate(i.issuedAt)}</span>` },
+    { key: 'date', header: 'วันที่แจก', mobile: 'field', sort: (i) => i.issuedAt, cell: (i) => html`<span class="num">${thaiDate(i.issuedAt)}</span>` },
     { key: 'emp', header: 'พนักงาน', mobile: 'title', cell: (i) => (employees.get(i.employeeId) ? employeeCell(employees.get(i.employeeId), { link: true }) : `#${i.employeeId}`) },
     { key: 'ev', header: 'รอบ', cell: (i) => `${UNIFORM_EVENT_LABEL[i.event]}${i.event === 'ANNUAL' ? annualYear(i.entitlementKey) : ''}` },
-    { key: 'qty', header: 'จำนวน', align: 'right', cell: (i) => html`<span class="num">${i.qty} ตัว</span>` },
+    { key: 'qty', header: 'จำนวน', align: 'right', sort: (i) => i.qty, cell: (i) => html`<span class="num">${i.qty} ตัว</span>` },
     { key: 'size', header: 'ไซซ์', align: 'center', mobile: 'aside', cell: (i) => badge(i.size, 'primary', { dot: false }) },
     { key: 'by', header: 'บันทึกโดย', hideOnMobile: true, cell: (i) => html`<span class="muted">${i.issuedBy}</span>` },
     {

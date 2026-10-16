@@ -97,23 +97,24 @@ export async function startTour(page) {
   markSeen(page); // จำตั้งแต่เริ่ม — ผู้ใช้เปลี่ยนหน้ากลางคันก็จะไม่เด้งซ้ำ (เปิดเองได้ที่ปุ่ม ?)
 }
 
-/** เรียกจาก shell: ผูกปุ่ม ? และเปิดอัตโนมัติครั้งแรก */
+/** เปิดแนะนำอัตโนมัติ ถ้าผู้ใช้ยังไม่เคยดู (เช่น เปลี่ยนไปแท็บที่ไม่เคยเปิด) */
+export function startTourIfNew(page, force = false) {
+  if (!hasTour(page) || !(force || (C.autoStart && !hasSeen(page)))) return;
+  waitFor(TOUR_STEPS[page].ready, C.readyTimeout).then(() =>
+    setTimeout(() => {
+      // ไม่เปิดทับ modal ที่ผู้ใช้เปิดอยู่
+      if (!document.querySelector('.modal-layer')) startTour(page);
+    }, C.autoStartDelay),
+  );
+}
+
+/**
+ * เรียกจาก shell: ผูกปุ่ม ? และเปิดอัตโนมัติครั้งแรก
+ * @param {string | (() => string)} page  id ของเนื้อหา — ฟังก์ชัน = หน้าที่มีหลายแท็บ (อ่านค่าตอนกดปุ่ม)
+ */
 export function initTour(page, helpButton) {
-  if (!hasTour(page)) {
-    helpButton?.remove();
-    return;
-  }
-  if (helpButton) {
-    if (!C.showHelpButton) helpButton.remove();
-    else helpButton.onclick = () => startTour(page);
-  }
-  const forced = getParam('tour') === '1';
-  if (forced || (C.autoStart && !hasSeen(page))) {
-    waitFor(TOUR_STEPS[page].ready, C.readyTimeout).then(() =>
-      setTimeout(() => {
-        // ไม่เปิดทับ modal ที่ผู้ใช้เปิดอยู่
-        if (!document.querySelector('.modal-layer')) startTour(page);
-      }, C.autoStartDelay),
-    );
-  }
+  const id = () => (typeof page === 'function' ? page() : page);
+  if (!C.enabled || !C.showHelpButton) helpButton?.remove();
+  else if (helpButton) helpButton.onclick = () => startTour(id());
+  startTourIfNew(id(), getParam('tour') === '1');
 }

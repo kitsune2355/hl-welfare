@@ -2136,3 +2136,166 @@ ol.questions {
   opacity: 0.4;
   pointer-events: none;
 }
+
+/* =====================================================================
+   ตัวกรองคอลัมน์ที่หัวตาราง (ui/columnFilter.js)
+   ===================================================================== */
+.th-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+.table th.right .th-inner {
+  justify-content: flex-end;
+}
+.th-filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 13px;
+  color: var(--muted);
+  opacity: 0.45;
+  transition: opacity 0.15s, background 0.15s;
+}
+th:hover .th-filter,
+.th-filter:focus-visible {
+  opacity: 1;
+}
+.th-filter:hover {
+  background: var(--border);
+  color: var(--fg);
+}
+.th-filter.on {
+  opacity: 1;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--primary-soft) 55%, var(--surface));
+  font-size: 12px;
+  color: var(--muted);
+}
+.filter-bar > .icon {
+  color: var(--primary);
+}
+.filter-bar b {
+  color: var(--fg);
+  font-weight: 500;
+}
+.filter-bar .btn {
+  margin-left: auto;
+  height: 26px;
+}
+.col-filter .cf-sort {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.cf-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+}
+.cf-btn:hover {
+  background: var(--surface-2);
+}
+.cf-btn.on {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.cf-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 0 6px 6px;
+}
+.cf-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cf-item:hover {
+  background: var(--surface-2);
+}
+.cf-item input {
+  accent-color: var(--primary);
+}
+.cf-item .truncate {
+  flex: 1;
+  min-width: 0;
+}
+.cf-n {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cf-all {
+  margin: 6px 6px 0;
+  font-weight: 500;
+}
+.cf-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 50%, var(--surface));
+}
+
+/* ป้ายตัวเลขในแท็บ ใช้สีตามความเร่งด่วน: <span class="count tone-danger"> */
+.tab .count[class*='tone-'] {
+  font-weight: 600;
+}
+
+/* แท็บ panel ในหน้า fit (ภาพรวม, ประกันกลุ่ม) — panel ยืด และการ์ด .fill ข้างในยืดต่อ */
+@media (min-width: 1024px) {
+  .page.fit > .panel.fill {
+    display: flex;
+    flex-direction: column;
+  }
+  .panel > * {
+    flex: none;
+  }
+  .panel > .fill {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+/* การ์ดตัวเลขแบบเตี้ย (เช่น ระดับความเร่งด่วนในแท็บคิวงาน) */
+.stat.compact {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+}
+.stat.compact .stat-icon {
+  order: -1;
+}
+.stat.compact .stat-value {
+  margin: 0;
+  font-size: 24px;
+}
+.stat.compact .stat-label {
+  display: block;
+  color: var(--fg);
+}

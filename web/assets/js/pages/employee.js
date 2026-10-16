@@ -113,7 +113,7 @@ function renderUniform(emp, st) {
     onRender: enhanceIssueActions,
     columns: [
       { key: 'event', header: 'รอบ', cell: (e) => html`<b style="font-weight:500">${UNIFORM_EVENT_LABEL[e.event]}${e.event === 'ANNUAL' ? ` ${Number(e.key.slice(7)) + 543}` : ''}</b>` },
-      { key: 'due', header: 'ครบกำหนด', cell: (e) => html`<span class="num">${thaiDate(e.dueDate)}</span>` },
+      { key: 'due', header: 'ครบกำหนด', sort: (e) => e.dueDate, cell: (e) => html`<span class="num">${thaiDate(e.dueDate)}</span>` },
       { key: 'qty', header: 'จำนวน', align: 'right', cell: (e) => html`<span class="num">${e.qtyLabel} ตัว</span>` },
       { key: 'items', header: 'รายการ', hideOnMobile: true, cell: (e) => html`<span class="muted">${e.items.map((i) => UNIFORM_ITEM_LABEL[i]).join(', ')}</span>` },
       {

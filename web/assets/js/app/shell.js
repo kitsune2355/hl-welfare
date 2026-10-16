@@ -11,8 +11,7 @@ import { API_MODE, api } from './api.js';
 import { initTour } from './tour.js';
 
 const MENU = [
-  { id: 'dashboard', href: 'index.html', label: 'ภาพรวม', icon: 'layout-dashboard' },
-  { id: 'monitor', href: 'monitor.html', label: 'ศูนย์ติดตามงาน', icon: 'list-checks' },
+  { id: 'dashboard', href: 'index.html', label: 'ภาพรวม & ติดตามงาน', icon: 'layout-dashboard' },
   { id: 'employees', href: 'employees.html', label: 'พนักงาน', icon: 'users' },
   { id: 'insurance', href: 'insurance.html', label: 'ประกันกลุ่ม', icon: 'shield-plus', count: (d) => d.urgentPending, tone: 'danger' },
   { id: 'pvd', href: 'pvd.html', label: 'กองทุนสำรองฯ', icon: 'piggy-bank' },
@@ -55,7 +54,8 @@ function navLink(item, active) {
 /**
  * สร้าง sidebar + topbar รอบ <main id="page"> แล้วแปลง <i data-icon> และ <select data-combobox> ในหน้า
  * @param {string} active  id ของเมนูที่เลือก
- * @param {{ tour?: string }} [opts]  tour = id ของเนื้อหาแนะนำใน tour/steps.js (ค่าเริ่มต้น = active)
+ * @param {{ tour?: string | (() => string) }} [opts]  tour = id ของเนื้อหาแนะนำใน tour/steps.js (ค่าเริ่มต้น = active)
+ *   ใส่เป็นฟังก์ชันได้ เมื่อหน้ามีหลายแท็บและแต่ละแท็บมีคำแนะนำของตัวเอง
  */
 export function initPage(active, { tour = active } = {}) {
   const main = document.getElementById('page');

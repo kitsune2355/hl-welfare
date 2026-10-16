@@ -19,16 +19,18 @@ const table = new DataTable($('#list'), {
   pageSize: 25,
   onRowClick: (r) => (location.href = `employee.html?id=${r.employee.id}`),
   columns: [
-    { key: 'emp', header: 'พนักงาน', cell: (r) => employeeCell(r.employee) },
+    { key: 'emp', header: 'พนักงาน', text: (r) => `${r.employee.firstName} ${r.employee.lastName}`, cell: (r) => employeeCell(r.employee) },
     { key: 'type', header: 'บริษัท / ประเภท', hideOnMobile: true, cell: (r) => `${r.employee.companyCode} · ${EMPLOYEE_TYPE_LABEL[r.employee.employeeType]}` },
-    { key: 'join', header: 'วันเป็นสมาชิก', cell: (r) => html`<span class="num">${thaiDate(r.pvd.joinDate)}</span>` },
-    { key: 'sal', header: 'เงินเดือน', align: 'right', hideOnMobile: true, cell: (r) => html`<span class="num">${money(r.employee.salary)}</span>` },
-    { key: 'ded', header: 'หัก', align: 'right', cell: (r) => html`<span class="num">${money(r.pvd.employeeMonthly)}</span>` },
-    { key: 'con', header: 'สมทบ', align: 'right', cell: (r) => html`<span class="num">${money(r.pvd.companyMonthly)}</span>` },
-    { key: 'yrs', header: 'อายุสมาชิก', align: 'right', cell: (r) => html`<span class="num">${r.pvd.memberYears === null ? '–' : `${r.pvd.memberYears} ปี`}</span>` },
+    { key: 'join', header: 'วันเป็นสมาชิก', sort: (r) => r.pvd.joinDate, cell: (r) => html`<span class="num">${thaiDate(r.pvd.joinDate)}</span>` },
+    { key: 'sal', header: 'เงินเดือน', align: 'right', hideOnMobile: true, sort: (r) => r.employee.salary, cell: (r) => html`<span class="num">${money(r.employee.salary)}</span>` },
+    { key: 'ded', header: 'หัก', align: 'right', sort: (r) => r.pvd.employeeMonthly, cell: (r) => html`<span class="num">${money(r.pvd.employeeMonthly)}</span>` },
+    { key: 'con', header: 'สมทบ', align: 'right', sort: (r) => r.pvd.companyMonthly, cell: (r) => html`<span class="num">${money(r.pvd.companyMonthly)}</span>` },
+    { key: 'yrs', header: 'อายุสมาชิก', align: 'right', sort: (r) => r.pvd.memberYears, cell: (r) => html`<span class="num">${r.pvd.memberYears === null ? '–' : `${r.pvd.memberYears} ปี`}</span>` },
     {
       key: 'vest',
       header: 'Vesting',
+      sort: (r) => r.pvd.vestingPercent,
+      text: (r) => (r.pvd.vestingPercent === null ? '' : `${r.pvd.vestingPercent}%`),
       cls: 'nowrap',
       cell: (r) =>
         view === 'left'

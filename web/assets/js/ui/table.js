@@ -7,9 +7,13 @@
 //   });
 //   table.setRows(rows);
 //
+// กรองคอลัมน์ที่หัวตาราง: เปิดอัตโนมัติทุกคอลัมน์ที่มีชื่อหัว · ปิดด้วย filter: false
+// text(row) = ข้อความที่ใช้กรอง · sort(row) = ค่าที่ใช้เรียง (เช่น วันที่ ISO) เมื่อค่าที่แสดงเรียงไม่ถูก
+//
 // ปุ่มในเซลล์: ใส่ data-action="..." แล้วดักด้วย on(container, 'click', '[data-action="..."]', fn)
 import { html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
+import { FilterState, filterSummary, headerFilterButton, openColumnFilter, stripHtml } from './columnFilter.js';
 import { enhanceSelects } from './combobox.js';
 
 export const PAGE_SIZES = [10, 25, 50, 100];
@@ -75,7 +79,8 @@ export class DataTable {
   /**
    * @param {HTMLElement} root
    * @param {{columns: {key:string, header:string, cell:(row:any)=>any, align?:'left'|'right'|'center', cls?:string,
-   *   hideOnMobile?: boolean, mobile?: 'lead'|'title'|'aside'|'field'|'footer'}[], rowKey:(row:any)=>any,
+   *   hideOnMobile?: boolean, mobile?: 'lead'|'title'|'aside'|'field'|'footer',
+   *   filter?: boolean, text?: (row:any)=>string, sort?: (row:any)=>any}[], rowKey:(row:any)=>any,
    *   onRowClick?: (row:any)=>void, empty?: any, pageSize?: number, page?: number, onPageChange?: (p:number)=>void,
    *   rowNumbers?: boolean, rowClass?: (row:any)=>string, onRender?: (root: HTMLElement)=>void}} opts
    */
@@ -85,7 +90,15 @@ export class DataTable {
     this.rows = null;
     this.page = opts.page ?? 1;
     this.size = opts.pageSize ?? 0;
+    this.filter = new FilterState();
     root.addEventListener('click', (e) => {
+      const fb = e.target.closest('[data-col-filter]');
+      if (fb) return this.openFilter(fb);
+      if (e.target.closest('[data-clear-col-filters]')) {
+        this.filter.clear();
+        this.page = 1;
+        return this.render();
+      }
       if (!this.o.onRowClick) return;
       if (e.target.closest('a, button, input, select, .combo')) return;
       const tr = e.target.closest('[data-key]');
@@ -105,12 +118,58 @@ export class DataTable {
     this.render();
   }
 
+  // ----- กรองคอลัมน์ -----
+  col(key) {
+    return this.o.columns.find((c) => c.key === key);
+  }
+
+  canFilter(c) {
+    return c.filter !== false && typeof c.header === 'string' && c.header !== '';
+  }
+
+  textOf = (row, key) => {
+    const c = this.col(key);
+    return c.text ? String(c.text(row) ?? '') : stripHtml(c.cell(row));
+  };
+
+  sortOf = (row, key) => {
+    const c = this.col(key);
+    return c.sort ? c.sort(row) : this.textOf(row, key);
+  };
+
+  /** แถวหลังกรอง/เรียง (ทุกหน้า) */
+  filtered() {
+    return this.rows ? this.filter.apply(this.rows, this.textOf, this.sortOf) : [];
+  }
+
+  openFilter(btn) {
+    const key = btn.dataset.colFilter;
+    const c = this.col(key);
+    const base = this.filter.apply(this.rows ?? [], this.textOf, this.sortOf, undefined, key);
+    openColumnFilter({
+      anchor: btn.closest('th') ?? btn,
+      label: c.header,
+      values: base.map((r) => this.textOf(r, key)),
+      selected: this.filter.filters.get(key) ?? null,
+      sortDir: this.filter.sort?.key === key ? this.filter.sort.dir : 0,
+      onApply: ({ selected, sortDir }) => {
+        if (selected) this.filter.filters.set(key, selected);
+        else this.filter.filters.delete(key);
+        if (sortDir) this.filter.sort = { key, dir: sortDir };
+        else if (this.filter.sort?.key === key) this.filter.sort = null;
+        this.page = 1;
+        this.render();
+      },
+    });
+  }
+
   visible() {
     if (!this.rows) return [];
-    if (!this.size) return this.rows;
-    const pages = Math.max(1, Math.ceil(this.rows.length / this.size));
+    const rows = this.filtered();
+    if (!this.size) return rows;
+    const pages = Math.max(1, Math.ceil(rows.length / this.size));
     this.page = Math.min(Math.max(1, this.page), pages);
-    return this.rows.slice((this.page - 1) * this.size, this.page * this.size);
+    return rows.slice((this.page - 1) * this.size, this.page * this.size);
   }
 
   render() {
@@ -126,7 +185,15 @@ export class DataTable {
       <table class="table">
         <thead>
           <tr>
-            ${rowNumbers ? html`<th class="rownum">#</th>` : ''} ${columns.map((c) => html`<th class="${align(c)} ${c.cls ?? ''}">${c.header}</th>`)}
+            ${rowNumbers ? html`<th class="rownum">#</th>` : ''}
+            ${columns.map(
+              (c) =>
+                html`<th class="${align(c)} ${c.cls ?? ''}">
+                  ${this.canFilter(c) && !loading
+                    ? html`<span class="th-inner"><span>${c.header}</span>${headerFilterButton(c.key, c.header, this.filter)}</span>`
+                    : c.header}
+                </th>`,
+            )}
           </tr>
         </thead>
         <tbody>
@@ -167,11 +234,15 @@ export class DataTable {
           )}
     </ul>`;
 
-    const showPager = this.size && this.rows && this.rows.length > 0;
+    const total = this.filtered().length;
+    const showPager = this.size && this.rows && total > 0;
+    const noMatch = !loading && this.rows.length > 0 && total === 0;
     this.root.innerHTML = String(
-      html`${table}${cards}${!loading && rows.length === 0 ? (empty ?? '') : ''}${showPager
-        ? pagerHtml({ page: this.page, pageSize: this.size, total: this.rows.length })
-        : ''}`,
+      html`${filterSummary(this.filter, (k) => this.col(k).header)}${table}${cards}${noMatch
+        ? html`<div class="empty" style="padding:32px"><b>ไม่มีแถวที่ตรงกับตัวกรองคอลัมน์</b></div>`
+        : !loading && rows.length === 0
+          ? (empty ?? '')
+          : ''}${showPager ? pagerHtml({ page: this.page, pageSize: this.size, total }) : ''}`,
     );
     if (showPager) {
       wirePager(this.root, {

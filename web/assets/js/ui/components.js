@@ -98,12 +98,13 @@ export function card({ title, description = '', iconName = '', actions = '', bod
   </section>`;
 }
 
+/** แท็บ — items: { value, label, count?, tone? } · tone = สีของป้ายตัวเลข (danger/warning/info/success…) */
 export function tabs(items, value) {
   return html`<div class="tabs" role="tablist">
     ${items.map(
       (t) =>
         html`<button class="tab${t.value === value ? ' active' : ''}" role="tab" aria-selected="${t.value === value}" data-tab="${t.value}">
-          ${t.label} ${t.count !== undefined ? html`<span class="count">${t.count}</span>` : ''}
+          ${t.label} ${t.count !== undefined ? html`<span class="count num ${t.tone ? `tone-${t.tone}` : ''}">${t.count}</span>` : ''}
         </button>`,
     )}
   </div>`;

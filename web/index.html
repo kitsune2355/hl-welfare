@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ภาพรวม · HL Welfare</title>
+    <title>ภาพรวม & ติดตามงาน · HL Welfare</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,43 +14,103 @@
     </script>
   </head>
   <body>
+    <!-- index.html?tab=summary|queue|activity  (คิวงานรับ &severity= &kind= เพิ่มได้) -->
     <main id="page" class="page fit">
       <div class="page-head">
         <div>
           <h1 id="greeting">สวัสดี 👋</h1>
           <p id="today">กำลังโหลด…</p>
         </div>
+        <div class="page-actions">
+          <span class="row small muted"><span class="live-dot" id="live-dot"></span><span id="updated"></span></span>
+          <label class="row" style="font-size:13px">
+            <button type="button" class="switch" role="switch" aria-checked="true" aria-label="รีเฟรชอัตโนมัติ" id="auto"></button>
+            อัตโนมัติ (60 วิ)
+          </label>
+          <button class="btn btn-sm" id="refresh"><i data-icon="refresh-cw"></i> รีเฟรช</button>
+        </div>
       </div>
 
       <!-- แจ้งเตือนแจ้งออกทันที (แสดงเมื่อมีรายการค้าง) -->
       <div id="urgent-alert" class="mb hidden"></div>
 
-      <div id="stats" class="grid grid-4"></div>
+      <div id="tabs"></div>
 
-      <div class="grid grid-3 mt fill">
-        <section class="card">
+      <!-- ===== แท็บ: สรุป ===== -->
+      <div class="panel fill" id="tab-summary">
+        <div id="stats" class="grid grid-4"></div>
+        <div class="grid grid-3 mt fill">
+          <section class="card">
+            <header class="card-head">
+              <div class="card-title">
+                <div>
+                  <h2>พนักงานแยกบริษัท</h2>
+                  <p>เฉพาะที่ทำงานอยู่</p>
+                </div>
+              </div>
+            </header>
+            <div class="card-body fill-body scroll" id="by-company"></div>
+          </section>
+          <section class="card span-2">
+            <header class="card-head">
+              <div class="card-title">
+                <span class="card-icon"><i data-icon="calendar-clock"></i></span>
+                <div>
+                  <h2>จะครบสิทธิใน 30 วัน</h2>
+                  <p>ประกันกลุ่ม / กองทุนสำรองเลี้ยงชีพ</p>
+                </div>
+              </div>
+            </header>
+            <div id="upcoming" class="fill-body"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ===== แท็บ: คิวงาน ===== -->
+      <div class="panel fill hidden" id="tab-queue">
+        <div id="sev-stats" class="grid grid-3 mb"></div>
+        <section class="card fill">
           <header class="card-head">
             <div class="card-title">
+              <span class="card-icon"><i data-icon="clipboard-list"></i></span>
               <div>
-                <h2>พนักงานแยกบริษัท</h2>
-                <p>เฉพาะที่ทำงานอยู่</p>
+                <h2>คิวงาน <span id="task-count"></span></h2>
+                <p>ทุกเรื่องที่ต้องทำ เรียงตามความเร่งด่วน แล้วตามจำนวนวันที่เลยกำหนด</p>
               </div>
             </div>
+            <div class="input-icon" style="width:min(320px,100%)">
+              <i data-icon="search"></i>
+              <input class="input" id="q" placeholder="ค้นหาพนักงาน หรือ ชื่องาน" aria-label="ค้นหางาน" />
+            </div>
           </header>
-          <div class="card-body fill-body scroll" id="by-company"></div>
+          <div class="chips" id="kinds" role="group" aria-label="กรองตามประเภทงาน" style="padding:12px 16px;border-bottom:1px solid var(--border)"></div>
+          <div id="tasks" class="fill-body"></div>
         </section>
+      </div>
 
-        <section class="card span-2">
+      <!-- ===== แท็บ: บันทึกกิจกรรม ===== -->
+      <div class="panel fill hidden" id="tab-activity">
+        <section class="card fill">
           <header class="card-head">
             <div class="card-title">
-              <span class="card-icon"><i data-icon="calendar-clock"></i></span>
+              <span class="card-icon"><i data-icon="activity"></i></span>
               <div>
-                <h2>จะครบสิทธิใน 30 วัน</h2>
-                <p>ประกันกลุ่ม / กองทุนสำรองเลี้ยงชีพ</p>
+                <h2>บันทึกกิจกรรม <span id="today-count"></span></h2>
+                <p>ใคร ทำอะไร เมื่อไร — ทุกการเพิ่ม/แก้ไข/ลบ/ส่งแจ้ง</p>
               </div>
             </div>
+            <select id="entity" data-combobox data-size="sm" aria-label="กรองกิจกรรม" class="combo" style="width:160px">
+              <option value="">ทุกประเภท</option>
+              <option value="EMPLOYEE">พนักงาน</option>
+              <option value="SITE">หน่วยงาน</option>
+              <option value="INSURANCE_BATCH">ประกันกลุ่ม</option>
+              <option value="UNIFORM_ISSUE">ชุดฟอร์ม</option>
+            </select>
           </header>
-          <div id="upcoming" class="fill-body"></div>
+          <div id="feed" class="fill-body scroll"></div>
+          <div class="card-foot hidden" id="more-wrap" style="text-align:center">
+            <button class="btn btn-ghost btn-sm" id="more">โหลดเพิ่ม</button>
+          </div>
         </section>
       </div>
     </main>
