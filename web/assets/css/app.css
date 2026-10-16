@@ -2929,7 +2929,6 @@ input[type='radio'] {
   background: var(--surface);
 }
 
-
 /* =====================================================================
    Responsive เพิ่มเติม
    ===================================================================== */
@@ -3862,6 +3861,18 @@ html:has(.form-footer),
   border-radius: 12px;
   background: var(--surface-2);
 }
+/* ไฟล์ + ปุ่ม: จอแคบ → ปุ่มลงบรรทัดใหม่ ชื่อไฟล์ไม่ถูกบีบ */
+.file-card {
+  flex-wrap: wrap;
+}
+.file-card .grow {
+  flex: 1 1 220px;
+}
+@media (max-width: 639px) {
+  .file-card > .btn {
+    flex: 1 1 auto;
+  }
+}
 .file-card.new {
   border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
   background: var(--primary-soft);
@@ -4172,70 +4183,6 @@ html:has(.form-footer),
   color: var(--success);
 }
 /* ตำแหน่งข้อมูล */
-.lay-sheets {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: start;
-}
-.lay-sheets > .btn {
-  margin-top: 24px;
-}
-.lay-tabs {
-  align-self: flex-start;
-}
-.lay-rows {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  align-items: center;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-2);
-  font-size: 13px;
-}
-.lay-rows .row-in {
-  width: 64px;
-  height: 32px;
-  padding: 0 6px;
-  text-align: center;
-}
-.lay-lg {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  margin-left: 6px;
-  font-weight: 600;
-}
-.lay-lg::before {
-  content: '';
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-}
-.lay-lg.head::before {
-  background: var(--sp-head);
-}
-.lay-lg.data::before {
-  background: var(--sp-data);
-}
-.lay-lg.foot::before {
-  background: var(--sp-foot);
-}
-.lay-lg.auto::before {
-  background: var(--sp-auto);
-  box-shadow: inset 0 0 0 1.5px #7c3aed;
-}
-.lay-lg.auto {
-  margin-left: auto;
-}
-.lay-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 16px;
-  align-items: start;
-}
 .lay-sheet {
   max-height: min(68vh, 640px);
   overflow: auto;
@@ -4245,98 +4192,6 @@ html:has(.form-footer),
 }
 .lay-sheet.test {
   max-height: 480px;
-}
-.lay-side {
-  position: sticky;
-  top: 8px;
-}
-.side-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm, 0 1px 2px rgb(15 23 42 / 0.06));
-}
-.side-card header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.side-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 10px;
-  border-radius: 8px;
-  background: #107c41;
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.side-tag.sm {
-  min-width: 34px;
-  justify-content: center;
-  padding: 1px 6px;
-  font-size: 11px;
-}
-.side-tag.auto {
-  background: #7c3aed;
-}
-.side-orig {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--surface-2);
-  font-size: 13px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.side-orig small {
-  color: var(--muted);
-}
-.side-help h4 {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.side-tip {
-  display: flex;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 10px;
-  background: var(--info-soft);
-  color: var(--info);
-  font-size: 12.5px;
-}
-.side-tip .icon {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-.side-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 220px;
-  overflow-y: auto;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.side-list button {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-  padding: 5px 6px;
-  border-radius: 8px;
-  font-size: 12.5px;
-  text-align: left;
-}
-.side-list button:hover {
-  background: var(--surface-2);
 }
 /* ป้ายข้อมูลอัตโนมัติในข้อความ */
 .tk {
@@ -4636,20 +4491,11 @@ html:has(#ed),
 }
 
 @media (max-width: 1279px) {
-  .lay-main {
-    grid-template-columns: minmax(0, 1fr) 280px;
-  }
   .pane-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 1023px) {
-  .lay-main {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .lay-side {
-    position: static;
-  }
   .bt-head {
     display: none;
   }
@@ -4664,12 +4510,6 @@ html:has(#ed),
   .ic-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .lay-sheets {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .lay-sheets > .btn {
-    margin-top: 0;
-  }
   .ed-steps {
     grid-template-columns: repeat(3, minmax(120px, 1fr));
     overflow-x: auto;
@@ -4683,9 +4523,6 @@ html:has(#ed),
   .bt-row {
     grid-template-columns: minmax(0, 1fr);
     padding-inline: 14px;
-  }
-  .lay-lg.auto {
-    margin-left: 6px;
   }
 }
 /* ขั้นไฟล์: ระบบทำงานอย่างไร (เติมข้อมูลลงไฟล์ตัวจริง — ไม่สร้างใหม่) */
@@ -4749,6 +4586,71 @@ html:has(#ed),
     display: none;
   }
 }
+/* มีไฟล์แล้ว → ช่องอัปโหลดเหลือแถวเดียว (เปลี่ยนไฟล์) */
+.drop.sm {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 12px;
+  align-items: center;
+  padding: 12px 16px;
+  text-align: left;
+}
+.drop.sm .drop-icon {
+  grid-row: span 2;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  border-radius: 12px;
+}
+.drop.sm .drop-icon .icon {
+  width: 20px;
+  height: 20px;
+}
+.drop.sm small {
+  display: none;
+}
+/* ขั้นไฟล์: สิ่งที่ระบบจะเติม (หาให้อัตโนมัติจากไฟล์) */
+.fill-sum {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  font-size: 13px;
+}
+.fill-sum > div {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+.fs-k {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.fs-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.fs-tag {
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: #e7f6ee;
+  color: #107c41;
+  font-size: 12px;
+  font-weight: 600;
+}
+.fs-tag.auto {
+  background: #f3e8ff;
+  color: #6d28d9;
+}
+@media (max-width: 639px) {
+  .fill-sum > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
 /* ขั้นทดลอง: เติมข้อมูลแล้ว → ดาวน์โหลดไปเปิดใน Excel */
 .test-done {
   display: flex;
@@ -4779,15 +4681,6 @@ html:has(#ed),
   flex-shrink: 0;
 }
 /* แท็บชีต + แถวของแบบฟอร์ม อยู่แถวเดียวกัน (ขึ้นบรรทัดใหม่เมื่อไม่พอ) */
-.lay-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 12px;
-  align-items: center;
-}
-.lay-bar .lay-rows {
-  flex: 1 1 auto;
-}
 /* insurers.html พอดีจอ (≥1024px) — ภาพรวม: ตารางผูกบริษัทยืด+เลื่อนภายใน · แก้แบบฟอร์ม: ตัวอย่างไฟล์ยืดเต็มที่เหลือ */
 @media (min-width: 1024px) {
   #view.fill {
@@ -4909,31 +4802,6 @@ html:has(#ed),
     min-height: 460px; /* จอเตี้ยมาก → เลื่อนทั้งขั้นแทนการบีบตัวอย่างไฟล์ */
     gap: 12px;
     padding: 16px 20px;
-  }
-  .page.editing .lay-sheets .hint {
-    display: none;
-  }
-  .page.editing .lay-sheets {
-    align-items: end;
-  }
-  .page.editing .lay-sheets > .btn {
-    height: 34px; /* สูงเท่าช่องเลือกชีต — ขอบล่างตรงกัน */
-    margin-top: 0;
-  }
-  .lay > .lay-main {
-    flex: 1 1 0;
-    grid-template-rows: minmax(0, 1fr);
-    align-items: stretch;
-    min-height: 0;
-  }
-  .lay-main > .lay-sheet {
-    max-height: none;
-    min-height: 0;
-  }
-  .lay-main > .lay-side {
-    position: static;
-    min-height: 0;
-    overflow-y: auto;
   }
 }
 .sp-td.spill {

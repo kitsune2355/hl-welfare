@@ -1,8 +1,8 @@
 // หน้า: แบบฟอร์มประกัน (insurers.html)
 //
 //   ภาพรวม (ไม่มี ?id)     ① บริษัทประกัน + ไฟล์แบบฟอร์ม Excel   ② ผูกบริษัทในเครือ ↔ บริษัทประกัน (บันทึกทีเดียวทั้งตาราง)
-//   แก้แบบฟอร์ม (?id=)    ขั้น 1 ไฟล์ Excel ของบริษัทประกัน (อัปโหลด .xlsx/.xls) → ขั้น 2 จุดที่ระบบเติมข้อมูล (ระบบหาให้ แก้ได้บนไฟล์)
-//                          → ขั้น 3 ทดลองเติมข้อมูล (ตั้งค่า + ดาวน์โหลดไฟล์ทดลองไปเปิดใน Excel)
+//   แก้แบบฟอร์ม (?id=)    ขั้น 1 ไฟล์ Excel ของบริษัทประกัน (อัปโหลด .xlsx/.xls — ระบบหาจุดเติมข้อมูลให้อัตโนมัติ)
+//                          → ขั้น 2 ทดลองเติมข้อมูล (ตั้งค่า + ดาวน์โหลดไฟล์ทดลองไปเปิดใน Excel)
 //   ระบบไม่สร้างแบบฟอร์มใหม่ — ตอนส่งออกเปิดไฟล์ที่อัปโหลดแล้วเติมรายชื่อลงไป (app/xlsxDirect.js)
 //
 // ไฟล์ที่อัปโหลดอยู่ในเบราว์เซอร์จนกด "บันทึก" — ตอนบันทึกจะล้างรายชื่อพนักงานในไฟล์ (ข้อมูลบุคคล) ก่อนเก็บ (app/excelTemplate.js)
@@ -11,21 +11,20 @@ import { getSession } from '../app/auth.js';
 import { analyzeTemplate, exportFileName, fillTemplate, gridsOf, readTemplateFile, sanitizedLayout, sanitizeTemplate, templateBuffer } from '../app/excelTemplate.js';
 import { initPage } from '../app/shell.js';
 import { blankInsurerForm, validateInsurerForm } from '../application/insurerFormRules.js';
-import { cellValue, formatFormDate, thaiMonthYear } from '../application/usecases/insurerExport.js';
-import { detectLayout } from '../application/usecases/templateDetect.js';
+import { formatFormDate, thaiMonthYear } from '../application/usecases/insurerExport.js';
 import { addDays, nextCycleDate, todayISO } from '../domain/date.js';
-import { COLUMN_SOURCES, DATE_FORMATS, PLACEHOLDERS, SUMMARY_SOURCES, VAR_SHORT } from '../domain/insurerForm.js';
+import { COLUMN_SOURCES, DATE_FORMATS, PLACEHOLDERS, VAR_SHORT } from '../domain/insurerForm.js';
 import { COMPANY_CODES } from '../domain/labels.js';
 import { thaiIdCheckDigit } from '../domain/thaiId.js';
 import { $, esc, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { XLSX_MIME, bufferToBase64, downloadBlob } from '../shared/excel.js';
 import { thaiDateTime } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
-import { alertBox, badge, emptyState, errorState } from '../ui/components.js';
+import { alertBox, badge, errorState } from '../ui/components.js';
 import { enhanceSelects } from '../ui/combobox.js';
 import { busy, loader } from '../ui/loading.js';
 import { confirmAction, errorMessage, toast } from '../ui/overlay.js';
-import { colLetter, sheetPreviewHtml } from '../ui/sheetPreview.js';
+import { sheetPreviewHtml } from '../ui/sheetPreview.js';
 
 initPage('insurers', { tour: () => (getParam('id') ? 'insurer-edit' : 'insurers') });
 
@@ -36,7 +35,6 @@ const page = $('#page');
 const CODES = [...COMPANY_CODES].sort(); // ลำดับชีต/ตาราง = ตามตัวอักษร (เหมือนไฟล์ของ HR)
 const STEPS = [
   { id: 'file', label: 'ไฟล์ Excel ของบริษัทประกัน', hint: 'อัปโหลดไฟล์ที่ใช้ส่งจริง' },
-  { id: 'layout', label: 'จุดที่ระบบเติมข้อมูล', hint: 'คอลัมน์ / ช่องที่จะเติม' },
   { id: 'export', label: 'ทดลองเติมข้อมูล', hint: 'ตั้งค่า · เปิดไฟล์ใน Excel' },
 ];
 /** ตัวแปรที่แทรกได้ จัดหมวด (ปุ่มแทรกข้อมูล) */
@@ -57,20 +55,13 @@ let draft = null; // แบบฟอร์มที่กำลังแก้
 let original = '';
 let errors = {};
 let step = 'file';
-/** ไฟล์ที่แสดงในขั้นตำแหน่งข้อมูล: { buffer, converted, sheets:[{name, grid}], fromUpload, fileName } */
+/** ไฟล์ที่เพิ่งอัปโหลด (ยังไม่บันทึก): { buffer, converted, sheets:[{name, grid}], fromUpload, fileName } */
 let src = null;
-let previewOf = 'company'; // 'company' | 'summary'
-let sel = {}; // { col } | { addr }
 let testResult = null; // { buffer, sheets, active }
-
-/** ข้อมูลที่ปกติกรอกเฉพาะแถวเข้าใหม่ */
-const IN_ONLY = ['title', 'gender', 'birthDate', 'nationalId', 'position', 'phone', 'email', 'salary', 'plan'];
 
 const clone = (x) => structuredClone(x);
 const dirty = () => !!draft && (JSON.stringify(draft) !== original || !!src?.fromUpload);
 const bindingsDirty = () => JSON.stringify(bindings) !== bindingsOrig;
-const sheetOf = (name) => src?.sheets.find((s) => s.name === name)?.grid ?? null;
-const currentLayout = () => (previewOf === 'summary' ? draft.template?.summary : draft.template);
 const legalName = (code) => companies.find((c) => c.code === code)?.legalName ?? code;
 
 // ---------- ข้อมูลสมมติ (ผลลัพธ์ตัวแปร / ตัวอย่างคอลัมน์ / ทดลองสร้างไฟล์) ----------
@@ -332,7 +323,6 @@ on(view, 'click', '[data-dl-template]', (_e, btn) => {
 function stepState(id) {
   const t = draft.template;
   if (id === 'file') return t ? 'done' : '';
-  if (id === 'layout') return errors.template ? 'error' : t ? 'done' : 'locked';
   return errors.name || errors.shortName ? 'error' : t ? '' : 'locked';
 }
 
@@ -385,19 +375,7 @@ function refreshDirty() {
 async function drawPane() {
   const pane = $('#pane');
   if (step === 'file') render(pane, filePane());
-  else if (step === 'layout') {
-    if (!src) {
-      render(pane, loader({ text: 'กำลังเปิดไฟล์แบบฟอร์ม', logo: true }));
-      try {
-        const buffer = await templateBuffer(draft.template);
-        src = { buffer, converted: false, sheets: await gridsOf(buffer), fromUpload: false, fileName: draft.template.fileName };
-      } catch (e) {
-        render(pane, errorState(e));
-        return;
-      }
-    }
-    render(pane, layoutPane());
-  } else render(pane, exportPane());
+  else render(pane, exportPane());
   enhanceSelects(pane);
   refreshDirty();
 }
@@ -447,7 +425,7 @@ function filePane() {
       </div>
     </div>
 
-    <label class="drop" id="drop" tabindex="0">
+    <label class="drop${t ? ' sm' : ''}" id="drop" tabindex="0">
       <input type="file" id="file-input" accept=".xlsx,.xls,application/vnd.ms-excel,${XLSX_MIME}" hidden />
       <span class="drop-icon">${raw(icon('file-spreadsheet'))}</span>
       <b>${t ? 'เปลี่ยนไฟล์ Excel' : 'อัปโหลดไฟล์ Excel ที่ส่งบริษัทประกัน'}</b>
@@ -457,7 +435,7 @@ function filePane() {
 
     <ol class="how" aria-label="ระบบทำงานอย่างไร">
       <li><span class="how-no">1</span><b>ไฟล์ของบริษัทประกันตัวจริง</b><small>ระบบเก็บไฟล์นี้ไว้ (ล้างรายชื่อเดิมออก)</small></li>
-      <li><span class="how-no">2</span><b>กำหนดจุดที่ระบบเติม</b><small>คอลัมน์ไหนเติมข้อมูลอะไร · ช่องเลขกรมธรรม์ / เดือน / ผู้แจ้ง</small></li>
+      <li><span class="how-no">2</span><b>ระบบหาจุดที่ต้องเติมเอง</b><small>คอลัมน์รายชื่อ · ช่องเลขกรมธรรม์ / เดือน / ผู้แจ้ง — ไม่ต้องตั้งค่า</small></li>
       <li><span class="how-no">3</span><b>ส่งออก = เติมรายชื่อลงไฟล์นี้</b><small>ไม่สร้างแบบฟอร์มใหม่ — โลโก้ สี สูตร หน้ากระดาษ เหมือนเดิมทุกอย่าง</small></li>
     </ol>
 
@@ -469,11 +447,25 @@ function filePane() {
             <span class="muted small">${src?.fromUpload ? 'ไฟล์ใหม่ — ยังไม่บันทึก' : t.uploadedAt ? `อัปโหลด ${thaiDateTime(t.uploadedAt)} · ${t.uploadedBy}` : t.uploadedBy} · ชีต ${t.sheet}${t.summary ? ` + ${t.summary.sheet}` : ''}</span>
           </div>
           ${src?.fromUpload ? '' : html`<button type="button" class="btn btn-sm" id="dl-current">${raw(icon('download'))} ดาวน์โหลดไฟล์ที่เก็บไว้</button>`}
-          <button type="button" class="btn btn-sm" data-goto="layout">จุดที่ระบบเติมข้อมูล ${raw(icon('chevron-right'))}</button>
-        </div>`
+          <button type="button" class="btn btn-sm" data-goto="export">ทดลองเติมข้อมูล ${raw(icon('chevron-right'))}</button>
+        </div>
+        ${fillSummary(t)}`
       : ''}
+    ${errors.template ? alertBox({ tone: 'danger', title: errors.template }) : ''}
     ${xlsNotice()}
     <p class="privacy">${raw(icon('lock'))} รายชื่อพนักงานที่อยู่ในไฟล์ (ข้อมูลบุคคล) จะถูกล้างออกก่อนเก็บ — เก็บไว้เฉพาะแบบฟอร์มเปล่า · ชีตอื่นที่ไม่ใช้ไม่ถูกเก็บ</p>
+  </div>`;
+}
+
+/** สิ่งที่ระบบจะเติมลงไฟล์ (หาให้อัตโนมัติจากไฟล์) */
+function fillSummary(t) {
+  const cols = t.columns.filter((c) => c.source !== 'blank');
+  const cells = Object.values(t.cells ?? {}).flatMap((v) => [...String(v).matchAll(/\{(\w+)\}/g)].map((m) => VAR_SHORT['{' + m[1] + '}'] ?? m[1]));
+  const label = (c) => (COLUMN_SOURCES[c.source]?.label ?? c.source).split(' — ')[0].replace(/\s*\(.*\)$/, '');
+  return html`<div class="fill-sum">
+    <div><span class="fs-k">ชีตที่ใช้</span><span>${t.sheet} (ชีตละบริษัทในเครือ)${t.summary ? ` · ${t.summary.sheet} (สรุป)` : ''}</span></div>
+    <div><span class="fs-k">เติมรายชื่อ ${cols.length} คอลัมน์</span><span class="fs-tags">${cols.map((c) => html`<span class="fs-tag">${label(c)}</span>`)}</span></div>
+    ${cells.length ? html`<div><span class="fs-k">เติมช่อง</span><span class="fs-tags">${[...new Set(cells)].map((x) => html`<span class="fs-tag auto">${x}</span>`)}</span></div>` : ''}
   </div>`;
 }
 
@@ -481,20 +473,19 @@ async function handleFile(file) {
   if (!file) return;
   if (!/\.xlsx?$/i.test(file.name)) return toast.error('รองรับเฉพาะไฟล์ Excel (.xlsx หรือ .xls)');
   if (file.size > 10 * 1024 * 1024) return toast.error('ไฟล์ใหญ่เกิน 10MB');
-  render($('#drop'), loader({ text: 'กำลังอ่านไฟล์และหาตำแหน่งข้อมูล', compact: true }));
+  render($('#drop'), loader({ text: 'กำลังอ่านไฟล์และหาจุดที่ต้องเติม', compact: true }));
   try {
     const r = await readTemplateFile(file);
     const a = analyzeTemplate(r.sheets);
-    const layout = a.layout ?? { headerRow: 1, headerEnd: 1, dataRow: 2, footerRow: 3, columns: [], cells: {} };
+    if (!a.layout) throw new Error('ไม่พบตารางรายชื่อในไฟล์นี้ — ตรวจว่าเป็นไฟล์แบบฟอร์มแจ้งเข้า-ออกของบริษัทประกัน');
+    const layout = a.layout;
     src = { ...r, fromUpload: true, fileName: file.name };
     draft.template = { fileName: file.name, converted: r.converted, lost: r.lost, uploadedAt: null, uploadedBy: '', sheet: a.sheet, ...layout, summary: a.summary };
-    previewOf = 'company';
-    sel = {};
     testResult = null;
-    step = 'layout';
+    errors = {};
+    step = 'file';
     const nCols = layout.columns.filter((c) => c.source !== 'blank').length;
-    if (a.layout) toast.success(`อ่านไฟล์แล้ว — หัวตารางแถว ${layout.headerRow} · ${nCols} คอลัมน์ข้อมูล · ${Object.keys(layout.cells).length} ช่องเติมอัตโนมัติ`);
-    else toast.error('ไม่พบหัวตารางในไฟล์ — กำหนดตำแหน่งเองในขั้นถัดไป');
+    toast.success(`อ่านไฟล์แล้ว — ระบบจะเติมรายชื่อ ${nCols} คอลัมน์ · ${Object.keys(layout.cells).length} ช่อง`);
     drawEditor();
   } catch (e) {
     toast.error(errorMessage(e));
@@ -526,259 +517,7 @@ view.addEventListener('keydown', (e) => {
   }
 });
 
-// ---------- ขั้น 2: ตำแหน่งข้อมูล ----------
-function columnLabels(layout, kind) {
-  const out = {};
-  for (const c of layout?.columns ?? []) {
-    const label = kind === 'summary' ? SUMMARY_SOURCES[c.source] : COLUMN_SOURCES[c.source]?.label;
-    out[c.col] = { label: c.source === 'blank' ? '—' : (label ?? c.source).split(' — ')[0].replace(/\s*\(.*\)$/, ''), only: c.only, blank: c.source === 'blank' };
-  }
-  return out;
-}
-
-function layoutPane() {
-  const t = draft.template;
-  const kind = previewOf;
-  const L = currentLayout();
-  const grid = sheetOf(kind === 'summary' ? t.summary?.sheet : t.sheet);
-  const sheetOpts = (value, none) => html`${none ? html`<option value="">— ไม่มีชีตสรุป —</option>` : ''}${src.sheets.map((s) => html`<option value="${s.name}" ${s.name === value ? 'selected' : ''}>${s.name}</option>`)}`;
-  const cells = {};
-  for (const [a, text] of Object.entries(L?.cells ?? {})) cells[a] = richText(text, 'token');
-  const tabs = t.summary
-    ? html`<div class="seg-lg lay-tabs" role="tablist">
-        <button type="button" role="tab" class="${kind === 'company' ? 'on' : ''}" aria-selected="${kind === 'company'}" data-preview="company">ชีตบริษัท · ${t.sheet}</button>
-        <button type="button" role="tab" class="${kind === 'summary' ? 'on' : ''}" aria-selected="${kind === 'summary'}" data-preview="summary">ชีตสรุป · ${t.summary.sheet}</button>
-      </div>`
-    : '';
-  return html`<div class="ed-body lay">
-    ${errors.template ? alertBox({ tone: 'danger', title: errors.template }) : ''}
-    ${xlsNotice()}
-    <div class="lay-sheets">
-      <div class="field">
-        <label for="pick-company">ชีตแบบฟอร์มของแต่ละบริษัท</label>
-        <select id="pick-company" data-pick-sheet="company" data-combobox>${sheetOpts(t.sheet)}</select>
-        <span class="hint">ส่งออกแล้วได้ 1 ชีตต่อ 1 บริษัทในเครือ</span>
-      </div>
-      <div class="field">
-        <label for="pick-summary">ชีตสรุป</label>
-        <select id="pick-summary" data-pick-sheet="summary" data-combobox>${sheetOpts(t.summary?.sheet, true)}</select>
-        <span class="hint">จำนวนเข้า/ออกต่อบริษัท (ถ้าไฟล์มี)</span>
-      </div>
-      <button type="button" class="btn btn-sm" id="redetect" title="ให้ระบบหาจุดเติมข้อมูลจากไฟล์ใหม่ (ทับที่แก้ไว้)">${raw(icon('refresh-cw'))} ให้ระบบหาจุดเติมใหม่</button>
-    </div>
-
-    ${L && grid
-      ? html`<div class="lay-bar">
-            ${tabs}
-            <div class="lay-rows" aria-label="ส่วนของแบบฟอร์ม">
-              <span class="lay-lg head">หัวตาราง</span> แถว <input class="input num row-in" type="number" min="1" data-row="headerRow" value="${L.headerRow}" aria-label="หัวตารางเริ่มแถว" /> ถึง <input class="input num row-in" type="number" min="1" data-row="headerEnd" value="${L.headerEnd}" aria-label="หัวตารางถึงแถว" />
-              <span class="lay-lg data">ข้อมูลพนักงาน</span> <input class="input num row-in" type="number" min="1" data-row="dataRow" value="${L.dataRow}" aria-label="แถวข้อมูลพนักงานเริ่มแถว" />
-              <span class="lay-lg foot">ส่วนท้าย</span> <input class="input num row-in" type="number" min="1" data-row="footerRow" value="${L.footerRow}" aria-label="ส่วนท้ายเริ่มแถว" />
-              <span class="lay-lg auto">เติมอัตโนมัติ</span>
-            </div>
-          </div>
-          <div class="lay-main">
-            <div class="lay-sheet">
-              ${sheetPreviewHtml(grid, {
-                layout: L,
-                columns: columnLabels(L, kind),
-                cells,
-                selected: sel,
-                interactive: true,
-                sampleNote: src.fromUpload ? 'ข้อมูลตัวอย่างในไฟล์ จะถูกล้างตอนบันทึก' : '',
-              })}
-            </div>
-            <aside class="lay-side" id="side">${sidePanel(L, kind, grid)}</aside>
-          </div>`
-      : html`${tabs}${emptyState({ iconName: 'file-spreadsheet', title: 'เลือกชีตด้านบน' })}`}
-  </div>`;
-}
-
-function sidePanel(L, kind, grid) {
-  if (sel.col) {
-    const c = sel.col;
-    const col = L.columns.find((x) => x.col === c);
-    const header = col?.header ?? (grid.text(L.headerEnd, c) || grid.text(L.headerRow, c) || '');
-    const sources = kind === 'summary' ? SUMMARY_SOURCES : Object.fromEntries(Object.entries(COLUMN_SOURCES).filter(([k]) => k !== 'text').map(([k, v]) => [k, v.label]));
-    const source = col?.source ?? 'blank';
-    let example = '';
-    if (kind === 'company' && source !== 'blank') {
-      const co = sampleCompanies()[0];
-      const [a, b] = [1, 3].map((i, n) => String(cellValue({ ...col, source }, sampleRow(i, co.companyCode), n + 1, draft, co, cycle) ?? ''));
-      example = a === b ? a || '(ว่าง)' : `เข้าใหม่: ${a || '(ว่าง)'} · ลาออก: ${b || '(ว่าง)'}`;
-    }
-    return html`<div class="side-card">
-      <header><span class="side-tag">คอลัมน์ ${colLetter(c)}</span><button type="button" class="btn-icon sm" data-side-close aria-label="ปิด">${raw(icon('x'))}</button></header>
-      <p class="side-orig" title="หัวคอลัมน์ในไฟล์">${col?.group ? html`<small>${col.group.replace(/ > /g, ' › ')} ›</small> ` : ''}${header || html`<i class="muted">(ไม่มีหัวคอลัมน์)</i>`}</p>
-      <div class="field">
-        <label for="col-source">ข้อมูลที่ระบบเติมในคอลัมน์นี้</label>
-        <select id="col-source" data-col-source="${c}" data-combobox>${Object.entries(sources).map(([k, v]) => html`<option value="${k}" ${k === source ? 'selected' : ''}>${v}</option>`)}</select>
-      </div>
-      ${example ? html`<div class="example-line">${raw(icon('eye'))}<span>${example}</span></div>` : ''}
-      ${kind === 'company' && source !== 'blank'
-        ? html`<div class="field">
-            <span class="label">เติมค่าในแถว</span>
-            <div class="seg-lg" role="radiogroup">
-              ${[
-                ['', 'ทุกแถว'],
-                ['IN', 'เฉพาะเข้าใหม่'],
-                ['OUT', 'เฉพาะลาออก'],
-              ].map(([v, l]) => html`<button type="button" role="radio" aria-checked="${(col?.only ?? '') === v}" class="${(col?.only ?? '') === v ? 'on' : ''}" data-col-only="${v}">${l}</button>`)}
-            </div>
-          </div>`
-        : ''}
-    </div>`;
-  }
-  if (sel.addr) {
-    const a = sel.addr;
-    const p = /^([A-Z]+)(\d+)$/.exec(a);
-    const r = Number(p[2]);
-    const c = [...p[1]].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
-    const orig = grid.text(r, c);
-    const has = a in (L.cells ?? {});
-    const value = L.cells?.[a] ?? '';
-    return html`<div class="side-card">
-      <header><span class="side-tag">เซลล์ ${a}</span><button type="button" class="btn-icon sm" data-side-close aria-label="ปิด">${raw(icon('x'))}</button></header>
-      <div class="field">
-        <span class="label">ข้อความเดิมในไฟล์</span>
-        <p class="side-orig">${orig ? orig : html`<i class="muted">(ว่าง)</i>`}</p>
-      </div>
-      <div class="field">
-        <label for="cell-text">ตอนส่งออก ใส่ในเซลล์นี้</label>
-        <input class="input" id="cell-text" data-cell="${a}" value="${value}" placeholder="${has ? '' : 'ใช้ข้อความเดิม — พิมพ์หรือกดปุ่มด้านล่างเพื่อเปลี่ยน'}" autocomplete="off" />
-        <div class="vf-result" id="cell-result">${has ? html`<span class="vf-out-label">ผลลัพธ์</span><span>${raw(richText(value, 'value') || '(ว่าง)')}</span>` : html`<span class="muted small">ไม่เปลี่ยน — ใช้ข้อความเดิมในไฟล์</span>`}</div>
-      </div>
-      ${varChips('cell-text', kind === 'summary' ? [VAR_GROUPS[1], VAR_GROUPS[2], VAR_GROUPS[3]] : VAR_GROUPS)}
-      ${has ? html`<button type="button" class="btn btn-sm btn-ghost" data-cell-reset="${a}">${raw(icon('undo-2'))} ใช้ข้อความเดิมในไฟล์</button>` : ''}
-    </div>`;
-  }
-  const cols = (L.columns ?? []).filter((c) => c.source !== 'blank');
-  const cells = Object.entries(L.cells ?? {});
-  return html`<div class="side-card side-help">
-    <p class="side-tip">${raw(icon('info'))}<span>นี่คือ<b>ไฟล์ของคุณ</b> — ป้ายสีเขียว (คอลัมน์) และช่องสีม่วง คือจุดที่ระบบจะเติมข้อมูล ส่วนอื่นของไฟล์ไม่ถูกแก้ · <b>คลิกคอลัมน์หรือช่อง</b>เพื่อเปลี่ยน</span></p>
-    <h4>คอลัมน์ที่ระบบเติม (${cols.length})</h4>
-    <ul class="side-list">
-      ${cols.map((c) => html`<li><button type="button" data-pick-col="${c.col}"><span class="side-tag sm">${colLetter(c.col)}</span><span class="truncate">${(kind === 'summary' ? SUMMARY_SOURCES[c.source] : COLUMN_SOURCES[c.source]?.label) ?? c.source}</span></button></li>`)}
-    </ul>
-    <h4>เซลล์ที่เติมอัตโนมัติ (${cells.length})</h4>
-    <ul class="side-list">
-      ${cells.length ? cells.map(([a, text]) => html`<li><button type="button" data-pick-cell="${a}"><span class="side-tag sm auto">${a}</span><span class="truncate">${raw(richText(text, 'token'))}</span></button></li>`) : html`<li class="muted small">— ยังไม่มี (คลิกเซลล์ในตัวอย่างเพื่อเพิ่ม)</li>`}
-    </ul>
-  </div>`;
-}
-
-function redrawLayout({ keepScroll = true } = {}) {
-  const sheet = view.querySelector('.lay-sheet');
-  const pos = sheet ? [sheet.scrollLeft, sheet.scrollTop] : null;
-  render($('#pane'), layoutPane());
-  enhanceSelects($('#pane'));
-  const s = view.querySelector('.lay-sheet');
-  if (keepScroll && pos && s) [s.scrollLeft, s.scrollTop] = pos;
-  refreshDirty();
-}
-function redrawSide() {
-  const L = currentLayout();
-  const grid = sheetOf(previewOf === 'summary' ? draft.template.summary.sheet : draft.template.sheet);
-  render($('#side'), sidePanel(L, previewOf, grid));
-  enhanceSelects($('#side'));
-}
-
-/** อ่านตำแหน่งใหม่จากชีตที่เลือก */
-function redetect(kind) {
-  const t = draft.template;
-  if (kind === 'company') {
-    const l = detectLayout(sheetOf(t.sheet), 'company');
-    if (!l) return toast.error(`ไม่พบหัวตารางในชีต “${t.sheet}” — กำหนดแถวเองได้`);
-    Object.assign(t, l);
-  } else if (t.summary?.sheet) {
-    const l = detectLayout(sheetOf(t.summary.sheet), 'summary');
-    t.summary = l ? { sheet: t.summary.sheet, ...l } : { sheet: t.summary.sheet, headerRow: 1, headerEnd: 1, dataRow: 2, footerRow: 3, columns: [], cells: {} };
-  }
-}
-
-view.addEventListener('click', (e) => {
-  if (step !== 'layout') return;
-  const t = e.target;
-  const th = t.closest('.sp [data-col]');
-  const td = t.closest('.sp td[data-addr]');
-  const L = currentLayout();
-  if (th) sel = { col: Number(th.dataset.col) };
-  else if (td) {
-    const r = Number(td.dataset.r);
-    // ในหัวตาราง/แถวข้อมูล = เลือกคอลัมน์ · นอกตาราง = เลือกเซลล์
-    sel = r >= L.headerRow && r < L.footerRow ? { col: Number(td.dataset.c) } : { addr: td.dataset.addr };
-  } else if (t.closest('[data-pick-col]')) sel = { col: Number(t.closest('[data-pick-col]').dataset.pickCol) };
-  else if (t.closest('[data-pick-cell]')) sel = { addr: t.closest('[data-pick-cell]').dataset.pickCell };
-  else if (t.closest('[data-side-close]')) sel = {};
-  else if (t.closest('[data-preview]')) {
-    previewOf = t.closest('[data-preview]').dataset.preview;
-    sel = {};
-  } else if (t.closest('#redetect')) {
-    redetect('company');
-    redetect('summary');
-    toast.success('อ่านตำแหน่งจากไฟล์ใหม่แล้ว');
-  } else if (t.closest('[data-col-only]')) {
-    const col = L.columns.find((x) => x.col === sel.col);
-    if (col) col.only = t.closest('[data-col-only]').dataset.colOnly;
-  } else if (t.closest('[data-cell-reset]')) {
-    delete L.cells[t.closest('[data-cell-reset]').dataset.cellReset];
-  } else return;
-  redrawLayout();
-});
-
-view.addEventListener('input', (e) => {
-  const t = e.target;
-  if (step === 'layout' && t.dataset.cell) {
-    const L = currentLayout();
-    L.cells[t.dataset.cell] = t.value;
-    render($('#cell-result'), html`<span class="vf-out-label">ผลลัพธ์</span><span>${raw(richText(t.value, 'value') || '(ว่าง)')}</span>`);
-    // อัปเดตป้ายในตัวอย่าง
-    const td = view.querySelector(`.sp td[data-addr="${t.dataset.cell}"]`);
-    if (td) {
-      td.classList.add('auto');
-      td.innerHTML = richText(t.value, 'token');
-    }
-    refreshDirty();
-  }
-});
-view.addEventListener('change', (e) => {
-  const t = e.target;
-  if (step !== 'layout') return;
-  if (t.dataset.row) {
-    const L = currentLayout();
-    L[t.dataset.row] = Math.max(1, Number(t.value) || 1);
-    if (L.headerEnd < L.headerRow) L.headerEnd = L.headerRow;
-    redrawLayout();
-  } else if (t.dataset.pickSheet) {
-    const tpl = draft.template;
-    if (t.dataset.pickSheet === 'company') {
-      tpl.sheet = t.value;
-      redetect('company');
-      previewOf = 'company';
-    } else {
-      tpl.summary = t.value ? { sheet: t.value } : null;
-      if (t.value) redetect('summary');
-      previewOf = t.value ? 'summary' : 'company';
-    }
-    sel = {};
-    redrawLayout({ keepScroll: false });
-  } else if (t.dataset.colSource) {
-    const L = currentLayout();
-    const c = Number(t.dataset.colSource);
-    let col = L.columns.find((x) => x.col === c);
-    if (!col) {
-      col = { col: c, header: '', group: '', source: 'blank', only: '' };
-      L.columns.push(col);
-      L.columns.sort((a, b) => a.col - b.col);
-    }
-    col.source = t.value;
-    // ข้อมูลส่วนตัว/แผน เติมเฉพาะแถวเข้าใหม่ (ตามไฟล์จริง) — เปลี่ยนเองได้
-    if (previewOf === 'company') col.only = IN_ONLY.includes(t.value) ? 'IN' : '';
-    redrawLayout();
-  }
-});
-
-// ---------- ขั้น 3: ตั้งค่าการส่งออก ----------
+// ---------- ขั้น 2: ทดลองเติมข้อมูล (ตั้งค่า + ไฟล์ทดลอง) ----------
 const switchRow = (k, checked, title, desc) => html`<div class="sw-row">
   <button type="button" class="switch" role="switch" aria-checked="${!!checked}" data-switch="${k}" aria-label="${title}"></button>
   <span><b>${title}</b><small>${desc}</small></span>
@@ -927,7 +666,7 @@ view.addEventListener('submit', async (e) => {
   const payload = clone(draft);
   errors = validateInsurerForm(payload, forms);
   if (Object.keys(errors).length) {
-    step = errors.name || errors.shortName ? 'file' : errors.template ? (draft.template ? 'layout' : 'file') : step;
+    step = errors.name || errors.shortName || errors.template ? 'file' : step;
     drawEditor();
     toast.error(Object.values(errors)[0]);
     return;
@@ -983,7 +722,7 @@ on(document, 'click', 'a[href="insurers.html"], a[href^="insurers.html?id="]', (
   e.preventDefault();
   confirmAction({
     title: 'ทิ้งการแก้ไขที่ยังไม่บันทึก?',
-    body: src?.fromUpload ? 'ไฟล์ที่อัปโหลดและตำแหน่งที่ตั้งไว้จะหายไป' : 'การแก้ไขในแบบฟอร์มนี้จะหายไป',
+    body: src?.fromUpload ? 'ไฟล์ที่อัปโหลดจะหายไป' : 'การแก้ไขในแบบฟอร์มนี้จะหายไป',
     confirmLabel: 'ทิ้งการแก้ไข',
     action: async () => {
       original = JSON.stringify(draft);
@@ -1007,10 +746,8 @@ function openEditor(id, { keepStep = false } = {}) {
   original = JSON.stringify(draft);
   errors = {};
   src = null;
-  sel = {};
-  previewOf = 'company';
   testResult = null;
-  if (!keepStep) step = STEPS.some((s) => s.id === getParam('step')) && draft.template ? getParam('step') : draft.template ? 'layout' : 'file';
+  if (!keepStep) step = STEPS.some((s) => s.id === getParam('step')) && draft.template ? getParam('step') : 'file';
   if (!draft.template && step !== 'file') step = 'file';
   setParams({ id: f ? f.id : 'new', step: step === 'file' ? '' : step });
   drawEditor();
