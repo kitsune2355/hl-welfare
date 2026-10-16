@@ -1367,66 +1367,260 @@ button.stat:hover {
   color: var(--danger);
 }
 
-/* Pagination */
+/* Pagination — ซ้าย: ช่วงที่แสดง + แถบตำแหน่ง · กลาง: เลขหน้า · ขวา: แถวต่อหน้า + ไปหน้า (ui/table.js → pagerHtml) */
 .pager {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 12px 16px;
+  padding: 10px 16px;
   border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
   font-size: 13px;
   color: var(--muted);
 }
+.pager.single {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
 .pager b {
   color: var(--fg);
-  font-weight: 500;
+  font-weight: 600;
 }
-.pager-left,
+.pager-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+/* แถบตำแหน่ง: ช่วงที่กำลังดูเทียบกับทั้งหมด */
+.pager-track {
+  position: relative;
+  width: 140px;
+  max-width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.pager-track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: var(--grad);
+  transition:
+    left 0.25s ease,
+    width 0.25s ease;
+}
+
+/* กลุ่มปุ่มเลขหน้า (pill) */
 .pager-pages {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
 }
-.pager-pages {
-  gap: 4px;
-}
-.pager .combo {
-  width: 84px;
+.page-nums {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 32px;
   height: 32px;
   padding: 0 8px;
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-2, var(--fg));
   font-variant-numeric: tabular-nums;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.1s;
 }
 .page-btn:hover {
-  background: var(--surface-2);
-  color: var(--fg);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.page-btn:active {
+  transform: scale(0.94);
+}
+.page-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
 }
 .page-btn.current {
   background: var(--primary);
   color: var(--primary-fg);
-  font-weight: 600;
+  font-weight: 700;
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+.page-step {
+  color: var(--muted);
 }
 .page-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   pointer-events: none;
+}
+.pager .ellipsis {
+  min-width: 20px;
+  text-align: center;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+/* ขวา: แถวต่อหน้า (segmented) + ไปหน้า */
+.pager-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  min-width: 0;
+}
+.page-sizes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.seg-btn {
+  min-width: 34px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.seg-btn:hover {
+  color: var(--fg);
+}
+.seg-btn.on {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+}
+.page-jump,
+.page-mobile {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.page-input {
+  width: 44px;
+  height: 30px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.page-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--ring, color-mix(in srgb, var(--primary) 22%, transparent));
 }
 .page-mobile {
   display: none;
 }
+
+/* แคบลง: ซ่อนแถบตำแหน่ง/ไปหน้า แล้วขึ้นบรรทัดใหม่ */
+@media (max-width: 1279px) {
+  .pager-track,
+  .page-jump {
+    display: none;
+  }
+}
+@media (max-width: 1023px) {
+  .pager,
+  .pager.single {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .pager-pages {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: center;
+  }
+  .pager-tools {
+    justify-content: flex-end;
+  }
+}
+/* มือถือ: ‹  หน้า [n] / N  › เต็มความกว้าง · ช่วงที่แสดง + แถวต่อหน้า อยู่ล่าง */
 @media (max-width: 639px) {
-  .pager .page-num,
-  .pager .ellipsis,
-  .pager-size {
+  .pager {
+    gap: 10px 12px;
+    padding: 12px;
+  }
+  .pager-pages {
+    justify-self: stretch;
+    justify-content: space-between;
+    padding: 4px;
+  }
+  .page-nums,
+  .page-step.edge {
     display: none;
   }
   .page-mobile {
-    display: inline;
+    display: flex;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .page-mobile .page-input {
+    width: 52px;
+    height: 36px;
+    font-size: 15px;
+  }
+  .pager-pages .page-step {
+    min-width: 44px;
+    height: 40px;
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+  .pager-pages .page-step:disabled {
+    background: transparent;
+    color: var(--muted);
+  }
+  .pager-info {
+    font-size: 12px;
+  }
+  .page-sizes > .muted {
+    display: none;
+  }
+}
+/* จอสัมผัส: ปุ่มแถวต่อหน้า / ช่องเลขหน้า ใหญ่พอแตะ */
+@media (pointer: coarse) {
+  .seg-btn {
+    min-width: 40px;
+    height: 36px;
+    font-size: 13px;
+  }
+  .page-input {
+    height: 36px;
   }
 }
 

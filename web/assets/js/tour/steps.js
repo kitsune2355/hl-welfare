@@ -63,7 +63,7 @@ export const TOUR_STEPS = {
       { element: '.xgrid tbody tr:first-child .stick-left', title: 'สถานะการบันทึก', text: 'ระบบบันทึกอัตโนมัติทีละแถว: ⟳ กำลังบันทึก · ✓ บันทึกแล้ว · ⚠ ข้อมูลไม่ถูกต้อง (คลิกแถวเพื่อดูสาเหตุ)', side: 'right' },
       { element: '[data-grid-act="add"]', title: 'เพิ่มพนักงาน', text: 'เพิ่มแถวใหม่ด้านบน กรอกให้ครบทุกช่องที่มี * แล้วระบบจะบันทึกให้เอง', side: 'bottom', align: 'start' },
       { element: '.xgrid tbody tr:first-child .row-actions', title: 'เปิดรายละเอียด / ลบ', text: 'ดูสิทธิสวัสดิการรายคน หรือลบข้อมูลที่บันทึกผิด (ลบได้เฉพาะคนที่ยังไม่มีประวัติ)', side: 'left' },
-      { element: '#grid .pager', title: 'แบ่งหน้า', text: 'เลือกจำนวนแถวต่อหน้าได้ 10 / 25 / 50 / 100', side: 'top' },
+      { element: '#grid .pager', title: 'แบ่งหน้า', text: 'ปุ่ม ⟪ ‹ › ⟫ = หน้าแรก / ก่อนหน้า / ถัดไป / สุดท้าย · แตะ <b>10 / 25 / 50 / 100</b> เพื่อเปลี่ยนจำนวนแถวต่อหน้า · ข้อมูลเยอะพิมพ์เลขที่ช่อง <b>ไปหน้า</b> แล้วกด Enter', side: 'top' },
       { element: 'a[href="employee-form.html"]', title: 'ฟอร์มเต็ม', text: 'ถ้าชอบกรอกทีละช่องแบบฟอร์ม ใช้ปุ่มนี้แทนได้', side: 'bottom', align: 'end' },
     ],
   },

@@ -40,43 +40,100 @@ function pageList(page, pages) {
   return out;
 }
 
-/** HTML ของแถบแบ่งหน้า — ปุ่มมี data-page, ตัวเลือกจำนวนต่อหน้ามี data-page-size */
+/** แสดงช่อง "ไปหน้า" บน desktop เมื่อมีหน้ามากกว่านี้ (มือถือใช้ช่องเลขหน้าตรงกลางแทน) */
+const JUMP_FROM_PAGES = 8;
+
+/**
+ * HTML ของแถบแบ่งหน้า
+ *   ซ้าย: ช่วงที่แสดง + แถบตำแหน่ง · กลาง: ⟪ ‹ 1 … 4 5 6 … 20 › ⟫ (มือถือ: ‹ หน้า [n] / N ›) · ขวา: แถวต่อหน้า + ไปหน้า
+ *   ปุ่มเปลี่ยนหน้ามี data-page · ปุ่มจำนวนต่อหน้ามี data-page-size · ช่องกรอกเลขหน้ามี data-page-input
+ */
 export function pagerHtml({ page, pageSize, total }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const from = total ? (page - 1) * pageSize + 1 : 0;
   const to = Math.min(total, page * pageSize);
   const fmt = (n) => n.toLocaleString('th-TH');
-  return html`<nav class="pager" aria-label="เปลี่ยนหน้า">
-    <div class="pager-left">
-      <span class="num">แสดง <b>${fmt(from)}–${fmt(to)}</b> จาก <b>${fmt(total)}</b></span>
-      <label class="pager-size row"
-        >ต่อหน้า
-        <select data-page-size data-combobox data-size="sm" aria-label="จำนวนต่อหน้า" class="combo">
-          ${[...new Set([...PAGE_SIZES, pageSize])].sort((a, b) => a - b).map((s) => html`<option value="${s}" ${s === pageSize ? 'selected' : ''}>${s}</option>`)}
-        </select></label
-      >
+  const multi = pages > 1;
+  const nav = (p, ic, label, off, cls = '') =>
+    html`<button type="button" class="page-btn page-step${cls}" data-page="${p}" ${off ? 'disabled' : ''} aria-label="${label}" title="${label}">${raw(icon(ic))}</button>`;
+  const sizes = [...new Set([...PAGE_SIZES, pageSize])].sort((a, b) => a - b);
+  // แถบตำแหน่ง: ช่วงที่กำลังดูเทียบกับทั้งหมด
+  const bar = total ? { left: ((from - 1) / total) * 100, width: Math.max(2, ((to - from + 1) / total) * 100) } : { left: 0, width: 0 };
+  const pageInput = (cls) =>
+    html`<input class="page-input${cls}" data-page-input type="text" inputmode="numeric" value="${page}" aria-label="ไปหน้า (1–${pages})" autocomplete="off" />`;
+
+  return html`<nav class="pager${multi ? '' : ' single'}" aria-label="เปลี่ยนหน้า" data-pages="${pages}">
+    <div class="pager-info">
+      <span class="num"><b>${fmt(from)}–${fmt(to)}</b> จาก <b>${fmt(total)}</b> รายการ</span>
+      ${multi ? html`<span class="pager-track" aria-hidden="true"><i style="left:${bar.left}%;width:${bar.width}%"></i></span>` : ''}
     </div>
-    ${pages > 1
+    ${multi
       ? html`<div class="pager-pages">
-          <button class="page-btn" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''} aria-label="หน้าก่อนหน้า">${raw(icon('chevron-left'))}</button>
-          <span class="page-mobile num">หน้า ${page} / ${pages}</span>
-          ${pageList(page, pages).map((p) =>
-            p === '…'
-              ? html`<span class="ellipsis">…</span>`
-              : html`<button class="page-btn page-num${p === page ? ' current' : ''}" data-page="${p}" ${p === page ? 'aria-current="page"' : ''}>${p}</button>`,
-          )}
-          <button class="page-btn" data-page="${page + 1}" ${page >= pages ? 'disabled' : ''} aria-label="หน้าถัดไป">${raw(icon('chevron-right'))}</button>
+          ${nav(1, 'chevrons-left', 'หน้าแรก', page <= 1, ' edge')}
+          ${nav(page - 1, 'chevron-left', 'หน้าก่อนหน้า', page <= 1)}
+          <span class="page-nums">
+            ${pageList(page, pages).map((p) =>
+              p === '…'
+                ? html`<span class="ellipsis" aria-hidden="true">…</span>`
+                : html`<button type="button" class="page-btn page-num${p === page ? ' current' : ''}" data-page="${p}" ${p === page ? raw('aria-current="page"') : ''} aria-label="หน้า ${p}">${p}</button>`,
+            )}
+          </span>
+          <label class="page-mobile num">หน้า ${pageInput('')} / ${pages}</label>
+          ${nav(page + 1, 'chevron-right', 'หน้าถัดไป', page >= pages)}
+          ${nav(pages, 'chevrons-right', 'หน้าสุดท้าย', page >= pages, ' edge')}
         </div>`
       : ''}
+    <div class="pager-tools">
+      <div class="page-sizes" role="group" aria-label="แถวต่อหน้า">
+        <span class="muted">แถวต่อหน้า</span>
+        <span class="seg">
+          ${sizes.map((s) => html`<button type="button" class="seg-btn${s === pageSize ? ' on' : ''}" data-page-size="${s}" aria-pressed="${s === pageSize}">${s}</button>`)}
+        </span>
+      </div>
+      ${pages >= JUMP_FROM_PAGES ? html`<label class="page-jump">ไปหน้า ${pageInput(' sm')}</label>` : ''}
+    </div>
   </nav>`;
 }
 
 /** ผูก event ของแถบแบ่งหน้า (เรียกหลัง render ทุกครั้ง) */
 export function wirePager(root, { onPage, onSize }) {
   enhanceSelects(root);
-  root.querySelectorAll('.pager [data-page]').forEach((b) => (b.onclick = () => onPage(Number(b.dataset.page))));
-  const size = root.querySelector('.pager [data-page-size]');
-  if (size) size.onchange = () => onSize(Number(size.value));
+  const pager = root.querySelector('.pager');
+  if (!pager) return;
+  const pages = Number(pager.dataset.pages) || 1;
+  /** focusSel: ตัวเลือกที่จะโฟกัสหลัง render (คั่นด้วย | = ลองตามลำดับ) */
+  const goPage = (p, focusSel) => {
+    const keepFocus = pager.contains(document.activeElement);
+    onPage(p);
+    // render ใหม่แล้ว: คืนโฟกัสให้แถบแบ่งหน้า (ผู้ใช้คีย์บอร์ด) · ถ้ารายการเลื่อนพ้นจอ (มือถือ) ให้กลับไปต้นรายการ
+    if (keepFocus) focusSel.split('|').map((s) => root.querySelector(`.pager ${s}`)).find(Boolean)?.focus({ preventScroll: true });
+    if (root.getBoundingClientRect().top < 0) root.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+  pager.querySelectorAll('[data-page]').forEach((b) => {
+    const sel = b.classList.contains('page-num') ? '.page-num.current' : `[aria-label="${b.getAttribute('aria-label')}"]:not(:disabled)|.page-num.current`;
+    b.onclick = () => goPage(Number(b.dataset.page), sel);
+  });
+  pager.querySelectorAll('[data-page-size]').forEach((b) => (b.onclick = () => !b.classList.contains('on') && onSize(Number(b.dataset.pageSize))));
+  // ช่องกรอกเลขหน้า: Enter / ออกจากช่อง = ไปหน้านั้น (ปัดให้อยู่ในช่วง 1–pages)
+  pager.querySelectorAll('[data-page-input]').forEach((input) => {
+    const current = Number(input.value);
+    const go = () => {
+      const n = Math.min(pages, Math.max(1, Math.round(Number(input.value.replace(/[^\d]/g, '')) || current)));
+      input.value = String(n);
+      if (n !== current) goPage(n, input.classList.contains('sm') ? '.page-jump input' : '.page-mobile input');
+    };
+    input.onfocus = () => input.select();
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        go();
+      } else if (e.key === 'Escape') {
+        input.value = String(current);
+        input.blur();
+      }
+    };
+    input.onchange = go;
+  });
 }
 
 function slotOf(c, i) {
