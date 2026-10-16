@@ -123,3 +123,20 @@ describe('MockApi CRUD + monitoring', () => {
     expect(q.every((t, i) => i === 0 || rank[q[i - 1].severity] <= rank[t.severity])).toBe(true);
   });
 });
+
+describe('MockApi เข้าสู่ระบบ', () => {
+  it('ชื่อผู้ใช้/รหัสผ่านถูก → คืนชื่อและบทบาท · ผิด → 401', async () => {
+    const api = make();
+    const u = await api.login(' HR ', 'hr1234');
+    expect(u).toMatchObject({ username: 'hr', role: 'HR Admin' });
+    await expect(api.login('hr', 'wrong')).rejects.toMatchObject({ status: 401 });
+  });
+
+  it('บันทึกกิจกรรมใช้ชื่อผู้ใช้ที่เข้าสู่ระบบ (setActor)', async () => {
+    const api = make();
+    api.setActor('สมใจ ใจดี');
+    await api.createSite({ companyCode: 'HL', name: 'สาขาผู้ใช้', hasGroupInsurance: true, poloColor: 'BLACK' });
+    const [top] = await api.listActivity({ limit: 1 });
+    expect(top.user).toBe('สมใจ ใจดี');
+  });
+});

@@ -10,7 +10,12 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="assets/css/app.css" />
     <script>
-      try { if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
+      // ธีม + ตรวจการเข้าสู่ระบบก่อนแสดงหน้า (ยังไม่ login → ไปหน้า login.html)
+      try {
+        if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+        var s = JSON.parse(sessionStorage.getItem('hl-session') || localStorage.getItem('hl-session') || 'null');
+        if (!s || s.expiresAt < Date.now()) location.replace('login.html?next=' + encodeURIComponent((location.pathname.split('/').pop() || 'index.html') + location.search));
+      } catch (e) {}
     </script>
   </head>
   <body>

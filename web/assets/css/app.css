@@ -12,9 +12,15 @@
   --border: #e6e9f0;
   --fg: #0f172a;
   --muted: #64748b;
-  --primary: #4f46e5;
+  /* โทนหลัก: น้ำเงิน → เขียว (สีตัวอักษรใช้เฉดเข้ม ให้ contrast ≥ 4.5:1) */
+  --primary: #0e7490;
   --primary-fg: #ffffff;
-  --primary-soft: #eef2ff;
+  --primary-soft: #e6f6f8;
+  --grad-start: #1d4ed8;
+  --grad-mid: #0e7490;
+  --grad-end: #047857;
+  --grad: linear-gradient(135deg, var(--grad-start) 0%, var(--grad-mid) 55%, var(--grad-end) 100%);
+  --grad-soft: linear-gradient(135deg, #eaf1ff 0%, #e6f6f8 55%, #e7f8f1 100%);
   --success: #059669;
   --success-soft: #ecfdf5;
   --warning: #b45309;
@@ -23,7 +29,7 @@
   --danger-soft: #fef2f2;
   --info: #0369a1;
   --info-soft: #f0f9ff;
-  --ring: rgb(79 70 229 / 0.25);
+  --ring: rgb(14 116 144 / 0.25);
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
   --shadow-lg: 0 20px 50px rgb(0 0 0 / 0.18);
   --radius: 12px;
@@ -41,9 +47,14 @@
   --border: #262c3d;
   --fg: #e6e9f2;
   --muted: #8b93a7;
-  --primary: #818cf8;
-  --primary-fg: #0b0d14;
-  --primary-soft: #1e1b4b;
+  --primary: #22d3ee;
+  --primary-fg: #ffffff;
+  --primary-soft: #0c2a33;
+  --grad-start: #2563eb;
+  --grad-mid: #0e7490;
+  --grad-end: #059669;
+  --grad: linear-gradient(135deg, var(--grad-start) 0%, var(--grad-mid) 55%, var(--grad-end) 100%);
+  --grad-soft: linear-gradient(135deg, #12203f 0%, #0c2a33 55%, #0b2a22 100%);
   --success: #34d399;
   --success-soft: #052e1f;
   --warning: #fbbf24;
@@ -52,7 +63,7 @@
   --danger-soft: #2d0a0a;
   --info: #38bdf8;
   --info-soft: #04202f;
-  --ring: rgb(129 140 248 / 0.35);
+  --ring: rgb(34 211 238 / 0.3);
   color-scheme: dark;
 }
 
@@ -2298,4 +2309,133 @@ th:hover .th-filter,
 .stat.compact .stat-label {
   display: block;
   color: var(--fg);
+}
+
+/* =====================================================================
+   ธีม Gradient น้ำเงิน → เขียว (ใช้ตัวแปร --grad / --grad-soft จากส่วน tokens)
+   อยากเปลี่ยนโทน: แก้ --grad-start / --grad-mid / --grad-end ที่ :root ที่เดียว
+   ===================================================================== */
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--primary);
+}
+.grad-text {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.brand b {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* แถบสีบาง ๆ บนสุดของหน้า */
+.topbar::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--grad);
+}
+/* ปุ่มหลัก: gradient เลื่อนสีเมื่อชี้ */
+.btn-primary,
+.btn-primary:hover {
+  background: var(--grad);
+  background-size: 180% 180%;
+  background-position: 0% 50%;
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--grad-mid) 80%, transparent);
+  transition: background-position 0.45s ease, box-shadow 0.2s, transform 0.1s, opacity 0.15s;
+}
+.btn-primary:hover {
+  background-position: 100% 50%;
+  opacity: 1;
+  box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--grad-mid) 90%, transparent);
+}
+.btn-primary:active,
+.btn-danger:active {
+  transform: translateY(1px);
+}
+/* เมนูที่เลือก */
+.nav a.active {
+  position: relative;
+  background: var(--grad-soft);
+  color: var(--primary);
+}
+.nav a.active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--grad);
+}
+.tab.active {
+  border-bottom: 2px solid transparent;
+  border-image: var(--grad) 1;
+}
+.page-btn.current,
+.switch[aria-checked='true'] {
+  background: var(--grad);
+  color: #fff;
+}
+.progress > span {
+  background: var(--grad);
+}
+.chip.active,
+.stat-icon.tone-primary {
+  background: var(--grad-soft);
+}
+.stat.selected {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--grad-mid);
+}
+.hl-tour .driver-popover-footer .driver-popover-next-btn,
+.hl-tour .driver-popover-footer .driver-popover-done-btn,
+.hl-tour .driver-popover-footer .driver-popover-next-btn:hover,
+.hl-tour .driver-popover-footer .driver-popover-done-btn:hover {
+  background: var(--grad);
+  color: #fff;
+}
+
+/* ผู้ใช้ที่เข้าสู่ระบบ (topbar) */
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 6px;
+  padding: 4px 4px 4px 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.user-chip .avatar {
+  width: 30px;
+  height: 30px;
+  background: var(--grad) !important;
+}
+.user-text {
+  display: grid;
+  line-height: 1.2;
+  max-width: 160px;
+}
+.user-text b {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-text small {
+  font-size: 11px;
+  color: var(--muted);
+}
+@media (max-width: 767px) {
+  .user-text {
+    display: none;
+  }
 }

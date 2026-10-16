@@ -5,9 +5,10 @@
 import { html, raw } from '../shared/dom.js';
 import { hydrateIcons, icon } from '../shared/icons.js';
 import { enhanceSelects } from '../ui/combobox.js';
-import { badge } from '../ui/components.js';
+import { avatar, badge } from '../ui/components.js';
 import { toast } from '../ui/overlay.js';
 import { API_MODE, api } from './api.js';
+import { isAuthEnabled, logout, requireSession } from './auth.js';
 import { initTour } from './tour.js';
 
 const MENU = [
@@ -58,6 +59,8 @@ function navLink(item, active) {
  *   ใส่เป็นฟังก์ชันได้ เมื่อหน้ามีหลายแท็บและแต่ละแท็บมีคำแนะนำของตัวเอง
  */
 export function initPage(active, { tour = active } = {}) {
+  const user = requireSession(); // ยังไม่ login → ไปหน้า login.html
+  if (!user) return;
   const main = document.getElementById('page');
   const sidebar = document.createElement('aside');
   sidebar.className = 'sidebar';
@@ -87,6 +90,11 @@ export function initPage(active, { tour = active } = {}) {
     <span class="spacer"></span>
     <button class="btn-icon" id="help-btn" aria-label="แนะนำการใช้งาน" title="แนะนำการใช้งาน">${raw(icon('circle-help'))}</button>
     <button class="btn-icon" id="theme-btn"></button>
+    <div class="user-chip" title="${user.name} · ${user.role}">
+      ${avatar(user.name)}
+      <span class="user-text"><b>${user.name}</b><small>${user.role}</small></span>
+      ${isAuthEnabled() ? html`<button class="btn-icon sm" id="logout-btn" aria-label="ออกจากระบบ" title="ออกจากระบบ">${raw(icon('log-out'))}</button>` : ''}
+    </div>
   </header>`);
 
   main.before(sidebar);
@@ -106,6 +114,7 @@ export function initPage(active, { tour = active } = {}) {
     document.body.append(bd);
   };
   document.getElementById('theme-btn').onclick = toggleTheme;
+  document.getElementById('logout-btn')?.addEventListener('click', logout);
   drawThemeButton();
 
   const search = document.getElementById('global-search');

@@ -27,6 +27,16 @@ export class HttpApi {
   async del(path) {
     await this.req(path, { method: 'DELETE' });
   }
+  // ---------- เข้าสู่ระบบ (PHP ใช้ session cookie) ----------
+  login(username, password) {
+    return this.send('POST', '/auth/login', { username, password });
+  }
+  logout() {
+    return this.send('POST', '/auth/logout', {});
+  }
+  setActor() {
+    /* PHP ใช้ผู้ใช้จาก session เอง */
+  }
   getDashboard() {
     return this.req('/dashboard');
   }

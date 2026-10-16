@@ -24,7 +24,7 @@ initPage('dashboard', { tour: tourId });
 const REFRESH_MS = 60_000;
 const AUTO_KEY = 'hl-monitor-auto';
 const today = todayISO();
-const COMPANY_COLOR = { HL: '#6366f1', PRO: '#0ea5e9', CNS: '#10b981', CIC: '#f59e0b', AS: '#ec4899' };
+const COMPANY_COLOR = { HL: '#2563eb', PRO: '#0891b2', CNS: '#10b981', CIC: '#f59e0b', AS: '#8b5cf6' };
 
 const state = {
   dash: null,

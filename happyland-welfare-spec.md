@@ -3,7 +3,7 @@
 > เอกสารสเปกสำหรับพัฒนาและนำขึ้น host ของหน่วยงาน
 > Stack: **HTML + CSS + JavaScript (ES Modules) ไม่ใช้ framework ไม่ต้อง build** · **PHP 8.2+** · **MySQL 8**
 > แนวทาง: **เฟส 1 หน้าเว็บ + ข้อมูลจำลอง (mock) ✅ เสร็จแล้ว → เฟส 2 ต่อ PHP + MySQL จริง**
-> สถาปัตยกรรม: **Clean Architecture** (กฎสวัสดิการเป็นแกน ไม่ขึ้นกับหน้าจอ/ฐานข้อมูล) · UI: **Modern, clean, user-friendly** (design tokens, โทนสว่าง + โหมดมืด)
+> สถาปัตยกรรม: **Clean Architecture** (กฎสวัสดิการเป็นแกน ไม่ขึ้นกับหน้าจอ/ฐานข้อมูล) · UI: **Modern, clean, user-friendly** — ธีม **gradient น้ำเงิน → เขียว**, โทนสว่าง + โหมดมืด, หน้า login พร้อมอนิเมชัน
 > อ้างอิงเงื่อนไขจากไฟล์ "เงื่อนไขสวัสดิการ 15.10.69"
 >
 > **ทำไมไม่ใช้ React:** ทีม dev ส่วนใหญ่ไม่ถนัด React และ host ของหน่วยงานเป็น static/PHP — จึงเขียนเป็น HTML + JS ธรรมดา
@@ -38,13 +38,14 @@
 
 | โมดูล | ทำอะไร |
 |---|---|
+| เข้าสู่ระบบ | หน้า login (อนิเมชันเมื่อสำเร็จ), จดจำการเข้าสู่ระบบ, ออกจากระบบ · ชื่อผู้ใช้ถูกบันทึกในทุกกิจกรรม |
+| ภาพรวม & ติดตามงาน | แท็บ **สรุป** (ตัวเลขหลัก) · **คิวงาน** (ทุกเรื่องที่ต้องทำ จัดระดับ ด่วน/ต้องทำ/ติดตาม) · **บันทึกกิจกรรม** + รีเฟรชอัตโนมัติ |
 | พนักงาน | ทะเบียนพนักงาน (ตารางแบบ Excel) + หน้า "สิทธิสวัสดิการ" รายคน |
-| ประกันกลุ่ม | คำนวณสิทธิ, สร้างรายการแจ้งเข้า/ออกทุกวันที่ 5, แจ้งออกทันทีกรณีเลิกจ้าง, ส่งออก CSV |
+| ประกันกลุ่ม | แท็บ แจ้งออกทันที / แจ้งเข้า / แจ้งออก / ประวัติ (ตัวเลขรอส่งบนแท็บ) — คำนวณสิทธิ, ส่งแจ้งทุกวันที่ 5, ส่งออก CSV |
 | กองทุนสำรองเลี้ยงชีพ (PVD) | สิทธิสมาชิก, ยอดหักสะสม/สมทบ 2%, % สิทธิเงินสมทบ (vesting) |
 | ชุดฟอร์ม | สิทธิตามกลุ่ม/ระดับ/ตำแหน่ง, รายการค้างแจก, บันทึกการแจก + ไซซ์ |
 | เงื่อนไขสวัสดิการ | แสดงกฎทั้งหมด (เฟส 3: แก้ไขได้) |
 | หน่วยงาน | เพิ่ม/แก้/ลบหน่วยงาน, ได้ประกันกลุ่มไหม (แม่บ้าน CNS) และสีโปโล (Pro Site) |
-| ศูนย์ติดตามงาน | คิวงานรวมทุกเรื่องที่ต้องทำ (ด่วน/ต้องทำ/ติดตาม) + บันทึกกิจกรรม (audit log) + รีเฟรชอัตโนมัติ |
 
 **บริษัทในเครือ:** HL (แฮปปี้แลนด์), PRO, CNS, CIC, AS
 
@@ -58,7 +59,9 @@
 - วันที่ใช้รูปแบบ ISO `YYYY-MM-DD` ทุกที่ คำนวณแบบ UTC เพื่อไม่ให้วันเลื่อน แสดงผลเป็น พ.ศ.
 - UI ใช้ **design token** (CSS variables) ชุดเดียวใน `app.css` → โทนสว่าง/โหมดมืดสลับได้โดยไม่ต้องแก้หน้า (ข้อ 10)
 - **Desktop สูงพอดีจอ** — หน้ารายการไม่ต้องเลื่อนทั้งหน้า ตารางยืดเต็มจอและเลื่อนภายในตัวเอง (ข้อ 10.8)
-- **แนะนำการใช้งาน (driver.js)** ทุกหน้า เปิดอัตโนมัติครั้งแรก + ปุ่ม ? (ข้อ 10.9)
+- **แนะนำการใช้งาน (driver.js)** ทุกหน้า เปิดอัตโนมัติครั้งแรก + ปุ่ม ? (ข้อ 10.10)
+- **กรองคอลัมน์ที่หัวตาราง** แบบ Excel AutoFilter ทุกตาราง (ข้อ 10.4)
+- **เข้าสู่ระบบ** ก่อนใช้งานทุกหน้า (ข้อ 10.9)
 - ค่าใน HTML ที่มาจากข้อมูล **escape อัตโนมัติ** ผ่าน `html\`...\`` (กัน XSS)
 
 ---
@@ -151,22 +154,24 @@ hl-welfare/
 │   └── mockApi.test.js                ← validation 409/422/404, CRUD, คิวงาน, กิจกรรม
 │
 ├── web/                               ← ★ อัปโหลดทั้งโฟลเดอร์นี้ขึ้น host
-│   ├── index.html                     ← ภาพรวม
-│   ├── monitor.html                   ← ศูนย์ติดตามงาน
+│   ├── login.html                     ← เข้าสู่ระบบ (ไม่มี sidebar)
+│   ├── index.html                     ← ภาพรวม & ติดตามงาน (?tab=summary|queue|activity)
+│   ├── monitor.html                   ← (เดิม) พาไป index.html?tab=queue ให้ลิงก์เก่ายังใช้ได้
 │   ├── employees.html                 ← พนักงาน (ตาราง Excel)
 │   ├── employee.html                  ← รายละเอียดพนักงาน (?id=)
 │   ├── employee-form.html             ← ฟอร์มเพิ่ม/แก้ไข/พ้นสภาพ (?id=)
-│   ├── insurance.html                 ← ประกันกลุ่ม (?cycle=)
+│   ├── insurance.html                 ← ประกันกลุ่ม (?cycle=&tab=urgent|in|out|history)
 │   ├── pvd.html                       ← กองทุนสำรองเลี้ยงชีพ (?tab=)
 │   ├── uniform.html                   ← ชุดฟอร์ม (?tab=history)
 │   ├── rules.html                     ← เงื่อนไขสวัสดิการ (?tab=)
 │   ├── sites.html                     ← หน่วยงาน (ตาราง Excel)
 │   ├── favicon.svg
 │   └── assets/
-│       ├── css/app.css                ← stylesheet เดียว: design tokens + ทุก component + ธีม tour
+│       ├── css/app.css                ← design tokens (gradient น้ำเงิน→เขียว) + ทุก component + ธีม tour
+│       ├── css/login.css              ← หน้าเข้าสู่ระบบ + อนิเมชัน
 │       ├── vendor/driver.js/          ← driver.js 1.8.0 (MIT) เก็บในโปรเจกต์ ไม่ต้องพึ่ง CDN
 │       └── js/
-│           ├── config.js              ← ★ ตั้งค่า: apiMode 'mock' | 'http', apiBaseUrl
+│           ├── config.js              ← ★ ตั้งค่า: apiMode 'mock' | 'http', apiBaseUrl, auth (เปิด/ปิด login, อายุ session)
 │           ├── domain/                ← ① กฎสวัสดิการ (pure)
 │           │   ├── types.js           ← ชนิดข้อมูล (JSDoc) ให้ VS Code ช่วยเติมคำ
 │           │   ├── date.js            ← addDays, ageAt, nextCycleDate, diffDays (UTC)
@@ -181,7 +186,7 @@ hl-welfare/
 │           │   ├── employeeRules.js   ← validateEmployee, normalizeEmployee
 │           │   └── usecases/          ← dashboard, insuranceCycle, uniformPending, workQueue
 │           ├── infrastructure/        ← ③ adapter
-│           │   ├── mock/              ← rules.js (กฎตั้งต้น), seed.js (ข้อมูลจำลอง), mockApi.js
+│           │   ├── mock/              ← rules.js (กฎตั้งต้น), seed.js (ข้อมูลจำลอง), users.js (ผู้ใช้ทดลอง), mockApi.js
 │           │   └── http/httpApi.js    ← fetch → PHP (เฟส 2)
 │           ├── shared/                ← ④ dom.js, format.js, labels.js, csv.js, icons.js
 │           ├── ui/                    ← ⑤ ชิ้นส่วน UI
@@ -189,14 +194,15 @@ hl-welfare/
 │           │   ├── table.js           ← DataTable (อ่านอย่างเดียว) + pager
 │           │   ├── datagrid.js        ← ExcelGrid (แก้ไขในตาราง)
 │           │   ├── combobox.js        ← <select data-combobox> ค้นหาได้
+│           │   ├── columnFilter.js    ← กรอง/เรียงที่หัวคอลัมน์ (ใช้ใน table.js และ datagrid.js)
 │           │   └── overlay.js         ← toast, openModal, confirmAction
-│           ├── app/                   ← ⑥ api.js, shell.js, tour.js (ตัวขับเคลื่อนแนะนำการใช้งาน)
+│           ├── app/                   ← ⑥ api.js, auth.js (session/login/logout), shell.js, tour.js
 │           ├── tour/                  ← ★ แนะนำการใช้งาน (driver.js) — dev ปรับได้
 │           │   ├── tour.config.js     ← ตั้งค่า: เปิด/ปิด, เปิดอัตโนมัติ, ข้อความปุ่ม, สีพื้นหลัง ฯลฯ
 │           │   └── steps.js           ← เนื้อหาแนะนำของแต่ละหน้า
 │           └── pages/                 ← ⑦ โค้ดของแต่ละหน้า (ชื่อเดียวกับไฟล์ HTML)
 │               ├── _shared.js         ← บันทึกแจกชุด, ไทม์ไลน์กิจกรรม
-│               └── dashboard.js  monitor.js  employees.js  employee.js  employee-form.js
+│               └── login.js  dashboard.js  employees.js  employee.js  employee-form.js
 │                   insurance.js  pvd.js  uniform.js  rules.js  sites.js
 │
 ├── backend/                           ← PHP 8.2+ (เฟส 2 — ยังไม่สร้าง)
@@ -228,26 +234,32 @@ hl-welfare/
 export const CONFIG = {
   apiMode: 'mock',        // 'mock' = ข้อมูลจำลองในเบราว์เซอร์ · 'http' = เรียก PHP (เฟส 2)
   apiBaseUrl: 'api',      // URL ของ PHP API (relative จากหน้าเว็บ)
-  currentUser: 'HR (mock)',
+  auth: {
+    enabled: true,         // false = ไม่ต้อง login (เข้าเป็น "ผู้ใช้ทั่วไป")
+    sessionHours: 12,      // อายุการเข้าสู่ระบบ
+    showDemoAccounts: true,// แสดงบัญชีทดลองบนหน้า login (เฉพาะ mock)
+    forgotPasswordText: '…',
+  },
 };
 ```
 
 ### 5.3 หน้าและพารามิเตอร์ใน URL
 | ไฟล์ | หน้า | พารามิเตอร์ |
 |---|---|---|
-| `index.html` | ภาพรวม | – |
-| `monitor.html` | ศูนย์ติดตามงาน | `?severity=critical\|warning\|info`, `?kind=` |
+| `login.html` | เข้าสู่ระบบ | `?next=หน้า.html` (กลับหน้าเดิมหลัง login), `?bye=1` |
+| `index.html` | ภาพรวม & ติดตามงาน | `?tab=summary\|queue\|activity` · แท็บคิวงานรับ `&severity=critical\|warning\|info&kind=` |
+| `monitor.html` | (เดิม) พาไปแท็บคิวงาน | ส่งต่อ query เดิม |
 | `employees.html` | พนักงาน | `?q=&company=&type=&status=&page=` |
 | `employee.html` | รายละเอียดพนักงาน | `?id=` (จำเป็น) |
 | `employee-form.html` | เพิ่ม / แก้ไข / พ้นสภาพ | `?id=` (ไม่ใส่ = เพิ่มใหม่) |
-| `insurance.html` | ประกันกลุ่ม | `?cycle=YYYY-MM-05` |
+| `insurance.html` | ประกันกลุ่ม | `?cycle=YYYY-MM-05&tab=urgent\|in\|out\|history` (ไม่ระบุ tab = แท็บแรกที่มีรายการรอส่ง) |
 | `pvd.html` | กองทุนสำรองฯ | `?tab=members\|waiting\|left` |
 | `uniform.html` | ชุดฟอร์ม | `?tab=history` |
 | `rules.html` | เงื่อนไขสวัสดิการ | `?tab=insurance\|pvd\|uniform\|settings\|open` |
 | `sites.html` | หน่วยงาน | – |
 
 ### 5.4 เพิ่มหน้าใหม่ (ตัวอย่าง `reports.html`)
-1. คัดลอก `sites.html` → `reports.html` แก้ `<title>`, `<h1>`, เนื้อหาใน `<main id="page">` และเปลี่ยน `<script src="assets/js/pages/reports.js">`
+1. คัดลอก `sites.html` → `reports.html` แก้ `<title>`, `<h1>`, เนื้อหาใน `<main id="page">` และเปลี่ยน `<script src="assets/js/pages/reports.js">` (สคริปต์ใน `<head>` ที่ตรวจการเข้าสู่ระบบติดมาด้วย — อย่าลบ)
 2. สร้าง `assets/js/pages/reports.js`
    ```js
    import { api } from '../app/api.js';
@@ -255,7 +267,7 @@ export const CONFIG = {
    import { $, html, render } from '../shared/dom.js';
    import { DataTable } from '../ui/table.js';
 
-   initPage('reports');                         // สร้าง sidebar/topbar + แปลง icon/select ในหน้า
+   initPage('reports');                         // ตรวจ login + สร้าง sidebar/topbar + แปลง icon/select ในหน้า
    const table = new DataTable($('#list'), {
      rowKey: (r) => r.id,
      pageSize: 25,
@@ -641,6 +653,11 @@ export interface WelfareApi {
   cancelInsuranceBatch(id: number): Promise<void>;       // รายการกลับเป็น "รอส่ง"
   cancelUniformIssue(id: number): Promise<void>;         // กลับเป็น "ค้างแจก"
 
+  // ----- เข้าสู่ระบบ -----
+  login(username: string, password: string): Promise<{ username: string; name: string; role: string }>; // 401 ถ้าไม่ถูกต้อง
+  logout(): Promise<void>;
+  setActor(name: string): void;                          // mock: ชื่อที่บันทึกในกิจกรรม
+
   // ----- Monitoring -----
   getWorkQueue(): Promise<MonitorTask[]>;
   listActivity(filter?: { entity?: ActivityEntity; employeeId?: number; limit?: number }): Promise<ActivityLog[]>;
@@ -684,6 +701,9 @@ export interface WelfareApi {
 | DELETE | `/api/employees/{id}` | – | 204 / 409 |
 | DELETE | `/api/insurance/batches/{id}` | – | 204 |
 | DELETE | `/api/uniform/issues/{id}` | – | 204 |
+| POST | `/api/auth/login` | `{username, password}` | `{username, name, role}` + ตั้ง session cookie (401 ถ้าผิด) |
+| POST | `/api/auth/logout` | – | 204 |
+| GET | `/api/auth/me` | – | ผู้ใช้ปัจจุบัน หรือ 401 |
 | GET | `/api/monitor/tasks` | – | `MonitorTask[]` (เรียงด่วนก่อน) |
 | GET | `/api/activity` | `?entity=&employeeId=&limit=` | `ActivityLog[]` (ใหม่ก่อน) |
 
@@ -694,7 +714,8 @@ export interface WelfareApi {
 - แจกชุดฟอร์มซ้ำ key เดิม → 409 `"รายการนี้แจกไปแล้ว"`
 - ไม่พบข้อมูล → 404
 - ลบหน่วยงานที่ยังมีพนักงาน / ลบพนักงานที่มีประวัติ → 409 พร้อมข้อความแนะนำทางเลือก
-- ทุก create/update/delete/cancel ต้องเขียน `audit_log` (= `ActivityLog`) พร้อม `summary` ภาษาไทย
+- ทุก create/update/delete/cancel ต้องเขียน `audit_log` (= `ActivityLog`) พร้อม `summary` ภาษาไทย และ `user_name` จาก session
+- ทุก endpoint (ยกเว้น `/api/auth/login`) ต้องมี session → ไม่มี = 401 (หน้าเว็บพากลับหน้า login)
 
 ### จุดเลือกแหล่งข้อมูล — `app/api.js`
 ```js
@@ -796,7 +817,7 @@ async req(path, init) {
 | **คีย์บอร์ดได้ทุกจุด** | focus ring ชัด (`:focus-visible`), `/` = โฟกัสช่องค้นหา, `Esc` ปิด modal, ตาราง Excel ใช้ลูกศร/Enter/Tab |
 
 ### 10.2 Design tokens (`web/assets/css/app.css` ส่วนที่ 1)
-แก้สีที่ `:root` ที่เดียว → เปลี่ยนทั้งระบบ · โหมดมืดอยู่ที่ `:root[data-theme='dark']`
+แก้สีที่ `:root` ที่เดียว → เปลี่ยนทั้งระบบ · โหมดมืดอยู่ที่ `:root[data-theme='dark']` · **เปลี่ยนโทน gradient: แก้แค่ `--grad-start` / `--grad-mid` / `--grad-end`**
 
 | Token | Light | Dark | ใช้กับ |
 |---|---|---|---|
@@ -806,8 +827,10 @@ async req(path, init) {
 | `--border` | `#e6e9f0` | `#262c3d` | เส้นขอบ |
 | `--fg` | `#0f172a` | `#e6e9f2` | ตัวอักษรหลัก |
 | `--muted` | `#64748b` | `#8b93a7` | ตัวอักษรรอง |
-| `--primary` | `#4f46e5` | `#818cf8` | ปุ่มหลัก, ลิงก์, เมนูที่เลือก |
-| `--primary-soft` | `#eef2ff` | `#1e1b4b` | พื้นหลังเมนูที่เลือก |
+| `--primary` | `#0e7490` | `#22d3ee` | ลิงก์, ตัวอักษรที่เน้น, focus (เฉดเข้มพอให้ contrast ≥ 4.5:1) |
+| `--primary-soft` | `#e6f6f8` | `#0c2a33` | พื้นหลังอ่อน |
+| `--grad-start` → `--grad-mid` → `--grad-end` | `#1d4ed8` → `#0e7490` → `#047857` | `#2563eb` → `#0e7490` → `#059669` | **ธีม gradient น้ำเงิน → เขียว** |
+| `--grad` / `--grad-soft` | gradient เข้ม / อ่อน (สร้างจาก 3 สีบน) | | ปุ่มหลัก, เมนูที่เลือก, แท็บ, แถบบนสุด, โลโก้, สวิตช์, หน้า login |
 | `--success` / `-soft` | `#059669` / `#ecfdf5` | `#34d399` / `#052e1f` | มีสิทธิ, ส่งแล้ว, แจกแล้ว |
 | `--warning` / `-soft` | `#b45309` / `#fffbeb` | `#fbbf24` / `#2d1f05` | รอส่ง, แจ้งออก, ใกล้ครบ |
 | `--danger` / `-soft` | `#dc2626` / `#fef2f2` | `#f87171` / `#2d0a0a` | ไม่มีสิทธิ, แจ้งทันที, error |
@@ -832,7 +855,9 @@ async req(path, init) {
 | `field`, `input`, `input-icon`, `form-section`, `form-grid`, `form-footer` | ฟอร์ม | ดู `employee-form.html` |
 | `filters` | แถบตัวกรองเหนือตาราง | ดู `employees.html` |
 | `switch` | สวิตช์ (`role="switch" aria-checked`) | |
-| `tabs`, `tab`, `chips`, `chip` | แท็บ / ชิปกรอง | |
+| `tabs`, `tab`, `chips`, `chip` | แท็บ / ชิปกรอง | `tabs(items, value)` — item `{ value, label, count, tone }` ตัวเลขบนแท็บมีสีตาม tone |
+| `panel fill` | แท็บ panel ในหน้าพอดีจอ | ดู `index.html`, `insurance.html` |
+| `grad-text` | ตัวอักษร gradient | |
 | `alert tone-*` | แจ้งเตือนในหน้า | |
 | `num`, `muted`, `small`, `truncate`, `nowrap`, `hidden` | utilities | |
 | `<i data-icon="ชื่อ">` | ไอคอน Lucide (แปลงเป็น SVG ตอนโหลดหน้า) | ชื่อทั้งหมดอยู่ใน `shared/icons.js` |
@@ -843,6 +868,7 @@ async req(path, init) {
 | `badge(text, tone, {dot, lg})`, `card({...})`, `statCard({...})`, `emptyState({...})`, `alertBox({...})`, `errorState(e)`, `avatar(name)`, `employeeCell(emp, {link})`, `tabs(items, value)`, `progress(v)`, `infoList(items, cols)` | `components.js` | คืน HTML ใช้ใน `html\`...\`` ได้ทันที |
 | `new DataTable(el, { columns, rowKey, pageSize, onRowClick, rowClass, empty, onRender })` → `.setRows(rows)` | `table.js` | ตารางอ่านอย่างเดียว · เส้นตารางแบบ Excel + เลขแถว · ≥768px = ตาราง, <768px = **การ์ดรายแถว** (คอลัมน์กำหนดตำแหน่งด้วย `mobile: 'lead'\|'title'\|'aside'\|'field'\|'footer'`) · ใส่ `pageSize` = แบ่งหน้า |
 | `new ExcelGrid(el, { columns, rowKey, validate, onSave, newRow, onDelete, onOpen, pageSize })` | `datagrid.js` | ตารางแบบ Excel — ข้อ 10.6 |
+| กรองคอลัมน์ที่หัวตาราง | `columnFilter.js` | **เปิดอัตโนมัติทุกตาราง** — คลิกกรวยที่หัวคอลัมน์: เรียงน้อย→มาก/มาก→น้อย, ค้นหาค่า, ติ๊กเลือกค่า (มีจำนวนแต่ละค่า) · แถบสรุปตัวกรอง + ล้าง · คอลัมน์: `filter: false` = ปิด, `text(row)` = ข้อความที่ใช้กรอง, `sort(row)` = ค่าที่ใช้เรียง (วันที่ ISO, ตัวเลข) · ตาราง Excel: แถวที่เพิ่งแก้ยังแสดงแม้ไม่ตรงตัวกรอง |
 | `<select data-combobox>` + `enhanceSelects()` | `combobox.js` | **select ทุกจุดพิมพ์ค้นหาได้** · มี `<option value="">` = ล้างค่าได้ · `data-creatable` = พิมพ์ค่าใหม่ได้ · `data-size="sm"` · `<option disabled>` = ไม่แสดง · แก้ option ด้วย JS แล้วเรียก `select.refreshCombobox()` |
 | `openPicker({anchor, options, value, onPick})` | `combobox.js` | รายการค้นหาได้ลอยใต้ element (ใช้ในเซลล์ตาราง) |
 | `toast.success(msg)`, `toast.error(msg)` | `overlay.js` | |
@@ -936,7 +962,24 @@ grid.setRows(await api.listSites());
 - ≥1280px Stat 4 คอลัมน์ · 640–1279 2 คอลัมน์ · <640 1 คอลัมน์ · ตารางอ่านอย่างเดียว <768px เป็นการ์ด · ตาราง Excel เลื่อนแนวนอน (เลขแถว/ปุ่มติดขอบ) · sidebar <1024px เป็น drawer
 - Contrast ≥ WCAG AA ทั้งสองธีม · ทุก input มี `<label>` · ปุ่มไอคอนมี `aria-label` · Toast ใช้ `role="status"` · `lang="th"`
 
-### 10.9 แนะนำการใช้งาน (driver.js)
+### 10.9 หน้าเข้าสู่ระบบ & การยืนยันตัวตน
+- **login.html**: ฝั่งซ้ายเป็นแบรนด์บนพื้น gradient ที่เลื่อนสีช้า ๆ + วงกลมเบลอลอย · ฝั่งขวาเป็นฟอร์มที่เลื่อนขึ้นทีละส่วน (มือถือซ่อนฝั่งแบรนด์)
+- ฟอร์ม: ชื่อผู้ใช้, รหัสผ่าน (แสดง/ซ่อน, เตือน Caps Lock), จดจำฉัน, ลืมรหัสผ่าน (ข้อความตั้งใน `config.js`), บัญชีทดลอง (เฉพาะ mock — คลิกเพื่อกรอก)
+- ผิดพลาด: ช่องสั่น + ข้อความแดง · ระหว่างตรวจ: ปุ่มแสดง spinner
+- **สำเร็จ**: ปุ่มเปลี่ยนเป็น ✓ → วงกลม gradient ขยายจากปุ่มเต็มจอ → วาดวง + เครื่องหมายถูก → "ยินดีต้อนรับ, ชื่อ" + แถบโหลด → เข้าหน้าที่ต้องการ (~2 วินาที; ผู้ที่ตั้งลดการเคลื่อนไหวจะข้ามทันที)
+- ปรับความเร็วอนิเมชันทั้งหน้า: `--login-speed` ใน `login.css`
+
+| เรื่อง | การทำงาน |
+|---|---|
+| ป้องกันทุกหน้า | สคริปต์ใน `<head>` ของทุกหน้าตรวจ session ก่อนแสดงผล → ไม่มี = ไป `login.html?next=หน้าเดิม` (ไม่มีเนื้อหาแวบให้เห็น) · `initPage()` ตรวจซ้ำอีกชั้น |
+| Session | `app/auth.js` เก็บใน sessionStorage (ปิดแท็บ = ออก) หรือ localStorage เมื่อเลือก "จดจำฉัน" · หมดอายุตาม `auth.sessionHours` |
+| หลังเข้าสู่ระบบ | กลับหน้าเดิม (`?next=` รับเฉพาะไฟล์ .html ในโฟลเดอร์เดียวกัน กันลิงก์พาไปเว็บอื่น) · ชื่อ + บทบาทแสดงที่มุมขวาบน · ทุกกิจกรรมบันทึกชื่อผู้ใช้ |
+| ออกจากระบบ | ปุ่มข้างชื่อผู้ใช้ → `login.html?bye=1` |
+| ปิดระบบ login | `config.js` → `auth.enabled: false` (เข้าเป็น "ผู้ใช้ทั่วไป" อัตโนมัติ) |
+| ผู้ใช้ทดลอง (mock) | `infrastructure/mock/users.js` — ⚠️ ไฟล์นี้ส่งถึงเบราว์เซอร์ ห้ามใส่รหัสผ่านจริง |
+| เฟส 2 (PHP) | `POST api/auth/login` ตรวจกับตาราง `users` (`password_hash`/`password_verify`) ตั้ง session cookie (`HttpOnly`, `SameSite=Lax`) · ทุก endpoint ตรวจ session → 401 · **การตรวจในเบราว์เซอร์ใช้เพื่อการนำทางเท่านั้น ความปลอดภัยจริงอยู่ที่ PHP** |
+
+### 10.10 แนะนำการใช้งาน (driver.js)
 - ทุกหน้ามี "ทัวร์" สั้น ๆ 2–9 ขั้น ไฮไลต์ส่วนสำคัญพร้อมคำอธิบายภาษาไทย
 - **เปิดอัตโนมัติครั้งแรก**ที่ผู้ใช้เข้าแต่ละหน้า (รอข้อมูลโหลดก่อน) · เปิดซ้ำได้ที่ปุ่ม **?** บนแถบด้านบน · หรือเปิดลิงก์ด้วย `?tour=1`
 - ขั้นที่หา element ไม่เจอ/ถูกซ่อน จะถูกข้ามอัตโนมัติ (เช่น ไม่มีรายการด่วน, เมนูซ้ายบนมือถือ)
@@ -952,6 +995,7 @@ grid.setRows(await api.listSites());
 | สีกล่อง / ปุ่ม / ลูกศร | `app.css` หัวข้อ "Tour" (`.driver-popover.hl-tour`) |
 | เพิ่มแนะนำให้หน้าใหม่ | เพิ่มคีย์ใน `steps.js` ให้ตรงกับ `initPage('id')` (หรือ `initPage('menu', { tour: 'id' })` เมื่อ id ของเมนูกับแนะนำต่างกัน) |
 | ปิดแนะนำอัตโนมัติในเครื่องทดสอบ | Console: `localStorage.setItem('hl-tour-disabled', '1')` |
+| หน้าที่มีหลายแท็บ ให้แต่ละแท็บมีคำแนะนำของตัวเอง | `initPage('dashboard', { tour: () => 'dashboard-' + tab })` + เรียก `startTourIfNew(id)` เมื่อเปลี่ยนแท็บ (ดู `pages/dashboard.js`) |
 
 ตัวอย่างขั้นใน `steps.js`:
 ```js
@@ -970,12 +1014,13 @@ employees: {
 
 | หน้า | องค์ประกอบ | UX ที่ต้องมี |
 |---|---|---|
-| **ภาพรวม** | คำทักทาย + วันที่วันนี้ · Stat 4 ใบ: พนักงานปัจจุบัน, รอบแจ้งประกันถัดไป (เข้า/ออก), แจ้งออกทันทีค้าง, ชุดฟอร์มค้างแจก · กราฟแท่งแนวนอนพนักงานแยกบริษัท · รายการ "จะครบสิทธิใน 30 วัน" | Stat คลิกไปหน้าที่เกี่ยวข้อง · แจ้งออกทันทีค้าง > 0 → Alert แดงด้านบน + ปุ่ม "ไปส่งแจ้ง" |
-| **ศูนย์ติดตามงาน** | Stat ด่วน/ต้องทำ/ติดตาม/กิจกรรมวันนี้ (คลิกกรอง) · คิวงาน (ระดับ, งาน, พนักงาน, กำหนด/เลยมา N วัน, ปุ่มไปดำเนินการ) กรองตามประเภท + ค้นหา · บันทึกกิจกรรม (ไทม์ไลน์ กรองตามประเภท, โหลดเพิ่ม) | รีเฟรชอัตโนมัติทุก 60 วิ (ปิดได้) + เมื่อกลับมาที่แท็บ · แสดงเวลาอัปเดตล่าสุด |
+| **เข้าสู่ระบบ** | ฟอร์มชื่อผู้ใช้/รหัสผ่าน · จดจำฉัน · บัญชีทดลอง (mock) | ข้อ 10.9 · อนิเมชันเมื่อสำเร็จ |
+| **ภาพรวม & ติดตามงาน — แท็บสรุป** | คำทักทาย + วันที่วันนี้ · Stat 4 ใบ: พนักงานปัจจุบัน, รอบแจ้งประกันถัดไป (เข้า/ออก), แจ้งออกทันทีค้าง, ชุดฟอร์มค้างแจก · กราฟแท่งพนักงานแยกบริษัท · "จะครบสิทธิใน 30 วัน" | Stat คลิกไปหน้าที่เกี่ยวข้อง · แจ้งออกทันทีค้าง > 0 → Alert แดงด้านบน + ปุ่ม "ไปส่งแจ้ง" |
+| **ภาพรวม & ติดตามงาน — แท็บคิวงาน / บันทึกกิจกรรม** (เดิม: ศูนย์ติดตามงาน) | Stat ด่วน/ต้องทำ/ติดตาม/กิจกรรมวันนี้ (คลิกกรอง) · คิวงาน (ระดับ, งาน, พนักงาน, กำหนด/เลยมา N วัน, ปุ่มไปดำเนินการ) กรองตามประเภท + ค้นหา · บันทึกกิจกรรม (ไทม์ไลน์ กรองตามประเภท, โหลดเพิ่ม) | รีเฟรชอัตโนมัติทุก 60 วิ (ปิดได้) + เมื่อกลับมาที่แท็บ · แสดงเวลาอัปเดตล่าสุด |
 | **พนักงาน** | ค้นหา รหัส/ชื่อ, filter บริษัท/ประเภท/สถานะ (Combobox, เก็บใน URL) · **ตาราง Excel** แก้ทุกช่องในตาราง · "+ เพิ่มแถว" · ปุ่มเปิดรายละเอียด / ลบ ท้ายแถว · ปุ่ม "เพิ่มด้วยฟอร์มเต็ม" | ค้นหาแบบ debounce 250ms · ล้างตัวกรอง · บันทึกอัตโนมัติรายแถว · ลบต้องยืนยัน |
 | **รายละเอียดพนักงาน** | Header: Avatar, ชื่อ, รหัส, Badge สถานะ, ปุ่มแก้ไข · แถบข้อมูลย่อ (บริษัท, หน่วยงาน, ประเภท, สัญญา, อายุงาน) · การ์ดประกันกลุ่ม · การ์ด PVD · การ์ดชุดฟอร์ม (ตารางแต่ละรอบ + เลือกไซซ์ + "บันทึกแจก" + ยกเลิกการแจก) · **ประวัติการเปลี่ยนแปลง** | การ์ดสิทธิ = Badge ใหญ่ + timeline (เริ่มงาน → ครบสิทธิ → รอบแจ้งเข้า → แจ้งออก) · ไม่มีสิทธิ = แสดงเหตุผลเป็นข้อๆ |
 | **ฟอร์มพนักงาน** | แบ่ง section: ข้อมูลส่วนตัว / การจ้างงาน / การพ้นสภาพ · บริษัท→หน่วยงาน (กรองตามบริษัท), ประเภท (ส่วนกลางแสดงฝ่าย+ระดับ / Pro Site แสดงตำแหน่ง), สัญญา, เงินเดือน, วันเริ่มงาน, ผ่านทดลองงาน | ช่องที่ไม่เกี่ยวซ่อนอัตโนมัติ · validation ใต้ช่อง · ปุ่มบันทึก sticky ด้านล่าง · บันทึกสำเร็จ → Toast + กลับหน้ารายละเอียด |
-| **ประกันกลุ่ม** | เลือกรอบ (วันที่ 5, ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · 3 section: แจ้งออกทันที / แจ้งเข้า / แจ้งออก · checkbox เลือก → "ส่งแจ้ง" · ส่งออก CSV · ประวัติ batch + **ยกเลิก batch** | ตัวนับในหัว section · เลือกทั้งหมด · Modal ยืนยัน "ส่งแจ้งเข้า 5 ราย รอบ 5 พ.ย. 69?" · แถวที่ส่งแล้วแสดง Badge เขียว checkbox ปิด |
+| **ประกันกลุ่ม** | เลือกรอบ (วันที่ 5, ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · **แท็บ**: แจ้งออกทันที / แจ้งเข้า / แจ้งออก / ประวัติการส่ง — ตัวเลขบนแท็บ = จำนวนรอส่ง (แดง/ฟ้า/เหลือง) · checkbox เลือก → "ส่งแจ้ง" · ส่งออก CSV · **ยกเลิก batch** ในแท็บประวัติ | ตัวนับในหัว section · เลือกทั้งหมด · Modal ยืนยัน "ส่งแจ้งเข้า 5 ราย รอบ 5 พ.ย. 69?" · แถวที่ส่งแล้วแสดง Badge เขียว checkbox ปิด |
 | **PVD** | Stat: สมาชิก, หักสะสมรวม/เดือน, สมทบรวม/เดือน · ตารางสมาชิก (วันเป็นสมาชิก, เงินเดือน, หัก, สมทบ, อายุสมาชิก, vesting) · ส่งออก CSV | Alert เหลืองถ้า vesting เป็นค่าตัวอย่าง · vesting แสดงเป็น progress bar |
 | **ชุดฟอร์ม** | แท็บ "ค้างแจก" (เลือกไซซ์ + บันทึกแจกในแถว) / "ประวัติการแจก" · สรุปจำนวนตามแบบเสื้อ (วางแผนสั่งผลิต) | แถวเกินกำหนด > 30 วัน Badge แดง · บันทึกแล้วแถวหายพร้อม Toast |
 | **เงื่อนไขสวัสดิการ** | แท็บ: ประกันกลุ่ม / PVD / ชุดฟอร์ม / ค่าตั้งค่า (read-only ในเฟส 1) + รายการประเด็นที่รอยืนยันกับ HR | |
@@ -1297,7 +1342,21 @@ CREATE TABLE uniform_issues (
   FOREIGN KEY (employee_id) REFERENCES employees(id)
 ) ENGINE=InnoDB;
 
--- = ActivityLog ในหน้าศูนย์ติดตามงาน (ห้ามแก้/ลบ)
+-- ผู้ใช้ระบบ (หน้า login) — รหัสผ่านเก็บด้วย password_hash() เท่านั้น
+CREATE TABLE users (
+  id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  username       VARCHAR(50)  NOT NULL UNIQUE,
+  password_hash  VARCHAR(255) NOT NULL,
+  name           VARCHAR(150) NOT NULL,
+  role           ENUM('HR_ADMIN','HR_COMPANY','PAYROLL','STOCK','EXECUTIVE') NOT NULL DEFAULT 'HR_ADMIN',
+  company_code   VARCHAR(10) NULL,           -- null = ทุกบริษัท (เฟส 3: จำกัดสิทธิ์ตามบริษัท)
+  is_active      TINYINT(1) NOT NULL DEFAULT 1,
+  last_login_at  DATETIME NULL,
+  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- = ActivityLog ในแท็บบันทึกกิจกรรม (ห้ามแก้/ลบ)
 CREATE TABLE audit_log (
   id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   entity     ENUM('EMPLOYEE','SITE','INSURANCE_BATCH','UNIFORM_ISSUE') NOT NULL,
@@ -1442,7 +1501,9 @@ describe('ประกันกลุ่ม', () => {
 - ศูนย์ติดตามงาน: กรองระดับ "ด่วน" · บันทึกกิจกรรมแสดงสิ่งที่เพิ่งทำ
 - มือถือ 390px: ตารางเป็นการ์ด ไม่มี scroll แนวนอน · drawer เมนู · โหมดมืดจำค่าข้ามหน้า
 - ทุกหน้าไม่มี JavaScript error ใน console
-- แนะนำการใช้งาน: เปิดอัตโนมัติครั้งแรกครบ 10 หน้า (แสดงครบทุกขั้น) · เปิดหน้าเดิมซ้ำไม่เด้งอีก · ปุ่ม ? เปิดได้ · Esc ปิด · มือถือข้ามขั้นของเมนูที่ซ่อนอยู่
+- เข้าสู่ระบบ: ยังไม่ login → ไปหน้า login พร้อม next · ส่งว่าง/รหัสผิด → แจ้ง · บัญชีทดลอง → สำเร็จ + อนิเมชัน → กลับหน้าเดิม · ชื่อบน topbar และในบันทึกกิจกรรม · ออกจากระบบ → เปิดหน้าอื่นไม่ได้
+- กรองคอลัมน์: ค่าในตัวกรอง, กรอง/เรียงตาราง Excel และตารางทั่วไป, ล้างตัวกรอง · แท็บภาพรวม/ประกันกลุ่ม · monitor.html พาไปแท็บคิวงาน
+- แนะนำการใช้งาน: เปิดอัตโนมัติครั้งแรกครบทุกหน้าและทุกแท็บ (แสดงครบทุกขั้น) · เปิดหน้าเดิมซ้ำไม่เด้งอีก · ปุ่ม ? เปิดได้ · Esc ปิด · มือถือข้ามขั้นของเมนูที่ซ่อนอยู่
 - ความสูงพอดีจอ: 1440×900 และ 1366×768 หน้าต่างไม่เลื่อนในทุกหน้ารายการ
 
 ---
@@ -1451,7 +1512,7 @@ describe('ประกันกลุ่ม', () => {
 
 ### เฟส 1 — หน้าเว็บ (HTML + JS) + Mock ✅
 - [x] กฎสวัสดิการ `domain/*.js` + use-case `application/usecases/*.js` + validation `employeeRules.js`
-- [x] `npm test` ผ่าน 31/31 (node:test ไม่ต้องติดตั้งแพ็กเกจ)
+- [x] `npm test` ผ่าน 33/33 (node:test ไม่ต้องติดตั้งแพ็กเกจ)
 - [x] MockApi (localStorage, seed + edge cases, บันทึกกิจกรรม) + HttpApi (พร้อมใช้เฟส 2) + `config.js`
 - [x] `app.css` design tokens (โทนสว่าง + โหมดมืด) + responsive (มือถือ/แท็บเล็ต)
 - [x] UI: DataTable (แบ่งหน้า + การ์ดมือถือ), ExcelGrid, Combobox (`<select data-combobox>`), Modal/Toast/confirm, ไอคอน SVG ในตัว
@@ -1460,6 +1521,9 @@ describe('ประกันกลุ่ม', () => {
 - [x] ทดสอบการใช้งานจริงด้วย headless Chrome ผ่าน Apache 2.2 ในเครื่อง 17/17
 - [x] Desktop สูงพอดีจอ (`page fit` / `fill` / `fill-body`)
 - [x] แนะนำการใช้งานด้วย driver.js ทุกหน้า + ไฟล์ตั้งค่าให้ dev ปรับ (`tour/`)
+- [x] รวมภาพรวม + ศูนย์ติดตามงาน เป็นเมนูเดียว (แท็บ) · ประกันกลุ่มเป็นแท็บ + badge รอส่ง
+- [x] กรอง/เรียงที่หัวคอลัมน์ทุกตาราง
+- [x] หน้า login + อนิเมชันเมื่อสำเร็จ + ป้องกันทุกหน้า (mock) · ธีม gradient น้ำเงิน → เขียวทั้งระบบ
 - [ ] ส่งออก CSV เปิดใน Excel แล้วภาษาไทยไม่เพี้ยน (ใส่ UTF-8 BOM แล้ว — รอทดสอบเปิดใน Excel จริง)
 - [ ] อัปโหลด `web/` ขึ้น host หน่วยงานและเปิดใช้งานจริง
 
@@ -1471,11 +1535,12 @@ describe('ประกันกลุ่ม', () => {
 - [ ] Service + Controller ครบทุก endpoint ในข้อ 8 (รวม DELETE, `/monitor/tasks`, `/activity`)
 - [ ] `Application/Service/WorkQueueService` คู่แฝดของ `usecases/workQueue.js`
 - [ ] Validation + transaction + unique key กันซ้ำ
-- [ ] audit_log
+- [ ] audit_log (user_name จาก session)
+- [ ] ตาราง `users` + `POST /api/auth/login|logout`, `GET /api/auth/me` + ตรวจ session ทุก endpoint
 - [ ] ตั้ง `apiMode: 'http'` ใน `config.js` แล้วทุกหน้าทำงานเหมือน mock
 
 ### เฟส 3 (ภายหลัง)
-- [ ] Login + สิทธิ์ตาม role / แยกบริษัท
+- [ ] สิทธิ์ตาม role / แยกบริษัท (login ทำแล้วในเฟส 1–2)
 - [ ] แก้ไขกฎสวัสดิการผ่านหน้าจอ (มี effective date)
 - [ ] นำเข้าพนักงาน/รายชื่อลาออกจาก Excel ของ Payroll (ส่วนกลาง + CNS)
 - [ ] รับ flag ขาดงาน 3 วันจากระบบลงเวลา

@@ -28,6 +28,9 @@
  * @property {(id: number) => Promise<void>} cancelUniformIssue                 กลับเป็น "ค้างแจก"
  * @property {() => Promise<import('../domain/types.js').MonitorTask[]>} getWorkQueue
  * @property {(filter?: {entity?: string, employeeId?: number, limit?: number}) => Promise<import('../domain/types.js').ActivityLog[]>} listActivity
+ * @property {(username: string, password: string) => Promise<{username: string, name: string, role: string}>} login   401 ถ้าไม่ถูกต้อง
+ * @property {() => Promise<void>} logout
+ * @property {(name: string) => void} setActor                                ชื่อผู้ใช้ที่บันทึกในกิจกรรม (mock)
  * @property {() => Promise<void>} [reset]                                      มีเฉพาะ mock
  */
 

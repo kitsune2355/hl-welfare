@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>เข้าสู่ระบบ · HL Welfare</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <link rel="stylesheet" href="assets/css/login.css" />
+    <script>
+      try { if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
+    </script>
+  </head>
+  <body class="login-body">
+    <!-- login.html?next=employees.html = กลับไปหน้าเดิมหลังเข้าสู่ระบบ · ?bye=1 = เพิ่งออกจากระบบ -->
+    <div class="login">
+      <!-- ===== ฝั่งแบรนด์ (ซ่อนบนมือถือ) ===== -->
+      <section class="login-hero" aria-hidden="true">
+        <span class="blob b1"></span>
+        <span class="blob b2"></span>
+        <span class="blob b3"></span>
+        <div class="hero-inner">
+          <div class="hero-brand">
+            <img src="favicon.svg" alt="" />
+            <span>HL Welfare</span>
+          </div>
+          <div class="hero-copy">
+            <h1>ดูแลสวัสดิการพนักงาน<br />ทุกบริษัทในเครือ ในที่เดียว</h1>
+            <p>ประกันกลุ่ม · กองทุนสำรองเลี้ยงชีพ · ชุดฟอร์ม — คำนวณสิทธิอัตโนมัติ ติดตามงานค้างได้ทันที</p>
+            <ul class="hero-features">
+              <li><span><i data-icon="shield-plus"></i></span>แจ้งเข้า-ออกประกันกลุ่มทุกวันที่ 5 ไม่ตกหล่น</li>
+              <li><span><i data-icon="piggy-bank"></i></span>ยอดหัก/สมทบ PVD และ vesting รายคน</li>
+              <li><span><i data-icon="list-checks"></i></span>คิวงานด่วนและบันทึกกิจกรรมทุกการแก้ไข</li>
+            </ul>
+          </div>
+          <p class="hero-foot">© กลุ่มบริษัทแฮปปี้แลนด์ · HL · PRO · CNS · CIC · AS</p>
+        </div>
+      </section>
+
+      <!-- ===== ฟอร์มเข้าสู่ระบบ ===== -->
+      <section class="login-panel">
+        <button class="btn-icon login-theme" id="theme-btn" aria-label="สลับโหมดมืด"></button>
+        <form class="login-card" id="login-form" novalidate>
+          <div class="lc-head anim">
+            <img class="lc-logo" src="favicon.svg" alt="" />
+            <h2>เข้าสู่ระบบ</h2>
+            <p>ระบบจัดการสวัสดิการพนักงาน — ใช้บัญชีที่ได้รับจากฝ่าย HR / IT</p>
+          </div>
+
+          <div class="lc-notice anim hidden" id="notice" role="status"></div>
+
+          <div class="lc-field anim">
+            <label for="username">ชื่อผู้ใช้</label>
+            <div class="lc-input">
+              <i data-icon="user"></i>
+              <input id="username" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="เช่น hr" />
+            </div>
+          </div>
+
+          <div class="lc-field anim">
+            <label for="password">รหัสผ่าน</label>
+            <div class="lc-input">
+              <i data-icon="lock"></i>
+              <input id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+              <button type="button" class="lc-eye" id="toggle-pw" aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน"><i data-icon="eye"></i></button>
+            </div>
+            <span class="lc-caps hidden" id="caps">⇪ เปิด Caps Lock อยู่</span>
+          </div>
+
+          <div class="lc-row anim">
+            <label class="lc-check"><input type="checkbox" id="remember" /> จดจำฉันในเครื่องนี้</label>
+            <button type="button" class="lc-link" id="forgot">ลืมรหัสผ่าน?</button>
+          </div>
+
+          <div class="lc-error hidden" id="error" role="alert"></div>
+
+          <button type="submit" class="lc-submit anim" id="submit">
+            <span class="lc-label">เข้าสู่ระบบ</span>
+            <i data-icon="arrow-right"></i>
+          </button>
+
+          <div class="lc-demo anim hidden" id="demo">
+            <span>บัญชีทดลอง (ข้อมูลจำลอง) — คลิกเพื่อกรอก</span>
+            <div id="demo-list"></div>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <!-- ===== อนิเมชันเมื่อเข้าสู่ระบบสำเร็จ ===== -->
+    <div class="login-success" id="success" aria-live="assertive" hidden>
+      <div class="ls-inner">
+        <svg class="ls-check" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="ls-ring" cx="60" cy="60" r="52" />
+          <path class="ls-tick" d="M38 62 l15 15 l30 -32" />
+        </svg>
+        <h2 id="welcome">ยินดีต้อนรับ</h2>
+        <p>กำลังพาเข้าสู่ระบบ…</p>
+        <span class="ls-bar"><span></span></span>
+      </div>
+    </div>
+
+    <script type="module" src="assets/js/pages/login.js"></script>
+  </body>
+</html>

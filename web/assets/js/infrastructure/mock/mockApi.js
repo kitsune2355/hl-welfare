@@ -8,12 +8,12 @@ import { benefitsOf } from '../../domain/eligibility.js';
 import { BATCH_TYPE_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
 import { pvdStatus } from '../../domain/pvd.js';
 import { buildSeed } from './seed.js';
+import { MOCK_USERS } from './users.js';
 
 const STORAGE_KEY = 'hl-welfare-mock-v4'; // v4: seed ชุดฟอร์มค้างเฉพาะช่วง 120 วันล่าสุด
 
 const LATENCY_MS = 150;
 
-const CURRENT_USER = 'HR (mock)';
 
 function load(today) {
   try {
@@ -63,7 +63,7 @@ export class MockApi {
     this.db.activities.push({
       id: nextId(this.db.activities),
       at: nowStamp(),
-      user: CURRENT_USER,
+      user: this.actor,
       entity,
       entityId: String(entityId),
       action,
@@ -233,7 +233,7 @@ export class MockApi {
       const sent = sentIndex(this.db.batches)[input.type === 'IN' ? 'IN' : 'OUT'];
       const already = input.employeeIds.filter((id) => sent.has(id)).length;
       if (already > 0) throw new ApiError(`มีพนักงานที่ถูกแจ้งไปแล้ว ${already} ราย`, 409);
-      const batch = { id: nextId(this.db.batches), ...input, submittedAt: nowStamp(), submittedBy: CURRENT_USER };
+      const batch = { id: nextId(this.db.batches), ...input, submittedAt: nowStamp(), submittedBy: this.actor };
       this.db.batches.push(batch);
       const one = input.employeeIds.length === 1 ? input.employeeIds[0] : null;
       this.log(
@@ -287,7 +287,7 @@ export class MockApi {
       if (this.db.issues.some((i) => i.employeeId === input.employeeId && i.entitlementKey === input.entitlementKey)) {
         throw new ApiError('รายการนี้แจกไปแล้ว', 409);
       }
-      const issue = { ...input, id: nextId(this.db.issues), issuedBy: CURRENT_USER };
+      const issue = { ...input, id: nextId(this.db.issues), issuedBy: this.actor };
       this.db.issues.push(issue);
       this.log(
         'UNIFORM_ISSUE',
@@ -322,6 +322,28 @@ export class MockApi {
       return buildUniformPending(employees, sites, rules, issues, this.today());
     });
   }
+  // ---------- เข้าสู่ระบบ (mock) ----------
+  /** ชื่อผู้ใช้ที่บันทึกในกิจกรรม — ตั้งจาก session หลัง login */
+  actor = 'HR (mock)';
+
+  setActor(name) {
+    this.actor = name || 'HR (mock)';
+  }
+
+  async login(username, password) {
+    await new Promise((r) => setTimeout(r, 700)); // จำลองเวลาตรวจสอบ ให้เห็นสถานะกำลังเข้าสู่ระบบ
+    const u = MOCK_USERS.find((x) => x.username === String(username).trim().toLowerCase() && x.password === password);
+    if (!u) throw new ApiError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 401);
+    return { username: u.username, name: u.name, role: u.role };
+  }
+
+  async logout() {}
+
+  /** บัญชีทดลองสำหรับแสดงบนหน้า login (เฉพาะ mock) */
+  demoAccounts() {
+    return MOCK_USERS.map(({ username, password, role }) => ({ username, password, role }));
+  }
+
   reset() {
     return this.run(() => {
       try {

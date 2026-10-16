@@ -1,0 +1,76 @@
+// การเข้าสู่ระบบฝั่งหน้าเว็บ — เก็บ session ใน sessionStorage (หรือ localStorage เมื่อเลือก "จดจำฉัน")
+// เฟส 2: PHP ตรวจสิทธิ์จริงด้วย session cookie อีกชั้น (ข้อมูลในเบราว์เซอร์ใช้แสดงผล/นำทางเท่านั้น)
+import { CONFIG } from '../config.js';
+import { api } from './api.js';
+
+const KEY = 'hl-session';
+const GUEST = { username: 'guest', name: 'ผู้ใช้ทั่วไป', role: 'Guest' };
+
+function read(store) {
+  try {
+    const s = JSON.parse(store.getItem(KEY) ?? 'null');
+    return s && s.expiresAt > Date.now() ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+/** session ปัจจุบัน หรือ null */
+export function getSession() {
+  return read(sessionStorage) ?? read(localStorage);
+}
+
+export function saveSession(user, remember = false) {
+  const s = { ...user, at: Date.now(), expiresAt: Date.now() + CONFIG.auth.sessionHours * 3_600_000 };
+  try {
+    clearSession();
+    (remember ? localStorage : sessionStorage).setItem(KEY, JSON.stringify(s));
+  } catch {
+    /* ignore */
+  }
+  return s;
+}
+
+export function clearSession() {
+  try {
+    sessionStorage.removeItem(KEY);
+    localStorage.removeItem(KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** รับเฉพาะชื่อไฟล์ .html ในโฟลเดอร์เดียวกัน (กันลิงก์พาไปเว็บอื่น) */
+export function safeNext(next) {
+  return /^[a-z0-9-]+\.html(\?[^#]*)?$/i.test(next ?? '') ? next : 'index.html';
+}
+
+export function loginUrl() {
+  const here = `${location.pathname.split('/').pop() || 'index.html'}${location.search}`;
+  return `login.html?next=${encodeURIComponent(here)}`;
+}
+
+/** ใช้ในทุกหน้า (ผ่าน shell) — ยังไม่ login → ไปหน้า login */
+export function requireSession() {
+  if (!CONFIG.auth.enabled) return getSession() ?? saveSession(GUEST);
+  const s = getSession();
+  if (!s) {
+    location.replace(loginUrl());
+    return null;
+  }
+  api.setActor?.(s.name);
+  return s;
+}
+
+export async function logout() {
+  try {
+    await api.logout?.();
+  } catch {
+    /* ออกจากระบบฝั่งหน้าเว็บต่อแม้ API ล้มเหลว */
+  }
+  clearSession();
+  location.replace('login.html?bye=1');
+}
+
+export const isAuthEnabled = () => CONFIG.auth.enabled;
+export { GUEST };
