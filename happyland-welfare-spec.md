@@ -201,6 +201,7 @@ hl-welfare/
 │           │   ├── datagrid.js        ← ExcelGrid (แก้ไขในตาราง)
 │           │   ├── combobox.js        ← <select data-combobox> ค้นหาได้
 │           │   ├── columnFilter.js    ← กรอง/เรียงที่หัวคอลัมน์ (ใช้ใน table.js และ datagrid.js)
+│           │   ├── loading.js         ← progress (แถบบนสุด), loader, spinner, busy
 │           │   └── overlay.js         ← toast, openModal, confirmAction
 │           ├── app/                   ← ⑥ api.js, auth.js (session/login/logout), shell.js, tour.js
 │           ├── tour/                  ← ★ แนะนำการใช้งาน (driver.js) — dev ปรับได้
@@ -993,6 +994,18 @@ async req(path, init) {
 | `initPage(menuId)`, `refreshCounts()` | `app/shell.js` | สร้าง sidebar/topbar, ตัวนับงานค้างในเมนู |
 | `html\`\``, `raw()`, `render(el, h)`, `$`, `$$`, `on()`, `debounce()`, `getParam()`, `setParams()` | `shared/dom.js` | |
 
+**Loading (`ui/loading.js`) — ใช้แบบเดียวกันทั้งระบบ**
+
+| ใช้ | เมื่อไร | หน้าตา |
+|---|---|---|
+| `progress` | **อัตโนมัติ**: `api` ทุกคำสั่ง (ห่อด้วย Proxy ใน `app/api.js`) + คลิกลิงก์เปลี่ยนหน้า (`installNavigationProgress` ใน shell) · เรียกเองได้ `progress.track(promise)` | แถบ gradient สูง 3px บนสุดของจอ เดินช้าลงเรื่อย ๆ จนเสร็จแล้ววิ่งเต็ม + จางหาย · แสดงหลังรอ 80ms (งานเร็วไม่กระพริบ) · `aria-busy` ที่ `<html>` |
+| `skeleton` | ตาราง / การ์ดสถิติ (รู้รูปร่างล่วงหน้า) | แถบเทาวิ่งเงา (เดิม) |
+| `loader({ text, logo })` | พื้นที่ที่ไม่รู้รูปร่าง เช่น modal รายชื่อ, modal ส่งออก, ตัวแก้ไขแบบฟอร์ม | วงแหวน gradient หมุน (+ โลโก้หายใจตรงกลาง) + ข้อความ "…" กระพริบ · `role="status"` |
+| `busy(button, fn, { label })` | ปุ่มที่รอผล (บันทึก, ดาวน์โหลด) | ปุ่มกดซ้ำไม่ได้ + วงแหวนเล็ก (สีขาวบนปุ่มสี) + ข้อความ · `aria-busy` · เสร็จแล้วคืนหน้าตาเดิม |
+| `spinner({ size, onColor })` | จุดเล็ก เช่น เลขแถวที่กำลังบันทึกในตาราง Excel | วงแหวน sm 16 / md 28 / lg 44 px |
+
+- `prefers-reduced-motion`: วงแหวนยังหมุนช้า ๆ (ให้รู้ว่าทำงานอยู่) · ปิดแสงวิ่ง/จุดกระพริบ
+
 ### 10.5 Layout (shell)
 ```text
 ┌────────────┬───────────────────────────────────────────────────────────┐
@@ -1721,6 +1734,7 @@ describe('ประกันกลุ่ม', () => {
 - [x] ประกันกลุ่ม: เลิกใช้ปุ่มส่งแจ้ง → **ส่งออกไฟล์ Excel ตามแบบฟอร์มของบริษัทประกัน** (ชีตสรุป + ชีตละบริษัท) + บันทึกว่าแจ้งแล้ว / ส่งออกซ้ำ / ยกเลิก
 - [x] หน้า "แบบฟอร์มประกัน" (CRUD) + แบบฟอร์มตั้งต้น ไทยประกันชีวิต / เมืองไทยประกันชีวิต ตามไฟล์จริง
 - [x] พนักงาน: คำนำหน้า เพศ เลขบัตรประชาชน (ตรวจ check digit) โทร อีเมล
+- [x] Loading กลางทั้งระบบ (`ui/loading.js`): แถบบนสุดอัตโนมัติทุก api/เปลี่ยนหน้า, loader, ปุ่ม busy, spinner
 - [x] แถบแบ่งหน้าใหม่ทั้งระบบ: หน้าแรก/สุดท้าย, แถวต่อหน้าแบบ segmented, ช่องไปหน้า, มือถือพิมพ์เลขหน้าได้
 - [x] หน้า login + อนิเมชันเมื่อสำเร็จ + ป้องกันทุกหน้า (mock) · ธีม gradient น้ำเงิน → เขียวทั้งระบบ
 - [x] Responsive ใหม่: breakpoints 1024/900/768/640, การ์ดบนมือถือ, พื้นที่กดบนจอสัมผัส, scrollbar ชิดขอบจอ, tour ไฮไลต์ตรงตำแหน่ง

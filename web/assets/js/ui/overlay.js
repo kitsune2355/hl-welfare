@@ -1,6 +1,7 @@
 // Toast + Modal + ยืนยันก่อนทำรายการ
 import { html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
+import { spinner } from './loading.js';
 
 // ===================== Toast =====================
 function toastHost() {
@@ -93,7 +94,7 @@ export function openModal({ title, description = '', body = '', footer, onClose,
     busy(on, button) {
       locked = on;
       layer.querySelectorAll('.modal-foot button').forEach((b) => (b.disabled = on));
-      if (button) button.innerHTML = on ? `${icon('loader-2', 'spin')} ${button.dataset.label}` : button.dataset.label;
+      if (button) button.innerHTML = on ? `${spinner({ size: 'sm', onColor: true })} ${button.dataset.label}` : button.dataset.label;
     },
   };
 }

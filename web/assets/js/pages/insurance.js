@@ -12,9 +12,10 @@ import { downloadBlob, sheetModelToXlsx } from '../shared/excel.js';
 import { relativeDays, thaiDate, thaiDateLong, thaiDateTime } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import { BATCH_TONE, BATCH_TYPE_LABEL, EMPLOYEE_TYPE_LABEL } from '../shared/labels.js';
-import { alertBox, badge, emptyState, employeeCell, errorState, skeletonLines, tabs } from '../ui/components.js';
+import { alertBox, badge, emptyState, employeeCell, errorState, tabs } from '../ui/components.js';
 import { confirmAction, errorMessage, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
+import { busy, loader, progress } from '../ui/loading.js';
 
 initPage('insurance');
 
@@ -211,7 +212,7 @@ async function openBatch(id) {
     size: 'lg',
     title: b ? `${BATCH_TYPE_LABEL[b.type]} #${id}` : `รายการส่งออก #${id}`,
     description: b ? `${b.insurerName ? `${b.insurerName} · ` : ''}รอบ ${thaiDate(b.cycleDate)} · ส่งออกเมื่อ ${thaiDateTime(b.submittedAt)} โดย ${b.submittedBy}` : '',
-    body: html`<div data-batch-body>${skeletonLines(6)}</div>`,
+    body: html`<div data-batch-body>${loader({ text: 'กำลังโหลดรายชื่อ' })}</div>`,
     footer: html`<button class="btn btn-ghost danger-text foot-start" data-batch-cancel disabled>${raw(icon('undo-2'))} ยกเลิกการส่งออก</button>
       <button class="btn" data-batch-csv disabled>${raw(icon('download'))} ส่งออก CSV</button>
       <button class="btn btn-primary" data-close>ปิด</button>`,
@@ -398,7 +399,7 @@ async function openExport() {
     size: 'lg',
     title: `ส่งออกไฟล์แจ้งประกัน · รอบ ${thaiDate(cycle)}`,
     description: `ประจำเดือน ${thaiMonthYear(cycle)} · 1 ไฟล์ต่อบริษัทประกัน (ชีตสรุป + ชีตละบริษัทในเครือ) ตามแบบฟอร์มที่ตั้งไว้`,
-    body: html`<div data-export-body>${skeletonLines(5)}</div>`,
+    body: html`<div data-export-body>${loader({ text: 'กำลังเตรียมรายชื่อของแต่ละบริษัทประกัน', logo: true })}</div>`,
     footer: html`<a class="btn btn-ghost foot-start" href="insurers.html">${raw(icon('file-spreadsheet'))} ตั้งค่าแบบฟอร์ม</a>
       <button class="btn btn-primary" data-close>ปิด</button>`,
   });
@@ -431,29 +432,29 @@ async function openExport() {
     const id = Number(btn.dataset.id);
     const format = btn.dataset.export;
     const record = body.querySelector('[data-record]').checked;
-    const label = btn.innerHTML;
-    body.querySelectorAll('[data-export]').forEach((b) => (b.disabled = true));
-    btn.innerHTML = `${icon('loader-2', 'spin')} กำลังสร้างไฟล์…`;
+    const others = [...body.querySelectorAll('[data-export]')].filter((b) => b !== btn);
+    others.forEach((b) => (b.disabled = true));
     try {
-      const d = await api.exportInsurance({ cycleDate: cycle, insurerId: id, record });
-      const model = buildSheetModel(d, { exportDate: today });
-      if (format === 'xlsx') downloadBlob(await sheetModelToXlsx(model), `${model.fileName}.xlsx`);
-      else {
-        const csv = exportCsvRows(d);
-        downloadCsv(`${model.fileName}.csv`, csv.header, csv.rows);
-      }
-      const n = countOf(d);
-      toast.success(`ส่งออก${d.insurer.shortName} แล้ว — เข้า ${n.in} · ออก ${n.out} ราย${record ? ' · บันทึกว่าแจ้งแล้ว' : ''}`);
-      if (record) {
-        body.querySelector(`.export-card[data-insurer="${id}"]`).outerHTML = String(exportCard(d));
-        refreshCounts();
-        await Promise.all([loadCycle(), loadBatches()]);
-      }
+      await busy(btn, async () => {
+        const d = await api.exportInsurance({ cycleDate: cycle, insurerId: id, record });
+        const model = buildSheetModel(d, { exportDate: today });
+        if (format === 'xlsx') downloadBlob(await progress.track(sheetModelToXlsx(model)), `${model.fileName}.xlsx`);
+        else {
+          const csv = exportCsvRows(d);
+          downloadCsv(`${model.fileName}.csv`, csv.header, csv.rows);
+        }
+        const n = countOf(d);
+        toast.success(`ส่งออก${d.insurer.shortName} แล้ว — เข้า ${n.in} · ออก ${n.out} ราย${record ? ' · บันทึกว่าแจ้งแล้ว' : ''}`);
+        if (record) {
+          body.querySelector(`.export-card[data-insurer="${id}"]`).outerHTML = String(exportCard(d));
+          refreshCounts();
+          await Promise.all([loadCycle(), loadBatches()]);
+        }
+      }, { label: format === 'xlsx' ? 'กำลังสร้างไฟล์' : 'กำลังสร้าง CSV' });
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
-      btn.innerHTML = label;
-      body.querySelectorAll('[data-export]').forEach((b) => (b.disabled = false));
+      others.forEach((b) => b.isConnected && (b.disabled = false));
     }
   });
 }

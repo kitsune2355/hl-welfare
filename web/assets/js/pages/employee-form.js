@@ -8,6 +8,7 @@ import { $, $$, esc, getParam, html, render } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import { alertBox, errorState } from '../ui/components.js';
 import { errorMessage, toast } from '../ui/overlay.js';
+import { spinner } from '../ui/loading.js';
 
 initPage('employees', { tour: 'employee-form' });
 
@@ -160,7 +161,7 @@ form.addEventListener('submit', async (ev) => {
   }
   const btn = $('#save');
   btn.disabled = true;
-  btn.innerHTML = `${icon('loader-2', 'spin')} บันทึก`;
+  btn.innerHTML = `${spinner({ size: 'sm', onColor: true })} บันทึก`;
   try {
     const saved = await api.saveEmployee(data);
     toast.success(id ? 'บันทึกการแก้ไขแล้ว' : `เพิ่มพนักงาน ${saved.firstName} แล้ว`);

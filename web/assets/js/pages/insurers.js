@@ -16,6 +16,7 @@ import { icon } from '../shared/icons.js';
 import { alertBox, badge, emptyState, errorState, skeletonLines } from '../ui/components.js';
 import { enhanceSelects } from '../ui/combobox.js';
 import { confirmAction, errorMessage, toast } from '../ui/overlay.js';
+import { loader, spinner } from '../ui/loading.js';
 
 initPage('insurers', { tour: 'insurers' });
 
@@ -573,7 +574,7 @@ editor.addEventListener('submit', async (e) => {
   }
   const btn = $('#save');
   btn.disabled = true;
-  btn.innerHTML = `${icon('loader-2', 'spin')} บันทึก`;
+  btn.innerHTML = `${spinner({ size: 'sm', onColor: true })} บันทึก`;
   try {
     const saved = await api.saveInsurer(draft);
     toast.success(`บันทึกแบบฟอร์ม ${saved.shortName} แล้ว`);

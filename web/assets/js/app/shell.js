@@ -9,6 +9,7 @@ import { avatar, badge } from '../ui/components.js';
 import { toast } from '../ui/overlay.js';
 import { API_MODE, api } from './api.js';
 import { isAuthEnabled, logout, requireSession } from './auth.js';
+import { installNavigationProgress } from '../ui/loading.js';
 import { initTour } from './tour.js';
 
 const MENU = [
@@ -204,6 +205,7 @@ export function initPage(active, { tour = active } = {}) {
   enhanceSelects(main);
   refreshCounts();
   initTour(tour, document.getElementById('help-btn')); // แนะนำการใช้งาน (driver.js)
+  installNavigationProgress(); // คลิกลิงก์ → แถบ loading วิ่งทันที
 }
 
 /** อัปเดตตัวนับงานค้างในเมนู (เรียกซ้ำหลังบันทึกข้อมูลได้) */

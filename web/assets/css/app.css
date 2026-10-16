@@ -3865,3 +3865,167 @@ html:has(.form-footer),
     scroll-padding-bottom: calc(150px + env(safe-area-inset-bottom));
   }
 }
+
+/* =====================================================================
+   Loading กลางของระบบ (ui/loading.js)
+   ===================================================================== */
+/* แถบบนสุดของจอ — วิ่งระหว่างเรียก api / เปลี่ยนหน้า */
+.top-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 200;
+  height: 3px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.top-progress.active {
+  opacity: 1;
+}
+.top-progress i {
+  display: block;
+  height: 100%;
+  background: var(--grad);
+  box-shadow:
+    0 0 10px color-mix(in srgb, var(--grad-mid) 70%, transparent),
+    0 0 4px color-mix(in srgb, var(--grad-end) 60%, transparent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s ease-out;
+}
+/* ปลายแถบเรืองแสง */
+.top-progress i::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 90px;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.7));
+  animation: ld-shine 1s ease-in-out infinite;
+}
+@keyframes ld-shine {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+/* วงแหวน gradient หมุน */
+.ld-ring {
+  --ld: 28px;
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--ld);
+  height: var(--ld);
+  border-radius: 50%;
+  background: conic-gradient(from 90deg, transparent 0 8%, var(--grad-start) 35%, var(--grad-mid) 70%, var(--grad-end));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - max(2.5px, var(--ld) / 9)), #000 calc(100% - max(2.5px, var(--ld) / 9) + 0.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - max(2.5px, var(--ld) / 9)), #000 calc(100% - max(2.5px, var(--ld) / 9) + 0.5px));
+  animation: ld-spin 0.8s linear infinite;
+}
+/* หัววงแหวนมน */
+.ld-ring::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: max(2.5px, calc(var(--ld) / 9));
+  height: max(2.5px, calc(var(--ld) / 9));
+  border-radius: 50%;
+  background: var(--grad-end);
+  transform: translateX(-50%);
+}
+.ld-ring.on-color {
+  background: conic-gradient(from 90deg, transparent 0 10%, currentColor);
+}
+.ld-ring.on-color::after {
+  background: currentColor;
+}
+@keyframes ld-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* บล็อก loading กลางพื้นที่ */
+.ld-block {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  padding: 32px 16px;
+  color: var(--muted);
+  font-size: 13px;
+  animation: ld-fade 0.3s ease both 0.1s;
+}
+.ld-block.compact {
+  flex-direction: row;
+  min-height: 0;
+  padding: 16px;
+  gap: 10px;
+}
+@keyframes ld-fade {
+  from {
+    opacity: 0;
+  }
+}
+.ld-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.ld-logo {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  animation: ld-breathe 1.6s ease-in-out infinite;
+}
+@keyframes ld-breathe {
+  50% {
+    transform: scale(0.86);
+    opacity: 0.75;
+  }
+}
+.ld-dots i {
+  font-style: normal;
+  animation: ld-dot 1.2s infinite;
+}
+.ld-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.ld-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes ld-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.2;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+/* ปุ่มระหว่างทำงาน */
+.btn.is-busy {
+  cursor: progress;
+  opacity: 1;
+}
+.btn.is-busy .ld-ring {
+  margin-right: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ld-ring {
+    animation-duration: 2.4s !important; /* ยังหมุนช้า ๆ ให้รู้ว่ากำลังทำงาน */
+  }
+  .ld-logo,
+  .ld-dots i,
+  .top-progress i::after {
+    animation: none;
+  }
+}

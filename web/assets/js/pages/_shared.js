@@ -8,6 +8,7 @@ import { ACTIVITY_ENTITY_LABEL, SIZES, UNIFORM_EVENT_LABEL } from '../shared/lab
 import { enhanceSelects } from '../ui/combobox.js';
 import { emptyState } from '../ui/components.js';
 import { errorMessage, toast } from '../ui/overlay.js';
+import { spinner } from '../ui/loading.js';
 
 // ===================== บันทึกแจกชุดฟอร์ม (เลือกไซซ์ + ปุ่ม) =====================
 
@@ -32,7 +33,7 @@ export function wireIssueActions(root, { today, onDone }) {
     const size = box.querySelector('select').value;
     const event = box.dataset.event;
     btn.disabled = true;
-    btn.innerHTML = `${icon('loader-2', 'spin')} บันทึกแจก`;
+    btn.innerHTML = `${spinner({ size: 'sm', onColor: true })} บันทึกแจก`;
     try {
       await api.createUniformIssue({
         employeeId: Number(box.dataset.emp),

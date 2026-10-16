@@ -34,6 +34,7 @@ import {
   tableId,
 } from './columnFilter.js';
 import { openPicker } from './combobox.js';
+import { spinner } from './loading.js';
 import { pagerHtml, wirePager } from './table.js';
 
 const fmt = (v) => (v === null || v === undefined || v === '' ? '' : String(v));
@@ -437,7 +438,7 @@ export class ExcelGrid {
 
   statusCell(entry, index) {
     const st = this.status.get(entry.key);
-    if (st?.state === 'saving') return raw(icon('loader-2', 'spin text-primary'));
+    if (st?.state === 'saving') return spinner({ size: 'sm' });
     if (st?.state === 'saved') return raw(`<span class="text-success">${icon('check')}</span>`);
     if (st?.state === 'error') return raw(`<span class="text-danger" title="${esc(st.message)}">${icon('alert-triangle')}</span>`);
     if (entry.isNew) return html`<span class="new-tag">ใหม่</span>`;

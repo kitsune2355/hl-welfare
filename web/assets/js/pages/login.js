@@ -4,6 +4,7 @@ import { getSession, GUEST, isAuthEnabled, safeNext, saveSession } from '../app/
 import { CONFIG } from '../config.js';
 import { $, esc, getParam } from '../shared/dom.js';
 import { hydrateIcons, icon } from '../shared/icons.js';
+import { spinner } from '../ui/loading.js';
 
 const next = safeNext(getParam('next'));
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -101,7 +102,7 @@ function markInvalid(input) {
 
 function setLoading(on) {
   btn.disabled = on;
-  btn.innerHTML = on ? `${icon('loader-2', 'spin')}<span class="lc-label">กำลังตรวจสอบ…</span>` : `<span class="lc-label">เข้าสู่ระบบ</span>${icon('arrow-right')}`;
+  btn.innerHTML = on ? `${spinner({ size: 'sm', onColor: true })}<span class="lc-label">กำลังตรวจสอบ…</span>` : `<span class="lc-label">เข้าสู่ระบบ</span>${icon('arrow-right')}`;
 }
 
 // ----- อนิเมชันเมื่อสำเร็จ -----
