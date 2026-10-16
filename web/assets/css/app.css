@@ -2854,14 +2854,6 @@ input[type='radio'] {
   background-clip: text;
   color: transparent;
 }
-/* แถบสีบาง ๆ บนสุดของหน้า */
-.topbar::after {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 3px;
-  background: var(--grad);
-}
 /* ปุ่มหลัก: gradient เลื่อนสีเมื่อชี้ */
 .btn-primary,
 .btn-primary:hover {
@@ -3497,45 +3489,46 @@ html:has(.form-footer),
 /* =====================================================================
    Loading กลางของระบบ (ui/loading.js)
    ===================================================================== */
-/* แถบบนสุดของจอ — วิ่งระหว่างเรียก api / เปลี่ยนหน้า */
-.top-progress {
+/* loading กลางจอ — ระหว่างเรียก api / เปลี่ยนหน้า (แสดงเมื่อรอเกิน 250ms) */
+.ld-overlay {
   position: fixed;
-  inset: 0 0 auto 0;
+  inset: 0;
   z-index: 200;
-  height: 3px;
-  pointer-events: none;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  backdrop-filter: blur(2px);
   opacity: 0;
-  transition: opacity 0.25s ease;
+  visibility: hidden;
+  transition:
+    opacity 0.2s ease,
+    visibility 0.2s;
 }
-.top-progress.active {
+.ld-overlay.active {
   opacity: 1;
+  visibility: visible;
 }
-.top-progress i {
-  display: block;
-  height: 100%;
-  background: var(--grad);
-  box-shadow:
-    0 0 10px color-mix(in srgb, var(--grad-mid) 70%, transparent),
-    0 0 4px color-mix(in srgb, var(--grad-end) 60%, transparent);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.25s ease-out;
+.ld-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  min-width: 168px;
+  padding: 22px 28px 18px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(6px) scale(0.96);
+  transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
-/* ปลายแถบเรืองแสง */
-.top-progress i::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 90px;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.7));
-  animation: ld-shine 1s ease-in-out infinite;
+.ld-overlay.active .ld-card {
+  transform: none;
 }
-@keyframes ld-shine {
-  50% {
-    opacity: 0.2;
-  }
+.ld-card .ld-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
 }
 
 /* วงแหวน gradient หมุน */
@@ -3652,9 +3645,11 @@ html:has(.form-footer),
     animation-duration: 2.4s !important; /* ยังหมุนช้า ๆ ให้รู้ว่ากำลังทำงาน */
   }
   .ld-logo,
-  .ld-dots i,
-  .top-progress i::after {
+  .ld-dots i {
     animation: none;
+  }
+  .ld-card {
+    transition: none;
   }
 }
 

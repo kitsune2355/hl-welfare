@@ -9,7 +9,7 @@ import { avatar, badge } from '../ui/components.js';
 import { toast } from '../ui/overlay.js';
 import { API_MODE, api } from './api.js';
 import { isAuthEnabled, logout, requireSession } from './auth.js';
-import { installNavigationProgress } from '../ui/loading.js';
+import { installNavigationProgress, progress } from '../ui/loading.js';
 import { initTour } from './tour.js';
 
 const MENU = [
@@ -211,7 +211,7 @@ export function initPage(active, { tour = active } = {}) {
 /** อัปเดตตัวนับงานค้างในเมนู (เรียกซ้ำหลังบันทึกข้อมูลได้) */
 export async function refreshCounts() {
   try {
-    const d = await api.getDashboard();
+    const d = await progress.quiet(() => api.getDashboard()); // ตัวนับในเมนู = งานเบื้องหลัง
     for (const m of MENU) {
       if (!m.count) continue;
       const n = m.count(d);

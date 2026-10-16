@@ -10,7 +10,7 @@ export const API_MODE = CONFIG.apiMode === 'http' ? 'http' : 'mock';
 const raw = API_MODE === 'http' ? new HttpApi(CONFIG.apiBaseUrl) : new MockApi();
 
 /**
- * ทุกคำสั่งที่คืน Promise → แสดงแถบ loading บนสุดของจอให้อัตโนมัติ (ui/loading.js)
+ * ทุกคำสั่งที่คืน Promise → แสดง loading กลางจอให้อัตโนมัติเมื่อรอนาน (ui/loading.js)
  * หน้าจอไม่ต้องเรียก progress เอง
  * @type {import('../application/ports.js').WelfareApi}
  */

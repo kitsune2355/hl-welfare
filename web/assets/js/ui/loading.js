@@ -1,85 +1,74 @@
 // Loading กลางของทั้งระบบ
 //
-//   progress.start() / progress.done()   แถบ gradient บนสุดของจอ — api ทุกตัวเรียกให้อัตโนมัติ (app/api.js)
+//   progress.start() / progress.done()   loading กลางจอ (โลโก้ + วงแหวนหมุน) — api ทุกตัวเรียกให้อัตโนมัติ (app/api.js)
+//                                        แสดงเมื่อรอเกิน 250ms · ระหว่างแสดงกดหน้าจอไม่ได้ (กันกดซ้ำ)
 //   progress.track(promise)              เริ่ม + จบให้เองเมื่อ promise เสร็จ
+//   progress.quiet(fn)                   งานเบื้องหลัง (รีเฟรชอัตโนมัติ ตัวนับในเมนู) — ไม่ขึ้น loading
 //   spinner({ size, onColor })           วงแหวนหมุน (sm 16 · md 28 · lg 44) — onColor = ใช้สีตัวอักษร (บนปุ่มสี)
 //   loader({ text, size, logo })         spinner + ข้อความ จัดกึ่งกลาง (ใช้แทนเนื้อหาระหว่างโหลด) · logo = มีโลโก้ตรงกลาง
 //   busy(button, fn, { label })          ปุ่มเป็นสถานะกำลังทำงานระหว่างรอ fn() แล้วคืนค่าเดิม
-//   installNavigationProgress()          คลิกลิงก์ไปหน้าอื่น → แถบวิ่งทันที (shell เรียกให้)
+//   installNavigationProgress()          คลิกลิงก์ไปหน้าอื่น → loading กลางจอระหว่างรอหน้าใหม่ (shell เรียกให้)
 //
 // ตารางยังใช้ skeleton (เห็นโครงก่อนข้อมูลมา) — loader ใช้กับพื้นที่ที่ไม่รู้รูปร่างล่วงหน้า เช่น modal
 import { html, raw } from '../shared/dom.js';
 
-/** แสดงแถบหลังรอเกินนี้ (ms) — งานที่เสร็จเร็วกว่านี้ไม่กระพริบ */
-const SHOW_AFTER = 80;
-/** เดินแถบช้าลงเรื่อย ๆ แต่ไม่ถึง 100% จนกว่าจะเสร็จ */
-const TRICKLE_MS = 250;
-const MAX_BEFORE_DONE = 0.9;
+/** แสดงหลังรอเกินนี้ (ms) — งานที่เสร็จเร็วกว่านี้ไม่กระพริบ */
+const SHOW_AFTER = 250;
 /** แสดงแล้วต้องอยู่อย่างน้อยเท่านี้ (ms) — ไม่วูบหายจนมองไม่ทัน */
-const MIN_VISIBLE = 350;
+const MIN_VISIBLE = 400;
 
-let bar = null;
+let overlay = null;
 let pending = 0;
-let width = 0;
+let quiet = 0;
 let showTimer = null;
-let trickleTimer = null;
-let hideTimer = null;
 let finishTimer = null;
 let shownAt = 0;
 
-function ensureBar() {
-  if (bar) return bar;
-  bar = document.createElement('div');
-  bar.className = 'top-progress';
-  bar.setAttribute('aria-hidden', 'true');
-  bar.innerHTML = '<i></i>';
-  document.body.append(bar);
-  return bar;
-}
-
-function setWidth(w) {
-  width = w;
-  ensureBar().firstElementChild.style.transform = `scaleX(${w})`;
+function ensureOverlay() {
+  if (overlay) return overlay;
+  overlay = document.createElement('div');
+  overlay.className = 'ld-overlay';
+  overlay.setAttribute('role', 'status');
+  overlay.setAttribute('aria-live', 'polite');
+  overlay.innerHTML = String(html`<div class="ld-card">
+    <span class="ld-mark">${spinner({ size: 'lg' })}<img src="favicon.svg" alt="" class="ld-logo" /></span>
+    <span class="ld-text">กำลังโหลด<span class="ld-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></span>
+  </div>`);
+  document.body.append(overlay);
+  return overlay;
 }
 
 function show() {
-  clearTimeout(hideTimer);
+  showTimer = null;
   clearTimeout(finishTimer);
   shownAt = performance.now();
-  ensureBar().classList.add('active');
+  ensureOverlay().classList.add('active');
   document.documentElement.setAttribute('aria-busy', 'true');
-  setWidth(Math.max(width, 0.08));
-  clearInterval(trickleTimer);
-  trickleTimer = setInterval(() => setWidth(width + (MAX_BEFORE_DONE - width) * 0.12), TRICKLE_MS);
 }
 
 function finish() {
   clearTimeout(showTimer);
   showTimer = null;
-  if (!bar?.classList.contains('active')) {
+  if (!overlay?.classList.contains('active')) {
     document.documentElement.removeAttribute('aria-busy');
     return;
   }
-  // แสดงมาไม่ถึงขั้นต่ำ → รอให้ครบก่อนค่อยวิ่งเต็มแล้วหาย
+  // แสดงมาไม่ถึงขั้นต่ำ → รอให้ครบก่อนค่อยหาย
   const wait = MIN_VISIBLE - (performance.now() - shownAt);
   if (wait > 0) {
     clearTimeout(finishTimer);
     finishTimer = setTimeout(() => pending === 0 && finish(), wait);
     return;
   }
-  clearInterval(trickleTimer);
   document.documentElement.removeAttribute('aria-busy');
-  setWidth(1);
-  hideTimer = setTimeout(() => {
-    bar.classList.remove('active');
-    hideTimer = setTimeout(() => setWidth(0), 250);
-  }, 220);
+  overlay.classList.remove('active');
 }
 
 export const progress = {
   start() {
     pending++;
-    if (pending === 1 && !showTimer) showTimer = setTimeout(show, SHOW_AFTER);
+    clearTimeout(finishTimer);
+    if (pending === 1 && !showTimer && !overlay?.classList.contains('active')) showTimer = setTimeout(show, SHOW_AFTER);
   },
   done() {
     pending = Math.max(0, pending - 1);
@@ -87,8 +76,18 @@ export const progress = {
   },
   /** @template T @param {Promise<T>} p @returns {Promise<T>} */
   track(p) {
+    if (quiet > 0) return p; // งานเบื้องหลัง (รีเฟรชอัตโนมัติ / ตัวนับในเมนู) ไม่ขึ้น loading
     progress.start();
     return Promise.resolve(p).finally(() => progress.done());
+  },
+  /** ทำ fn เงียบ ๆ — api ที่เรียกระหว่างนี้ไม่แสดง loading กลางจอ */
+  async quiet(fn) {
+    quiet++;
+    try {
+      return await fn();
+    } finally {
+      quiet--;
+    }
   },
 };
 
@@ -137,7 +136,7 @@ export async function busy(button, fn, { label } = {}) {
   }
 }
 
-/** คลิกลิงก์ภายในระบบ → แถบวิ่งทันที (หน้าใหม่ยังโหลดไม่เสร็จ) · กลับมาด้วยปุ่ม Back → ปิดแถบ */
+/** คลิกลิงก์ภายในระบบ → loading กลางจอ (หน้าใหม่ยังโหลดไม่เสร็จ) · กลับมาด้วยปุ่ม Back → ปิด */
 export function installNavigationProgress() {
   document.addEventListener('click', (e) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -147,7 +146,7 @@ export function installNavigationProgress() {
     if (url.origin !== location.origin || (url.pathname === location.pathname && url.hash)) return;
     progress.start();
   });
-  // กลับมาด้วยปุ่ม Back (หน้าจาก bfcache) → แถบที่เริ่มตอนคลิกลิงก์ค้างอยู่ ให้ปิด
+  // กลับมาด้วยปุ่ม Back (หน้าจาก bfcache) → loading ที่เริ่มตอนคลิกลิงก์ค้างอยู่ ให้ปิด
   // (โหลดหน้าปกติไม่ต้องรีเซ็ต — api ของหน้ายังทำงานอยู่)
   window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return;

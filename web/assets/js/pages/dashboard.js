@@ -5,6 +5,7 @@
 // รีเฟรชอัตโนมัติทุก 60 วินาที + เมื่อกลับมาที่แท็บของเบราว์เซอร์
 import { api } from '../app/api.js';
 import { initPage, refreshCounts } from '../app/shell.js';
+import { progress } from '../ui/loading.js';
 import { startTourIfNew } from '../app/tour.js';
 import { todayISO } from '../domain/date.js';
 import { $, debounce, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
@@ -325,7 +326,7 @@ function setAuto(v) {
   $('#auto').setAttribute('aria-checked', String(v));
   $('#live-dot').classList.toggle('on', v);
   clearInterval(timer);
-  if (v) timer = setInterval(refresh, REFRESH_MS);
+  if (v) timer = setInterval(() => progress.quiet(refresh), REFRESH_MS); // รีเฟรชเบื้องหลัง ไม่ขึ้น loading กลางจอ
   try {
     localStorage.setItem(AUTO_KEY, v ? 'on' : 'off');
   } catch {
@@ -334,7 +335,7 @@ function setAuto(v) {
 }
 $('#auto').onclick = () => setAuto(!auto);
 $('#refresh').onclick = refresh;
-document.addEventListener('visibilitychange', () => auto && document.visibilityState === 'visible' && refresh());
+document.addEventListener('visibilitychange', () => auto && document.visibilityState === 'visible' && progress.quiet(refresh));
 setAuto(auto);
 
 drawTabs();
