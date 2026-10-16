@@ -415,6 +415,20 @@ function markField(id, key, label) {
   </div>`;
 }
 
+/** แบบฟอร์มที่แปลงจาก .xls — หน้าตาไม่ครบ (บอกว่าหายอะไร + วิธีแก้) */
+function xlsNotice() {
+  const t = draft.template;
+  if (!t?.converted) return '';
+  const lost = t.lost ?? {};
+  const items = [lost.pictures ? 'รูปภาพ/โลโก้' : '', lost.textboxes ? 'กล่องข้อความ' : '', lost.shapes ? 'เส้น/รูปทรง' : ''].filter(Boolean);
+  return alertBox({
+    tone: 'warning',
+    title: 'ไฟล์ .xls (Excel 97-2003) — ไฟล์ที่ส่งออกจะไม่เหมือนต้นฉบับทุกอย่าง',
+    body: html`ระบบคงข้อความ สีไฮไลต์ ความกว้างคอลัมน์ และใส่เส้นขอบตารางให้แล้ว แต่${items.length ? html`<b>${items.join(' · ')}</b> และ` : ''}รูปแบบตัวอักษรบางส่วนแปลงจากไฟล์ .xls ไม่ได้<br />
+      <b>ต้องการให้เหมือนแบบฟอร์มทางการทุกอย่าง:</b> เปิดไฟล์ใน Excel → File › Save As → เลือก “Excel Workbook (*.xlsx)” แล้วอัปโหลดไฟล์ .xlsx แทน`,
+  });
+}
+
 // ---------- ขั้น 1: ไฟล์แบบฟอร์ม ----------
 function filePane() {
   const t = draft.template;
@@ -450,9 +464,7 @@ function filePane() {
           <button type="button" class="btn btn-sm" data-goto="layout">ตรวจตำแหน่งข้อมูล ${raw(icon('chevron-right'))}</button>
         </div>`
       : ''}
-    ${src?.converted
-      ? alertBox({ tone: 'warning', title: 'แปลงจากไฟล์ .xls (Excel 97-2003)', body: 'เส้นขอบ/สี/ตัวอักษรบางส่วนอาจหาย — ระบบใส่เส้นขอบให้หัวตารางกับแถวข้อมูลแล้ว · ถ้าต้องการหน้าตาเหมือนเดิมทุกอย่าง ให้เปิดไฟล์ใน Excel แล้ว “บันทึกเป็น .xlsx” ก่อนอัปโหลด' })
-      : ''}
+    ${xlsNotice()}
     <p class="privacy">${raw(icon('lock'))} รายชื่อพนักงานที่อยู่ในไฟล์ (ข้อมูลบุคคล) จะถูกล้างออกก่อนเก็บ — เก็บไว้เฉพาะหน้าตาแบบฟอร์ม · ชีตอื่นที่ไม่ใช้ไม่ถูกเก็บ</p>
   </div>`;
 }
@@ -467,7 +479,7 @@ async function handleFile(file) {
     const a = analyzeTemplate(r.sheets);
     const layout = a.layout ?? { headerRow: 1, headerEnd: 1, dataRow: 2, footerRow: 3, columns: [], cells: {} };
     src = { ...r, fromUpload: true, fileName: file.name };
-    draft.template = { fileName: file.name, converted: r.converted, uploadedAt: null, uploadedBy: '', sheet: a.sheet, ...layout, summary: a.summary };
+    draft.template = { fileName: file.name, converted: r.converted, lost: r.lost, uploadedAt: null, uploadedBy: '', sheet: a.sheet, ...layout, summary: a.summary };
     previewOf = 'company';
     sel = {};
     testResult = null;
@@ -532,6 +544,7 @@ function layoutPane() {
     : '';
   return html`<div class="ed-body lay">
     ${errors.template ? alertBox({ tone: 'danger', title: errors.template }) : ''}
+    ${xlsNotice()}
     <div class="lay-sheets">
       <div class="field">
         <label for="pick-company">ชีตแบบฟอร์มของแต่ละบริษัท</label>

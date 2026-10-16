@@ -8,9 +8,12 @@ const root = new URL('../web/', import.meta.url);
 const mod = { exports: {} };
 new Function('module', 'exports', 'define', fs.readFileSync(new URL('assets/vendor/exceljs/exceljs.min.js', root), 'utf8'))(mod, mod.exports, undefined);
 const ExcelJS = mod.exports;
+const zmod = { exports: {} };
+new Function('module', 'exports', 'define', fs.readFileSync(new URL('assets/vendor/jszip/jszip.min.js', root), 'utf8'))(zmod, zmod.exports, undefined);
+const JSZip = zmod.exports;
 
 const { useExcelLibs } = await import('../web/assets/js/shared/excel.js');
-useExcelLibs({ ExcelJS });
+useExcelLibs({ ExcelJS, JSZip });
 const T = await import('../web/assets/js/app/excelTemplate.js');
 const { detectLayout, suggestSource } = await import('../web/assets/js/application/usecases/templateDetect.js');
 const { validateInsurerForm, blankInsurerForm } = await import('../web/assets/js/application/insurerFormRules.js');
@@ -214,3 +217,80 @@ describe('ตรวจแบบฟอร์ม', () => {
 
 // ไม่ใช้ detectLayout ตรง ๆ ในชุดนี้ แต่ import ไว้ให้แน่ใจว่า export ครบ
 void detectLayout;
+
+describe('ไฟล์ส่งออกเหมือนแบบฟอร์มต้นฉบับ (รูปภาพ กล่องข้อความ จานสี)', () => {
+  const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const sheetPath = async (zip, name) => {
+    const wb = await zip.file('xl/workbook.xml').async('string');
+    const rels = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+    const rid = [...wb.matchAll(/<sheet\b[^>]*>/g)].map((m) => m[0]).find((t) => t.includes(`name="${name}"`)).match(/r:id="([^"]+)"/)[1];
+    const target = [...rels.matchAll(/<Relationship\b[^>]*>/g)].map((m) => m[0]).find((t) => t.includes(`Id="${rid}"`)).match(/Target="([^"]+)"/)[1];
+    return `xl/${target.replace(/^\/?xl\//, '')}`;
+  };
+  const anchor = (row, inner) =>
+    `<xdr:twoCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>2</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${row + 1}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>${inner}<xdr:clientData/></xdr:twoCellAnchor>`;
+  /** ใส่โลโก้ (ส่วนบน) + กล่องข้อความ (ส่วนท้าย) + จานสีของไฟล์ ลงแบบฟอร์มตั้งต้น */
+  async function decorated(t) {
+    const zip = await JSZip.loadAsync(seed('thai-life'));
+    const p = await sheetPath(zip, t.sheet);
+    const pic = `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="2" name="Logo"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rIdImg"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>`;
+    const sp = `<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="3" name="Note"/><xdr:cNvSpPr txBox="1"/></xdr:nvSpPr><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr><xdr:txBody><a:bodyPr/><a:p><a:r><a:rPr sz="1400" b="1"/><a:t>ส่งภายใน 30 วัน</a:t></a:r></a:p></xdr:txBody></xdr:sp>`;
+    zip.file('xl/drawings/drawing1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">${anchor(0, pic)}${anchor(t.footerRow - 1, sp)}</xdr:wsDr>`);
+    zip.file('xl/drawings/_rels/drawing1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdImg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/logo.png"/></Relationships>`);
+    zip.file('xl/media/logo.png', PNG, { base64: true });
+    const relsPath = p.replace(/([^/]+)$/, '_rels/$1.rels');
+    const rels = (await zip.file(relsPath)?.async('string')) ?? '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+    zip.file(relsPath, rels.replace('</Relationships>', '<Relationship Id="rIdDr" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>'));
+    const xml = await zip.file(p).async('string');
+    zip.file(p, xml.replace('</worksheet>', '<drawing r:id="rIdDr"/></worksheet>').replace(/<worksheet\b(?![^>]*xmlns:r=)/, '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'));
+    let types = await zip.file('[Content_Types].xml').async('string');
+    types = types.replace('</Types>', '<Default Extension="png" ContentType="image/png"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>');
+    zip.file('[Content_Types].xml', types);
+    const styles = await zip.file('xl/styles.xml').async('string');
+    zip.file('xl/styles.xml', styles.replace('</styleSheet>', '<colors><indexedColors><rgbColor rgb="FF000000"/><rgbColor rgb="FF123456"/></indexedColors></colors></styleSheet>'));
+    return zip.generateAsync({ type: 'arraybuffer' });
+  }
+
+  it('รูปภาพ/กล่องข้อความไปอยู่ทุกชีตบริษัท · ที่อยู่ในส่วนท้ายเลื่อนตามจำนวนคน · จานสีของไฟล์ตามไปด้วย', async () => {
+    const api = new MockApi(() => TODAY);
+    const d = await api.exportInsurance({ cycleDate: CYCLE, insurerId: 1 });
+    const t = d.insurer.template;
+    const out = await T.fillTemplate(await decorated(t), d, { exportDate: '2026-10-16' });
+    const zip = await JSZip.loadAsync(out);
+    const c = d.companies.find((x) => x.companyCode === 'CNS');
+    const n = c.in.length + c.out.length;
+    const p = await sheetPath(zip, 'CNS');
+    const rels = await zip.file(p.replace(/([^/]+)$/, '_rels/$1.rels')).async('string');
+    const drawing = await zip.file(`xl/drawings/${rels.match(/drawings\/(drawing\d+\.xml)/)[1]}`).async('string');
+    expect((await zip.file(p).async('string')).includes('<drawing r:id=')).toBe(true);
+    expect(drawing.includes('ส่งภายใน 30 วัน')).toBe(true);
+    const rows = [...drawing.matchAll(/<xdr:from>[\s\S]*?<xdr:row>(\d+)<\/xdr:row>/g)].map((m) => Number(m[1]));
+    expect(rows).toEqual([0, t.footerRow - 1 + (n - (t.footerRow - t.dataRow))]); // โลโก้อยู่ที่เดิม · กล่องข้อความเลื่อนตามส่วนท้าย
+    expect(Object.keys(zip.files).some((f) => /^xl\/media\/.+\.png$/.test(f))).toBe(true);
+    expect((await zip.file('xl/styles.xml').async('string')).includes('rgb="FF123456"')).toBe(true);
+    // ตัวอย่างในหน้าเว็บเห็นรูปภาพ/กล่องข้อความด้วย
+    const grids = await T.gridsOf(out);
+    const g = grids.find((x) => x.name === 'CNS').grid;
+    expect(g.drawings.map((x) => x.kind)).toEqual(['pic', 'shape']);
+    expect(g.indexed[1]).toBe('123456');
+  });
+
+  it('merge แนวตั้งในหัวตารางคงเส้นขอบล่างของเซลล์ล่างสุด', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('ฟอร์ม');
+    ws.getCell('A1').value = 'ลำดับ';
+    ws.getCell('B1').value = 'รหัสพนักงาน';
+    ws.getCell('C1').value = 'ชื่อ - สกุล';
+    ws.getCell('D1').value = 'เลขบัตรประชาชน';
+    ws.mergeCells('A1:A2');
+    ws.getCell('A2').border = { bottom: { style: 'medium' } };
+    ws.getCell('A3').value = 1;
+    ws.getCell('A5').value = 'หมายเหตุ';
+    const grid = (await T.gridsOf(await wb.xlsx.writeBuffer()))[0].grid;
+    const layout = detectLayout(grid, 'company');
+    const clean = await T.sanitizeTemplate(await wb.xlsx.writeBuffer(), { sheet: 'ฟอร์ม', ...layout, summary: null });
+    const back = new ExcelJS.Workbook();
+    await back.xlsx.load(clean);
+    expect(back.getWorksheet('ฟอร์ม').getCell('A2').border?.bottom?.style).toBe('medium');
+  });
+});

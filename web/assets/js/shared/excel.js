@@ -1,9 +1,10 @@
 // ไลบรารี Excel (โหลดเมื่อใช้ครั้งแรกเท่านั้น) + ดาวน์โหลดไฟล์
 //   ExcelJS (MIT, ~950KB)    อ่าน/เขียน .xlsx พร้อมรูปแบบ (เส้นขอบ ตัวอักษร merge ความกว้าง)
 //   SheetJS (Apache-2.0)     แปลงไฟล์ .xls (Excel 97-2003) → .xlsx ก่อนให้ ExcelJS อ่าน
-// ใน Node (ทดสอบ) ส่งไลบรารีเข้ามาเองได้ด้วย useExcelLibs({ ExcelJS, XLSX })
+//   JSZip (MIT, ~95KB)       แก้ไฟล์ .xlsx ระดับ XML — คงรูปภาพ/กล่องข้อความ/ธีมสีของแบบฟอร์มที่ ExcelJS ไม่รองรับ
+// ใน Node (ทดสอบ) ส่งไลบรารีเข้ามาเองได้ด้วย useExcelLibs({ ExcelJS, XLSX, JSZip })
 
-const VENDOR = { ExcelJS: 'assets/vendor/exceljs/exceljs.min.js', XLSX: 'assets/vendor/sheetjs/xlsx.full.min.js' };
+const VENDOR = { ExcelJS: 'assets/vendor/exceljs/exceljs.min.js', XLSX: 'assets/vendor/sheetjs/xlsx.full.min.js', JSZip: 'assets/vendor/jszip/jszip.min.js' };
 const libs = {};
 const loading = {};
 
@@ -29,6 +30,7 @@ export function useExcelLibs(given) {
 }
 export const loadExcelJs = () => loadScript('ExcelJS');
 export const loadSheetJs = () => loadScript('XLSX');
+export const loadJsZip = () => loadScript('JSZip');
 
 /** ดาวน์โหลด Blob เป็นไฟล์ */
 export function downloadBlob(blob, filename) {

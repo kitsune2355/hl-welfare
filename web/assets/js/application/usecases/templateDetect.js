@@ -255,30 +255,47 @@ function detectCells(grid, layout) {
         // เจอ "คน" ก่อนค่า (เช่น "เข้าใหม่ | ___ | คน" ช่องจำนวนว่าง) → ใช้ช่องว่างแรกหลังป้าย
         let target = null;
         let firstEmpty = null;
-        for (let cc = (m ? m.right : c) + 1; cc <= Math.min(grid.nCols, c + 10); cc++) {
+        let gap = 0; // เซลล์ว่างระหว่างป้ายกับค่า — ห่างเกิน 2 ช่อง = ข้อความอื่น ไม่ใช่ค่าของป้ายนี้
+        let end = Math.min(grid.nCols, c + 10);
+        for (let cc = (m ? m.right : c) + 1; cc <= end; cc++) {
           const mm = mergeAt(grid, r, cc);
           if (mm && (mm.top !== r || mm.left !== cc)) continue;
           const v = clean(grid.text(r, cc));
           if (!v) {
             firstEmpty ??= { r, c: cc };
+            gap++;
             continue;
           }
           if (/^คน$/.test(v)) target = firstEmpty;
           else if (isLabel(v)) continue;
-          else target = { r, c: cc };
+          else if (gap <= 2) target = { r, c: cc };
+          end = cc - 1;
           break;
+        }
+        const raw = String(grid.text(r, c) ?? '');
+        const hit = rule.re.exec(raw);
+        const after = hit ? raw.slice(hit.index + hit[0].length) : '';
+        // แบบฟอร์มเปล่า (ป้ายล้วน ทางขวาว่างหมด) → ช่องกรอก = เซลล์ว่างที่มีสีพื้น/เส้นใต้ ไม่งั้นเซลล์ว่างแรก
+        if (!target && firstEmpty && hit && !clean(after.replace(/^[\s:：]+/, ''))) {
+          for (let cc = firstEmpty.c; cc <= end && !target; cc++) {
+            const st = grid.style?.(r, cc);
+            const colored = st?.fill && !/^#?F{6}$/i.test(st.fill);
+            if (!clean(grid.text(r, cc)) && (colored || st?.edges?.bottom)) target = { r, c: cc };
+          }
+          target ??= firstEmpty;
         }
         if (target) {
           cells[addr(target.r, target.c)] = rule.v;
           continue;
         }
         // ค่าอยู่ในเซลล์เดียวกัน: แทนส่วนที่เว้นไว้กรอก หรือข้อความหลังป้าย
-        const raw = String(grid.text(r, c) ?? '');
-        const hit = rule.re.exec(raw);
         if (!hit) continue;
-        const after = raw.slice(hit.index + hit[0].length);
         if (FILLER.test(after)) cells[addr(r, c)] = raw.replace(FILLER, ` ${rule.v}`).replace(/\s+$/, '');
-        else if (clean(after.replace(/^[\s:：]+/, ''))) cells[addr(r, c)] = `${raw.slice(0, hit.index + hit[0].length)}${/^\s*[:：]/.test(after) ? ' :' : ''}  ${rule.v}`;
+        else if (clean(after.replace(/^[\s:：]+/, ''))) {
+          // เลขกรมธรรม์ต้องมีตัวเลข — ข้อความหลังป้ายที่ไม่มีตัวเลขเป็นส่วนหนึ่งของป้าย (เช่น "เลขที่กรมธรรม์ : ชีวิตกลุ่ม") → ต่อท้าย · อื่น ๆ = ค่าเดิม → แทนที่
+          const keepLabel = rule.v === '{policyNo}' && !/\d/.test(after);
+          cells[addr(r, c)] = keepLabel ? `${raw.replace(/\s+$/, '')} ${rule.v}` : `${raw.slice(0, hit.index + hit[0].length)}${/^\s*[:：]/.test(after) ? ' :' : ''}  ${rule.v}`;
+        }
       }
     }
   };

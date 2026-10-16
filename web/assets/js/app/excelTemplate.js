@@ -11,6 +11,8 @@ import { cellValue, formatFormDate, thaiMonthYear } from '../application/usecase
 import { addr, detectLayout, guessSheets, parseAddr } from '../application/usecases/templateDetect.js';
 import { fillPlaceholders } from '../domain/insurerForm.js';
 import { base64ToBuffer, loadExcelJs, loadSheetJs } from '../shared/excel.js';
+import { resolveColor, themePalette } from '../shared/xlColor.js';
+import { carryParts, partsOf } from './xlsxParts.js';
 
 // เซลล์ที่ใช้ฟอนต์สัญลักษณ์ (Wingdings) → ✓/✗ ต้องเขียนเป็นตัวอักษรของฟอนต์นั้น ไม่งั้นจะแสดงเป็นสัญลักษณ์อื่น
 const SYMBOL_FONTS = { 'wingdings 2': { '✓': 'P', '✗': 'O' }, wingdings: { '✓': 'ü', '✗': 'û' } };
@@ -38,14 +40,26 @@ function parseRange(s) {
   return { top: p.r, left: p.c, bottom: q.r, right: q.c };
 }
 
+/** เซลล์ที่ "เห็นได้" แม้ไม่มีข้อความ — สีพื้น (ไม่ใช่ขาว) หรือเส้นขอบ */
+function visibleStyle(cell) {
+  const f = cell.fill;
+  const filled = f?.type === 'pattern' && f.pattern && f.pattern !== 'none' && !(f.pattern === 'solid' && /FFFFFF$/i.test(f.fgColor?.argb ?? ''));
+  const b = cell.border;
+  return filled || !!(b && (b.top?.style || b.bottom?.style || b.left?.style || b.right?.style));
+}
+
 /**
- * แถว/คอลัมน์สุดท้ายที่ "มีข้อมูล" (หรือ merge) — ไฟล์ .xls บางไฟล์จัดรูปแบบไว้ถึงแถว 65,536
- * ถ้าใช้ rowCount ตรง ๆ จะช้าและไฟล์ที่เก็บใหญ่เกินจำเป็น
+ * แถว/คอลัมน์สุดท้ายที่ใช้จริง: มีข้อความ / merge / รูปภาพ — และเซลล์ว่างที่มีสีพื้นหรือเส้นขอบใกล้ ๆ ส่วนนั้น
+ * (ไฟล์ .xls บางไฟล์จัดรูปแบบไว้ถึงแถว 65,536 ถ้าใช้ rowCount ตรง ๆ จะช้าและไฟล์ที่เก็บใหญ่เกินจำเป็น)
  */
 function usedExtent(ws) {
   const merges = (ws.model.merges ?? []).map(parseRange);
   let rows = Math.max(1, ...merges.map((m) => m.bottom));
   let cols = Math.max(1, ...merges.map((m) => m.right));
+  for (const img of ws.getImages?.() ?? []) {
+    rows = Math.max(rows, Math.ceil((img.range?.br?.nativeRow ?? img.range?.tl?.nativeRow ?? 0) + 1));
+    cols = Math.max(cols, Math.ceil((img.range?.br?.nativeCol ?? img.range?.tl?.nativeCol ?? 0) + 1));
+  }
   ws.eachRow({ includeEmpty: false }, (row, r) => {
     row.eachCell({ includeEmpty: false }, (cell, c) => {
       if (valueText(cell.value).trim()) {
@@ -54,7 +68,21 @@ function usedExtent(ws) {
       }
     });
   });
-  return { rows, cols, merges };
+  // สี/เส้นขอบ: นับเฉพาะที่อยู่ไม่ไกลจากส่วนที่มีข้อความ
+  const maxR = rows + 40;
+  const maxC = cols + 20;
+  let sr = rows;
+  let sc = cols;
+  ws.eachRow({ includeEmpty: false }, (row, r) => {
+    if (r > maxR) return;
+    row.eachCell({ includeEmpty: false }, (cell, c) => {
+      if (c <= maxC && visibleStyle(cell)) {
+        sr = Math.max(sr, r);
+        sc = Math.max(sc, c);
+      }
+    });
+  });
+  return { rows: sr, cols: sc, merges };
 }
 
 /** ExcelJS worksheet → grid (แถว/คอลัมน์เริ่มที่ 1) */
@@ -70,34 +98,103 @@ export function gridFromWorksheet(ws) {
     }
     return textCache.get(k);
   };
+  const palette = themePalette(ws.workbook?._themes?.theme1 ?? ws._workbook?._themes?.theme1);
+  const color = (c) => resolveColor(c, palette, grid.indexed);
+  const edge = (e) => (e?.style ? { style: e.style, color: color(e.color) || '#000000' } : null);
   const style = (r, c) => {
     const cell = ws.getCell(r, c);
     const b = cell.border ?? {};
-    const fill = cell.fill?.fgColor?.argb;
+    const f = cell.fill;
+    const font = cell.font ?? {};
+    const fill = f?.type === 'pattern' && f.pattern && f.pattern !== 'none' ? color(f.pattern === 'solid' ? f.fgColor : (f.bgColor ?? f.fgColor)) : '';
     return {
-      bold: !!cell.font?.bold,
-      size: cell.font?.size,
+      bold: !!font.bold,
+      italic: !!font.italic,
+      underline: !!font.underline,
+      strike: !!font.strike,
+      size: font.size,
+      font: font.name ?? '',
+      color: color(font.color),
       align: cell.alignment?.horizontal,
+      valign: cell.alignment?.vertical,
       wrap: !!cell.alignment?.wrapText,
-      border: !!(b.top || b.bottom || b.left || b.right),
-      fill: fill && fill !== 'FFFFFFFF' && cell.fill?.pattern === 'solid' ? `#${fill.slice(-6)}` : '',
+      border: !!(b.top?.style || b.bottom?.style || b.left?.style || b.right?.style),
+      edges: { top: edge(b.top), right: edge(b.right), bottom: edge(b.bottom), left: edge(b.left) },
+      fill,
     };
   };
   const widths = Array.from({ length: nCols }, (_, i) => ws.getColumn(i + 1).width ?? 9);
-  const heights = Array.from({ length: nRows }, (_, i) => ws.getRow(i + 1).height ?? 0);
-  return { name: ws.name, nRows, nCols, text, style, merges, widths, heights };
+  // ความสูงแถว (pt) — แถวที่ไม่ได้กำหนดใช้ความสูงตั้งต้นของชีต
+  const defaultHeight = ws.properties?.defaultRowHeight || 15;
+  const heights = Array.from({ length: nRows }, (_, i) => ws.findRow(i + 1)?.height || defaultHeight);
+  // แถวที่กำหนดความสูงเอง → ตัดข้อความที่เกิน (เหมือน Excel) · แถวอื่น Excel ปรับความสูงตามข้อความ
+  const fixedRows = Array.from({ length: nRows }, (_, i) => !!ws.findRow(i + 1)?.height);
+  const hiddenCols = Array.from({ length: nCols }, (_, i) => !!ws.getColumn(i + 1).hidden);
+  const grid = { name: ws.name, nRows, nCols, text, style, merges, widths, heights, fixedRows, hiddenCols, drawings: [], indexed: null };
+  return grid;
 }
 
-/** อ่านไฟล์ที่ผู้ใช้เลือก — .xls แปลงเป็น .xlsx ก่อน (รูปแบบเส้นขอบ/สีบางส่วนอาจหาย) */
+/** ไฟล์ .xls: นับรูปภาพ/กล่องข้อความในแต่ละชีต (แปลงในเบราว์เซอร์ไม่ได้ — แจ้งผู้ใช้) */
+function xlsObjects(XLSX, buffer) {
+  const found = { pictures: 0, textboxes: 0, shapes: 0 };
+  try {
+    const cfb = XLSX.CFB.read(new Uint8Array(buffer), { type: 'array' });
+    const d = (XLSX.CFB.find(cfb, 'Workbook') ?? XLSX.CFB.find(cfb, 'Book'))?.content;
+    if (!d) return found;
+    const u16 = (i) => d[i] | (d[i + 1] << 8);
+    for (let p = 0; p + 4 <= d.length; ) {
+      const type = u16(p);
+      const len = u16(p + 2);
+      if (type === 0x5d && len >= 6) {
+        const ot = u16(p + 8); // OBJ → ftCmo.ot
+        if (ot === 8) found.pictures++;
+        else if (ot === 6) found.textboxes++;
+        else if ([1, 2, 3, 4, 9].includes(ot)) found.shapes++;
+      }
+      p += 4 + len;
+    }
+  } catch {
+    /* อ่านไม่ได้ — ไม่แจ้ง */
+  }
+  return found;
+}
+
+/** .xls → .xlsx: SheetJS แปลงค่า/merge/ความกว้าง · สีพื้นเซลล์ (ไฮไลต์) ใส่กลับด้วย ExcelJS */
+async function convertXls(buffer) {
+  const XLSX = await loadSheetJs();
+  const ExcelJS = await loadExcelJs();
+  const book = XLSX.read(buffer, { type: 'array', cellStyles: true, cellDates: false });
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(XLSX.write(book, { bookType: 'xlsx', type: 'array', cellStyles: true }));
+  for (const ws of wb.worksheets) {
+    const sh = book.Sheets[ws.name];
+    if (!sh) continue;
+    for (const [a, cell] of Object.entries(sh)) {
+      const st = a[0] === '!' ? null : cell.s;
+      const rgb = st?.fgColor?.rgb;
+      if (st?.patternType === 'solid' && rgb && !/^F*$/i.test(rgb)) ws.getCell(a).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${rgb.slice(-6)}` } };
+    }
+  }
+  return { buffer: await wb.xlsx.writeBuffer(), lost: xlsObjects(XLSX, buffer) };
+}
+
+/**
+ * อ่านไฟล์ที่ผู้ใช้เลือก — .xls แปลงเป็น .xlsx ก่อน
+ * @returns {Promise<{buffer:ArrayBuffer, converted:boolean, lost:{pictures:number,textboxes:number,shapes:number}|null, sheets:{name:string, grid:any}[]}>}
+ *   lost = ของในไฟล์ .xls ที่แปลงไม่ได้ (รูปภาพ กล่องข้อความ) → แนะนำให้บันทึกเป็น .xlsx ใน Excel ก่อน
+ */
 export async function readTemplateFile(file) {
   const ExcelJS = await loadExcelJs();
   let buffer = await file.arrayBuffer();
   let converted = false;
-  const isXls = /\.xls$/i.test(file.name) || new Uint8Array(buffer.slice(0, 4)).join(',') === '208,207,17,224';
+  let lost = null;
+  const isXls = /.xls$/i.test(file.name) || new Uint8Array(buffer.slice(0, 4)).join(',') === '208,207,17,224';
   if (isXls) {
-    const XLSX = await loadSheetJs();
-    const wb = XLSX.read(buffer, { type: 'array', cellStyles: true, cellDates: false });
-    buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+    try {
+      ({ buffer, lost } = await convertXls(buffer));
+    } catch {
+      throw new Error('เปิดไฟล์ .xls นี้ไม่ได้ — ลองเปิดใน Excel แล้วบันทึกเป็น .xlsx');
+    }
     converted = true;
   }
   const wb = new ExcelJS.Workbook();
@@ -106,9 +203,9 @@ export async function readTemplateFile(file) {
   } catch {
     throw new Error('เปิดไฟล์นี้ไม่ได้ — ต้องเป็นไฟล์ Excel (.xlsx หรือ .xls)');
   }
-  const sheets = wb.worksheets.filter((ws) => ws.state !== 'hidden').map((ws) => ({ name: ws.name, grid: gridFromWorksheet(ws) }));
+  const sheets = await withParts(buffer, wb.worksheets.filter((ws) => ws.state !== 'hidden'));
   if (!sheets.length) throw new Error('ไฟล์นี้ไม่มีชีต');
-  return { buffer, converted, sheets };
+  return { buffer, converted, lost, sheets };
 }
 
 /** เดาชีต + layout ให้ทั้งไฟล์ */
@@ -134,35 +231,51 @@ function plainValue(v) {
  *   rows = จำนวนแถวข้อมูลที่จะสร้าง (แทนแถวข้อมูลเดิมทั้งหมด) · keepData = คงแถวข้อมูลเดิมไว้ (ใช้ตอนล้างแบบฟอร์ม)
  */
 function writeSheet(out, src, name, layout, o) {
+  const { dataRow, footerRow } = layout;
+  const used = usedExtent(src);
+  const span = footerRow - dataRow;
+  const n = o.keepData ? span : o.rows;
+  const delta = n - span;
+  const rowOf = (r) => (r >= footerRow ? r + delta : r);
+  const ps = clone(src.pageSetup) ?? {};
+  ps.printArea = ps.printArea ? String(ps.printArea).split(',').map((x) => shiftRange(x, rowOf, dataRow, footerRow, n)).filter(Boolean).join(',') || undefined : undefined;
+  if (ps.printTitlesRow && !(Number(String(ps.printTitlesRow).split(':').pop()) < dataRow)) ps.printTitlesRow = undefined;
   const ws = out.addWorksheet(name, {
     properties: clone(src.properties),
-    pageSetup: { ...clone(src.pageSetup), printArea: undefined, printTitlesRow: undefined },
+    pageSetup: ps,
     headerFooter: clone(src.headerFooter),
     views: clone(src.views),
   });
-  const used = usedExtent(src);
   const grid = { merges: used.merges };
   const nCols = used.cols;
-  for (let c = 1; c <= nCols; c++) {
+  // ความกว้าง/สีของทุกคอลัมน์ที่ไฟล์กำหนดไว้ (รวมคอลัมน์ว่างในพื้นที่พิมพ์ — ไม่งั้นหน้ากระดาษเลื่อน)
+  const definedCols = Math.min(256, Math.max(nCols, (src.columns ?? []).length));
+  for (let c = 1; c <= definedCols; c++) {
     const sc = src.getColumn(c);
     const dc = ws.getColumn(c);
     if (sc.width) dc.width = sc.width;
     if (sc.hidden) dc.hidden = true;
+    if (sc.outlineLevel) dc.outlineLevel = sc.outlineLevel;
+    const st = clone(sc.style);
+    if (st && Object.keys(st).length) dc.style = st; // สี/ฟอนต์ทั้งคอลัมน์
   }
-  const { dataRow, footerRow } = layout;
-  const span = footerRow - dataRow;
-  const n = o.keepData ? span : o.rows;
-  const delta = n - span;
   const isSlave = (r, c) => grid.merges.some((m) => r >= m.top && r <= m.bottom && c >= m.left && c <= m.right && (r !== m.top || c !== m.left));
   const copyRow = (sr, dr, values) => {
+    // แถวที่ไม่มีในไฟล์ต้นฉบับ (ใช้ความสูงตั้งต้นของชีต) — ไม่สร้าง ไม่งั้น Excel จะปรับความสูงเอง
+    if (!src.findRow(sr)) return;
     const s = src.getRow(sr);
     const d = ws.getRow(dr);
     if (s.height) d.height = s.height;
+    if (s.hidden) d.hidden = true;
+    if (s.outlineLevel) d.outlineLevel = s.outlineLevel;
     for (let c = 1; c <= nCols; c++) {
       const sc = s.getCell(c);
       const dc = d.getCell(c);
       dc.style = clone(sc.style) ?? {};
-      if (values && !isSlave(sr, c) && sc.value !== null && sc.value !== undefined) dc.value = structuredClone(plainValue(sc.value)); // structuredClone คง Date ไว้ (JSON จะกลายเป็นข้อความ)
+      if (sc.dataValidation) dc.dataValidation = clone(sc.dataValidation);
+      if (!values) continue;
+      if (!isSlave(sr, c) && sc.value !== null && sc.value !== undefined) dc.value = structuredClone(plainValue(sc.value)); // structuredClone คง Date ไว้ (JSON จะกลายเป็นข้อความ)
+      if (sc.note) dc.note = clone(sc.note);
     }
   };
   for (let r = 1; r < dataRow; r++) copyRow(r, r, true);
@@ -171,11 +284,13 @@ function writeSheet(out, src, name, layout, o) {
     o.fill?.(ws, dataRow + i, i);
   }
   for (let r = footerRow; r <= used.rows; r++) copyRow(r, r + delta, true);
+  // merge โดยไม่ทับรูปแบบของเซลล์ในช่วง (mergeCells จะใช้รูปแบบของเซลล์มุมบนซ้ายทั้งช่วง → เส้นขอบล่าง/ขวาหาย)
+  const merge = (ws.mergeCellsWithoutStyle ?? ws.mergeCells).bind(ws);
   // merge: หัว/บนคงที่ · ส่วนท้ายเลื่อนตาม · ในพื้นที่ข้อมูลใช้ merge ของแถวต้นแบบซ้ำทุกแถว
   for (const m of grid.merges) {
-    if (m.bottom < dataRow) ws.mergeCells(m.top, m.left, m.bottom, m.right);
-    else if (m.top >= footerRow) ws.mergeCells(m.top + delta, m.left, m.bottom + delta, m.right);
-    else if (m.top === dataRow && m.bottom === dataRow) for (let i = 0; i < n; i++) ws.mergeCells(dataRow + i, m.left, dataRow + i, m.right);
+    if (m.bottom < dataRow) merge(m.top, m.left, m.bottom, m.right);
+    else if (m.top >= footerRow) merge(m.top + delta, m.left, m.bottom + delta, m.right);
+    else if (m.top === dataRow && m.bottom === dataRow) for (let i = 0; i < n; i++) merge(dataRow + i, m.left, dataRow + i, m.right);
   }
   // เซลล์ที่ระบบเติม / ล้าง (ตำแหน่งในส่วนท้ายเลื่อนตาม)
   const at = (a) => {
@@ -190,8 +305,32 @@ function writeSheet(out, src, name, layout, o) {
     const c = at(a);
     if (c) c.value = v === '' ? null : v;
   }
+  // ไฮไลต์ตามเงื่อนไข (conditional formatting) — ช่วงในส่วนท้ายเลื่อนตาม · ช่วงแถวข้อมูลขยายตามจำนวนคน
+  for (const cf of src.conditionalFormattings ?? []) {
+    const ref = String(cf.ref ?? '')
+      .split(/s+/)
+      .map((x) => shiftRange(x, rowOf, dataRow, footerRow, n))
+      .filter(Boolean)
+      .join(' ');
+    if (ref) ws.addConditionalFormatting({ ref, rules: clone(cf.rules) });
+  }
   if (o.decorate) decorate(ws, { ...layout, nCols, delta });
-  return ws;
+  return { ws, src: src.name, out: ws.name, row: rowOf };
+}
+
+/** ช่วงเซลล์ (A1:N40) ในไฟล์ใหม่ — ส่วนท้ายเลื่อน delta · ช่วงที่ครอบแถวข้อมูลขยาย/หดตามจำนวนแถว */
+function shiftRange(ref, rowOf, dataRow, footerRow, n) {
+  if (!ref) return ref;
+  const [a, b = a] = String(ref).replace(/$/g, '').split(':');
+  const p = parseAddr(a);
+  const q = parseAddr(b);
+  if (!p || !q) return ref;
+  let top = rowOf(p.r);
+  let bottom = rowOf(q.r);
+  if (p.r >= dataRow && p.r < footerRow) top = dataRow;
+  if (q.r >= dataRow && q.r < footerRow) bottom = dataRow + Math.max(0, n - 1);
+  if (bottom < top) return null;
+  return `${addr(top, p.c)}:${addr(bottom, q.c)}`;
 }
 
 /** ไฟล์ที่แปลงจาก .xls มักไม่มีเส้นขอบ — ใส่ให้หัวตาราง + แถวข้อมูลต้นแบบ */
@@ -231,15 +370,23 @@ export async function sanitizeTemplate(buffer, t, { converted = false } = {}) {
   await src.xlsx.load(buffer);
   const out = new ExcelJS.Workbook();
   out.creator = 'HL Welfare';
+  const parts = [];
   const one = (sheetName, layout) => {
     const ws = src.getWorksheet(sheetName);
     if (!ws) throw new Error(`ไม่พบชีต “${sheetName}” ในไฟล์`);
     // เหลือแถวข้อมูลต้นแบบ 1 แถว (ว่าง) — แถวตัวอย่างอื่นตัดทิ้ง
-    writeSheet(out, ws, sheetName, layout, { rows: 1, blank: new Set(Object.keys(layout.cells ?? {})), decorate: converted });
+    // เซลล์ที่ระบบเติม: เหลือเฉพาะป้าย (เช่น "เลขที่กรมธรรม์ : ชีวิตกลุ่ม") — ค่าเดิมในไฟล์ล้างออก
+    const labels = {};
+    for (const [a, text] of Object.entries(layout.cells ?? {})) {
+      const label = String(text).replace(/\{\w+\}/g, '').replace(/\s+$/, '');
+      labels[a] = /[ก-๙a-z]/i.test(label) ? label : '';
+    }
+    parts.push(writeSheet(out, ws, sheetName, layout, { rows: 1, cells: labels, decorate: converted }));
   };
   if (t.summary) one(t.summary.sheet, t.summary);
   one(t.sheet, t);
-  return out.xlsx.writeBuffer();
+  // รูปภาพ / กล่องข้อความ / ธีมสี / ฟอนต์ตั้งต้น จากไฟล์ต้นฉบับ
+  return carryParts(buffer, await out.xlsx.writeBuffer(), parts);
 }
 
 /** หลังล้าง: แถวข้อมูลเหลือ 1 แถว → ส่วนท้ายเลื่อนขึ้นมา (ตำแหน่งเซลล์ที่ระบบเติมในส่วนท้ายก็เลื่อนตาม) */
@@ -313,6 +460,7 @@ export async function fillTemplate(buffer, data, { exportDate }) {
     signerPhone: form.signer?.phone ?? '',
   };
   const companies = data.companies;
+  const parts = [];
   const used = new Set();
   const sheetNameOf = (vars, fallback) => {
     let name = fillPlaceholders(form.sheetName || '{companyCode}', vars).replace(/[\\/?*[\]:]/g, '-').slice(0, 31) || fallback;
@@ -325,7 +473,7 @@ export async function fillTemplate(buffer, data, { exportDate }) {
     const ws = src.getWorksheet(t.summary.sheet);
     const sum = (k) => companies.reduce((a, c) => a + c[k].length, 0);
     const vars = { ...base, in: sum('in'), out: sum('out'), total: sum('in') + sum('out'), companyName: '', companyCode: '', policyNo: '' };
-    writeSheet(out, ws, sheetNameOf({ ...vars, companyCode: ws.name }, ws.name), t.summary, {
+    parts.push(writeSheet(out, ws, sheetNameOf({ ...vars, companyCode: ws.name }, ws.name), t.summary, {
       rows: companies.length,
       cells: resolveCells(t.summary.cells, vars),
       fill: (sheet, r, i) => {
@@ -334,7 +482,7 @@ export async function fillTemplate(buffer, data, { exportDate }) {
           if (v !== null) sheet.getCell(r, col.col).value = v;
         }
       },
-    });
+    }));
   }
 
   const tpl = src.getWorksheet(t.sheet);
@@ -351,7 +499,7 @@ export async function fillTemplate(buffer, data, { exportDate }) {
       out: company.out.length,
       total: rows.length,
     };
-    writeSheet(out, tpl, sheetNameOf(vars, company.companyCode), t, {
+    parts.push(writeSheet(out, tpl, sheetNameOf(vars, company.companyCode), t, {
       rows: rows.length,
       cells: resolveCells(t.cells, vars),
       fill: (sheet, r, i) => {
@@ -362,10 +510,10 @@ export async function fillTemplate(buffer, data, { exportDate }) {
           cell.value = v === '' ? null : symbolGlyph(cell, v);
         }
       },
-    });
+    }));
   }
   if (!out.worksheets.length) throw new Error('ไม่มีชีตให้สร้าง — ไม่มีบริษัทที่ผูกกับบริษัทประกันนี้');
-  return out.xlsx.writeBuffer();
+  return carryParts(buffer, await out.xlsx.writeBuffer(), parts);
 }
 
 /** grid ของทุกชีตในไฟล์ (ใช้แสดงตัวอย่างไฟล์ที่สร้างแล้ว) */
@@ -373,7 +521,18 @@ export async function gridsOf(buffer) {
   const ExcelJS = await loadExcelJs();
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
-  return wb.worksheets.map((ws) => ({ name: ws.name, grid: gridFromWorksheet(ws) }));
+  return withParts(buffer, wb.worksheets);
+}
+
+/** grid ของชีต + รูปภาพ/กล่องข้อความ + จานสีของไฟล์ (สำหรับแสดงตัวอย่าง) */
+async function withParts(buffer, worksheets) {
+  const parts = await partsOf(buffer).catch(() => ({ drawings: {}, indexed: null }));
+  return worksheets.map((ws) => {
+    const grid = gridFromWorksheet(ws);
+    grid.drawings = parts.drawings[ws.name] ?? [];
+    grid.indexed = parts.indexed;
+    return { name: ws.name, grid };
+  });
 }
 
 export { addr, parseAddr, pad };

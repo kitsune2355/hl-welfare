@@ -4431,17 +4431,45 @@ html:has(.form-footer),
   overflow: hidden;
 }
 .sp-td {
-  height: 20px;
-  border: 1px solid #edf0f3;
-  vertical-align: middle;
+  border: 1px solid #edf0f3; /* เส้นตารางจาง ๆ แบบ Excel — เส้นขอบจริงของไฟล์ใส่เป็น inline style */
+  vertical-align: bottom;
   white-space: pre;
+}
+.sp-clip {
+  overflow: hidden;
+}
+.sp-td.hid,
+.sp th.hid {
+  padding: 0;
+  background: repeating-linear-gradient(135deg, #f4f4f5 0 3px, #e4e4e7 3px 5px) !important;
+}
+/* รูปภาพ / กล่องข้อความ / รูปทรงในไฟล์ — วางทับตาราง (ui/sheetPreview.js → placeDrawings) */
+.sp-canvas {
+  position: relative;
+  width: max-content;
+}
+.sp-dr {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+.sp-dr.pic {
+  object-fit: fill;
+}
+.sp-dr.shape {
+  overflow: hidden;
+  padding: 2px 6px;
+  border: 1px solid #333;
+  font-family: Tahoma, var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  white-space: pre-wrap;
 }
 .sp-td.wr {
   white-space: normal;
   line-height: 1.25;
-}
-.sp-td.bd {
-  border-color: #8b95a1;
 }
 .sp-td.b {
   font-weight: 700;
