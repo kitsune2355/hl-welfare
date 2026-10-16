@@ -1,35 +1,33 @@
 import { useCallback, useState } from 'react';
 
-export type ThemePref = 'light' | 'dark' | 'system';
+export type Theme = 'light' | 'dark';
 const KEY = 'hl-theme';
 
-function read(): ThemePref {
+/** ค่าเริ่มต้นเป็นโทนสว่างเสมอ — โหมดมืดเปิดเมื่อผู้ใช้กดเลือกเท่านั้น */
+function read(): Theme {
   try {
-    const v = localStorage.getItem(KEY);
-    return v === 'light' || v === 'dark' ? v : 'system';
+    return localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light';
   } catch {
-    return 'system';
+    return 'light';
   }
 }
 
 export function useTheme() {
-  const [pref, setPref] = useState<ThemePref>(read);
+  const [theme, setTheme] = useState<Theme>(read);
 
-  const set = useCallback((p: ThemePref) => {
-    setPref(p);
+  const set = useCallback((t: Theme) => {
+    setTheme(t);
     const root = document.documentElement;
-    if (p === 'system') delete root.dataset.theme;
-    else root.dataset.theme = p;
+    if (t === 'dark') root.dataset.theme = 'dark';
+    else delete root.dataset.theme;
     try {
-      if (p === 'system') localStorage.removeItem(KEY);
-      else localStorage.setItem(KEY, p);
+      if (t === 'dark') localStorage.setItem(KEY, 'dark');
+      else localStorage.removeItem(KEY);
     } catch {
       /* ignore */
     }
   }, []);
 
-  const isDark =
-    pref === 'dark' || (pref === 'system' && typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches);
-
-  return { pref, isDark, set, toggle: () => set(isDark ? 'light' : 'dark') };
+  const isDark = theme === 'dark';
+  return { theme, isDark, set, toggle: () => set(isDark ? 'light' : 'dark') };
 }

@@ -115,7 +115,7 @@ export function InsurancePage() {
         description="สร้างรายการแจ้งเข้า/ออกทุกวันที่ 5 ของเดือน และแจ้งออกทันทีกรณีเลิกจ้าง"
         actions={
           <>
-            <Select aria-label="เลือกรอบ" value={cycle} onChange={(e) => setParams({ cycle: e.target.value }, { replace: true })} className="w-52">
+            <Select aria-label="เลือกรอบ" value={cycle} onChange={(e) => setParams({ cycle: e.target.value }, { replace: true })} className="w-full sm:w-52">
               {cycleOptions.map((c) => (
                 <option key={c} value={c}>
                   รอบ {thaiDate(c)}
@@ -174,14 +174,16 @@ export function InsurancePage() {
                     rowKey={(r) => r.employee.id}
                     onRowClick={(r) => !r.submitted && toggle(s.type, r.employee.id)}
                     rowClassName={(r) => (sel.has(r.employee.id) ? 'bg-primary-soft/50' : undefined)}
+                    pageSize={25}
                     columns={[
                       {
                         key: 'chk',
                         header: <Checkbox label="เลือกทั้งหมด" checked={allSel} indeterminate={!allSel && sel.size > 0} disabled={!open.length} onChange={() => toggleAll(s.type)} />,
                         className: 'w-10',
+                        mobile: 'lead',
                         cell: (r) => <Checkbox label={`เลือก ${r.employee.empCode}`} checked={r.submitted || sel.has(r.employee.id)} disabled={r.submitted} onChange={() => toggle(s.type, r.employee.id)} />,
                       },
-                      { key: 'emp', header: 'พนักงาน', cell: (r) => <EmployeeCell e={r.employee} link /> },
+                      { key: 'emp', header: 'พนักงาน', mobile: 'title', cell: (r) => <EmployeeCell e={r.employee} link /> },
                       { key: 'co', header: 'บริษัท', hideOnMobile: true, cell: (r) => `${r.employee.companyCode} · ${EMPLOYEE_TYPE_LABEL[r.employee.employeeType]}` },
                       { key: 'reason', header: 'เหตุผล', cell: (r) => <span className="text-muted">{r.reason}</span> },
                       { key: 'date', header: 'วันมีผล', cell: (r) => <span className="num">{thaiDate(r.effectiveDate)}</span> },
@@ -189,6 +191,7 @@ export function InsurancePage() {
                         key: 'st',
                         header: 'สถานะ',
                         align: 'right',
+                        mobile: 'aside',
                         cell: (r) =>
                           r.submitted ? (
                             <Badge tone="success">
@@ -210,7 +213,8 @@ export function InsurancePage() {
           <Card title="ประวัติการส่งแจ้ง" icon={<History />} padded={false}>
             <Table
               loading={batches.loading}
-              rows={batches.data?.slice(0, 12)}
+              rows={batches.data}
+              pageSize={10}
               rowKey={(b) => b.id}
               columns={[
                 { key: 'id', header: '#', cell: (b) => <span className="num text-muted">{b.id}</span> },

@@ -25,6 +25,8 @@ export interface MockDb {
 }
 
 const SYSTEM_USER = 'ระบบ (ข้อมูลตั้งต้น)';
+/** จำนวนพนักงานสุ่ม — ตั้งให้มากพอทดสอบการแบ่งหน้า */
+const RANDOM_EMPLOYEES = 240;
 
 /** PRNG แบบ deterministic (mulberry32) → seed เหมือนเดิมทุกครั้ง */
 function prng(seed: number) {
@@ -113,7 +115,7 @@ export function buildSeed(today: ISODate): MockDb {
   ];
 
   const random: Draft[] = [];
-  for (let i = 0; i < 42; i++) {
+  for (let i = 0; i < RANDOM_EMPLOYEES; i++) {
     const roll = rnd.next();
     const startDays = rnd.int(150, 2600);
     const inactive = rnd.next() < 0.12;

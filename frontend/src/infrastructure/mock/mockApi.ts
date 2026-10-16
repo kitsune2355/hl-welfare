@@ -15,7 +15,7 @@ import { pvdStatus } from '../../domain/pvd';
 import type { Employee, EmployeeFilter, ISODate, PvdRow, Site } from '../../domain/types';
 import { buildSeed, type MockDb } from './seed';
 
-const STORAGE_KEY = 'hl-welfare-mock-v1';
+const STORAGE_KEY = 'hl-welfare-mock-v2'; // v2: seed ใหญ่ขึ้น (ทดสอบ pagination)
 const LATENCY_MS = 150;
 const CURRENT_USER = 'HR (mock)';
 

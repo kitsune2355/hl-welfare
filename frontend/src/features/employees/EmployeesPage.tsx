@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useApi } from '../../app/ApiContext';
 import type { CompanyCode, EmployeeFilter, EmployeeStatus, EmployeeType } from '../../domain/types';
-import { thaiDate, int } from '../../shared/format';
+import { thaiDate } from '../../shared/format';
 import { useAsync } from '../../shared/hooks/useAsync';
 import {
   COMPANY_CODES,
@@ -41,10 +41,12 @@ export function EmployeesPage() {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);
     else next.delete(key);
+    if (key !== 'page') next.delete('page'); // เปลี่ยนตัวกรอง → กลับหน้าแรก
     setParams(next, { replace: true });
   };
 
-  const key = params.toString();
+  const page = Math.max(1, Number(params.get('page')) || 1);
+  const key = [filter.q, filter.companyCode, filter.employeeType, filter.status].join('|');
   const employees = useAsync(() => api.listEmployees(filter), [api, key]);
   const sites = useAsync(() => api.listSites(), [api]);
   const siteName = useMemo(() => new Map(sites.data?.map((s) => [s.id, s.name])), [sites.data]);
@@ -63,18 +65,18 @@ export function EmployeesPage() {
       />
 
       <Card padded={false}>
-        <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
-          <div className="relative min-w-56 flex-1">
+        <div className="grid grid-cols-2 gap-3 border-b border-border p-4 sm:flex sm:flex-wrap sm:items-center">
+          <div className="relative col-span-2 sm:min-w-56 sm:flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ค้นหารหัส หรือ ชื่อ-สกุล" aria-label="ค้นหา" className="pl-9" />
           </div>
-          <Select aria-label="บริษัท" value={filter.companyCode} onChange={(e) => update('company', e.target.value)} className="w-36">
+          <Select aria-label="บริษัท" value={filter.companyCode} onChange={(e) => update('company', e.target.value)} className="sm:w-36">
             <option value="">ทุกบริษัท</option>
             {COMPANY_CODES.map((c) => (
               <option key={c}>{c}</option>
             ))}
           </Select>
-          <Select aria-label="ประเภท" value={filter.employeeType} onChange={(e) => update('type', e.target.value)} className="w-40">
+          <Select aria-label="ประเภท" value={filter.employeeType} onChange={(e) => update('type', e.target.value)} className="sm:w-40">
             <option value="">ทุกประเภท</option>
             {Object.entries(EMPLOYEE_TYPE_LABEL).map(([v, l]) => (
               <option key={v} value={v}>
@@ -82,7 +84,7 @@ export function EmployeesPage() {
               </option>
             ))}
           </Select>
-          <Select aria-label="สถานะ" value={filter.status} onChange={(e) => update('status', e.target.value)} className="w-36">
+          <Select aria-label="สถานะ" value={filter.status} onChange={(e) => update('status', e.target.value)} className="sm:w-36">
             <option value="">ทุกสถานะ</option>
             {Object.entries(STATUS_LABEL).map(([v, l]) => (
               <option key={v} value={v}>
@@ -91,7 +93,7 @@ export function EmployeesPage() {
             ))}
           </Select>
           {hasFilter && (
-            <Button variant="ghost" size="md" icon={<FilterX />} onClick={() => (setQ(''), setParams({}, { replace: true }))}>
+            <Button variant="ghost" size="md" className="max-sm:col-span-2 max-sm:border max-sm:border-border" icon={<FilterX />} onClick={() => (setQ(''), setParams({}, { replace: true }))}>
               ล้างตัวกรอง
             </Button>
           )}
@@ -108,6 +110,9 @@ export function EmployeesPage() {
               rows={employees.data}
               rowKey={(e) => e.id}
               onRowClick={(e) => nav(`/employees/${e.id}`)}
+              pageSize={25}
+              page={page}
+              onPageChange={(p) => (update('page', p > 1 ? String(p) : ''), window.scrollTo({ top: 0, behavior: 'smooth' }))}
               columns={[
                 { key: 'name', header: 'พนักงาน', cell: (e) => <EmployeeCell e={e} /> },
                 {
@@ -123,7 +128,7 @@ export function EmployeesPage() {
                 { key: 'type', header: 'ประเภท', cell: (e) => <Badge tone={EMPLOYEE_TYPE_TONE[e.employeeType]} dot={false}>{EMPLOYEE_TYPE_LABEL[e.employeeType]}</Badge> },
                 { key: 'role', header: 'ฝ่าย / ตำแหน่ง', hideOnMobile: true, cell: (e) => <span className="text-muted">{e.deptGroup ? `${e.deptGroup} · ระดับ ${e.level}` : (e.position ?? '–')}</span> },
                 { key: 'start', header: 'เริ่มงาน', hideOnMobile: true, cell: (e) => <span className="num">{thaiDate(e.startDate)}</span> },
-                { key: 'status', header: 'สถานะ', cell: (e) => <Badge tone={STATUS_TONE[e.status]}>{STATUS_LABEL[e.status]}</Badge> },
+                { key: 'status', header: 'สถานะ', mobile: 'aside', cell: (e) => <Badge tone={STATUS_TONE[e.status]}>{STATUS_LABEL[e.status]}</Badge> },
               ]}
               empty={
                 <EmptyState
@@ -134,9 +139,6 @@ export function EmployeesPage() {
                 />
               }
             />
-            {employees.data && employees.data.length > 0 && (
-              <div className="border-t border-border px-4 py-3 text-xs text-muted">แสดง {int(employees.data.length)} รายการ</div>
-            )}
           </>
         )}
       </Card>

@@ -2,10 +2,10 @@
 
 /* ===== Design tokens (สเปกข้อ 10.2) ===== */
 :root {
-  --bg: #f6f7fb;
+  --bg: #f7f8fc;
   --surface: #ffffff;
-  --surface-2: #f1f3f9;
-  --border: #e4e7ef;
+  --surface-2: #f3f5fa;
+  --border: #e6e9f0;
   --fg: #0f172a;
   --muted: #64748b;
   --primary: #4f46e5;
@@ -23,30 +23,7 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #0b0d14;
-    --surface: #131722;
-    --surface-2: #1a1f2e;
-    --border: #262c3d;
-    --fg: #e6e9f2;
-    --muted: #8b93a7;
-    --primary: #818cf8;
-    --primary-fg: #0b0d14;
-    --primary-soft: #1e1b4b;
-    --success: #34d399;
-    --success-soft: #052e1f;
-    --warning: #fbbf24;
-    --warning-soft: #2d1f05;
-    --danger: #f87171;
-    --danger-soft: #2d0a0a;
-    --info: #38bdf8;
-    --info-soft: #04202f;
-    --ring: rgb(129 140 248 / 0.45);
-    color-scheme: dark;
-  }
-}
-
+/* ค่าเริ่มต้น = โทนสว่าง · โหมดมืดเปิดเฉพาะเมื่อผู้ใช้เลือก (data-theme="dark") */
 :root[data-theme='dark'] {
   --bg: #0b0d14;
   --surface: #131722;

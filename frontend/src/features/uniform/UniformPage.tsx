@@ -78,6 +78,7 @@ export function UniformPage() {
             <Table
               loading={pending.loading}
               rows={pending.data}
+              pageSize={25}
               rowKey={(r) => `${r.employee.id}-${r.entitlementKey}`}
               columns={[
                 { key: 'emp', header: 'พนักงาน', cell: (r) => <EmployeeCell e={r.employee} link /> },
@@ -144,13 +145,14 @@ export function UniformPage() {
           <Table
             loading={issues.loading || employees.loading}
             rows={issues.data && employees.data ? issues.data : undefined}
+            pageSize={25}
             rowKey={(i) => i.id}
             columns={[
-              { key: 'date', header: 'วันที่แจก', cell: (i) => <span className="num">{thaiDate(i.issuedAt)}</span> },
-              { key: 'emp', header: 'พนักงาน', cell: (i) => (empById.get(i.employeeId) ? <EmployeeCell e={empById.get(i.employeeId)!} link /> : `#${i.employeeId}`) },
+              { key: 'date', header: 'วันที่แจก', mobile: 'field', cell: (i) => <span className="num">{thaiDate(i.issuedAt)}</span> },
+              { key: 'emp', header: 'พนักงาน', mobile: 'title', cell: (i) => (empById.get(i.employeeId) ? <EmployeeCell e={empById.get(i.employeeId)!} link /> : `#${i.employeeId}`) },
               { key: 'ev', header: 'รอบ', cell: (i) => UNIFORM_EVENT_LABEL[i.event] + (i.event === 'ANNUAL' ? ` ${Number(i.entitlementKey.slice(7)) + 543}` : '') },
               { key: 'qty', header: 'จำนวน', align: 'right', cell: (i) => <span className="num">{i.qty} ตัว</span> },
-              { key: 'size', header: 'ไซซ์', align: 'center', cell: (i) => <Badge tone="primary" dot={false}>{i.size}</Badge> },
+              { key: 'size', header: 'ไซซ์', align: 'center', mobile: 'aside', cell: (i) => <Badge tone="primary" dot={false}>{i.size}</Badge> },
               { key: 'by', header: 'บันทึกโดย', hideOnMobile: true, cell: (i) => <span className="flex items-center gap-1.5 text-muted"><Check className="size-3.5 text-success" />{i.issuedBy}</span> },
             ]}
             empty={<EmptyState icon={<History />} title="ยังไม่มีประวัติการแจก" />}

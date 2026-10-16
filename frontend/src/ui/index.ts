@@ -7,4 +7,5 @@ export { Avatar, InfoList, PageHeader, Progress, Switch, Tabs } from './Misc';
 export { Modal, ToastProvider, useToast } from './Overlay';
 export { Skeleton } from './Skeleton';
 export { StatCard } from './StatCard';
+export { PAGE_SIZES, Pagination } from './Pagination';
 export { Table, type Column } from './Table';

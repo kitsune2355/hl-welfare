@@ -194,11 +194,13 @@ hl-welfare/
 │       │   ├── cn.ts              ← รวม className
 │       │   └── hooks/
 │       │       ├── useAsync.ts    ← { data, error, loading, reload }
-│       │       └── useTheme.ts    ← light / dark / system
+│       │       └── useTheme.ts    ← light (ค่าเริ่มต้น) / dark
 │       │
 │       ├── ui/                    ← ⑤ Design system (ไม่รู้จัก domain)
 │       │   ├── Button.tsx         ← Button, ButtonLink, IconButton
-│       │   ├── Card.tsx  Badge.tsx  StatCard.tsx  Table.tsx  Skeleton.tsx
+│       │   ├── Card.tsx  Badge.tsx  StatCard.tsx  Skeleton.tsx
+│       │   ├── Table.tsx          ← ตาราง (desktop) / การ์ด (มือถือ) + แบ่งหน้า
+│       │   ├── Pagination.tsx
 │       │   ├── Field.tsx          ← Field, Input, Select, TextField, SelectField
 │       │   ├── Feedback.tsx       ← Alert, EmptyState, ErrorState
 │       │   ├── Overlay.tsx        ← Modal (focus trap), ToastProvider/useToast
@@ -785,7 +787,7 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 
 ## 9. Mock API
 
-- `MockApi implements WelfareApi` เก็บข้อมูลใน memory + `localStorage` (key `hl-welfare-mock-v1`) ห่อ try/catch ทุกครั้ง
+- `MockApi implements WelfareApi` เก็บข้อมูลใน memory + `localStorage` (key `hl-welfare-mock-v2`) ห่อ try/catch ทุกครั้ง
 - ใส่ latency จำลอง ~150ms และคืนค่าด้วย `structuredClone` (กันหน้าจอแก้ object ใน db ตรงๆ)
 - ใช้ `domain/*` + `application/usecases/*` คำนวณสิทธิ → พฤติกรรมเหมือน PHP
 - error ใช้ `ApiError(message, status)` ตัวเดียวกับ HttpApi → หน้าจอจัดการ error แบบเดียว
@@ -807,7 +809,7 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 | 10 | AS | สำนักงาน AS | ✅ | ดำ |
 | 11 | AS | ไซต์ก่อสร้าง AS | ✅ | ดำ |
 
-**Edge cases ที่ seed ต้องมี** (+ พนักงานสุ่มอีก ~40 คน)
+**Edge cases ที่ seed ต้องมี** (+ พนักงานสุ่มอีก ~240 คน เพื่อทดสอบการแบ่งหน้า)
 | กรณี | ผลที่คาด |
 |---|---|
 | ส่วนกลาง HL เริ่มงาน 12 วันก่อน | ยังไม่ครบ 30 วัน → อยู่ใน "จะครบสิทธิใน 30 วัน" |
@@ -849,10 +851,10 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 
 | Token | Light | Dark | ใช้กับ |
 |---|---|---|---|
-| `--bg` | `#f6f7fb` | `#0b0d14` | พื้นหลังหน้า |
+| `--bg` | `#f7f8fc` | `#0b0d14` | พื้นหลังหน้า |
 | `--surface` | `#ffffff` | `#131722` | การ์ด, ตาราง, sidebar |
-| `--surface-2` | `#f1f3f9` | `#1a1f2e` | hover, header ตาราง, input |
-| `--border` | `#e4e7ef` | `#262c3d` | เส้นขอบ |
+| `--surface-2` | `#f3f5fa` | `#1a1f2e` | hover, header ตาราง, input |
+| `--border` | `#e6e9f0` | `#262c3d` | เส้นขอบ |
 | `--fg` | `#0f172a` | `#e6e9f2` | ตัวอักษรหลัก |
 | `--muted` | `#64748b` | `#8b93a7` | ตัวอักษรรอง |
 | `--primary` | `#4f46e5` | `#818cf8` | ปุ่มหลัก, ลิงก์, เมนูที่เลือก |
@@ -870,7 +872,7 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 | Radius | 8px (input, ปุ่ม) · 12px (การ์ด) · 9999px (badge, avatar) |
 | Shadow | การ์ด: `0 1px 2px rgb(0 0 0 / .04)` + เส้นขอบ · Modal: `0 20px 50px rgb(0 0 0 / .2)` |
 | Motion | 150ms ease-out (hover/focus) · 200ms (modal/toast) · ปิดเมื่อ `prefers-reduced-motion` |
-| ธีม | `light` / `dark` / `system` เก็บใน `localStorage` (`hl-theme`) ใส่ `data-theme` ที่ `<html>` |
+| ธีม | **ค่าเริ่มต้น = โทนสว่าง** (ไม่ตาม dark mode ของระบบ) · ผู้ใช้กดสลับเป็นโหมดมืดได้ที่ Topbar → เก็บใน `localStorage` (`hl-theme`) ใส่ `data-theme="dark"` ที่ `<html>` |
 
 ### 10.3 Components (`src/ui/`)
 | Component | Variant / Props สำคัญ | หมายเหตุ |
@@ -879,7 +881,8 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 | `Card` | `title`, `description`, `actions`, `padded` | หัวการ์ดมีเส้นคั่นบาง |
 | `Badge` | `tone: success/warning/danger/info/neutral/primary`, `dot` | ข้อความสั้น ≤ 3 คำ |
 | `StatCard` | `label`, `value`, `hint`, `icon`, `tone`, `to` | คลิกได้ → ไปหน้าที่เกี่ยวข้อง |
-| `Table` | `columns`, `rows`, `rowKey`, `onRowClick`, `empty`, `loading` | header sticky, hover แถว, เลื่อนแนวนอนบนมือถือ |
+| `Table` | `columns`, `rows`, `rowKey`, `onRowClick`, `empty`, `loading`, `pageSize`, `page`/`onPageChange` | ≥768px = ตาราง · <768px = **การ์ดรายแถว** (คอลัมน์กำหนดตำแหน่งด้วย `mobile: lead/title/aside/field/footer`) · ใส่ `pageSize` = แบ่งหน้าอัตโนมัติ |
+| `Pagination` | `page`, `pageSize`, `total`, `onPageChange`, `onPageSizeChange` | "แสดง 1–25 จาก 248" · เลือก 10/25/50/100 ต่อหน้า · เลขหน้าแบบย่อ `1 … 4 5 6 … 20` · มือถือแสดง "หน้า x / y" |
 | `Input` / `Select` / `Field` | `label`, `hint`, `error`, `required` | error ใต้ช่อง สีแดง + `aria-invalid` |
 | `Switch` | `checked`, `onChange`, `label` | ใช้ในหน้าหน่วยงาน |
 | `Tabs` | `items`, `value`, `onChange` (sync กับ URL) | underline indicator |
@@ -921,7 +924,17 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 - ชื่อพนักงานในตาราง = Avatar + ชื่อ-สกุล + รหัส (บรรทัดรอง สีเทา)
 - Badge มาตรฐาน: เขียว=มีสิทธิ/ส่งแล้ว/แจกแล้ว · เหลือง=รอส่ง/แจ้งออก/ใกล้ครบ · แดง=ไม่มีสิทธิ/แจ้งทันที · ฟ้า=รอครบสิทธิ · เทา=พ้นสภาพ
 - ตัวเลขชิดขวา + `tabular-nums`
-- Responsive: ≥1280 4 คอลัมน์ Stat · 768–1279 2 คอลัมน์ · <768 1 คอลัมน์, ตารางเลื่อนแนวนอนในการ์ด
+- Responsive: ≥1280 4 คอลัมน์ Stat · 640–1279 2 คอลัมน์ · <640 1 คอลัมน์ · ตาราง <768px เปลี่ยนเป็นการ์ดรายแถว · ตัวกรองบนมือถือเรียง 2 คอลัมน์ ช่องค้นหาเต็มแถว · sidebar <1024px เป็น drawer
+
+### 10.7 การแบ่งหน้า (ข้อมูลเยอะ)
+| หน้า | ต่อหน้า | หมายเหตุ |
+|---|---|---|
+| พนักงาน | 25 | เลขหน้าเก็บใน URL (`?page=`) · เปลี่ยนตัวกรอง → กลับหน้า 1 |
+| ประกันกลุ่ม (แต่ละ section) | 25 | ประวัติ batch 10 |
+| PVD / ชุดฟอร์ม (ค้างแจก, ประวัติ) | 25 | แท็บใหม่ → เริ่มหน้า 1 |
+| ภาพรวม: จะครบสิทธิใน 30 วัน | 10 | |
+
+- เฟส 1 แบ่งหน้าฝั่ง client (ข้อมูลหลักร้อยแถว) · ถ้าข้อมูลเกิน ~2,000 แถว ให้ย้ายไปแบ่งหน้าฝั่ง server ในเฟส 2: `GET /api/employees?page=1&pageSize=25` → `{ "data": [...], "meta": { "page": 1, "pageSize": 25, "total": 2480 } }` (เพิ่มเป็น method ใหม่ใน port โดยไม่ต้องแก้ `Table` — ใช้ `page`/`onPageChange` แบบ controlled)
 
 ### 10.6 Accessibility
 - Contrast ≥ WCAG AA (4.5:1 ตัวอักษร) ทั้งสองธีม

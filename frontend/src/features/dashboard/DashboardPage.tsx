@@ -112,12 +112,14 @@ export function DashboardPage() {
           <Table
             loading={loading}
             rows={data?.upcomingEligible}
+            pageSize={10}
             rowKey={(r) => `${r.employee.id}-${r.benefit}`}
             columns={[
               { key: 'emp', header: 'พนักงาน', cell: (r) => <EmployeeCell e={r.employee} link /> },
               {
                 key: 'benefit',
                 header: 'สิทธิ',
+                mobile: 'aside',
                 cell: (r) =>
                   r.benefit === 'INSURANCE' ? (
                     <Badge tone="info">ประกันกลุ่ม</Badge>

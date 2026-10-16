@@ -83,6 +83,8 @@ export function PvdPage() {
           />
         </div>
         <Table
+          key={view}
+          pageSize={25}
           loading={rows.loading}
           rows={rows.data ? shown : undefined}
           rowKey={(r) => r.employee.id}
