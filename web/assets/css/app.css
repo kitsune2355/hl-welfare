@@ -2697,11 +2697,11 @@ input[type='radio'] {
 }
 
 @media (max-width: 767px) {
-  /* topbar: [โลโก้] [ค้นหา — กึ่งกลางพอดี] [ปุ่ม] — ซ้าย/ขวากว้างเท่ากัน */
+  /* topbar: [โลโก้][ค้นหา — ชิดโลโก้ ยืดเต็มที่เหลือ] [ปุ่ม] */
   .topbar {
     display: grid;
-    grid-template-columns: 84px minmax(0, 1fr) 84px;
-    gap: 8px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
     height: 56px;
     padding: 0 12px;
   }
