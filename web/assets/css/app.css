@@ -1207,14 +1207,6 @@ button.stat:hover {
   font-size: 12px;
   color: var(--muted);
 }
-.grid-toolbar .unsaved {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--warning);
-}
-.grid-toolbar .unsaved.error {
-  color: var(--danger);
-}
 @media (max-width: 767px) {
   .grid-toolbar .help {
     display: none;
@@ -1327,11 +1319,152 @@ button.stat:hover {
 .xgrid th.stick-right {
   z-index: 4;
 }
+/* สถานะการเปลี่ยนแปลงที่ยังไม่บันทึก: เพิ่ม = เขียว · แก้ไข = เหลือง · ลบ = แดงขีดฆ่า */
+:root {
+  --chg-add: #16a34a;
+  --chg-add-bg: #ecfdf3;
+  --chg-edit: #d97706;
+  --chg-edit-bg: #fffbeb;
+  --chg-del: #dc2626;
+  --chg-del-bg: #fef2f2;
+}
+:root[data-theme='dark'] {
+  --chg-add: #4ade80;
+  --chg-add-bg: #0c2a1a;
+  --chg-edit: #fbbf24;
+  --chg-edit-bg: #2d2107;
+  --chg-del: #f87171;
+  --chg-del-bg: #2d0f0f;
+}
 .xgrid tr.is-new td {
-  background: color-mix(in srgb, var(--primary-soft) 45%, var(--surface));
+  background: var(--chg-add-bg);
+}
+.xgrid tr.is-new td.stick-left {
+  box-shadow: inset 4px 0 0 var(--chg-add);
+}
+.xgrid tr.is-edited td {
+  background: var(--chg-edit-bg);
+}
+.xgrid tr.is-edited td.stick-left {
+  box-shadow: inset 4px 0 0 var(--chg-edit);
+}
+.xgrid tr.is-edited td.changed {
+  box-shadow: inset 3px 0 0 var(--chg-edit);
+  font-weight: 600;
+}
+.xgrid tr.is-deleted td {
+  background: var(--chg-del-bg);
+  color: var(--muted);
+}
+.xgrid tr.is-deleted td.stick-left {
+  box-shadow: inset 4px 0 0 var(--chg-del);
+}
+.xgrid tr.is-deleted td:not(.stick-left):not(.stick-right) .cell {
+  text-decoration: line-through;
+  text-decoration-color: var(--chg-del);
+  opacity: 0.75;
 }
 .xgrid tr.has-error td {
-  background: color-mix(in srgb, var(--danger-soft) 45%, var(--surface));
+  background: color-mix(in srgb, var(--danger-soft) 70%, var(--surface));
+}
+.chg-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.chg-tag.add {
+  background: var(--chg-add-bg);
+  color: var(--chg-add);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chg-add) 35%, transparent);
+}
+.chg-tag.edit {
+  background: var(--chg-edit-bg);
+  color: var(--chg-edit);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chg-edit) 35%, transparent);
+}
+.chg-tag.del {
+  background: var(--chg-del-bg);
+  color: var(--chg-del);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chg-del) 35%, transparent);
+}
+/* แถบ "ยังไม่บันทึก" ในแถบเครื่องมือของตาราง */
+.grid-pending {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+  padding: 4px 4px 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--chg-edit) 40%, var(--border));
+  border-radius: 10px;
+  background: var(--chg-edit-bg);
+  animation: gp-in 0.2s ease-out;
+}
+.gp-title {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--chg-edit);
+}
+.gp-title .icon {
+  width: 15px;
+  height: 15px;
+}
+.gp-error {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--danger);
+}
+.gp-actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 4px;
+}
+.gp-legend {
+  display: inline-flex;
+  gap: 4px 10px;
+  align-items: center;
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.gp-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: -6px;
+  border-radius: 3px;
+}
+.gp-legend i.add {
+  background: var(--chg-add);
+}
+.gp-legend i.edit {
+  background: var(--chg-edit);
+}
+.gp-legend i.del {
+  background: var(--chg-del);
+}
+.gp-del-list {
+  max-height: 220px;
+  margin: 0;
+  padding-left: 18px;
+  overflow: auto;
+  font-size: 13px;
+}
+@keyframes gp-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
 }
 .xgrid .row-actions {
   display: flex;
@@ -3947,29 +4080,6 @@ html:has(.form-footer),
   font-size: 12px;
 }
 /* ตารางผูกบริษัท */
-.bt {
-  border-top: 1px solid var(--border);
-}
-.bt-row {
-  display: grid;
-  grid-template-columns: minmax(170px, 1.1fr) minmax(200px, 1.2fr) minmax(0, 1fr) minmax(0, 1.4fr) 80px;
-  gap: 12px;
-  align-items: start;
-  padding: 10px 20px;
-}
-.bt-row + .bt-row {
-  border-top: 1px solid var(--border);
-}
-.bt-head {
-  padding-block: 8px;
-  background: var(--surface-2);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.bt-row.off {
-  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
-}
 .bt-co {
   display: flex;
   flex-direction: column;
@@ -3979,24 +4089,6 @@ html:has(.form-footer),
 .bt-co small {
   font-size: 12px;
   color: var(--muted);
-}
-.bt-warn {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  margin-top: 4px;
-  font-size: 11.5px;
-  color: var(--warning);
-}
-.bt-foot {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 12px 20px;
-  border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-2) 50%, var(--surface));
-  border-radius: 0 0 var(--radius) var(--radius);
 }
 
 /* ----- แก้แบบฟอร์ม ----- */
@@ -4496,12 +4588,6 @@ html:has(#ed),
   }
 }
 @media (max-width: 1023px) {
-  .bt-head {
-    display: none;
-  }
-  .bt-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
   .bt-co {
     grid-column: 1 / -1;
   }
@@ -4519,10 +4605,6 @@ html:has(#ed),
   }
   .form-grid.g2 {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .bt-row {
-    grid-template-columns: minmax(0, 1fr);
-    padding-inline: 14px;
   }
 }
 /* ขั้นไฟล์: ระบบทำงานอย่างไร (เติมข้อมูลลงไฟล์ตัวจริง — ไม่สร้างใหม่) */
@@ -4704,15 +4786,9 @@ html:has(#ed),
   #bindings > * {
     flex: none;
   }
-  #bindings > .bt {
+  #bindings > .fill-body {
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
-  }
-  #bindings .bt-head {
-    position: sticky;
-    top: 0;
-    z-index: 2;
   }
   .ic {
     gap: 10px;
@@ -4957,10 +5033,6 @@ html:has(#ed),
   }
   .ov.card .ov-head {
     padding: 16px 16px 12px;
-  }
-  .bt-row,
-  .bt-foot {
-    padding-inline: 16px;
   }
   .ed-body,
   .ed-pane > .lay {

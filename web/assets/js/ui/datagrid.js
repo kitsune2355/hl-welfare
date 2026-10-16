@@ -1,8 +1,11 @@
 // ตารางแบบ Excel — คลิกเพื่อสร้าง/แก้ไขในตาราง
 //
 //   คลิกเซลล์ = เลือก · ดับเบิลคลิก / Enter / F2 / พิมพ์ = แก้ไข
-//   Enter = บันทึกแล้วลงล่าง · Tab = บันทึกแล้วไปขวา · Esc = ยกเลิก · ลูกศร = เลื่อนเซลล์
-//   "+ เพิ่มแถว" = แถวใหม่ด้านบน บันทึกอัตโนมัติเมื่อกรอกครบ (ผ่าน validate)
+//   Enter = ยืนยันค่าแล้วลงล่าง · Tab = ไปขวา · Esc = ยกเลิก · ลูกศร = เลื่อนเซลล์
+//
+//   การเปลี่ยนแปลงยังไม่บันทึกจนกว่าจะกด "บันทึก" (หรือ Ctrl+S) — แสดงสีให้เห็นชัด:
+//     แถวใหม่ = เขียว · แถวที่แก้ = เหลือง (เซลล์ที่เปลี่ยนมีขีดด้านซ้าย) · แถวที่จะลบ = แดง ขีดฆ่า
+//   แถบ "ยังไม่บันทึก" บอกจำนวน เพิ่ม / แก้ไข / ลบ + ปุ่มยกเลิกทั้งหมด / บันทึก · ปิดหน้าขณะมีงานค้าง = ถามก่อน
 //
 //   const grid = new ExcelGrid(el, {
 //     columns: [{ key: 'name', header: 'ชื่อ', width: 160, editor: 'text', required: true,
@@ -10,6 +13,9 @@
 //     rowKey: (r) => r.id,
 //     validate: (r) => (r.name ? {} : { name: 'กรุณากรอกชื่อ' }),
 //     onSave: async (row, isNew) => api.save(row),   // ต้องคืนแถวที่บันทึกแล้ว
+//     onRemove: async (row) => api.delete(row.id),   // ลบจริงตอนกดบันทึก (ไม่ใส่ = ลบไม่ได้)
+//     rowLabel: (row) => row.name,                   // ชื่อแถวในกล่องยืนยันการลบ
+//     onSaved: ({ added, edited, deleted }) => {},   // หลังบันทึกครบ
 //     newRow: () => ({ id: 0, name: '' }),
 //   });
 //   grid.setRows(rows);
@@ -18,7 +24,7 @@
 // options(row) สำหรับ select · editable(row) = แก้ได้เฉพาะบางแถว · display(row) = HTML ที่แสดง
 // กรองคอลัมน์ที่หัวตาราง: เปิดอัตโนมัติ · filter: false = ปิด · text(row) = ข้อความที่ใช้กรอง (ไม่ใส่ = ข้อความที่แสดง)
 // มือถือ (<768px): ใส่ mobileCard(row) => HTML เพื่อแสดงเป็นการ์ดแทนตาราง (แตะการ์ด = onOpen)
-//   และ mobileAddHref = ลิงก์ของปุ่ม "เพิ่ม" บนมือถือ (เช่น ฟอร์มเต็ม) เพราะการกรอกในเซลล์บนจอเล็กไม่สะดวก
+//   และ mobileAddHref = ลิงก์ของปุ่ม "เพิ่ม" บนมือถือ เพราะการกรอกในเซลล์บนจอเล็กไม่สะดวก
 import { esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import {
@@ -35,6 +41,7 @@ import {
 } from './columnFilter.js';
 import { openPicker } from './combobox.js';
 import { spinner } from './loading.js';
+import { confirmAction, errorMessage, toast } from './overlay.js';
 import { pagerHtml, wirePager } from './table.js';
 
 const fmt = (v) => (v === null || v === undefined || v === '' ? '' : String(v));
@@ -48,8 +55,10 @@ export class ExcelGrid {
     this.pins = loadPins(this.tid); // คอลัมน์ที่ผู้ใช้ตรึงไว้ด้านซ้าย
     this.cols = orderByPins(this.allCols, this.pins);
     this.rows = null;
-    this.drafts = new Map(); // key → แถวที่แก้แล้วแต่ยังไม่บันทึก/บันทึกไม่ผ่าน
-    this.newRows = []; // { key, row }
+    this.drafts = new Map(); // key → แถวที่แก้แล้วแต่ยังไม่บันทึก
+    this.newRows = []; // { key, row } — แถวใหม่ที่ยังไม่บันทึก
+    this.deleted = new Set(); // key ของแถวที่จะลบตอนบันทึก
+    this.saving = false;
     this.status = new Map(); // key → { state: 'saving'|'saved'|'error', message? }
     this.active = null; // { r, c }
     this.editing = false;
@@ -61,7 +70,21 @@ export class ExcelGrid {
     this.handled = false;
     if (opts.mobileCard) root.classList.add('has-mobile-cards');
     this.bind();
+    // ปิด/ออกจากหน้าขณะมีการเปลี่ยนแปลงที่ยังไม่บันทึก → เบราว์เซอร์ถามก่อน
+    window.addEventListener('beforeunload', (e) => {
+      if (this.hasPending()) e.preventDefault();
+    });
     this.render();
+  }
+
+  /** จำนวนการเปลี่ยนแปลงที่ยังไม่บันทึก */
+  pendingCounts() {
+    const edited = [...this.drafts.keys()].filter((k) => !this.deleted.has(k)).length;
+    return { added: this.newRows.length, edited, deleted: this.deleted.size, total: this.newRows.length + edited + this.deleted.size };
+  }
+
+  hasPending() {
+    return this.pendingCounts().total > 0;
   }
 
   // ---------- public ----------
@@ -77,9 +100,19 @@ export class ExcelGrid {
   removeRow(key) {
     this.rows = this.rows?.filter((r) => String(this.o.rowKey(r)) !== String(key)) ?? null;
     this.drafts.delete(String(key));
+    this.deleted.delete(String(key));
     this.status.delete(String(key));
     this.active = null;
     this.render();
+  }
+
+  rowByKey(key) {
+    return this.rows?.find((r) => String(this.o.rowKey(r)) === key) ?? null;
+  }
+
+  /** ค่าทุกคอลัมน์เท่าเดิม = ไม่นับว่าแก้ */
+  sameRow(a, b) {
+    return this.allCols.every((c) => fmt(c.value(a)) === fmt(c.value(b)));
   }
 
   // ---------- data ----------
@@ -172,7 +205,8 @@ export class ExcelGrid {
       ...this.newRows.map((n) => ({ key: n.key, row: n.row, isNew: true })),
       ...this.pageRows().map((r) => {
         const key = String(this.o.rowKey(r));
-        return { key, row: this.drafts.get(key) ?? r, isNew: false };
+        const draft = this.drafts.get(key);
+        return { key, row: draft ?? r, orig: r, isNew: false, isEdited: !!draft, isDeleted: this.deleted.has(key) };
       }),
     ];
   }
@@ -185,49 +219,111 @@ export class ExcelGrid {
     return !!col.editor && !!col.set && (col.editable ? col.editable(row) : true);
   }
 
-  async save(entry, next) {
-    const errs = this.errorsOf(next);
-    if (Object.keys(errs).length) {
-      if (!entry.isNew) this.status.set(entry.key, { state: 'error', message: Object.values(errs).join(' · ') });
+  /** บันทึกการเปลี่ยนแปลงทั้งหมด: ลบ → แก้ไข → เพิ่ม · แถวที่ไม่ผ่านยังค้างอยู่พร้อมสาเหตุ */
+  async saveAll() {
+    if (this.saving || this.editing || !this.hasPending()) return;
+    const edits = [...this.drafts].filter(([k]) => !this.deleted.has(k));
+    const invalid = [...this.newRows.map((n) => [n.key, n.row]), ...edits].filter(([, row]) => Object.keys(this.errorsOf(row)).length);
+    if (invalid.length) {
+      for (const [k, row] of invalid) this.status.set(k, { state: 'error', message: Object.values(this.errorsOf(row)).join(' · ') });
       this.render();
+      toast.error(`ข้อมูลยังไม่ครบ ${invalid.length} แถว — แก้ช่องที่ขึ้นสีแดงก่อนบันทึก`);
       return;
     }
-    this.status.set(entry.key, { state: 'saving' });
-    this.render();
-    try {
-      const saved = (await this.o.onSave(next, entry.isNew)) ?? next;
-      if (entry.isNew) {
-        this.newRows = this.newRows.filter((n) => n.key !== entry.key);
-        this.rows = [saved, ...(this.rows ?? [])];
-        this.status.delete(entry.key);
-        this.status.set(String(this.o.rowKey(saved)), { state: 'saved' });
-        if (this.active) this.active.r = Math.max(0, this.active.r - 1);
-      } else {
-        this.drafts.delete(entry.key);
-        this.pinned.add(entry.key);
-        this.rows = this.rows.map((r) => (String(this.o.rowKey(r)) === entry.key ? saved : r));
-        this.status.set(entry.key, { state: 'saved' });
-      }
-      setTimeout(() => {
-        for (const [k, s] of this.status) if (s.state === 'saved') this.status.delete(k);
-        if (!this.editing) this.render();
-      }, 2000);
-    } catch (e) {
-      this.status.set(entry.key, { state: 'error', message: e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ' });
+    const dels = [...this.deleted].map((k) => [k, this.rowByKey(k)]).filter(([, row]) => row);
+    if (dels.length) {
+      const label = this.o.rowLabel ?? ((r) => String(this.o.rowKey(r)));
+      const ok = await confirmAction({
+        title: `ลบ ${dels.length} รายการ?`,
+        body: html`<ul class="gp-del-list">${dels.map(([, r]) => html`<li>${label(r)}</li>`)}</ul>`,
+        confirmLabel: 'ลบและบันทึก',
+        action: async () => {},
+      });
+      if (!ok) return;
     }
-    if (!this.editing) this.render();
+    this.saving = true;
+    this.active = null;
+    const done = { added: 0, edited: 0, deleted: 0 };
+    let failed = 0;
+    const fail = (k, e) => {
+      failed++;
+      this.status.set(k, { state: 'error', message: errorMessage(e) });
+    };
+    const mark = (k) => this.status.set(k, { state: 'saving' });
+    [...dels.map(([k]) => k), ...edits.map(([k]) => k), ...this.newRows.map((n) => n.key)].forEach(mark);
+    this.render();
+    for (const [k, row] of dels) {
+      try {
+        await this.o.onRemove(row);
+        this.rows = this.rows.filter((r) => String(this.o.rowKey(r)) !== k);
+        this.deleted.delete(k);
+        this.drafts.delete(k);
+        this.status.delete(k);
+        done.deleted++;
+      } catch (e) {
+        fail(k, e);
+      }
+    }
+    for (const [k, row] of edits) {
+      try {
+        const saved = (await this.o.onSave(row, false)) ?? row;
+        this.rows = this.rows.map((r) => (String(this.o.rowKey(r)) === k ? saved : r));
+        this.drafts.delete(k);
+        this.pinned.add(k);
+        this.status.set(k, { state: 'saved' });
+        done.edited++;
+      } catch (e) {
+        fail(k, e);
+      }
+    }
+    for (const n of [...this.newRows].reverse()) {
+      try {
+        const saved = (await this.o.onSave(n.row, true)) ?? n.row;
+        this.newRows = this.newRows.filter((x) => x.key !== n.key);
+        this.rows = [saved, ...(this.rows ?? [])];
+        this.status.delete(n.key);
+        const key = String(this.o.rowKey(saved));
+        this.pinned.add(key);
+        this.status.set(key, { state: 'saved' });
+        done.added++;
+      } catch (e) {
+        fail(n.key, e);
+      }
+    }
+    this.saving = false;
+    setTimeout(() => {
+      for (const [k, s] of this.status) if (s.state === 'saved') this.status.delete(k);
+      if (!this.editing) this.render();
+    }, 2000);
+    this.render();
+    const parts = [done.added && `เพิ่ม ${done.added}`, done.edited && `แก้ไข ${done.edited}`, done.deleted && `ลบ ${done.deleted}`].filter(Boolean).join(' · ');
+    if (parts) toast.success(`บันทึกแล้ว — ${parts}`);
+    if (failed) toast.error(`บันทึกไม่สำเร็จ ${failed} แถว — ดูสาเหตุที่แถวสีแดง`);
+    this.o.onSaved?.(done);
+  }
+
+  /** ยกเลิกการเปลี่ยนแปลงทั้งหมดที่ยังไม่บันทึก */
+  discardAll() {
+    this.newRows = [];
+    this.drafts.clear();
+    this.deleted.clear();
+    for (const [k, s] of this.status) if (s.state === 'error') this.status.delete(k);
+    this.active = null;
+    this.render();
   }
 
   commit(r, c, rawValue) {
     const entry = this.entries()[r];
     const col = this.cols[c];
-    if (!entry || !col.set) return;
+    if (!entry || !col.set || entry.isDeleted) return;
     if (fmt(col.value(entry.row)) === fmt(rawValue)) return;
     const value = col.editor === 'number' ? (rawValue === '' || rawValue === null ? null : Number(rawValue)) : rawValue;
     const next = col.set(entry.row, value);
     if (entry.isNew) this.newRows = this.newRows.map((n) => (n.key === entry.key ? { ...n, row: next } : n));
+    else if (this.sameRow(next, entry.orig)) this.drafts.delete(entry.key); // แก้กลับเป็นค่าเดิม = ไม่นับว่าแก้
     else this.drafts.set(entry.key, next);
-    this.save(entry, next);
+    if (this.status.get(entry.key)?.state === 'error') this.status.delete(entry.key);
+    if (!this.editing) this.render();
   }
 
   // ---------- interaction ----------
@@ -262,7 +358,7 @@ export class ExcelGrid {
     const { r, c } = this.active;
     const entry = this.entries()[r];
     const col = this.cols[c];
-    if (!entry || !this.canEdit(col, entry.row)) return;
+    if (!entry || entry.isDeleted || this.saving || !this.canEdit(col, entry.row)) return;
     const td = this.cellEl(r, c);
 
     if (col.editor === 'switch') {
@@ -368,8 +464,10 @@ export class ExcelGrid {
       if (btn) {
         const act = btn.dataset.gridAct;
         if (act === 'add') return this.addRow();
+        if (act === 'save-all') return this.saveAll();
+        if (act === 'discard-all') return this.discardAll();
         const entry = this.entries().find((x) => x.key === btn.dataset.key);
-        if (!entry) return;
+        if (!entry || this.saving) return;
         if (act === 'discard') {
           this.newRows = this.newRows.filter((n) => n.key !== entry.key);
           this.status.delete(entry.key);
@@ -377,7 +475,20 @@ export class ExcelGrid {
           return this.render();
         }
         if (act === 'open') return this.o.onOpen?.(entry.row);
-        if (act === 'delete') return this.o.onDelete?.(entry.row);
+        if (act === 'delete') {
+          // ลบ = ทำเครื่องหมายไว้ ลบจริงตอนกดบันทึก (ไม่มี onRemove → ใช้ onDelete แบบเดิม)
+          if (!this.o.onRemove) return this.o.onDelete?.(entry.row);
+          this.deleted.add(entry.key);
+          this.status.delete(entry.key);
+          return this.render();
+        }
+        if (act === 'undo') {
+          // คืนค่าเดิม: ยกเลิกการลบ / ยกเลิกการแก้ไขของแถวนี้
+          if (this.deleted.has(entry.key)) this.deleted.delete(entry.key);
+          else this.drafts.delete(entry.key);
+          this.status.delete(entry.key);
+          return this.render();
+        }
       }
       const td = e.target.closest('td[data-r]');
       if (!td || this.editing) return;
@@ -385,7 +496,7 @@ export class ExcelGrid {
       const c = Number(td.dataset.c);
       const col = this.cols[c];
       const entry = this.entries()[r];
-      if (!entry || !this.canEdit(col, entry.row)) return;
+      if (!entry || entry.isDeleted || this.saving || !this.canEdit(col, entry.row)) return;
       if (col.editor === 'switch') this.commit(r, c, !col.value(entry.row));
       else if (col.editor === 'select' && td.dataset.wasActive === '1') this.startEdit();
     });
@@ -404,6 +515,11 @@ export class ExcelGrid {
       this.startEdit();
     });
     root.addEventListener('keydown', (e) => {
+      // Ctrl/⌘ + S = บันทึกทั้งหมด
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !this.editing) {
+        e.preventDefault();
+        return this.saveAll();
+      }
       if (!e.target.classList?.contains('xgrid-wrap') || this.editing || !this.active) return;
       const k = e.key;
       const ed = this.cols[this.active.c].editor;
@@ -441,19 +557,38 @@ export class ExcelGrid {
     if (st?.state === 'saving') return spinner({ size: 'sm' });
     if (st?.state === 'saved') return raw(`<span class="text-success">${icon('check')}</span>`);
     if (st?.state === 'error') return raw(`<span class="text-danger" title="${esc(st.message)}">${icon('alert-triangle')}</span>`);
-    if (entry.isNew) return html`<span class="new-tag">ใหม่</span>`;
+    if (entry.isNew) return html`<span class="chg-tag add">ใหม่</span>`;
+    if (entry.isDeleted) return html`<span class="chg-tag del">ลบ</span>`;
+    if (entry.isEdited) return html`<span class="chg-tag edit">แก้ไข</span>`;
     return html`<span class="num">${index}</span>`;
+  }
+
+  /** แถบการเปลี่ยนแปลงที่ยังไม่บันทึก (หรือคำอธิบายสีเมื่อไม่มี) */
+  pendingBar() {
+    const p = this.pendingCounts();
+    const errors = [...this.status.values()].filter((s) => s.state === 'error').length;
+    if (!p.total)
+      return html`<span class="gp-legend" aria-hidden="true"><i class="add"></i>เพิ่ม <i class="edit"></i>แก้ไข <i class="del"></i>ลบ</span>`;
+    return html`<div class="grid-pending" role="status">
+      <span class="gp-title">${raw(icon('alert-circle'))} ยังไม่บันทึก</span>
+      ${p.added ? html`<span class="chg-tag add">เพิ่ม ${p.added}</span>` : ''}
+      ${p.edited ? html`<span class="chg-tag edit">แก้ไข ${p.edited}</span>` : ''}
+      ${p.deleted ? html`<span class="chg-tag del">ลบ ${p.deleted}</span>` : ''}
+      ${errors ? html`<span class="gp-error">${raw(icon('alert-triangle'))} มีปัญหา ${errors} แถว</span>` : ''}
+      <span class="gp-actions">
+        <button type="button" class="btn btn-sm btn-ghost" data-grid-act="discard-all" ${this.saving ? 'disabled' : ''}>ยกเลิกทั้งหมด</button>
+        <button type="button" class="btn btn-sm btn-primary" data-grid-act="save-all" ${this.saving ? 'disabled' : ''} title="Ctrl + S">${this.saving ? spinner({ size: 'sm', onColor: true }) : raw(icon('save'))} บันทึก (${p.total})</button>
+      </span>
+    </div>`;
   }
 
   render() {
     if (this.editing) return;
     const { rowKey, onOpen, onDelete, newRow, addLabel, toolbar, empty } = this.o;
     const entries = this.entries();
-    const hasActions = !!(onOpen || onDelete);
+    const hasActions = !!(onOpen || onDelete || this.o.onRemove);
     const width = 52 + this.cols.reduce((s, c) => s + c.width, 0) + (hasActions ? 76 : 0);
     const offset = this.size ? (this.page - 1) * this.size : 0;
-    const unsaved = this.newRows.length + this.drafts.size;
-    const errors = [...this.status.values()].filter((s) => s.state === 'error').length;
     const loading = this.rows === null;
     const pins = this.pinOffsets();
     const pinStyle = (c, z) => (pins[c.key] ? `position:sticky;left:${pins[c.key].left}px;z-index:${z}` : '');
@@ -470,14 +605,17 @@ export class ExcelGrid {
         )
       : entries.map((entry, r) => {
           const st = this.status.get(entry.key);
-          const errs = entry.isNew || st?.state === 'error' ? this.errorsOf(entry.row) : {};
-          return html`<tr class="${entry.isNew ? 'is-new' : ''} ${st?.state === 'error' ? 'has-error' : ''}">
+          // แถวใหม่/แถวที่แก้: ตรวจข้อมูลทันที (เห็นช่องที่ยังไม่ครบก่อนกดบันทึก)
+          const errs = !entry.isDeleted && (entry.isNew || entry.isEdited || st?.state === 'error') ? this.errorsOf(entry.row) : {};
+          const rowCls = [entry.isNew ? 'is-new' : '', entry.isEdited && !entry.isDeleted ? 'is-edited' : '', entry.isDeleted ? 'is-deleted' : '', st?.state === 'error' ? 'has-error' : ''].join(' ');
+          return html`<tr class="${rowCls}">
             <td class="stick-left">${this.statusCell(entry, offset + r - this.newRows.length + 1)}</td>
             ${this.cols.map((col, c) => {
-              const editable = this.canEdit(col, entry.row);
+              const editable = !entry.isDeleted && this.canEdit(col, entry.row);
               const err = errs[col.key];
               const isActive = this.active?.r === r && this.active?.c === c;
-              const cls = [editable ? 'editable' : col.editor ? 'locked' : 'muted', err ? 'invalid' : '', isActive ? 'active' : ''].join(' ') + pinCls(col);
+              const changed = entry.isEdited && fmt(col.value(entry.row)) !== fmt(col.value(entry.orig));
+              const cls = [editable ? 'editable' : col.editor ? 'locked' : 'muted', err ? 'invalid' : '', isActive ? 'active' : '', changed ? 'changed' : ''].join(' ') + pinCls(col);
               let content;
               if (col.editor === 'switch') {
                 content = html`<span class="switch sm" aria-checked="${!!col.value(entry.row)}" aria-hidden="true"></span>`;
@@ -487,7 +625,8 @@ export class ExcelGrid {
                 const v = fmt(col.value(entry.row));
                 content = v ? html`<span class="truncate ${col.editor === 'number' ? 'num' : ''}">${v}</span>` : err ? html`<span class="must">ต้องกรอก</span>` : '';
               }
-              return html`<td data-r="${r}" data-c="${c}" data-col="${col.key}" class="${cls}" style="${pinStyle(col, 2)}" role="gridcell" ${err ? raw(`title="${esc(err)}"`) : ''}>
+              const tip = err ? err : changed ? `เดิม: ${this.textOf(entry.orig, col.key) || '(ว่าง)'}` : '';
+              return html`<td data-r="${r}" data-c="${c}" data-col="${col.key}" class="${cls}" style="${pinStyle(col, 2)}" role="gridcell" ${tip ? raw(`title="${esc(tip)}"`) : ''}>
                 <div class="cell ${col.align ?? ''}">${content}</div>
               </td>`;
             })}
@@ -495,9 +634,12 @@ export class ExcelGrid {
               ? html`<td class="stick-right">
                   <div class="row-actions">
                     ${entry.isNew
-                      ? html`<button class="btn-icon sm danger" data-grid-act="discard" data-key="${entry.key}" title="ทิ้งแถวใหม่" aria-label="ทิ้งแถวใหม่">${raw(icon('trash-2'))}</button>`
-                      : html`${onOpen ? html`<button class="btn-icon sm" data-grid-act="open" data-key="${entry.key}" title="เปิดรายละเอียด" aria-label="เปิดรายละเอียด">${raw(icon('external-link'))}</button>` : ''}
-                        ${onDelete ? html`<button class="btn-icon sm danger" data-grid-act="delete" data-key="${entry.key}" title="ลบ" aria-label="ลบ">${raw(icon('trash-2'))}</button>` : ''}`}
+                      ? html`<button class="btn-icon sm danger" data-grid-act="discard" data-key="${entry.key}" title="ทิ้งแถวใหม่" aria-label="ทิ้งแถวใหม่">${raw(icon('x'))}</button>`
+                      : entry.isDeleted || entry.isEdited
+                        ? html`<button class="btn-icon sm" data-grid-act="undo" data-key="${entry.key}" title="${entry.isDeleted ? 'ยกเลิกการลบ' : 'คืนค่าเดิม'}" aria-label="${entry.isDeleted ? 'ยกเลิกการลบ' : 'คืนค่าเดิม'}">${raw(icon('undo-2'))}</button>
+                            ${!entry.isDeleted && (onDelete || this.o.onRemove) ? html`<button class="btn-icon sm danger" data-grid-act="delete" data-key="${entry.key}" title="ลบ" aria-label="ลบ">${raw(icon('trash-2'))}</button>` : ''}`
+                        : html`${onOpen ? html`<button class="btn-icon sm" data-grid-act="open" data-key="${entry.key}" title="เปิดรายละเอียด" aria-label="เปิดรายละเอียด">${raw(icon('external-link'))}</button>` : ''}
+                            ${onDelete || this.o.onRemove ? html`<button class="btn-icon sm danger" data-grid-act="delete" data-key="${entry.key}" title="ลบ" aria-label="ลบ">${raw(icon('trash-2'))}</button>` : ''}`}
                   </div>
                 </td>`
               : ''}
@@ -511,8 +653,8 @@ export class ExcelGrid {
     this.root.innerHTML = String(html`<div class="grid-toolbar">
         ${newRow ? html`<button class="btn btn-primary btn-sm ${this.o.mobileCard ? 'hide-mobile' : ''}" data-grid-act="add">${raw(icon('plus'))} ${addLabel}</button>` : ''}
         ${this.o.mobileAddHref ? html`<a class="btn btn-primary btn-sm show-mobile" href="${this.o.mobileAddHref}">${raw(icon('plus'))} ${this.o.mobileAddLabel ?? addLabel}</a>` : ''} ${toolbar ?? ''}
-        <span class="help">ดับเบิลคลิก / Enter / พิมพ์ = แก้ไข · Tab, Enter = บันทึก · Esc = ยกเลิก · ←↑↓→ เลื่อนเซลล์</span>
-        ${unsaved || errors ? html`<span class="unsaved ${errors ? 'error' : ''}">${errors ? `มีข้อผิดพลาด ${errors} แถว` : `ยังไม่บันทึก ${unsaved} แถว`}</span>` : ''}
+        <span class="help">ดับเบิลคลิก / Enter / พิมพ์ = แก้ไข · Esc = ยกเลิก · ←↑↓→ เลื่อนเซลล์ · Ctrl+S = บันทึก</span>
+        ${this.pendingBar()}
       </div>
       ${filterSummary(this.filter, (k) => this.colByKey(k).header)}
       <div class="xgrid-wrap" tabindex="0" role="grid" aria-rowcount="${entries.length}">

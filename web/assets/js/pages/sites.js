@@ -5,7 +5,6 @@ import { $, html, render } from '../shared/dom.js';
 import { COMPANY_CODES } from '../shared/labels.js';
 import { badge, emptyState, errorState } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
-import { confirmAction, toast } from '../ui/overlay.js';
 
 initPage('sites');
 
@@ -59,33 +58,21 @@ const grid = new ExcelGrid($('#grid'), {
       options: () => Object.entries(POLO).map(([value, p]) => ({ value, label: p.label })),
       set: (s, v) => ({ ...s, poloColor: v === 'NAVY' ? 'NAVY' : 'BLACK' }),
     },
-    { key: 'id', header: 'รหัส', width: 70, align: 'right', value: (s) => s.id, display: (s) => html`<span class="num">${s.id ? `#${s.id}` : '–'}</span>` },
   ],
   onSave: async (row, isNew) => {
     let saved;
     if (isNew) {
       const { id: _id, ...input } = row;
       saved = await api.createSite(input);
-      toast.success(`เพิ่มหน่วยงาน “${saved.name}” แล้ว`);
     } else {
       saved = await api.updateSite(row.id, { name: row.name, hasGroupInsurance: row.hasGroupInsurance, poloColor: row.poloColor });
     }
-    setTimeout(drawSummary);
     return saved;
   },
-  onDelete: (s) =>
-    confirmAction({
-      title: 'ลบหน่วยงาน?',
-      description: `${s.name} (${s.companyCode})`,
-      body: 'ลบได้เฉพาะหน่วยงานที่ไม่มีพนักงานอยู่ — ถ้ายังมีพนักงาน ให้ย้ายหน่วยงานก่อน',
-      confirmLabel: 'ลบ',
-      successMessage: `ลบหน่วยงาน “${s.name}” แล้ว`,
-      action: async () => {
-        await api.deleteSite(s.id);
-        grid.removeRow(s.id);
-        drawSummary();
-      },
-    }),
+  // ลบจริงตอนกดบันทึก — ลบได้เฉพาะหน่วยงานที่ไม่มีพนักงานอยู่ (API แจ้งเหตุผลถ้าลบไม่ได้)
+  onRemove: (s) => api.deleteSite(s.id),
+  rowLabel: (s) => `${s.companyCode} · ${s.name}`,
+  onSaved: () => drawSummary(),
   empty: emptyState({ iconName: 'building-2', title: 'ยังไม่มีหน่วยงาน' }),
 });
 

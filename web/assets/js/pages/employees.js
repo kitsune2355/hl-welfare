@@ -21,7 +21,7 @@ import {
 } from '../shared/labels.js';
 import { badge, emptyState, errorState } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
-import { confirmAction, toast } from '../ui/overlay.js';
+import { toast } from '../ui/overlay.js';
 
 const URGENT = ['TERMINATED', 'MISCONDUCT'];
 
@@ -279,27 +279,18 @@ const grid = new ExcelGrid($('#grid'), {
     // ขาดงาน 3 วัน: ไม่กรอกวันทำงานสุดท้าย → ใช้วันพ้นสภาพ (เหมือนฟอร์มเดิม)
     const payload = row.status === 'INACTIVE' && !row.lastWorkingDate && row.endReason !== 'ABSENT_3D' ? { ...row, lastWorkingDate: row.endDate } : row;
     const saved = await api.saveEmployee(isNew ? { ...payload, id: undefined } : payload);
-    if (isNew) toast.success(`เพิ่มพนักงาน ${saved.firstName} ${saved.lastName} แล้ว`);
     if (saved.status === 'INACTIVE' && URGENT.includes(saved.endReason)) {
       toast.error(`${saved.firstName} ${saved.lastName}: ${END_REASON_LABEL[saved.endReason]} — ต้องแจ้งออกจากประกันกลุ่มทันที (หน้า “ประกันกลุ่ม”)`);
     }
-    refreshCounts();
     return saved;
   },
   onOpen: (e) => (location.href = `employee.html?id=${e.id}`),
   // มือถือก็ใช้ตารางเดียวกัน (เลื่อนแนวนอน) — เพิ่ม/แก้ได้ในตารางทุกขนาดจอ
-  onDelete: (e) =>
-    confirmAction({
-      title: 'ลบพนักงาน?',
-      description: `${e.firstName} ${e.lastName} (${e.empCode})`,
-      body: 'ใช้สำหรับลบข้อมูลที่บันทึกผิดเท่านั้น — ถ้าพนักงานมีประวัติแจ้งประกันหรือแจกชุดแล้ว ระบบจะไม่ให้ลบ ให้ใช้ “บันทึกพ้นสภาพ” แทน',
-      confirmLabel: 'ลบถาวร',
-      successMessage: `ลบ ${e.firstName} ${e.lastName} แล้ว`,
-      action: async () => {
-        await api.deleteEmployee(e.id);
-        grid.removeRow(e.id);
-      },
-    }),
+  // ลบ = ทำเครื่องหมายไว้ ลบจริงตอนกดบันทึก (มีกล่องยืนยันรายชื่อก่อน)
+  // ลบได้เฉพาะข้อมูลที่บันทึกผิด — ถ้ามีประวัติแจ้งประกัน/แจกชุดแล้ว API ไม่ให้ลบ (ใช้ "พ้นสภาพ" แทน)
+  onRemove: (e) => api.deleteEmployee(e.id),
+  rowLabel: (e) => `${e.empCode} · ${e.firstName} ${e.lastName}`,
+  onSaved: () => refreshCounts(),
   empty: emptyState({ iconName: 'user-x', title: 'ไม่พบพนักงาน', description: 'ลองเปลี่ยนคำค้นหรือล้างตัวกรอง / กด “เพิ่มแถว” เพื่อเริ่มกรอกข้อมูล' }),
 });
 

@@ -24,6 +24,7 @@ import { alertBox, badge, errorState } from '../ui/components.js';
 import { enhanceSelects } from '../ui/combobox.js';
 import { busy, loader } from '../ui/loading.js';
 import { confirmAction, errorMessage, toast } from '../ui/overlay.js';
+import { ExcelGrid } from '../ui/datagrid.js';
 import { sheetPreviewHtml } from '../ui/sheetPreview.js';
 
 initPage('insurers', { tour: () => (getParam('id') ? 'insurer-edit' : 'insurers') });
@@ -50,7 +51,6 @@ const VAR_GROUPS = [
 let forms = [];
 let companies = [];
 let bindings = []; // [{companyCode, insurerId, policyNo, holderName, plan}]
-let bindingsOrig = '';
 let draft = null; // แบบฟอร์มที่กำลังแก้
 let original = '';
 let errors = {};
@@ -61,7 +61,6 @@ let testResult = null; // { buffer, sheets, active }
 
 const clone = (x) => structuredClone(x);
 const dirty = () => !!draft && (JSON.stringify(draft) !== original || !!src?.fromUpload);
-const bindingsDirty = () => JSON.stringify(bindings) !== bindingsOrig;
 const legalName = (code) => companies.find((c) => c.code === code)?.legalName ?? code;
 
 // ---------- ข้อมูลสมมติ (ผลลัพธ์ตัวแปร / ตัวอย่างคอลัมน์ / ทดลองสร้างไฟล์) ----------
@@ -204,23 +203,50 @@ function insurerCard(f) {
   </article>`;
 }
 
-function bindingRow(b) {
-  const f = forms.find((x) => x.id === b.insurerId);
-  const warn = !f ? '' : !f.template ? 'ยังไม่มีไฟล์แบบฟอร์ม — ส่งออก Excel ไม่ได้' : !f.active ? 'แบบฟอร์มปิดอยู่ — ไม่อยู่ในหน้าส่งออก' : '';
-  return html`<div class="bt-row${b.insurerId ? '' : ' off'}" role="row">
-    <span class="bt-co" role="cell"><b>${b.companyCode}</b><small class="truncate">${legalName(b.companyCode)}</small></span>
-    <span role="cell">
-      <select data-bind-insurer="${b.companyCode}" data-combobox aria-label="บริษัทประกันของ ${b.companyCode}">
-        <option value="">— ไม่ส่งแจ้ง —</option>
-        ${forms.map((x) => html`<option value="${x.id}" ${x.id === b.insurerId ? 'selected' : ''}>${x.shortName}${x.active ? '' : ' (ปิดอยู่)'}</option>`)}
-      </select>
-      ${warn ? html`<small class="bt-warn">${raw(icon('alert-triangle'))} ${warn}</small>` : ''}
-    </span>
-    <span role="cell"><input class="input" data-bind="${b.companyCode}:policyNo" value="${b.policyNo}" placeholder="เช่น จี3-8001" ${b.insurerId ? '' : 'disabled'} aria-label="เลขที่กรมธรรม์ ${b.companyCode}" /></span>
-    <span role="cell"><input class="input" data-bind="${b.companyCode}:holderName" value="${b.holderName}" placeholder="${legalName(b.companyCode)}" ${b.insurerId ? '' : 'disabled'} aria-label="ชื่อผู้ถือกรมธรรม์ ${b.companyCode}" /></span>
-    <span role="cell"><input class="input" data-bind="${b.companyCode}:plan" value="${b.plan}" placeholder="1" ${b.insurerId ? '' : 'disabled'} aria-label="แผนประกัน ${b.companyCode}" /></span>
-  </div>`;
-}
+/** คอลัมน์ตารางผูกบริษัท — 1 แถว = 1 บริษัทในเครือ (แก้ได้ทุกช่อง ไม่มีเพิ่ม/ลบแถว) */
+const bindColumns = () => [
+  {
+    key: 'companyCode',
+    header: 'บริษัทในเครือ',
+    width: 240,
+    value: (b) => b.companyCode,
+    text: (b) => `${b.companyCode} ${legalName(b.companyCode)}`,
+    display: (b) => html`<span class="bt-co"><b>${b.companyCode}</b><small class="truncate">${legalName(b.companyCode)}</small></span>`,
+  },
+  {
+    key: 'insurerId',
+    header: 'ส่งแจ้งกับ',
+    width: 250,
+    editor: 'select',
+    value: (b) => (b.insurerId ? String(b.insurerId) : ''),
+    options: () => [{ value: '', label: '— ไม่ส่งแจ้ง —' }, ...forms.map((f) => ({ value: String(f.id), label: `${f.shortName}${f.active ? '' : ' (ปิดอยู่)'}` }))],
+    text: (b) => forms.find((f) => f.id === b.insurerId)?.shortName ?? 'ไม่ส่งแจ้ง',
+    display: (b) => {
+      const f = forms.find((x) => x.id === b.insurerId);
+      if (!f) return html`<span class="muted">— ไม่ส่งแจ้ง —</span>`;
+      const warn = !f.template ? 'ยังไม่มีไฟล์ Excel' : !f.active ? 'ปิดอยู่' : '';
+      return html`<span class="row" style="gap:6px;min-width:0"><span class="truncate">${f.shortName}</span>${warn ? badge(warn, 'warning') : ''}</span>`;
+    },
+    // เลือกบริษัทประกัน → เติมชื่อผู้ถือกรมธรรม์ให้ (ถ้ายังว่าง)
+    set: (b, v) => {
+      const insurerId = Number(v) || null;
+      return { ...b, insurerId, holderName: insurerId && !b.holderName ? legalName(b.companyCode).replace(/^บ\./, 'บริษัท ') : b.holderName };
+    },
+  },
+  { key: 'policyNo', header: 'เลขที่กรมธรรม์', width: 170, editor: 'text', editable: (b) => !!b.insurerId, value: (b) => b.policyNo, set: (b, v) => ({ ...b, policyNo: String(v ?? '').trim() }) },
+  {
+    key: 'holderName',
+    header: 'ชื่อผู้ถือกรมธรรม์',
+    width: 320,
+    editor: 'text',
+    editable: (b) => !!b.insurerId,
+    value: (b) => b.holderName,
+    display: (b) => (b.holderName ? html`<span class="truncate">${b.holderName}</span>` : b.insurerId ? html`<span class="muted truncate">${legalName(b.companyCode)}</span>` : ''),
+    set: (b, v) => ({ ...b, holderName: String(v ?? '').trim() }),
+  },
+  { key: 'plan', header: 'แผน', width: 80, editor: 'text', editable: (b) => !!b.insurerId, value: (b) => b.plan, set: (b, v) => ({ ...b, plan: String(v ?? '').trim() }) },
+];
+let bindGrid = null;
 
 function drawOverview() {
   page.classList.remove('editing');
@@ -235,10 +261,7 @@ function drawOverview() {
             <p>ไฟล์ Excel ที่บริษัทประกันให้กรอก — ระบบเติมรายชื่อลงไฟล์นี้ตอนส่งออก โดยคงหน้าตาเดิมทุกอย่าง</p>
           </div>
         </header>
-        <div class="ic-grid">
-          ${forms.map(insurerCard)}
-          <a class="ic-add" href="insurers.html?id=new">${raw(icon('plus'))}<b>เพิ่มบริษัทประกัน</b><small>อัปโหลดไฟล์แบบฟอร์มของบริษัทใหม่</small></a>
-        </div>
+        <div class="ic-grid" id="ic-grid">${insurerCards()}</div>
       </section>
 
       <section class="ov card" id="bindings">
@@ -249,26 +272,28 @@ function drawOverview() {
             <p>1 บริษัทในเครือ = 1 บริษัทประกัน · เลขกรมธรรม์และชื่อผู้ถือกรมธรรม์ใช้เติมในหัวเอกสารของชีตบริษัทนั้น</p>
           </div>
         </header>
-        <div class="bt" role="table" aria-label="ผูกบริษัทในเครือกับบริษัทประกัน">
-          <div class="bt-row bt-head" role="row"><span>บริษัทในเครือ</span><span>ส่งแจ้งกับ</span><span>เลขที่กรมธรรม์</span><span>ชื่อผู้ถือกรมธรรม์</span><span>แผน</span></div>
-          ${bindings.map(bindingRow)}
-        </div>
-        <footer class="bt-foot">
-          <span class="dirty-note" id="bind-dirty"></span>
-          <button type="button" class="btn btn-ghost" id="bind-reset" disabled>ยกเลิก</button>
-          <button type="button" class="btn btn-primary" id="bind-save" disabled>${raw(icon('save'))} บันทึกการผูกบริษัท</button>
-        </footer>
+        <div id="bind-grid" class="fill-body"></div>
       </section>`,
   );
-  enhanceSelects(view);
-  refreshBindFoot();
+  bindGrid = new ExcelGrid($('#bind-grid'), {
+    columns: bindColumns(),
+    rowKey: (b) => b.companyCode,
+    // กดบันทึก → ส่งการผูกทั้งหมด (แถวนี้เป็นค่าใหม่) ทีละแถวที่แก้ — API ตรวจทั้งชุด
+    onSave: async (row) => {
+      const next = bindings.map((b) => (b.companyCode === row.companyCode ? row : b));
+      forms = await api.saveInsurerBindings(next);
+      bindings = next;
+      return row;
+    },
+    onSaved: () => render($('#ic-grid'), insurerCards()),
+    empty: '',
+  });
+  bindGrid.setRows(clone(bindings));
 }
 
-function refreshBindFoot() {
-  const d = bindingsDirty();
-  $('#bind-save').disabled = !d;
-  $('#bind-reset').disabled = !d;
-  render($('#bind-dirty'), d ? html`<span class="dot"></span> ยังไม่ได้บันทึก` : '');
+function insurerCards() {
+  return html`${forms.map(insurerCard)}
+    <a class="ic-add" href="insurers.html?id=new">${raw(icon('plus'))}<b>เพิ่มบริษัทประกัน</b><small>อัปโหลดไฟล์ Excel ของบริษัทใหม่</small></a>`;
 }
 
 function loadBindings() {
@@ -277,41 +302,8 @@ function loadBindings() {
     const c = f?.companies.find((x) => x.companyCode === code);
     return { companyCode: code, insurerId: f?.id ?? null, policyNo: c?.policyNo ?? '', holderName: c?.holderName ?? '', plan: c?.plan ?? '1' };
   });
-  bindingsOrig = JSON.stringify(bindings);
 }
 
-view.addEventListener('change', (e) => {
-  const code = e.target.dataset?.bindInsurer;
-  if (!code) return;
-  const b = bindings.find((x) => x.companyCode === code);
-  b.insurerId = Number(e.target.value) || null;
-  if (b.insurerId && !b.holderName) b.holderName = legalName(code).replace(/^บ\./, 'บริษัท ');
-  const row = e.target.closest('.bt-row');
-  const tmp = document.createElement('div');
-  tmp.innerHTML = String(bindingRow(b));
-  row.replaceWith(tmp.firstElementChild);
-  enhanceSelects(view.querySelector(`[data-bind-insurer="${code}"]`).closest('.bt-row'));
-  refreshBindFoot();
-});
-view.addEventListener('input', (e) => {
-  const k = e.target.dataset?.bind;
-  if (!k) return;
-  const [code, field] = k.split(':');
-  bindings.find((x) => x.companyCode === code)[field] = e.target.value;
-  refreshBindFoot();
-});
-on(view, 'click', '#bind-reset', () => {
-  bindings = JSON.parse(bindingsOrig);
-  drawOverview();
-});
-on(view, 'click', '#bind-save', (_e, btn) =>
-  busy(btn, async () => {
-    forms = await api.saveInsurerBindings(bindings);
-    loadBindings();
-    toast.success('บันทึกการผูกบริษัทกับบริษัทประกันแล้ว');
-    drawOverview();
-  }, { label: 'กำลังบันทึก' }).catch((err) => toast.error(errorMessage(err))),
-);
 on(view, 'click', '[data-dl-template]', (_e, btn) => {
   const f = forms.find((x) => x.id === Number(btn.dataset.dlTemplate));
   busy(btn, async () => downloadBlob(new Blob([await templateBuffer(f.template)], { type: XLSX_MIME }), f.template.fileName.replace(/\.xlsx?$/i, '') + '.xlsx')).catch((err) => toast.error(errorMessage(err)));
@@ -732,7 +724,7 @@ on(document, 'click', 'a[href="insurers.html"], a[href^="insurers.html?id="]', (
   });
 });
 window.addEventListener('beforeunload', (e) => {
-  if (dirty() || (!draft && bindingsDirty())) e.preventDefault();
+  if (dirty()) e.preventDefault(); // ตารางผูกบริษัทถามเองเมื่อมีงานค้าง (ExcelGrid)
 });
 
 function openEditor(id, { keepStep = false } = {}) {
