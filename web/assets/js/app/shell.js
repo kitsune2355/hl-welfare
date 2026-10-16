@@ -125,13 +125,8 @@ export function initPage(active, { tour = active } = {}) {
   app.innerHTML = String(html`<header class="topbar">
     <div class="topbar-start">
       <button class="btn-icon menu-btn" id="menu-btn" aria-label="เปิดเมนู">${raw(icon('menu'))}</button>
-      <a class="topbar-logo" href="index.html" aria-label="HL Welfare หน้าแรก"><img src="favicon.svg" alt="" /></a>
+      <a class="topbar-logo" href="index.html" aria-label="HL Welfare หน้าแรก"><img src="favicon.svg" alt="" /><span>HL Welfare</span></a>
     </div>
-    <form class="search" role="search" id="global-search">
-      ${raw(icon('search'))}
-      <input class="input" name="q" placeholder="ค้นหาพนักงาน…" aria-label="ค้นหาพนักงาน" autocomplete="off" />
-      <span class="kbd">/</span>
-    </form>
     <div class="topbar-end">
       <button class="btn-icon" id="help-btn" aria-label="แนะนำการใช้งาน" title="แนะนำการใช้งาน">${raw(icon('circle-help'))}</button>
       <button class="btn-icon" id="theme-btn"></button>
@@ -181,18 +176,6 @@ export function initPage(active, { tour = active } = {}) {
   document.getElementById('theme-btn').onclick = toggleTheme;
   document.getElementById('logout-btn')?.addEventListener('click', logout);
   drawThemeButton();
-
-  const search = document.getElementById('global-search');
-  search.onsubmit = (e) => {
-    e.preventDefault();
-    location.href = `employees.html?q=${encodeURIComponent(search.q.value.trim())}`;
-  };
-  document.addEventListener('keydown', (e) => {
-    if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
-      e.preventDefault();
-      search.q.focus();
-    }
-  });
 
   document.getElementById('reset-btn')?.addEventListener('click', async () => {
     if (!confirm('รีเซ็ตข้อมูลจำลองทั้งหมดกลับเป็นค่าตั้งต้น?')) return;

@@ -280,34 +280,6 @@ button {
   background: color-mix(in srgb, var(--bg) 85%, transparent);
   backdrop-filter: blur(10px);
 }
-.topbar .search {
-  position: relative;
-  width: 100%;
-  max-width: 380px;
-}
-.topbar .search input {
-  height: 36px;
-  background: var(--surface-2);
-  padding-left: 36px;
-  padding-right: 36px;
-}
-.topbar .search .icon {
-  position: absolute;
-  left: 12px;
-  top: 10px;
-  color: var(--muted);
-}
-.kbd {
-  position: absolute;
-  right: 10px;
-  top: 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0 6px;
-  font-size: 11px;
-  color: var(--muted);
-  background: var(--surface);
-}
 .topbar .spacer {
   flex: 1;
 }
@@ -3139,9 +3111,6 @@ input[type='radio'] {
   .cf-item {
     padding: 9px 8px;
   }
-  .kbd {
-    display: none;
-  }
   .nav a {
     padding: 11px 12px;
   }
@@ -3188,6 +3157,13 @@ input[type='radio'] {
 .topbar-logo {
   display: none;
 }
+.topbar-logo {
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--fg);
+}
 .topbar-logo img {
   width: 32px;
   height: 32px;
@@ -3198,10 +3174,10 @@ input[type='radio'] {
 }
 
 @media (max-width: 767px) {
-  /* topbar: [โลโก้][ค้นหา — ชิดโลโก้ ยืดเต็มที่เหลือ] [ปุ่ม] */
+  /* topbar: [โลโก้ + ชื่อระบบ] ........ [ปุ่ม] */
   .topbar {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     height: 56px;
     padding: 0 12px;
@@ -3211,9 +3187,6 @@ input[type='radio'] {
   }
   .topbar-logo {
     display: inline-flex;
-  }
-  .topbar .search {
-    max-width: none;
   }
   .topbar-end {
     justify-content: flex-end;
@@ -4908,15 +4881,6 @@ html:has(#ed),
   .topbar {
     height: 52px;
     padding: 0 24px;
-  }
-  .topbar .search input {
-    height: 32px;
-  }
-  .topbar .search .icon {
-    top: 8px;
-  }
-  .kbd {
-    top: 6px;
   }
   .page {
     --page-max: 1600px;

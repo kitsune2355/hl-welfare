@@ -9,6 +9,7 @@
   height: auto !important;
 }
 .login {
+  position: relative;
   display: grid;
   grid-template-columns: 1.05fr 1fr;
   min-height: 100vh;
@@ -167,6 +168,7 @@
   position: absolute;
   top: 20px;
   right: 20px;
+  z-index: 2;
 }
 .login-card {
   width: 100%;
@@ -500,22 +502,148 @@
   }
 }
 
-/* ---------- มือถือ: ซ่อนฝั่งแบรนด์ แสดงโลโก้ในฟอร์ม ---------- */
+/* ---------- มือถือ: แบรนด์ด้านบน (gradient เคลื่อนไหว) + ฟอร์มเป็นการ์ดเลื่อนขึ้นทับ ---------- */
 @media (max-width: 899px) {
   .login {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    min-height: 100dvh;
   }
   .login-hero {
+    min-height: 0;
+  }
+  .blob {
+    filter: blur(36px);
+  }
+  .blob.b1 {
+    width: 220px;
+    height: 220px;
+    top: -70px;
+    left: -50px;
+  }
+  .blob.b2 {
+    width: 200px;
+    height: 200px;
+    bottom: -40px;
+    right: -50px;
+  }
+  .blob.b3 {
+    width: 140px;
+    height: 140px;
+  }
+  .hero-inner {
+    gap: 18px;
+    justify-content: flex-start;
+    height: auto;
+    padding: calc(env(safe-area-inset-top) + 22px) 22px 56px;
+  }
+  .hero-brand {
+    font-size: 16px;
+  }
+  .hero-brand img {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+  }
+  .hero-copy h1 {
+    font-size: 22px;
+    line-height: 1.4;
+  }
+  .hero-copy > p {
     display: none;
   }
-  .login-panel {
-    min-height: 100vh;
-    background:
-      radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--grad-start) 14%, transparent), transparent 45%),
-      radial-gradient(circle at 100% 100%, color-mix(in srgb, var(--grad-end) 14%, transparent), transparent 45%),
-      var(--bg);
+  /* จุดเด่น 3 ข้อ → ป้ายเล็กแถวเดียว (เลื่อนแนวนอนได้ถ้าจอแคบ) */
+  .hero-features {
+    display: flex;
+    gap: 8px;
+    margin: 14px -22px 0 0;
+    padding-right: 22px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* ขอบขวาจางลง — บอกว่าเลื่อนดูต่อได้ */
+    mask-image: linear-gradient(to right, #000 82%, transparent);
   }
-  .lc-logo {
-    display: block;
+  .hero-features li {
+    flex: none;
+    gap: 6px;
+    padding: 5px 10px 5px 5px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.14);
+    backdrop-filter: blur(6px);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .hero-features span {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 13px;
+  }
+  .hero-foot {
+    display: none;
+  }
+  /* การ์ดฟอร์ม: มุมบนโค้ง เลื่อนขึ้นทับส่วนแบรนด์ */
+  .login-panel {
+    position: relative;
+    z-index: 1;
+    align-items: flex-start;
+    margin-top: -28px;
+    padding: 28px 22px calc(env(safe-area-inset-bottom) + 28px);
+    border-radius: 26px 26px 0 0;
+    background: var(--bg);
+    box-shadow: 0 -12px 32px -18px rgb(15 23 42 / 0.45);
+    animation: sheet-up calc(0.55s * var(--login-speed)) cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  }
+  .login-panel::before {
+    /* ขีดจับด้านบนของการ์ด */
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    width: 40px;
+    height: 4px;
+    margin-left: -20px;
+    border-radius: 999px;
+    background: var(--border);
+  }
+  .login-card {
+    gap: 16px;
+    max-width: 440px;
+    margin: 0 auto;
+  }
+  .lc-head h2 {
+    font-size: 24px;
+  }
+  .lc-head p {
+    font-size: 13px;
+  }
+  .lc-input {
+    height: 52px;
+  }
+  .lc-input input {
+    font-size: 16px; /* ≥16px — iOS ไม่ซูมเข้าเมื่อแตะช่องกรอก */
+  }
+  /* ปุ่มสลับธีมอยู่บนส่วนแบรนด์ (สีขาว) */
+  .login-theme {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 14px);
+    right: 14px;
+    z-index: 2;
+    border-radius: 12px;
+    color: #fff;
+    background: rgb(255 255 255 / 0.14);
+    backdrop-filter: blur(6px);
+  }
+  @keyframes sheet-up {
+    from {
+      transform: translateY(40px);
+      opacity: 0.4;
+    }
   }
 }
+@media (max-width: 899px) and (prefers-reduced-motion: reduce) {
+  .login-panel {
+    animation: none;
+  }
+}
+
