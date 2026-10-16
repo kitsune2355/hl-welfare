@@ -34,11 +34,28 @@ function parseRange(s) {
   return { top: p.r, left: p.c, bottom: q.r, right: q.c };
 }
 
+/**
+ * แถว/คอลัมน์สุดท้ายที่ "มีข้อมูล" (หรือ merge) — ไฟล์ .xls บางไฟล์จัดรูปแบบไว้ถึงแถว 65,536
+ * ถ้าใช้ rowCount ตรง ๆ จะช้าและไฟล์ที่เก็บใหญ่เกินจำเป็น
+ */
+function usedExtent(ws) {
+  const merges = (ws.model.merges ?? []).map(parseRange);
+  let rows = Math.max(1, ...merges.map((m) => m.bottom));
+  let cols = Math.max(1, ...merges.map((m) => m.right));
+  ws.eachRow({ includeEmpty: false }, (row, r) => {
+    row.eachCell({ includeEmpty: false }, (cell, c) => {
+      if (valueText(cell.value).trim()) {
+        rows = Math.max(rows, r);
+        cols = Math.max(cols, c);
+      }
+    });
+  });
+  return { rows, cols, merges };
+}
+
 /** ExcelJS worksheet → grid (แถว/คอลัมน์เริ่มที่ 1) */
 export function gridFromWorksheet(ws) {
-  const merges = (ws.model.merges ?? []).map(parseRange);
-  const nRows = Math.max(ws.rowCount, ...merges.map((m) => m.bottom), 1);
-  const nCols = Math.max(ws.columnCount, ...merges.map((m) => m.right), 1);
+  const { rows: nRows, cols: nCols, merges } = usedExtent(ws);
   const masterOf = (r, c) => merges.find((m) => r >= m.top && r <= m.bottom && c >= m.left && c <= m.right);
   const textCache = new Map();
   const text = (r, c) => {
@@ -119,8 +136,9 @@ function writeSheet(out, src, name, layout, o) {
     headerFooter: clone(src.headerFooter),
     views: clone(src.views),
   });
-  const grid = { merges: (src.model.merges ?? []).map(parseRange) };
-  const nCols = Math.max(src.columnCount, ...grid.merges.map((m) => m.right), 1);
+  const used = usedExtent(src);
+  const grid = { merges: used.merges };
+  const nCols = used.cols;
   for (let c = 1; c <= nCols; c++) {
     const sc = src.getColumn(c);
     const dc = ws.getColumn(c);
@@ -140,7 +158,7 @@ function writeSheet(out, src, name, layout, o) {
       const sc = s.getCell(c);
       const dc = d.getCell(c);
       dc.style = clone(sc.style) ?? {};
-      if (values && !isSlave(sr, c) && sc.value !== null && sc.value !== undefined) dc.value = clone(plainValue(sc.value));
+      if (values && !isSlave(sr, c) && sc.value !== null && sc.value !== undefined) dc.value = structuredClone(plainValue(sc.value)); // structuredClone คง Date ไว้ (JSON จะกลายเป็นข้อความ)
     }
   };
   for (let r = 1; r < dataRow; r++) copyRow(r, r, true);
@@ -148,7 +166,7 @@ function writeSheet(out, src, name, layout, o) {
     copyRow(o.keepData ? dataRow + i : dataRow, dataRow + i, !!o.keepData && false);
     o.fill?.(ws, dataRow + i, i);
   }
-  for (let r = footerRow; r <= src.rowCount; r++) copyRow(r, r + delta, true);
+  for (let r = footerRow; r <= used.rows; r++) copyRow(r, r + delta, true);
   // merge: หัว/บนคงที่ · ส่วนท้ายเลื่อนตาม · ในพื้นที่ข้อมูลใช้ merge ของแถวต้นแบบซ้ำทุกแถว
   for (const m of grid.merges) {
     if (m.bottom < dataRow) ws.mergeCells(m.top, m.left, m.bottom, m.right);

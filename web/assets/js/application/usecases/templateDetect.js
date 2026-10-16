@@ -144,22 +144,55 @@ function findFooterRow(grid, dataRow, kind) {
 }
 
 /**
+ * กลุ่มที่ "ไม่ได้ merge แต่ดูเหมือนครอบหลายคอลัมน์" — เช่น ช่อง "เปลี่ยนแปลง" อยู่เซลล์เดียว
+ * แต่เซลล์ทางขวาในแถวเดียวกันว่าง และแถวล่างมีหัวคอลัมน์ย่อย → ถือว่าเป็นกลุ่มครอบไปถึงคอลัมน์เหล่านั้น
+ * (ใช้กับกลุ่มที่ merge แล้วด้วย: merge ไม่ถึงคอลัมน์ที่ควรอยู่ในกลุ่ม → ขยายต่อ)
+ * @returns {Map<string, {text:string, wide:true}>}  'r,c' → กลุ่มของเซลล์นั้น
+ */
+function virtualGroups(grid, headerRow, headerEnd) {
+  const out = new Map();
+  for (let r = headerRow; r < headerEnd; r++) {
+    for (let c = 1; c <= grid.nCols; c++) {
+      const m = mergeAt(grid, r, c);
+      if (m && (m.top !== r || m.left !== c)) continue; // เซลล์หลักเท่านั้น
+      const t = clean(grid.text(r, c));
+      if (!t) continue;
+      const below = clean(grid.text(r + 1, c));
+      if (!below || below === t || (m && m.bottom > r)) continue; // ต้องมีหัวย่อยอยู่ข้างใต้
+      const start = m ? m.right + 1 : c + 1;
+      let end = start - 1;
+      for (let cc = start; cc <= grid.nCols; cc++) {
+        const mm = mergeAt(grid, r, cc);
+        if (clean(grid.text(r, cc)) || (mm && mm.top < r)) break; // มีข้อความ / ถูก merge ลงมาจากแถวบน
+        if (!clean(grid.text(r + 1, cc))) break;
+        end = cc;
+      }
+      if (end < start && !m) continue; // ไม่ครอบเพิ่ม และไม่ได้ merge → เป็นชื่อคอลัมน์ธรรมดา
+      for (let cc = c; cc <= Math.max(end, m ? m.right : c); cc++) out.set(`${r},${cc}`, { text: t, wide: end >= start || (m && m.right > m.left) });
+    }
+  }
+  return out;
+}
+
+/**
  * หัวคอลัมน์ + กลุ่ม จากแถวหัวตาราง (ไล่บนลงล่าง)
  *   เซลล์ที่ merge กว้างหลายคอลัมน์ = กลุ่ม (เช่น "ประกันชีวิตกลุ่ม…", "เข้าใหม่")
  *   เซลล์กว้างคอลัมน์เดียวที่ซ้อนกันหลายแถว = ชื่อคอลัมน์ต่อกัน (เช่น "เลขที่บัตร" + "ประชาชน")
  */
 function columnHeaders(grid, headerRow, headerEnd) {
+  const spans = virtualGroups(grid, headerRow, headerEnd);
   const cols = [];
   for (let c = 1; c <= grid.nCols; c++) {
     const groups = [];
     const names = [];
     let last = '';
     for (let r = headerRow; r <= headerEnd; r++) {
-      const t = clean(grid.text(r, c));
+      const v = spans.get(`${r},${c}`);
+      const t = v?.text ?? clean(grid.text(r, c));
       if (!t || t === last) continue;
       last = t;
       const m = mergeAt(grid, r, c);
-      (m && m.right > m.left ? groups : names).push(t);
+      (v?.wide || (m && m.right > m.left) ? groups : names).push(t);
     }
     if (!groups.length && !names.length) continue;
     const leaf = names.length ? names.join(' ') : groups.pop();
@@ -183,6 +216,8 @@ const LABELS = [
   { re: /^(ลาออก|แจ้งออก)$/, v: '{out}', footer: true },
   { re: /^รวมทั้งหมด$/, v: '{total}', footer: true },
   { re: /^เปลี่ยนแปลง$/, v: '0', footer: true },
+  // ป้ายที่ไม่ต้องเติม (ข้ามไปหาค่าของป้ายข้างหน้า เช่น "แผนก | ฝ่าย | <ค่า>")
+  { re: /^ฝ่าย\s*[:：]?$/, v: null, footer: true },
 ];
 /** ข้อความเติมที่รอให้กรอก เช่น "00……………", "..........", "____" */
 const FILLER = /\s*[0๐]*[.…_\-]{3,}[.…_\-\s]*$/;
@@ -215,15 +250,22 @@ function detectCells(grid, layout) {
           const m = l.re.exec(t);
           return m && (!l.footer || inFooter) && (m.index === 0 || t.length <= 40);
         });
-        if (!rule) continue;
-        // ค่าทางขวา (ข้ามเซลล์ที่ merge อยู่กับป้าย)
+        if (!rule?.v) continue;
+        // ค่าทางขวา: ข้ามเซลล์ที่ merge กับป้าย และป้ายซ้ำ (เช่น "ลงชื่อผู้แจ้ง | ลงชื่อผู้แจ้ง | <ชื่อ>")
+        // เจอ "คน" ก่อนค่า (เช่น "เข้าใหม่ | ___ | คน" ช่องจำนวนว่าง) → ใช้ช่องว่างแรกหลังป้าย
         let target = null;
+        let firstEmpty = null;
         for (let cc = (m ? m.right : c) + 1; cc <= Math.min(grid.nCols, c + 10); cc++) {
           const mm = mergeAt(grid, r, cc);
           if (mm && (mm.top !== r || mm.left !== cc)) continue;
           const v = clean(grid.text(r, cc));
-          if (!v) continue;
-          if (!isLabel(v) && !/^คน$/.test(v)) target = { r, c: cc };
+          if (!v) {
+            firstEmpty ??= { r, c: cc };
+            continue;
+          }
+          if (/^คน$/.test(v)) target = firstEmpty;
+          else if (isLabel(v)) continue;
+          else target = { r, c: cc };
           break;
         }
         if (target) {
@@ -275,8 +317,16 @@ export function detectLayout(grid, kind = 'company') {
 /** ชีตไหนน่าจะเป็นต้นแบบของบริษัท / สรุป (ชื่อชีต + คะแนนหัวตาราง) */
 export function guessSheets(sheets) {
   // sheets = [{ name, grid }]
-  const scored = sheets.map((s) => ({ name: s.name, company: findHeaderRow(s.grid, 'company') ? rowTexts(s.grid, findHeaderRow(s.grid, 'company')).filter((t) => HEADER_WORDS.company.test(t)).length : 0 }));
+  // คะแนน = คำหัวตาราง · เท่ากัน → ชีตที่มีแถวข้อมูลตัวอย่างมากกว่า (รูปแบบแถวข้อมูลครบกว่า)
+  const scored = sheets.map((s) => {
+    const h = findHeaderRow(s.grid, 'company');
+    if (!h) return { name: s.name, company: 0, rows: 0 };
+    const end = findHeaderEnd(s.grid, h, 'company');
+    let rows = 0;
+    for (let r = end + 1; r < findFooterRow(s.grid, end + 1, 'company'); r++) if (!isEmptyRow(s.grid, r)) rows++;
+    return { name: s.name, company: new Set(rowTexts(s.grid, h).filter((t) => HEADER_WORDS.company.test(t))).size, rows };
+  });
   const summary = sheets.find((s) => /สรุป|summary/i.test(s.name) && findHeaderRow(s.grid, 'summary'))?.name ?? null;
-  const company = scored.filter((s) => s.name !== summary).sort((a, b) => b.company - a.company)[0];
+  const company = scored.filter((s) => s.name !== summary).sort((a, b) => b.company - a.company || b.rows - a.rows)[0];
   return { company: company?.company ? company.name : null, summary };
 }

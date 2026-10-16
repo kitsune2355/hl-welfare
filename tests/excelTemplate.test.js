@@ -101,6 +101,48 @@ describe('อ่านโครงแบบฟอร์ม (เดาตำแ�
   });
 });
 
+/** grid จำลองจากตาราง { 'A1': 'ข้อความ' } + merges ['A1:B2'] */
+function gridOf(cells, merges = [], nRows = 30, nCols = 15) {
+  const ms = merges.map((m) => {
+    const [a, b] = m.split(':');
+    const p = T.parseAddr(a);
+    const q = T.parseAddr(b);
+    return { top: p.r, left: p.c, bottom: q.r, right: q.c };
+  });
+  const text = (r, c) => {
+    const m = ms.find((x) => r >= x.top && r <= x.bottom && c >= x.left && c <= x.right);
+    return cells[T.addr(m ? m.top : r, m ? m.left : c)] ?? '';
+  };
+  return { nRows, nCols, text, merges: ms };
+}
+
+describe('อ่านโครงไฟล์จริงของ HR (กรณีที่พบ)', () => {
+  // โครงตามชีต AS ของไฟล์เมืองไทย: "เปลี่ยนแปลง" อยู่เซลล์เดียว (ไม่ merge) แต่ครอบ K–M · ช่องจำนวนเข้าใหม่ว่าง · ป้ายผู้แจ้งซ้ำ 2 คอลัมน์
+  const g = gridOf(
+    {
+      A9: 'ลำดับ', B9: 'รหัสพนักงาน', C9: 'ชื่อ - สกุล สมาชิก', D9: 'ประกันชีวิตกลุ่มและประกันสุขภาพกลุ่ม',
+      D10: 'เข้าใหม่', I10: 'ยกเลิก', J10: 'เปลี่ยนแปลง',
+      D11: 'แผนประกัน', E11: 'วันที่มีผลบังคับ', F11: 'ว/ด/ป/ เกิด', G11: 'เลขที่บัตร', H11: 'เงินเดือน', I11: 'วันที่มีผลบังคับ', J11: 'ความคุ้มครอง', L11: 'วันที่มีผลบังคับ',
+      G12: 'ประชาชน', J12: 'จากแผน', K12: 'เป็นแผน',
+      A13: '1', B13: 'X1', C13: 'นายตัวอย่าง',
+      B18: 'เข้าใหม่', E18: 'คน', F18: 'ลาออก', G18: '2', H18: 'คน', K18: 'รวมทั้งหมด', L18: '2', M18: 'คน',
+      B20: 'ลงชื่อผู้แจ้ง', C20: 'ลงชื่อผู้แจ้ง', D20: 'ชื่อ สกุล',
+      B21: 'แผนก', C21: 'ฝ่าย', D21: 'สวัสดิการ',
+      B23: 'โทร', C23: 'โทร', D23: '02-000-0000',
+    },
+    ['A9:A12', 'B9:B12', 'C9:C12', 'D9:L9', 'D10:H10', 'D11:D12', 'E11:E12', 'F11:F12', 'H11:H12', 'I11:I12', 'J11:K11', 'L11:L12'],
+  );
+  const l = detectLayout(g, 'company');
+  it('หัวตาราง 4 แถว · กลุ่ม "เปลี่ยนแปลง" ที่ไม่ได้ merge ครอบถึงคอลัมน์ L', () => {
+    expect([l.headerRow, l.headerEnd, l.dataRow]).toEqual([9, 12, 13]);
+    const src = Object.fromEntries(l.columns.map((c) => [T.addr(1, c.col).replace('1', ''), c.source]));
+    expect(src).toEqual({ A: 'seq', B: 'empCode', C: 'titleFullName', D: 'plan', E: 'inEffectiveDate', F: 'birthDate', G: 'nationalId', H: 'salary', I: 'outEffectiveDate', J: 'blank', K: 'blank', L: 'blank' });
+  });
+  it('ช่องจำนวนว่าง → ใช้ช่องว่างแรกหลังป้าย · ป้ายซ้ำ → ข้ามไปหาค่า', () => {
+    expect(l.cells).toEqual({ C18: '{in}', G18: '{out}', L18: '{total}', D20: '{signerName}', D21: '{signerDept}', D23: '{signerPhone}' });
+  });
+});
+
 describe('เติมข้อมูลลงแบบฟอร์มตอนส่งออก', () => {
   it('ไทยประกันชีวิต: ชีตสรุป + ชีตละบริษัท · ข้อมูลตรงคอลัมน์ · ส่วนท้ายเลื่อนตามจำนวนคน', async () => {
     const api = new MockApi(() => TODAY);
