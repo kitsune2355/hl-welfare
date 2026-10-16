@@ -1,8 +1,9 @@
 # ระบบจัดการสวัสดิการพนักงาน — กลุ่มบริษัทแฮปปี้แลนด์
 
 > เอกสารสเปกสำหรับพัฒนาบน localhost
-> Stack: **React 19 + TypeScript (Vite, SPA)** · **PHP 8.2+** · **MySQL 8**
+> Stack: **React 19 + TypeScript (Vite, SPA)** · **Tailwind CSS 4** · **PHP 8.2+** · **MySQL 8**
 > แนวทาง: **เฟส 1 ทำ Frontend กับ mock ให้เสร็จก่อน → เฟส 2 ต่อ PHP + MySQL จริง**
+> สถาปัตยกรรม: **Clean Architecture** (domain เป็นแกน ไม่ขึ้นกับ UI/DB) · UI: **Modern, clean, user-friendly** (design tokens + light/dark)
 > อ้างอิงเงื่อนไขจากไฟล์ "เงื่อนไขสวัสดิการ 15.10.69"
 
 ---
@@ -10,19 +11,21 @@
 ## สารบัญ
 1. [ภาพรวม](#1-ภาพรวม)
 2. [สิ่งที่ต้องติดตั้งบนเครื่อง](#2-สิ่งที่ต้องติดตั้งบนเครื่อง)
-3. [โครงสร้างโปรเจกต์](#3-โครงสร้างโปรเจกต์)
-4. [เฟส 1 — สร้าง Frontend (Vite + React 19 + TS)](#4-เฟส-1--สร้าง-frontend-vite--react-19--ts)
-5. [Domain Model (TypeScript)](#5-domain-model-typescript)
-6. [กฎสวัสดิการ (Business Rules)](#6-กฎสวัสดิการ-business-rules)
-7. [API Contract](#7-api-contract)
-8. [Mock API](#8-mock-api)
-9. [หน้าจอ (Pages)](#9-หน้าจอ-pages)
-10. [เฟส 2 — PHP Backend](#10-เฟส-2--php-backend)
-11. [MySQL Schema](#11-mysql-schema)
-12. [สลับจาก mock → MySQL จริง](#12-สลับจาก-mock--mysql-จริง)
-13. [การทดสอบ](#13-การทดสอบ)
-14. [Checklist](#14-checklist)
-15. [ประเด็นที่ต้องยืนยันกับ HR](#15-ประเด็นที่ต้องยืนยันกับ-hr)
+3. [สถาปัตยกรรม (Clean Architecture)](#3-สถาปัตยกรรม-clean-architecture)
+4. [โครงสร้างโปรเจกต์](#4-โครงสร้างโปรเจกต์)
+5. [เฟส 1 — สร้าง Frontend (Vite + React 19 + TS)](#5-เฟส-1--สร้าง-frontend-vite--react-19--ts)
+6. [Domain Model (TypeScript)](#6-domain-model-typescript)
+7. [กฎสวัสดิการ (Business Rules)](#7-กฎสวัสดิการ-business-rules)
+8. [API Contract](#8-api-contract)
+9. [Mock API](#9-mock-api)
+10. [Design System & UX](#10-design-system--ux)
+11. [หน้าจอ (Pages)](#11-หน้าจอ-pages)
+12. [เฟส 2 — PHP Backend](#12-เฟส-2--php-backend)
+13. [MySQL Schema](#13-mysql-schema)
+14. [สลับจาก mock → MySQL จริง](#14-สลับจาก-mock--mysql-จริง)
+15. [การทดสอบ](#15-การทดสอบ)
+16. [Checklist](#16-checklist)
+17. [ประเด็นที่ต้องยืนยันกับ HR](#17-ประเด็นที่ต้องยืนยันกับ-hr)
 
 ---
 
@@ -42,10 +45,12 @@
 **บริษัทในเครือ:** HL (แฮปปี้แลนด์), PRO, CNS, CIC, AS
 
 **หลักการออกแบบ**
-- Frontend เรียกข้อมูลผ่าน interface `WelfareApi` ตัวเดียว → มี 2 implementation คือ `MockApi` และ `HttpApi` สลับด้วย `.env`
-- ตรรกะคำนวณสิทธิเป็น **pure function** (`domain/eligibility.ts`) และฝั่ง PHP ต้องมีตัวคู่แฝดที่ให้ผลเหมือนกัน (`Domain/Eligibility.php`) โดยใช้ชุด test case เดียวกัน
+- **Clean Architecture** — ตรรกะสวัสดิการอยู่ใน `domain/` (pure function ไม่มี I/O, ไม่ import React/fetch) ชั้นนอกพึ่งชั้นในเท่านั้น (ดูข้อ 3)
+- Frontend เรียกข้อมูลผ่าน **port** `WelfareApi` ตัวเดียว → มี 2 adapter คือ `MockApi` และ `HttpApi` สลับด้วย `.env` และฉีดเข้าหน้าจอผ่าน React Context (`useApi()`) ไม่ import adapter ตรงๆ
+- ตรรกะคำนวณสิทธิฝั่ง PHP ต้องมีตัวคู่แฝดที่ให้ผลเหมือนกัน (`Domain/Eligibility.php`) โดยใช้ชุด test case เดียวกัน
 - กฎเก็บเป็น **ข้อมูล** (rule table) ไม่ hard-code ในหน้าจอ
 - วันที่ใช้รูปแบบ ISO `YYYY-MM-DD` ทุกที่ คำนวณแบบ UTC เพื่อไม่ให้วันเลื่อน แสดงผลเป็น พ.ศ.
+- UI ใช้ **design token** (CSS variables) ชุดเดียว → light/dark สลับได้โดยไม่ต้องแก้ component (ดูข้อ 10)
 
 ---
 
@@ -61,6 +66,8 @@
 
 > Windows แนะนำ **Laragon** หรือ **XAMPP** (มี PHP + MySQL ในตัว)
 > macOS: `brew install php mysql composer node`
+>
+> ⚠️ เครื่องพัฒนาปัจจุบัน (AppServ) มี **PHP 5.2.6 / MySQL 5.0** ใน PATH — ใช้กับเฟส 2 ไม่ได้ (ต้องการ `readonly`, `never`, `enum`, JSON column) ต้องติดตั้ง PHP 8.2+ และ MySQL 8 / MariaDB 10.6+ แยก (เช่น Laragon) ก่อนเริ่มเฟส 2 · เฟส 1 ใช้แค่ Node.js
 
 ตรวจสอบ:
 ```bash
@@ -69,111 +76,197 @@ node -v && npm -v && php -v && composer -V && mysql --version
 
 ---
 
-## 3. โครงสร้างโปรเจกต์
+## 3. สถาปัตยกรรม (Clean Architecture)
+
+### 3.1 ชั้น (Layers) และกฎการพึ่งพา
 
 ```text
-happyland-welfare/
-├── README.md
-├── docs/
-│   └── SPEC.md                    ← ไฟล์นี้
+            ┌──────────────────────────────────────────────────────┐
+            │  app/            composition root (router, providers) │
+            │  ┌────────────────────────────────────────────────┐  │
+            │  │ features/     หน้าจอ + component ราย module      │  │
+            │  │ ui/  shared/  design system, format, labels    │  │
+            │  │  ┌──────────────────────────────────────────┐  │  │
+            │  │  │ application/  ports (WelfareApi),          │  │  │
+            │  │  │               use-cases (dashboard, cycle) │  │  │
+            │  │  │  ┌────────────────────────────────────┐  │  │  │
+            │  │  │  │ domain/  entities + กฎสวัสดิการ       │  │  │  │
+            │  │  │  │          (pure, ไม่มี I/O)           │  │  │  │
+            │  │  │  └────────────────────────────────────┘  │  │  │
+            │  │  └──────────────────────────────────────────┘  │  │
+            │  └────────────────────────────────────────────────┘  │
+            │  infrastructure/  adapters: MockApi, HttpApi ──────▶ implements port
+            └──────────────────────────────────────────────────────┘
+                         ลูกศรการ import ชี้ "เข้าหาแกน" เท่านั้น
+```
+
+| ชั้น | หน้าที่ | import ได้ | ห้าม import |
+|---|---|---|---|
+| `domain/` | type ของ entity, กฎคำนวณสิทธิ (ประกัน / PVD / ชุดฟอร์ม), วันที่ | – (ตัวเองเท่านั้น) | React, fetch, localStorage, ชั้นอื่นทั้งหมด |
+| `application/` | port `WelfareApi`, `ApiError`, use-case ที่ประกอบหลาย entity (dashboard, รอบประกัน, ชุดค้างแจก) | `domain` | `infrastructure`, `features`, `ui` |
+| `infrastructure/` | adapter ที่ implement port: `MockApi` (memory + localStorage), `HttpApi` (fetch → PHP) | `application`, `domain` | `features`, `ui` |
+| `shared/` | format วันที่/เงิน, label ภาษาไทย, CSV, hooks ทั่วไป | `domain` (type เท่านั้น) | `infrastructure`, `features` |
+| `ui/` | design system — Button, Card, Badge, Table, Modal, Toast ฯลฯ **ไม่รู้จัก domain** | `shared/cn` | `domain`, `application`, `infrastructure` |
+| `features/` | หน้าจอแต่ละ module ใช้ API ผ่าน `useApi()` | `application`, `domain`, `ui`, `shared` | `infrastructure` (ต้องผ่าน DI) |
+| `app/` | composition root: เลือก adapter จาก `.env`, ประกอบ router, layout, providers | ทุกชั้น | – |
+
+**ผลลัพธ์ที่ได้**
+- เปลี่ยน mock → PHP ได้โดยแก้ `.env` บรรทัดเดียว หน้าจอไม่ต้องแก้
+- ทดสอบกฎสวัสดิการได้โดยไม่ต้องเปิดเบราว์เซอร์/DB (Vitest + PHPUnit ใช้ case ชุดเดียวกัน)
+- ปรับหน้าตา (design token) ได้โดยไม่กระทบตรรกะ
+- ตรวจกฎการ import อัตโนมัติด้วย ESLint `no-restricted-imports` (ตั้งไว้ใน `eslint.config.js`)
+
+### 3.2 การไหลของข้อมูล (ตัวอย่าง: เปิดหน้ารายละเอียดพนักงาน)
+
+```text
+EmployeeDetailPage ──useApi()──▶ WelfareApi.getEmployeeBenefits(id)      (port)
+                                   │
+                ┌──────────────────┴──────────────────┐
+           MockApi (mode=mock)                   HttpApi (mode=http)
+           อ่าน seed/localStorage                GET /api/employees/{id}/benefits
+           เรียก domain.benefitsOf()                  │
+                                                 PHP EmployeeController
+                                                 → BenefitService (Application)
+                                                 → Domain\Eligibility (คู่แฝด TS)
+                                                 → PdoEmployeeRepository (Infrastructure)
+```
+
+### 3.3 ฝั่ง PHP ใช้ชั้นเดียวกัน
+
+| ชั้น | Namespace | ตัวอย่าง |
+|---|---|---|
+| Domain | `App\Domain` | `Dates`, `Eligibility` (คู่แฝดของ TS — pure, ไม่มี PDO) |
+| Application | `App\Application` | `Port\EmployeeRepository` (interface), `Service\InsuranceCycleService`, `Service\DashboardService` |
+| Infrastructure | `App\Infrastructure` | `Config`, `Database`, `Persistence\PdoEmployeeRepository` |
+| Interface (HTTP) | `App\Http` | `Router`, `Request`, `Response`, `Controller\*` (บาง — แค่แปลง request → service → JSON) |
+
+---
+
+## 4. โครงสร้างโปรเจกต์
+
+```text
+hl-welfare/
+├── happyland-welfare-spec.md      ← ไฟล์นี้
 │
-├── frontend/                      ← Vite + React 19 + TypeScript (SPA)
-│   ├── index.html
+├── frontend/                      ← Vite + React 19 + TypeScript + Tailwind 4 (SPA)
+│   ├── index.html                 ← โหลดฟอนต์ IBM Plex Sans Thai
 │   ├── package.json
-│   ├── vite.config.ts             ← proxy /api → http://localhost:8000
-│   ├── tsconfig.json / tsconfig.app.json / tsconfig.node.json
+│   ├── vite.config.ts             ← plugin react + tailwind, proxy /api → http://localhost:8000
+│   ├── eslint.config.js           ← บังคับกฎ import ตามชั้น (ข้อ 3.1)
 │   ├── .env.example               ← VITE_API_MODE=mock | http
 │   └── src/
 │       ├── main.tsx
-│       ├── App.tsx                ← React Router (createBrowserRouter)
-│       ├── index.css
+│       ├── index.css              ← design tokens (light/dark) + Tailwind
 │       ├── vite-env.d.ts
-│       ├── types/
-│       │   └── domain.ts          ← type ทั้งหมด (ตรงกับ JSON ของ PHP)
-│       ├── domain/                ← ตรรกะล้วน ไม่มี I/O
-│       │   ├── date.ts            ← addDays, ageAt, nextCycleDate, thaiDate
-│       │   ├── eligibility.ts     ← คำนวณสิทธิประกัน / PVD / ชุดฟอร์ม
+│       │
+│       ├── domain/                ← ① แกนกลาง: pure, ไม่มี I/O
+│       │   ├── types.ts           ← entity/value type ทั้งหมด (ตรงกับ JSON ของ PHP)
+│       │   ├── date.ts            ← addDays, ageAt, nextCycleDate, diffDays (UTC)
+│       │   ├── insurance.ts       ← insuranceStatus, insuranceExit
+│       │   ├── pvd.ts             ← pvdStatus
+│       │   ├── uniform.ts         ← matchUniformRule, resolveItems, uniformStatus
+│       │   ├── eligibility.ts     ← benefitsOf() + re-export
 │       │   └── eligibility.test.ts
-│       ├── api/
-│       │   ├── types.ts           ← interface WelfareApi (สัญญา API)
-│       │   ├── index.ts           ← เลือก Mock หรือ Http จาก .env
+│       │
+│       ├── application/           ← ② port + use-case
+│       │   ├── ports.ts           ← interface WelfareApi (สัญญา API)
+│       │   ├── errors.ts          ← ApiError(status, message)
+│       │   └── usecases/
+│       │       ├── dashboard.ts       ← buildDashboard()
+│       │       ├── insuranceCycle.ts  ← buildInsuranceCycle()
+│       │       └── uniformPending.ts  ← buildUniformPending()
+│       │
+│       ├── infrastructure/        ← ③ adapter
+│       │   ├── createApi.ts       ← เลือก Mock หรือ Http จาก .env
 │       │   ├── mock/
 │       │   │   ├── rules.ts       ← กฎตั้งต้นจากไฟล์ Excel
-│       │   │   ├── seed.ts        ← ข้อมูลพนักงานจำลอง + edge cases
+│       │   │   ├── seed.ts        ← ข้อมูลพนักงานจำลอง + edge cases (PRNG deterministic)
 │       │   │   └── mockApi.ts     ← implement WelfareApi ในหน่วยความจำ + localStorage
 │       │   └── http/
 │       │       └── httpApi.ts     ← implement WelfareApi ด้วย fetch → PHP
-│       ├── hooks/
-│       │   └── useAsync.ts
-│       ├── lib/
-│       │   ├── labels.ts          ← ข้อความภาษาไทยของ enum
-│       │   └── csv.ts             ← ส่งออก CSV (UTF-8 BOM ให้ Excel อ่านไทยได้)
-│       ├── components/
-│       │   ├── Layout.tsx         ← sidebar + เมนู + ป้าย mock/http
-│       │   ├── ui.tsx             ← PageHeader, Card, Badge, Stat, Loading, ErrorBox, Empty
-│       │   └── EmployeeForm.tsx
-│       └── pages/
-│           ├── DashboardPage.tsx
-│           ├── EmployeesPage.tsx
-│           ├── EmployeeDetailPage.tsx   ← /employees/:id และ /employees/new
-│           ├── InsurancePage.tsx
-│           ├── PvdPage.tsx
-│           ├── UniformPage.tsx
-│           ├── RulesPage.tsx
-│           ├── SitesPage.tsx
-│           └── NotFoundPage.tsx
+│       │
+│       ├── shared/                ← ④ ของใช้ร่วม
+│       │   ├── format.ts          ← thaiDate (5 พ.ย. 69), money (1,234.00)
+│       │   ├── labels.ts          ← ข้อความภาษาไทยของ enum + tone ของ badge
+│       │   ├── csv.ts             ← ส่งออก CSV (UTF-8 BOM ให้ Excel อ่านไทยได้)
+│       │   ├── cn.ts              ← รวม className
+│       │   └── hooks/
+│       │       ├── useAsync.ts    ← { data, error, loading, reload }
+│       │       └── useTheme.ts    ← light / dark / system
+│       │
+│       ├── ui/                    ← ⑤ Design system (ไม่รู้จัก domain)
+│       │   ├── Button.tsx  Card.tsx  Badge.tsx  StatCard.tsx  Table.tsx
+│       │   ├── Field.tsx (Input/Select/Label)  Switch.tsx  Tabs.tsx
+│       │   ├── Modal.tsx  Toast.tsx  Skeleton.tsx  EmptyState.tsx
+│       │   ├── PageHeader.tsx  Avatar.tsx  Alert.tsx
+│       │   └── index.ts
+│       │
+│       ├── features/              ← ⑥ หน้าจอแยกตาม module
+│       │   ├── dashboard/DashboardPage.tsx
+│       │   ├── employees/
+│       │   │   ├── EmployeesPage.tsx
+│       │   │   ├── EmployeeDetailPage.tsx   ← /employees/:id
+│       │   │   ├── EmployeeFormPage.tsx     ← /employees/new, /employees/:id/edit
+│       │   │   └── components/ InsuranceCard, PvdCard, UniformCard
+│       │   ├── insurance/InsurancePage.tsx
+│       │   ├── pvd/PvdPage.tsx
+│       │   ├── uniform/UniformPage.tsx
+│       │   ├── rules/RulesPage.tsx
+│       │   ├── sites/SitesPage.tsx
+│       │   └── NotFoundPage.tsx
+│       │
+│       └── app/                   ← ⑦ composition root
+│           ├── App.tsx            ← RouterProvider
+│           ├── router.tsx         ← createBrowserRouter (lazy route ต่อ feature)
+│           ├── ApiContext.tsx     ← <ApiProvider> + useApi()
+│           └── layout/            ← AppShell, Sidebar, Topbar
 │
-├── backend/                       ← PHP 8.2+ (ไม่ใช้ framework, PSR-4)
+├── backend/                       ← PHP 8.2+ (ไม่ใช้ framework, PSR-4) — เฟส 2
 │   ├── composer.json
 │   ├── .env.example               ← DB_HOST, DB_NAME, DB_USER, DB_PASS
 │   ├── public/
-│   │   └── index.php              ← front controller (ทุก request เข้าที่นี่)
+│   │   ├── index.php              ← front controller (ทุก request เข้าที่นี่)
+│   │   └── .htaccess
 │   ├── src/
-│   │   ├── Config.php             ← อ่าน .env
-│   │   ├── Database.php           ← PDO singleton
-│   │   ├── Http/
-│   │   │   ├── Router.php         ← จับคู่ method + path (รองรับ {id})
-│   │   │   ├── Request.php
-│   │   │   └── Response.php       ← json(['data'=>..]) / error(['error'=>..])
-│   │   ├── Domain/
-│   │   │   ├── Dates.php          ← คู่แฝดของ date.ts
-│   │   │   └── Eligibility.php    ← คู่แฝดของ eligibility.ts
-│   │   ├── Repository/
-│   │   │   ├── EmployeeRepository.php
-│   │   │   ├── SiteRepository.php
-│   │   │   ├── RuleRepository.php
-│   │   │   ├── InsuranceBatchRepository.php
-│   │   │   └── UniformIssueRepository.php
-│   │   └── Controller/
-│   │       ├── DashboardController.php
-│   │       ├── CompanyController.php
-│   │       ├── SiteController.php
-│   │       ├── EmployeeController.php
-│   │       ├── RuleController.php
-│   │       ├── InsuranceController.php
-│   │       ├── PvdController.php
-│   │       └── UniformController.php
+│   │   ├── Domain/                ← ① pure (คู่แฝด TS)
+│   │   │   ├── Dates.php
+│   │   │   └── Eligibility.php
+│   │   ├── Application/           ← ② port + use-case
+│   │   │   ├── Port/              ← EmployeeRepository, SiteRepository, RuleRepository,
+│   │   │   │                         InsuranceBatchRepository, UniformIssueRepository (interface)
+│   │   │   └── Service/           ← DashboardService, BenefitService,
+│   │   │                             InsuranceCycleService, UniformService
+│   │   ├── Infrastructure/        ← ③ adapter
+│   │   │   ├── Config.php
+│   │   │   ├── Database.php       ← PDO singleton
+│   │   │   └── Persistence/       ← Pdo*Repository (implement Port)
+│   │   └── Http/                  ← ④ interface
+│   │       ├── Router.php  Request.php  Response.php  HttpError.php
+│   │       └── Controller/        ← Dashboard, Company, Site, Employee, Rule,
+│   │                                 Insurance, Pvd, Uniform
 │   ├── database/
-│   │   ├── schema.sql             ← CREATE TABLE ทั้งหมด
-│   │   └── seed.sql               ← กฎตั้งต้น + บริษัท + หน่วยงาน
+│   │   ├── schema.sql
+│   │   └── seed.sql
 │   └── tests/
 │       └── EligibilityTest.php    ← test case ชุดเดียวกับ eligibility.test.ts
 │
+├── shared/
+│   └── eligibility-cases.json     ← test case กลาง (TS + PHP อ่านไฟล์เดียวกัน)
 └── .gitignore
 ```
 
 ---
 
-## 4. เฟส 1 — สร้าง Frontend (Vite + React 19 + TS)
+## 5. เฟส 1 — สร้าง Frontend (Vite + React 19 + TS)
 
-### 4.1 สร้างโปรเจกต์
+### 5.1 สร้างโปรเจกต์
 ```bash
-mkdir happyland-welfare && cd happyland-welfare
+cd hl-welfare
 npm create vite@latest frontend -- --template react-ts
 cd frontend
 npm install
-npm install react@^19 react-dom@^19 react-router-dom@^7
-npm install -D @types/react@^19 @types/react-dom@^19 vitest
+npm install react@^19 react-dom@^19 react-router@^7 lucide-react
+npm install -D @types/react@^19 @types/react-dom@^19 vitest tailwindcss@^4 @tailwindcss/vite@^4
 ```
 
 ตรวจว่า `package.json` ได้ React 19:
@@ -181,7 +274,8 @@ npm install -D @types/react@^19 @types/react-dom@^19 vitest
 "dependencies": {
   "react": "^19.x",
   "react-dom": "^19.x",
-  "react-router-dom": "^7.x"
+  "react-router": "^7.x",
+  "lucide-react": "^0.x"
 }
 ```
 
@@ -195,14 +289,15 @@ npm install -D @types/react@^19 @types/react-dom@^19 vitest
 }
 ```
 
-### 4.2 `vite.config.ts`
+### 5.2 `vite.config.ts`
 ```ts
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 // dev: /api ถูก proxy ไปที่ PHP built-in server (เฟส 2)
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
     proxy: {
@@ -212,7 +307,7 @@ export default defineConfig({
 });
 ```
 
-### 4.3 `.env` / `.env.example`
+### 5.3 `.env` / `.env.example`
 ```ini
 # mock = ใช้ข้อมูลจำลองในเบราว์เซอร์ / http = เรียก PHP backend
 VITE_API_MODE=mock
@@ -229,21 +324,24 @@ interface ImportMetaEnv {
 interface ImportMeta { readonly env: ImportMetaEnv; }
 ```
 
-### 4.4 Routing (`App.tsx`)
+### 5.4 Routing (`app/router.tsx`)
+ทุก route อยู่ใต้ `AppShell` และโหลดแบบ lazy ต่อ feature
+
 | Path | Page |
 |---|---|
 | `/` | DashboardPage |
 | `/employees` | EmployeesPage (filter ผ่าน query string: `q`, `company`, `type`, `status`) |
-| `/employees/new` | EmployeeDetailPage (โหมดเพิ่ม) |
+| `/employees/new` | EmployeeFormPage (โหมดเพิ่ม) |
 | `/employees/:id` | EmployeeDetailPage |
+| `/employees/:id/edit` | EmployeeFormPage (โหมดแก้ไข / บันทึกพ้นสภาพ) |
 | `/insurance` | InsurancePage (`?cycle=YYYY-MM-05`) |
 | `/pvd` | PvdPage |
-| `/uniform` | UniformPage |
+| `/uniform` | UniformPage (`?tab=pending|history`) |
 | `/rules` | RulesPage |
 | `/sites` | SitesPage |
 | `*` | NotFoundPage |
 
-### 4.5 รัน
+### 5.5 รัน
 ```bash
 npm run dev      # http://localhost:5173
 npm test         # vitest
@@ -252,9 +350,9 @@ npm run build    # ตรวจ type + build
 
 ---
 
-## 5. Domain Model (TypeScript)
+## 6. Domain Model (TypeScript)
 
-`src/types/domain.ts` — **JSON จาก PHP ต้องใช้ชื่อ field แบบ camelCase ตรงกับนี้**
+`src/domain/types.ts` — **JSON จาก PHP ต้องใช้ชื่อ field แบบ camelCase ตรงกับนี้**
 
 ```ts
 export type CompanyCode = 'HL' | 'PRO' | 'CNS' | 'CIC' | 'AS';
@@ -472,9 +570,9 @@ export interface EmployeeFilter {
 
 ---
 
-## 6. กฎสวัสดิการ (Business Rules)
+## 7. กฎสวัสดิการ (Business Rules)
 
-### 6.1 ประกันกลุ่ม
+### 7.1 ประกันกลุ่ม
 
 | # | ประเภทพนักงาน | บริษัท | รอ (วัน) | เงื่อนไขเพิ่ม |
 |---|---|---|---|---|
@@ -511,7 +609,7 @@ export interface EmployeeFilter {
 - `URGENT`: แจ้งออกทันทีที่ยังไม่ส่ง แสดงทุกรอบจนกว่าจะส่ง
 - พนักงานถูกแจ้งเข้าได้ครั้งเดียว และแจ้งออกได้ครั้งเดียว (ส่งซ้ำ → error)
 
-### 6.2 กองทุนสำรองเลี้ยงชีพ
+### 7.2 กองทุนสำรองเลี้ยงชีพ
 
 | ประเภท | สิทธิ | รอ (วัน) |
 |---|---|---|
@@ -532,7 +630,7 @@ vestingPercent  = ขั้นสูงสุดของ pvdVesting ที่ m
 ```
 > ⚠️ ตาราง vesting ยังเป็นค่าตัวอย่าง `[0→0%, 3→50%, 5→100%]` รอ HR ยืนยัน
 
-### 6.3 ชุดฟอร์ม
+### 7.3 ชุดฟอร์ม
 
 **ส่วนกลาง (CENTRAL)** — items = `['POLO_BLACK']`
 
@@ -583,9 +681,9 @@ entitlements (limit = min(endDate, today)):
 
 ---
 
-## 7. API Contract
+## 8. API Contract
 
-`src/api/types.ts` — **ทั้ง MockApi และ HttpApi ต้อง implement ครบ**
+`src/application/ports.ts` — **port ของระบบ: ทั้ง MockApi และ HttpApi (adapter) ต้อง implement ครบ**
 
 ```ts
 export interface WelfareApi {
@@ -643,14 +741,27 @@ export interface WelfareApi {
 - แจกชุดฟอร์มซ้ำ key เดิม → 409 `"รายการนี้แจกไปแล้ว"`
 - ไม่พบข้อมูล → 404
 
-### `api/index.ts`
+### `infrastructure/createApi.ts` + `app/ApiContext.tsx` (Dependency Injection)
 ```ts
-export const API_MODE = (import.meta.env.VITE_API_MODE ?? 'mock') as 'mock' | 'http';
-export const api: WelfareApi =
-  API_MODE === 'http' ? new HttpApi(import.meta.env.VITE_API_BASE_URL ?? '/api') : new MockApi();
+// infrastructure/createApi.ts
+export type ApiMode = 'mock' | 'http';
+export function createApi(mode: ApiMode, baseUrl = '/api'): WelfareApi {
+  return mode === 'http' ? new HttpApi(baseUrl) : new MockApi();
+}
+
+// app/ApiContext.tsx — หน้าจอเรียก useApi() เท่านั้น ไม่ import adapter ตรงๆ
+const ApiContext = createContext<{ api: WelfareApi; mode: ApiMode } | null>(null);
+export function useApi() { const c = use(ApiContext); if (!c) throw new Error('ApiProvider missing'); return c; }
 ```
 
-### `api/http/httpApi.ts` (แกนหลัก)
+`application/errors.ts`
+```ts
+export class ApiError extends Error {
+  constructor(message: string, public readonly status = 400) { super(message); }
+}
+```
+
+### `infrastructure/http/httpApi.ts` (แกนหลัก)
 ```ts
 private async req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${this.baseUrl}${path}`, {
@@ -659,18 +770,19 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: 'include',
   });
   const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-  if (!res.ok || 'error' in body) throw new Error(body.error ?? `HTTP ${res.status}`);
+  if (!res.ok || 'error' in body) throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status);
   return body.data as T;
 }
 ```
 
 ---
 
-## 8. Mock API
+## 9. Mock API
 
 - `MockApi implements WelfareApi` เก็บข้อมูลใน memory + `localStorage` (key `hl-welfare-mock-v1`) ห่อ try/catch ทุกครั้ง
 - ใส่ latency จำลอง ~150ms และคืนค่าด้วย `structuredClone` (กันหน้าจอแก้ object ใน db ตรงๆ)
-- ใช้ `domain/eligibility.ts` คำนวณสิทธิ → พฤติกรรมเหมือน PHP
+- ใช้ `domain/*` + `application/usecases/*` คำนวณสิทธิ → พฤติกรรมเหมือน PHP
+- error ใช้ `ApiError(message, status)` ตัวเดียวกับ HttpApi → หน้าจอจัดการ error แบบเดียว
 - มีปุ่ม "รีเซ็ตข้อมูล" ใน sidebar (เฉพาะโหมด mock)
 - seed ต้องสร้างจาก `today` (วันที่สัมพัทธ์) เพื่อให้ edge case อยู่ในสถานะที่ต้องการเสมอ และใช้ PRNG แบบ deterministic
 
@@ -711,35 +823,131 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 
 ---
 
-## 9. หน้าจอ (Pages)
+## 10. Design System & UX
 
-| หน้า | องค์ประกอบ |
+เป้าหมาย: **สะอาด อ่านง่าย ใช้งานเร็ว** — HR ใช้ทุกวัน ข้อมูลเยอะ จึงเน้นความชัดของสถานะ (มีสิทธิ / รอ / ไม่มีสิทธิ) มากกว่าการตกแต่ง
+
+### 10.1 หลักการ
+| หลัก | ทำอย่างไร |
 |---|---|
-| **ภาพรวม** | Stat: พนักงานปัจจุบัน, รอบแจ้งประกันถัดไป (เข้า/ออก), แจ้งออกทันทีค้าง, ชุดฟอร์มค้างแจก · ตารางพนักงานแยกบริษัท (bar) · รายการ "จะครบสิทธิใน 30 วัน" |
-| **พนักงาน** | ค้นหา รหัส/ชื่อ, filter บริษัท/ประเภท/สถานะ (เก็บใน URL) · ปุ่ม "เพิ่มพนักงาน" · ตาราง → คลิกไปหน้ารายละเอียด |
-| **รายละเอียดพนักงาน** | ข้อมูลพนักงาน · การ์ดประกันกลุ่ม (วันครบสิทธิ, รอบแจ้งเข้า, วันออก/แจ้งทันที หรือเหตุผลที่ไม่มีสิทธิ) · การ์ด PVD (วันเป็นสมาชิก, ยอดหัก/สมทบ, อายุสมาชิก, % vesting) · ตารางชุดฟอร์มแต่ละรอบ + เลือกไซซ์ + "บันทึกแจก" · ปุ่มแก้ไข/บันทึกพ้นสภาพ |
-| **ฟอร์มพนักงาน** | ข้อมูลส่วนตัว, บริษัท→หน่วยงาน (กรองตามบริษัท), ประเภท (ส่วนกลางแสดงฝ่าย+ระดับ / Pro Site แสดงตำแหน่ง), สัญญา, วันเริ่มงาน, ผ่านทดลองงาน, เหตุผลพ้นสภาพ + วันทำงานสุดท้าย + วันพ้นสภาพ |
-| **ประกันกลุ่ม** | เลือกรอบ (วันที่ 5, ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · 3 ส่วน: แจ้งออกทันที / แจ้งเข้า / แจ้งออก · checkbox เลือก → "ยืนยันส่งแจ้ง" · ส่งออก CSV · ประวัติ batch |
-| **PVD** | Stat: สมาชิก, ยอดสะสม+สมทบรวม/เดือน · ตารางสมาชิก (วันเป็นสมาชิก, เงินเดือน, หัก, สมทบ, อายุสมาชิก, vesting) · แจ้งเตือนถ้า vesting เป็นค่าตัวอย่าง · ส่งออก CSV |
-| **ชุดฟอร์ม** | แท็บ "ค้างแจก" (บันทึกแจกได้เลย) / "ประวัติการแจก" · สรุปจำนวนตามแบบเสื้อ (ใช้วางแผนสั่งผลิต) |
-| **เงื่อนไขสวัสดิการ** | ตารางกฎประกัน, PVD, ชุดฟอร์ม, ค่าตั้งค่า (read-only ในเฟส 1) + รายการประเด็นที่รอยืนยัน |
-| **หน่วยงาน** | ตารางหน่วยงาน toggle "ได้รับประกันกลุ่ม", เลือกสีโปโล → บันทึกทันที |
+| **สถานะต้องเห็นในแวบเดียว** | ทุกสถานะใช้ Badge สี + จุดสี + ข้อความ (ไม่ใช้สีอย่างเดียว เพื่อคนตาบอดสี) |
+| **บอกขั้นต่อไปเสมอ** | การ์ดสิทธิแสดง "อะไร · เมื่อไร · ทำไม" เช่น "แจ้งเข้า 5 ธ.ค. 69 (ครบ 30 วัน 9 พ.ย. 69)" |
+| **ไม่มีหน้าว่างเปล่า** | Loading = skeleton ทรงเดียวกับเนื้อหา · ว่าง = EmptyState + ปุ่มทำต่อ · ผิดพลาด = Alert + ปุ่มลองใหม่ |
+| **ยืนยันก่อนทำสิ่งที่ย้อนไม่ได้** | ส่งแจ้งประกัน / บันทึกพ้นสภาพ → Modal สรุปจำนวนก่อนกดยืนยัน |
+| **Feedback ทันที** | บันทึกสำเร็จ/ล้มเหลว → Toast มุมขวาล่าง 4 วินาที |
+| **สถานะหน้าจออยู่ใน URL** | filter, แท็บ, รอบประกัน เก็บใน query string → แชร์ลิงก์/กด back ได้ |
+| **คีย์บอร์ดได้ทุกจุด** | focus ring ชัด (`:focus-visible`), `/` = โฟกัสช่องค้นหา, `Esc` ปิด modal |
 
-**UI**
-- ภาษาไทยทั้งหมด, วันที่แบบ `5 พ.ย. 69`, เงิน `1,234.00`
-- Layout: sidebar ซ้าย (โลโก้ HL, เมนู, ป้ายโหมด mock/API) + เนื้อหาขวา, รองรับจอมือถือ
-- รองรับ light/dark mode
-- ฟอนต์แนะนำ: `IBM Plex Sans Thai` หรือ `Sarabun` (Google Fonts)
-- Badge สี: เขียว=มีสิทธิ/ส่งแล้ว, เหลือง=รอส่ง/แจ้งออก, แดง=ไม่มีสิทธิ/แจ้งทันที
+### 10.2 Design tokens (`src/index.css`)
+ประกาศเป็น CSS variables แล้ว map เข้า Tailwind ผ่าน `@theme inline` → component ใช้ `bg-surface`, `text-muted` ฯลฯ ได้ทันทีทั้ง light/dark
+
+| Token | Light | Dark | ใช้กับ |
+|---|---|---|---|
+| `--bg` | `#f6f7fb` | `#0b0d14` | พื้นหลังหน้า |
+| `--surface` | `#ffffff` | `#131722` | การ์ด, ตาราง, sidebar |
+| `--surface-2` | `#f1f3f9` | `#1a1f2e` | hover, header ตาราง, input |
+| `--border` | `#e4e7ef` | `#262c3d` | เส้นขอบ |
+| `--fg` | `#0f172a` | `#e6e9f2` | ตัวอักษรหลัก |
+| `--muted` | `#64748b` | `#8b93a7` | ตัวอักษรรอง |
+| `--primary` | `#4f46e5` | `#818cf8` | ปุ่มหลัก, ลิงก์, เมนูที่เลือก |
+| `--primary-soft` | `#eef2ff` | `#1e1b4b` | พื้นหลังเมนูที่เลือก |
+| `--success` / `-soft` | `#059669` / `#ecfdf5` | `#34d399` / `#052e1f` | มีสิทธิ, ส่งแล้ว, แจกแล้ว |
+| `--warning` / `-soft` | `#d97706` / `#fffbeb` | `#fbbf24` / `#2d1f05` | รอส่ง, แจ้งออก, ใกล้ครบ |
+| `--danger` / `-soft` | `#dc2626` / `#fef2f2` | `#f87171` / `#2d0a0a` | ไม่มีสิทธิ, แจ้งทันที, error |
+| `--info` / `-soft` | `#0284c7` / `#f0f9ff` | `#38bdf8` / `#04202f` | ข้อมูลทั่วไป, รอบถัดไป |
+
+| ด้าน | ค่า |
+|---|---|
+| ฟอนต์ | `IBM Plex Sans Thai` 400/500/600/700 (Google Fonts) · ตัวเลขในตารางใช้ `tabular-nums` |
+| ขนาดตัวอักษร | 12 (caption) · 13 (ตาราง) · 14 (body) · 16 (หัวการ์ด) · 24 (หัวหน้า) · 30 (ตัวเลข Stat) |
+| Spacing | ฐาน 4px (Tailwind scale) · padding การ์ด 20px · gap ระหว่างการ์ด 16–24px |
+| Radius | 8px (input, ปุ่ม) · 12px (การ์ด) · 9999px (badge, avatar) |
+| Shadow | การ์ด: `0 1px 2px rgb(0 0 0 / .04)` + เส้นขอบ · Modal: `0 20px 50px rgb(0 0 0 / .2)` |
+| Motion | 150ms ease-out (hover/focus) · 200ms (modal/toast) · ปิดเมื่อ `prefers-reduced-motion` |
+| ธีม | `light` / `dark` / `system` เก็บใน `localStorage` (`hl-theme`) ใส่ `data-theme` ที่ `<html>` |
+
+### 10.3 Components (`src/ui/`)
+| Component | Variant / Props สำคัญ | หมายเหตุ |
+|---|---|---|
+| `Button` | `primary` · `secondary` · `ghost` · `danger`, `size: sm/md`, `loading`, `icon` | loading แสดง spinner + disable |
+| `Card` | `title`, `description`, `actions`, `padded` | หัวการ์ดมีเส้นคั่นบาง |
+| `Badge` | `tone: success/warning/danger/info/neutral/primary`, `dot` | ข้อความสั้น ≤ 3 คำ |
+| `StatCard` | `label`, `value`, `hint`, `icon`, `tone`, `to` | คลิกได้ → ไปหน้าที่เกี่ยวข้อง |
+| `Table` | `columns`, `rows`, `rowKey`, `onRowClick`, `empty`, `loading` | header sticky, hover แถว, เลื่อนแนวนอนบนมือถือ |
+| `Input` / `Select` / `Field` | `label`, `hint`, `error`, `required` | error ใต้ช่อง สีแดง + `aria-invalid` |
+| `Switch` | `checked`, `onChange`, `label` | ใช้ในหน้าหน่วยงาน |
+| `Tabs` | `items`, `value`, `onChange` (sync กับ URL) | underline indicator |
+| `Modal` | `open`, `title`, `footer`, `onClose` | trap focus, `Esc` ปิด, backdrop blur |
+| `Toast` | `toast.success()`, `toast.error()` | ผ่าน `ToastProvider` |
+| `Skeleton` | `className` | shimmer เบาๆ |
+| `EmptyState` | `icon`, `title`, `description`, `action` | |
+| `Alert` | `tone`, `title`, children | ใช้แจ้ง vesting เป็นค่าตัวอย่าง ฯลฯ |
+| `PageHeader` | `title`, `description`, `actions`, `breadcrumbs` | |
+| `Avatar` | `name` | อักษรย่อ + สีจาก hash ชื่อ |
+
+ไอคอน: **lucide-react** (เส้นบาง 1.75px ขนาด 16/18/20)
+
+### 10.4 Layout (AppShell)
+```text
+┌────────────┬───────────────────────────────────────────────────────────┐
+│  ☺ HL      │  ภาพรวม › …          [🔍 ค้นหาพนักงาน  /]   [☀/☾]  [mock] │ ← Topbar (sticky, blur)
+│  Welfare   ├───────────────────────────────────────────────────────────┤
+│            │  หัวหน้า (24px)                              [ปุ่มหลัก]   │ ← PageHeader
+│ ▣ ภาพรวม   │  คำอธิบายสั้น                                              │
+│ ☺ พนักงาน  │                                                           │
+│ ⛨ ประกัน ③ │  ┌─Stat─┐ ┌─Stat─┐ ┌─Stat─┐ ┌─Stat─┐                       │
+│ ฿ PVD      │  └──────┘ └──────┘ └──────┘ └──────┘                       │
+│ 👕 ชุดฟอร์ม⑫│  ┌──────── Card ────────┐ ┌──── Card ────┐                │
+│ ── ตั้งค่า ──│  │                      │ │              │                │
+│ ☰ เงื่อนไข  │  └──────────────────────┘ └──────────────┘                │
+│ ⌂ หน่วยงาน │                                                           │
+│            │                                     max-width 1280px      │
+│ [รีเซ็ตmock]│                                                           │
+└────────────┴───────────────────────────────────────────────────────────┘
+  264px          < 1024px: sidebar เป็น drawer (ปุ่ม ☰ ใน Topbar)
+```
+- เมนูแสดง **ตัวนับงานค้าง** (badge) เช่น ประกัน = แจ้งทันทีค้าง, ชุดฟอร์ม = ค้างแจก
+- ช่องค้นหาใน Topbar → Enter ไป `/employees?q=…`
+- ป้ายโหมด: `Mock data` (สีเหลือง) / `API` (สีเขียว)
+
+### 10.5 รูปแบบการแสดงข้อมูล
+- วันที่ `5 พ.ย. 69` · วันที่+ระยะ `5 ธ.ค. 69 · อีก 12 วัน` · เงิน `1,234.00` · จำนวนคน `1,234 คน`
+- ชื่อพนักงานในตาราง = Avatar + ชื่อ-สกุล + รหัส (บรรทัดรอง สีเทา)
+- Badge มาตรฐาน: เขียว=มีสิทธิ/ส่งแล้ว/แจกแล้ว · เหลือง=รอส่ง/แจ้งออก/ใกล้ครบ · แดง=ไม่มีสิทธิ/แจ้งทันที · ฟ้า=รอครบสิทธิ · เทา=พ้นสภาพ
+- ตัวเลขชิดขวา + `tabular-nums`
+- Responsive: ≥1280 4 คอลัมน์ Stat · 768–1279 2 คอลัมน์ · <768 1 คอลัมน์, ตารางเลื่อนแนวนอนในการ์ด
+
+### 10.6 Accessibility
+- Contrast ≥ WCAG AA (4.5:1 ตัวอักษร) ทั้งสองธีม
+- ทุก input มี `<label>`, ปุ่มไอคอนมี `aria-label`, Toast ใช้ `role="status"`
+- `lang="th"` ที่ `<html>`
 
 ---
 
-## 10. เฟส 2 — PHP Backend
+## 11. หน้าจอ (Pages)
 
-### 10.1 สร้างโครง
+| หน้า | องค์ประกอบ | UX ที่ต้องมี |
+|---|---|---|
+| **ภาพรวม** | คำทักทาย + วันที่วันนี้ · Stat 4 ใบ: พนักงานปัจจุบัน, รอบแจ้งประกันถัดไป (เข้า/ออก), แจ้งออกทันทีค้าง, ชุดฟอร์มค้างแจก · กราฟแท่งแนวนอนพนักงานแยกบริษัท · รายการ "จะครบสิทธิใน 30 วัน" | Stat คลิกไปหน้าที่เกี่ยวข้อง · แจ้งออกทันทีค้าง > 0 → Alert แดงด้านบน + ปุ่ม "ไปส่งแจ้ง" |
+| **พนักงาน** | ค้นหา รหัส/ชื่อ, filter บริษัท/ประเภท/สถานะ (เก็บใน URL) · ปุ่ม "เพิ่มพนักงาน" · ตาราง (Avatar+ชื่อ, บริษัท/หน่วยงาน, ประเภท, วันเริ่มงาน, สถานะ) | ค้นหาแบบ debounce 250ms · ปุ่ม "ล้างตัวกรอง" · แสดงจำนวนผลลัพธ์ · คลิกทั้งแถวเพื่อเปิด |
+| **รายละเอียดพนักงาน** | Header: Avatar, ชื่อ, รหัส, Badge สถานะ, ปุ่มแก้ไข · แถบข้อมูลย่อ (บริษัท, หน่วยงาน, ประเภท, สัญญา, อายุงาน) · การ์ดประกันกลุ่ม · การ์ด PVD · การ์ดชุดฟอร์ม (ตารางแต่ละรอบ + เลือกไซซ์ + "บันทึกแจก") | การ์ดสิทธิ = Badge ใหญ่ + timeline (เริ่มงาน → ครบสิทธิ → รอบแจ้งเข้า → แจ้งออก) · ไม่มีสิทธิ = แสดงเหตุผลเป็นข้อๆ |
+| **ฟอร์มพนักงาน** | แบ่ง section: ข้อมูลส่วนตัว / การจ้างงาน / การพ้นสภาพ · บริษัท→หน่วยงาน (กรองตามบริษัท), ประเภท (ส่วนกลางแสดงฝ่าย+ระดับ / Pro Site แสดงตำแหน่ง), สัญญา, เงินเดือน, วันเริ่มงาน, ผ่านทดลองงาน | ช่องที่ไม่เกี่ยวซ่อนอัตโนมัติ · validation ใต้ช่อง · ปุ่มบันทึก sticky ด้านล่าง · บันทึกสำเร็จ → Toast + กลับหน้ารายละเอียด |
+| **ประกันกลุ่ม** | เลือกรอบ (วันที่ 5, ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · 3 section: แจ้งออกทันที / แจ้งเข้า / แจ้งออก · checkbox เลือก → "ส่งแจ้ง" · ส่งออก CSV · ประวัติ batch | ตัวนับในหัว section · เลือกทั้งหมด · Modal ยืนยัน "ส่งแจ้งเข้า 5 ราย รอบ 5 พ.ย. 69?" · แถวที่ส่งแล้วแสดง Badge เขียว checkbox ปิด |
+| **PVD** | Stat: สมาชิก, หักสะสมรวม/เดือน, สมทบรวม/เดือน · ตารางสมาชิก (วันเป็นสมาชิก, เงินเดือน, หัก, สมทบ, อายุสมาชิก, vesting) · ส่งออก CSV | Alert เหลืองถ้า vesting เป็นค่าตัวอย่าง · vesting แสดงเป็น progress bar |
+| **ชุดฟอร์ม** | แท็บ "ค้างแจก" (เลือกไซซ์ + บันทึกแจกในแถว) / "ประวัติการแจก" · สรุปจำนวนตามแบบเสื้อ (วางแผนสั่งผลิต) | แถวเกินกำหนด > 30 วัน Badge แดง · บันทึกแล้วแถวหายพร้อม Toast |
+| **เงื่อนไขสวัสดิการ** | แท็บ: ประกันกลุ่ม / PVD / ชุดฟอร์ม / ค่าตั้งค่า (read-only ในเฟส 1) + รายการประเด็นที่รอยืนยันกับ HR | |
+| **หน่วยงาน** | ตารางหน่วยงานจัดกลุ่มตามบริษัท · Switch "ได้รับประกันกลุ่ม" · เลือกสีโปโล (swatch) | บันทึกทันที (optimistic) + Toast · ล้มเหลว → ย้อนค่า |
+
+**UI** — ภาษาไทยทั้งหมด · รายละเอียด token/component/layout ดู [ข้อ 10](#10-design-system--ux)
+
+---
+
+## 12. เฟส 2 — PHP Backend
+
+### 12.1 สร้างโครง
 ```bash
-cd happyland-welfare
-mkdir -p backend/{public,src/{Http,Domain,Repository,Controller},database,tests}
+cd hl-welfare
+mkdir -p backend/{public,src/{Domain,Application/{Port,Service},Infrastructure/Persistence,Http/Controller},database,tests}
 cd backend
 composer init --name=happyland/welfare --type=project -n
 composer require vlucas/phpdotenv
@@ -780,7 +988,7 @@ APP_TZ=Asia/Bangkok
 CORS_ORIGIN=http://localhost:5173
 ```
 
-### 10.2 `public/index.php` (front controller)
+### 12.2 `public/index.php` (front controller)
 ```php
 <?php
 declare(strict_types=1);
@@ -828,7 +1036,7 @@ try {
 }
 ```
 
-### 10.3 `Http/Response.php`
+### 12.3 `Http/Response.php`
 ```php
 <?php
 namespace App\Http;
@@ -863,10 +1071,10 @@ final class HttpError extends \RuntimeException
 }
 ```
 
-### 10.4 `Database.php`
+### 12.4 `Infrastructure/Database.php`
 ```php
 <?php
-namespace App;
+namespace AppInfrastructure;
 
 use PDO;
 
@@ -890,17 +1098,19 @@ final class Database
 }
 ```
 
-### 10.5 ข้อกำหนด Backend
+### 12.5 ข้อกำหนด Backend
+- **ชั้นตามข้อ 3.3**: Controller บาง (อ่าน request → เรียก Service → `Response::json`) · Service รับ Port (interface) ผ่าน constructor · `Domain` ห้ามแตะ PDO/`$_ENV`
+- ประกอบ dependency ที่ `public/index.php` (หรือ `Infrastructure/Container.php` แบบง่าย) ไม่ใช้ `new` ใน Controller/Service
 - **Prepared statements ทุก query** (ห้ามต่อ string SQL)
 - Repository แปลงแถว DB (`snake_case`) → array `camelCase` ตาม TypeScript type, `boolean` ต้องเป็น `true/false` ไม่ใช่ `0/1`, field JSON (`companies`, `items`, `deptGroups`) ต้อง `json_decode`
-- `Domain/Eligibility.php` แปลงจาก `eligibility.ts` แบบบรรทัดต่อบรรทัด ใช้ `DateTimeImmutable` + timezone UTC สำหรับคำนวณวัน
+- `Domain/Eligibility.php` แปลงจาก `domain/insurance.ts`, `pvd.ts`, `uniform.ts` แบบบรรทัดต่อบรรทัด · use-case ใน `Application/Service` แปลงจาก `application/usecases/*` ใช้ `DateTimeImmutable` + timezone UTC สำหรับคำนวณวัน
 - `submitInsuranceBatch` และ `createUniformIssue` ทำใน **transaction** และพึ่ง unique key กันซ้ำ
 - เขียน `audit_log` ทุกครั้งที่ create/update พนักงาน, ส่ง batch, แจกชุด
 - เฟสถัดไป: login + role (HR Admin / HR บริษัท / Payroll / ผู้ดูแลสต็อก / ผู้บริหาร)
 
 ---
 
-## 11. MySQL Schema
+## 13. MySQL Schema
 
 `backend/database/schema.sql`
 ```sql
@@ -1052,7 +1262,7 @@ CREATE TABLE audit_log (
 ) ENGINE=InnoDB;
 ```
 
-`backend/database/seed.sql` (ตัวอย่างส่วนกฎ — ให้ครบตามตารางข้อ 6)
+`backend/database/seed.sql` (ตัวอย่างส่วนกฎ — ให้ครบตามตารางข้อ 7)
 ```sql
 USE happyland_welfare;
 
@@ -1082,11 +1292,11 @@ INSERT INTO uniform_items VALUES
  ('POLO_BLACK','โปโลสีดำ'),('POLO_NAVY','โปโลสีน้ำเงิน'),('TECH_SHIRT','เสื้อช่าง'),
  ('TECH_PANTS','กางเกงช่าง'),('SAFETY_SHOES','รองเท้า Safety');
 
--- uniform_rules: 18 แถวตามตาราง 6.3 (ตัวอย่าง 2 แถว)
+-- uniform_rules: 18 แถวตามตาราง 7.3 (ตัวอย่าง 2 แถว)
 INSERT INTO uniform_rules (employee_type, companies, dept_groups, position, level_min, level_max, style, items, polo_by_site, qty_start, qty_start_label, qty_probation, qty_annual, note) VALUES
  ('CENTRAL', '["HL","PRO","CNS","CIC"]', '["Support Line"]', NULL, 1, 5, 'โปโลสีดำ โลโก้ HL', '["POLO_BLACK"]', 0, 0, NULL, 4, 2, ''),
  ('PRO_SITE', '["PRO"]', NULL, 'ช่างทีมโมบาย', NULL, NULL, 'โปโลสีดำหรือน้ำเงิน โลโก้ PRO', '["POLO_NAVY","TECH_SHIRT","TECH_PANTS","SAFETY_SHOES"]', 1, 3, '2+1', 1, 2, '');
--- ... + sites 11 แถวตามข้อ 8 + พนักงานตัวอย่าง
+-- ... + sites 11 แถวตามข้อ 9 + พนักงานตัวอย่าง
 ```
 
 > ทางลัด: เขียนสคริปต์ `frontend/scripts/export-seed.ts` ที่เรียก `buildSeed(today)` แล้วพิมพ์เป็น `INSERT` ออกมา → ข้อมูล MySQL จะตรงกับ mock ทุกตัว
@@ -1099,9 +1309,9 @@ mysql -u root -p < backend/database/seed.sql
 
 ---
 
-## 12. สลับจาก mock → MySQL จริง
+## 14. สลับจาก mock → MySQL จริง
 
-1. สร้าง DB ตามข้อ 11 และ `cp backend/.env.example backend/.env` แก้รหัสผ่าน
+1. สร้าง DB ตามข้อ 13 และ `cp backend/.env.example backend/.env` แก้รหัสผ่าน
 2. รัน backend
    ```bash
    cd backend
@@ -1129,13 +1339,13 @@ mysql -u root -p < backend/database/seed.sql
 
 ---
 
-## 13. การทดสอบ
+## 15. การทดสอบ
 
-**Frontend (Vitest)** — `src/domain/eligibility.test.ts`
+**Frontend (Vitest)** — `src/domain/eligibility.test.ts` (ทดสอบ domain ล้วน ไม่ต้อง mock อะไร)
 ```ts
 import { describe, expect, it } from 'vitest';
 import { insuranceStatus, pvdStatus, matchUniformRule } from './eligibility';
-import { defaultRules } from '../api/mock/rules';
+import { defaultRules } from '../infrastructure/mock/rules'; // fixture เท่านั้น
 // สร้าง helper emp({...}) คืน Employee ที่มีค่า default
 
 describe('ประกันกลุ่ม', () => {
@@ -1169,24 +1379,27 @@ describe('ชุดฟอร์ม', () => {
 
 ---
 
-## 14. Checklist
+## 16. Checklist
 
 ### เฟส 1 — Frontend + Mock
-- [ ] สร้างโปรเจกต์ Vite React 19 + TS, ติดตั้ง react-router-dom
-- [ ] `types/domain.ts`, `api/types.ts`
-- [ ] `domain/date.ts`, `domain/eligibility.ts` + test ผ่านทั้งหมด
-- [ ] `api/mock/rules.ts`, `seed.ts`, `mockApi.ts`, `api/index.ts`
-- [ ] `api/http/httpApi.ts` (เขียนไว้ก่อน ยังไม่ใช้)
-- [ ] Layout + ui components + CSS (light/dark, มือถือ)
+- [ ] สร้างโปรเจกต์ Vite React 19 + TS + Tailwind 4, ติดตั้ง react-router, lucide-react
+- [ ] `domain/types.ts`, `application/ports.ts`, `application/errors.ts`
+- [ ] `domain/date.ts`, `insurance.ts`, `pvd.ts`, `uniform.ts` + test ผ่านทั้งหมด
+- [ ] `application/usecases/*` (dashboard, insuranceCycle, uniformPending)
+- [ ] `infrastructure/mock/*`, `infrastructure/createApi.ts`, `app/ApiContext.tsx`
+- [ ] `infrastructure/http/httpApi.ts` (เขียนไว้ก่อน ยังไม่ใช้)
+- [ ] Design tokens + `ui/*` components + AppShell (light/dark, มือถือ)
+- [ ] ESLint กฎ import ตามชั้น ผ่าน
 - [ ] หน้า: ภาพรวม, พนักงาน, รายละเอียด/ฟอร์ม, ประกันกลุ่ม, PVD, ชุดฟอร์ม, เงื่อนไข, หน่วยงาน, 404
 - [ ] ส่งออก CSV เปิดใน Excel แล้วภาษาไทยไม่เพี้ยน (UTF-8 BOM)
 - [ ] `npm run build` ผ่าน ไม่มี type error
 
 ### เฟส 2 — PHP + MySQL
 - [ ] `schema.sql`, `seed.sql` (ข้อมูลตรงกับ mock)
-- [ ] Router, Request, Response, Database
+- [ ] Router, Request, Response, Infrastructure/Database
+- [ ] Application/Port (interface) + Infrastructure/Persistence (PDO)
 - [ ] `Domain/Eligibility.php` + PHPUnit ผ่าน (case เดียวกับ TS)
-- [ ] Repository + Controller ครบทุก endpoint ในข้อ 7
+- [ ] Service + Controller ครบทุก endpoint ในข้อ 8
 - [ ] Validation + transaction + unique key กันซ้ำ
 - [ ] audit_log
 - [ ] สลับ `VITE_API_MODE=http` แล้วทุกหน้าทำงานเหมือน mock
@@ -1200,7 +1413,7 @@ describe('ชุดฟอร์ม', () => {
 
 ---
 
-## 15. ประเด็นที่ต้องยืนยันกับ HR
+## 17. ประเด็นที่ต้องยืนยันกับ HR
 - [ ] "ทำงานครบ 30/120 วัน" นับวันปฏิทินหรือวันทำงาน? นับวันเริ่มงานเป็นวันที่ 1 ไหม? (ระบบตอนนี้: `startDate + N วันปฏิทิน`)
 - [ ] ครบสิทธิหลังวันที่ 5 → เข้ารอบเดือนถัดไปใช่ไหม?
 - [ ] อายุ 65 ตรวจเฉพาะตอนแจ้งเข้า หรือต้องแจ้งออกเมื่ออายุครบ 65 ระหว่างเป็นสมาชิกด้วย?

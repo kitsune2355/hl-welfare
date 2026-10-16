@@ -1,0 +1,56 @@
+import type { ISODate } from './types';
+
+// ทุกการคำนวณวันทำบน UTC เพื่อไม่ให้วันเลื่อนตาม timezone ของเครื่อง
+const DAY_MS = 86_400_000;
+
+export function parseISO(d: ISODate): number {
+  const [y, m, day] = d.split('-').map(Number);
+  return Date.UTC(y, m - 1, day);
+}
+
+export function toISO(ms: number): ISODate {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/** วันที่วันนี้ตามเวลาเครื่อง (ไม่ใช่ UTC) ในรูป ISO */
+export function todayISO(now = new Date()): ISODate {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+export function addDays(d: ISODate, n: number): ISODate {
+  return toISO(parseISO(d) + n * DAY_MS);
+}
+
+export function addMonths(d: ISODate, n: number): ISODate {
+  const dt = new Date(parseISO(d));
+  dt.setUTCMonth(dt.getUTCMonth() + n);
+  return toISO(dt.getTime());
+}
+
+/** จำนวนวันจาก a ถึง b (b − a) */
+export function diffDays(a: ISODate, b: ISODate): number {
+  return Math.round((parseISO(b) - parseISO(a)) / DAY_MS);
+}
+
+/** อายุเต็มปี ณ วันที่ at */
+export function ageAt(birth: ISODate, at: ISODate): number {
+  const [by, bm, bd] = birth.split('-').map(Number);
+  const [ay, am, ad] = at.split('-').map(Number);
+  return ay - by - (am < bm || (am === bm && ad < bd) ? 1 : 0);
+}
+
+/** วันที่ `day` แรกของเดือนที่ >= d (รอบแจ้งประกัน) */
+export function nextCycleDate(d: ISODate, day = 5): ISODate {
+  const [y, m, dd] = d.split('-').map(Number);
+  const target = dd <= day ? Date.UTC(y, m - 1, day) : Date.UTC(y, m, day);
+  return toISO(target);
+}
+
+export function minDate(a: ISODate | null, b: ISODate): ISODate {
+  return a !== null && a < b ? a : b;
+}
+
+export function yearOf(d: ISODate): number {
+  return Number(d.slice(0, 4));
+}
