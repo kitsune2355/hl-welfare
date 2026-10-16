@@ -76,6 +76,12 @@ export function initPage(active, { tour = active } = {}) {
     <div class="sidebar-foot">
       <div class="row">แหล่งข้อมูล ${API_MODE === 'mock' ? badge('Mock data', 'warning') : badge('API', 'success')}</div>
       ${API_MODE === 'mock' ? html`<button class="reset-btn" id="reset-btn">${raw(icon('rotate-ccw'))} รีเซ็ตข้อมูลจำลอง</button>` : ''}
+      <!-- ผู้ใช้ที่เข้าสู่ระบบ — ยึดล่างสุดของ sidebar -->
+      <div class="sidebar-user" title="${user.name} · ${user.role}">
+        ${avatar(user.name)}
+        <span class="user-text"><b>${user.name}</b><small>${user.role}</small></span>
+        ${isAuthEnabled() ? html`<button class="btn-icon sm" id="logout-btn" aria-label="ออกจากระบบ" title="ออกจากระบบ">${raw(icon('log-out'))}</button>` : ''}
+      </div>
     </div>`);
 
   const app = document.createElement('div');
@@ -90,11 +96,6 @@ export function initPage(active, { tour = active } = {}) {
     <span class="spacer"></span>
     <button class="btn-icon" id="help-btn" aria-label="แนะนำการใช้งาน" title="แนะนำการใช้งาน">${raw(icon('circle-help'))}</button>
     <button class="btn-icon" id="theme-btn"></button>
-    <div class="user-chip" title="${user.name} · ${user.role}">
-      ${avatar(user.name)}
-      <span class="user-text"><b>${user.name}</b><small>${user.role}</small></span>
-      ${isAuthEnabled() ? html`<button class="btn-icon sm" id="logout-btn" aria-label="ออกจากระบบ" title="ออกจากระบบ">${raw(icon('log-out'))}</button>` : ''}
-    </div>
   </header>`);
 
   main.before(sidebar);

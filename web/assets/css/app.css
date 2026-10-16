@@ -1364,8 +1364,13 @@ button.stat:hover {
   display: flex;
   gap: 4px;
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none; /* ซ่อน scrollbar — บนมือถือยังปัดแท็บซ้าย/ขวาได้ */
   margin-bottom: 20px;
-  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 -1px 0 var(--border); /* เส้นใต้แถบแท็บ (ไม่ใช้ border เพื่อไม่ให้เส้นของแท็บที่เลือกล้นจนเกิด scrollbar) */
+}
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 .card .tabs {
   margin: 0;
@@ -1375,7 +1380,6 @@ button.stat:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: -1px;
   padding: 10px 12px;
   border-bottom: 2px solid transparent;
   font-weight: 500;
@@ -2402,26 +2406,29 @@ input[type='radio'] {
   color: #fff;
 }
 
-/* ผู้ใช้ที่เข้าสู่ระบบ (topbar) */
-.user-chip {
+/* ผู้ใช้ที่เข้าสู่ระบบ — ล่างสุดของ sidebar (sidebar เป็น flex column, nav ยืด → ส่วนนี้ติดขอบล่างเสมอ) */
+.sidebar-user {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-left: 6px;
-  padding: 4px 4px 4px 4px;
+  margin-top: 4px;
+  padding: 10px;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
+  border-radius: 12px;
+  background: var(--grad-soft);
 }
-.user-chip .avatar {
-  width: 30px;
-  height: 30px;
+.sidebar-user .avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 13px;
   background: var(--grad) !important;
+  box-shadow: 0 0 0 2px var(--surface);
 }
 .user-text {
   display: grid;
-  line-height: 1.2;
-  max-width: 160px;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
 }
 .user-text b {
   font-size: 13px;
@@ -2434,8 +2441,7 @@ input[type='radio'] {
   font-size: 11px;
   color: var(--muted);
 }
-@media (max-width: 767px) {
-  .user-text {
-    display: none;
-  }
+.sidebar-user .btn-icon:hover {
+  color: var(--danger);
+  background: var(--surface);
 }
