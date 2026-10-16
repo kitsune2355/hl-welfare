@@ -924,7 +924,7 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 | `Pagination` | `page`, `pageSize`, `total`, `onPageChange`, `onPageSizeChange` | "แสดง 1–25 จาก 248" · เลือก 10/25/50/100 ต่อหน้า · เลขหน้าแบบย่อ `1 … 4 5 6 … 20` · มือถือแสดง "หน้า x / y" |
 | `Input` / `Field` / `SelectField` | `label`, `hint`, `error`, `required` | error ใต้ช่อง สีแดง + `aria-invalid` |
 | `Combobox` | `options`, `clearable`, `creatable`, `variant: default/cell`, `autoOpen` | **select ทุกจุดพิมพ์ค้นหาได้** · ↑↓ Enter Esc · `creatable` พิมพ์ค่าใหม่ได้ (เช่น ตำแหน่ง) · popover แบบ portal ไม่ถูกตัดในตาราง |
-| `DataGrid` | `columns` (`editor: text/number/date/select/switch`, `editable(row)`), `validate`, `onSave`, `newRow`, `onDelete`, `onOpen`, `pageSize` | ตารางแบบ Excel — ดูข้อ 10.7 |
+| `DataGrid` | `columns` (`editor: text/number/date/select/switch`, `editable(row)`), `validate`, `onSave`, `newRow`, `onDelete`, `onOpen`, `pageSize` | ตารางแบบ Excel — ดูข้อ 10.6 |
 | `ConfirmButton` | `title`, `confirmLabel`, `successMessage`, `onConfirm` | ยืนยันก่อนยกเลิก/ลบ + Toast อัตโนมัติ |
 | `Switch` | `checked`, `onChange`, `label` | ใช้ในหน้าหน่วยงาน |
 | `Tabs` | `items`, `value`, `onChange` (sync กับ URL) | underline indicator |
@@ -968,7 +968,7 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 - ตัวเลขชิดขวา + `tabular-nums`
 - Responsive: ≥1280 4 คอลัมน์ Stat · 640–1279 2 คอลัมน์ · <640 1 คอลัมน์ · ตาราง <768px เปลี่ยนเป็นการ์ดรายแถว · ตัวกรองบนมือถือเรียง 2 คอลัมน์ ช่องค้นหาเต็มแถว · sidebar <1024px เป็น drawer
 
-### 10.7 ตารางแบบ Excel (DataGrid)
+### 10.6 ตารางแบบ Excel (DataGrid)
 ใช้กับข้อมูลที่ HR แก้บ่อย: **พนักงาน** และ **หน่วยงาน** · ตารางอ่านอย่างเดียว (ประกัน, PVD, ชุดฟอร์ม, ประวัติ) ใช้ `Table` ที่ปรับหน้าตาเป็นเส้นตารางแบบ Excel + เลขแถว
 
 | การใช้งาน | ผลลัพธ์ |
@@ -988,7 +988,7 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 - เปลี่ยนบริษัท/ประเภท → `normalizeEmployee` จัดหน่วยงาน/ฝ่าย/ตำแหน่งให้สอดคล้องอัตโนมัติ
 - การพ้นสภาพ (หลายช่อง ผลกระทบสูง) ยังทำผ่านฟอร์มเต็มที่หน้ารายละเอียด
 
-### 10.8 การแบ่งหน้า (ข้อมูลเยอะ)
+### 10.7 การแบ่งหน้า (ข้อมูลเยอะ)
 | หน้า | ต่อหน้า | หมายเหตุ |
 |---|---|---|
 | พนักงาน | 25 | เลขหน้าเก็บใน URL (`?page=`) · เปลี่ยนตัวกรอง → กลับหน้า 1 |
@@ -998,7 +998,7 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 
 - เฟส 1 แบ่งหน้าฝั่ง client (ข้อมูลหลักร้อยแถว) · ถ้าข้อมูลเกิน ~2,000 แถว ให้ย้ายไปแบ่งหน้าฝั่ง server ในเฟส 2: `GET /api/employees?page=1&pageSize=25` → `{ "data": [...], "meta": { "page": 1, "pageSize": 25, "total": 2480 } }` (เพิ่มเป็น method ใหม่ใน port โดยไม่ต้องแก้ `Table` — ใช้ `page`/`onPageChange` แบบ controlled)
 
-### 10.6 Accessibility
+### 10.8 Accessibility
 - Contrast ≥ WCAG AA (4.5:1 ตัวอักษร) ทั้งสองธีม
 - ทุก input มี `<label>`, ปุ่มไอคอนมี `aria-label`, Toast ใช้ `role="status"`
 - `lang="th"` ที่ `<html>`
