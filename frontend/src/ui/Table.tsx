@@ -31,9 +31,14 @@ interface Props<T> {
   /** ควบคุมเลขหน้าจากภายนอก (เช่นเก็บใน URL) */
   page?: number;
   onPageChange?: (page: number) => void;
+  /** แสดงคอลัมน์เลขแถวแบบ Excel (ค่าเริ่มต้น: เปิด) */
+  rowNumbers?: boolean;
 }
 
 const alignCls = { left: 'text-left', right: 'text-right', center: 'text-center' };
+// สไตล์แบบ Excel: เส้นตาราง + หัวตารางติดด้านบน
+const gridHead = 'sticky top-0 z-10 border-r border-b border-border bg-surface-2 px-3 py-2 text-xs font-semibold whitespace-nowrap text-muted last:border-r-0';
+const gridCell = 'border-r border-b border-border last:border-r-0';
 
 function slotOf<T>(c: Column<T>, i: number): NonNullable<Column<T>['mobile']> {
   if (c.mobile) return c.mobile;
@@ -43,7 +48,7 @@ function slotOf<T>(c: Column<T>, i: number): NonNullable<Column<T>['mobile']> {
   return 'field';
 }
 
-export function Table<T>({ columns, rows, rowKey, onRowClick, loading, empty, rowClassName, pageSize, page: pageProp, onPageChange }: Props<T>) {
+export function Table<T>({ columns, rows, rowKey, onRowClick, loading, empty, rowClassName, pageSize, page: pageProp, onPageChange, rowNumbers = true }: Props<T>) {
   const [pageState, setPageState] = useState(1);
   const [size, setSize] = useState(pageSize ?? 0);
 
@@ -65,12 +70,13 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, loading, empty, ro
   return (
     <div>
       {/* ===== Desktop / tablet: ตาราง ===== */}
-      <div className="overflow-x-auto max-md:hidden">
-        <table className="w-full border-collapse text-[13px]">
+      <div className="max-h-[70vh] overflow-auto max-md:hidden">
+        <table className="w-full border-separate border-spacing-0 text-[13px]">
           <thead>
-            <tr className="border-b border-border bg-surface-2/60">
+            <tr>
+              {rowNumbers && <th scope="col" className={cn(gridHead, 'w-12 text-center')}>#</th>}
               {columns.map((c) => (
-                <th key={c.key} scope="col" className={cn('px-4 py-2.5 text-xs font-medium whitespace-nowrap text-muted', alignCls[c.align ?? 'left'], c.className)}>
+                <th key={c.key} scope="col" className={cn(gridHead, alignCls[c.align ?? 'left'], c.className)}>
                   {c.header}
                 </th>
               ))}
@@ -79,22 +85,24 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, loading, empty, ro
           <tbody>
             {skeleton
               ? Array.from({ length: 6 }, (_, i) => (
-                  <tr key={i} className="border-b border-border last:border-0">
+                  <tr key={i}>
+                    {rowNumbers && <td className={gridCell} />}
                     {columns.map((c) => (
-                      <td key={c.key} className="px-4 py-3.5">
+                      <td key={c.key} className={cn(gridCell, 'px-3 py-3')}>
                         <Skeleton className="h-4 w-full max-w-32" />
                       </td>
                     ))}
                   </tr>
                 ))
-              : visible?.map((r) => (
+              : visible?.map((r, i) => (
                   <tr
                     key={rowKey(r)}
                     onClick={onRowClick ? () => onRowClick(r) : undefined}
-                    className={cn('border-b border-border transition-colors last:border-0', onRowClick && 'cursor-pointer hover:bg-surface-2/70', rowClassName?.(r))}
+                    className={cn('transition-colors [&>td]:bg-surface', onRowClick && 'cursor-pointer hover:[&>td]:bg-primary-soft/40', rowClassName?.(r))}
                   >
+                    {rowNumbers && <td className={cn(gridCell, 'num !bg-surface-2/70 text-center text-xs text-muted')}>{(paged ? (page - 1) * size : 0) + i + 1}</td>}
                     {columns.map((c) => (
-                      <td key={c.key} className={cn('px-4 py-3 align-middle', alignCls[c.align ?? 'left'], c.className)}>
+                      <td key={c.key} className={cn(gridCell, 'px-3 py-2 align-middle', alignCls[c.align ?? 'left'], c.className)}>
                         {c.cell(r)}
                       </td>
                     ))}

@@ -1,4 +1,4 @@
-import { Pencil, UserX } from 'lucide-react';
+import { History, Pencil, UserX } from 'lucide-react';
 import { useParams } from 'react-router';
 import { useApi } from '../../app/ApiContext';
 import { todayISO } from '../../domain/date';
@@ -15,6 +15,7 @@ import {
 import { Avatar, Badge, ButtonLink, Card, EmptyState, ErrorState, InfoList, PageHeader, Skeleton } from '../../ui';
 import { InsuranceCard, PvdCard } from './components/BenefitCards';
 import { UniformCard } from './components/UniformCard';
+import { ActivityFeed } from '../monitor/ActivityFeed';
 
 export function EmployeeDetailPage() {
   const { id } = useParams();
@@ -22,6 +23,7 @@ export function EmployeeDetailPage() {
   const today = todayISO();
   const benefits = useAsync(() => api.getEmployeeBenefits(Number(id)), [api, id]);
   const rules = useAsync(() => api.getRules(), [api]);
+  const activity = useAsync(() => api.listActivity({ employeeId: Number(id), limit: 30 }), [api, id]);
 
   if (benefits.error) {
     const notFound = (benefits.error as { status?: number }).status === 404;
@@ -105,8 +107,12 @@ export function EmployeeDetailPage() {
       </div>
 
       <div className="mt-6">
-        <UniformCard emp={e} st={b.uniform} today={today} onChange={benefits.reload} />
+        <UniformCard emp={e} st={b.uniform} today={today} onChange={() => (benefits.reload(), activity.reload())} />
       </div>
+
+      <Card className="mt-6" padded={false} icon={<History />} title="ประวัติการเปลี่ยนแปลง" description="บันทึกกิจกรรมของพนักงานคนนี้">
+        <ActivityFeed items={activity.data} loading={activity.loading} showEmployeeLink={false} />
+      </Card>
     </>
   );
 }

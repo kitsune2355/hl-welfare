@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../shared/cn';
+import { Combobox } from './Combobox';
 
 export const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -42,15 +43,7 @@ export function Pagination({ page, pageSize, total, onPageChange, onPageSizeChan
         {onPageSizeChange && (
           <label className="flex items-center gap-1.5 max-sm:hidden">
             <span>ต่อหน้า</span>
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="h-8 rounded-lg border border-border bg-surface px-2 text-[13px] text-fg focus:border-primary focus:outline-none"
-            >
-              {PAGE_SIZES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
+            <Combobox aria-label="จำนวนต่อหน้า" size="sm" value={String(pageSize)} onChange={(v) => v && onPageSizeChange(Number(v))} options={PAGE_SIZES.map((s) => ({ value: String(s), label: String(s) }))} className="w-20" />
           </label>
         )}
       </div>

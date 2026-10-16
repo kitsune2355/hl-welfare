@@ -1,4 +1,4 @@
-import { CheckCircle2, Download, History, LogIn, LogOut, Send, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, Download, History, LogIn, LogOut, Send, ShieldAlert, Undo2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { useApi } from '../../app/ApiContext';
@@ -9,7 +9,7 @@ import { downloadCsv } from '../../shared/csv';
 import { relativeDays, thaiDate, thaiDateLong, thaiDateTime } from '../../shared/format';
 import { useAsync } from '../../shared/hooks/useAsync';
 import { BATCH_TONE, BATCH_TYPE_LABEL, EMPLOYEE_TYPE_LABEL } from '../../shared/labels';
-import { Badge, Button, Card, EmptyState, ErrorState, Modal, PageHeader, Select, Skeleton, Table, useToast } from '../../ui';
+import { Badge, Button, Card, Combobox, ConfirmButton, EmptyState, ErrorState, Modal, PageHeader, Skeleton, Table, useToast } from '../../ui';
 import { EmployeeCell } from '../common';
 
 const SECTIONS: { type: BatchType; title: string; description: string; icon: ReactNode }[] = [
@@ -115,14 +115,13 @@ export function InsurancePage() {
         description="สร้างรายการแจ้งเข้า/ออกทุกวันที่ 5 ของเดือน และแจ้งออกทันทีกรณีเลิกจ้าง"
         actions={
           <>
-            <Select aria-label="เลือกรอบ" value={cycle} onChange={(e) => setParams({ cycle: e.target.value }, { replace: true })} className="w-full sm:w-52">
-              {cycleOptions.map((c) => (
-                <option key={c} value={c}>
-                  รอบ {thaiDate(c)}
-                  {c === current ? ' (ถัดไป)' : ''}
-                </option>
-              ))}
-            </Select>
+            <Combobox
+              aria-label="เลือกรอบ"
+              value={cycle}
+              onChange={(v) => v && setParams({ cycle: v }, { replace: true })}
+              options={cycleOptions.map((c) => ({ value: c, label: `รอบ ${thaiDate(c)}${c === current ? ' (ถัดไป)' : ''}`, hint: relativeDays(c, today) }))}
+              className="w-full sm:w-56"
+            />
             <Button icon={<Download />} onClick={exportCsv} disabled={!total}>
               ส่งออก CSV
             </Button>
@@ -173,7 +172,7 @@ export function InsurancePage() {
                     rows={rows}
                     rowKey={(r) => r.employee.id}
                     onRowClick={(r) => !r.submitted && toggle(s.type, r.employee.id)}
-                    rowClassName={(r) => (sel.has(r.employee.id) ? 'bg-primary-soft/50' : undefined)}
+                    rowClassName={(r) => (sel.has(r.employee.id) ? '[&>td]:!bg-primary-soft/60' : undefined)}
                     pageSize={25}
                     columns={[
                       {
@@ -223,6 +222,28 @@ export function InsurancePage() {
                 { key: 'n', header: 'จำนวน', align: 'right', cell: (b) => <span className="num">{b.employeeIds.length} ราย</span> },
                 { key: 'at', header: 'ส่งเมื่อ', hideOnMobile: true, cell: (b) => <span className="num text-muted">{thaiDateTime(b.submittedAt)}</span> },
                 { key: 'by', header: 'โดย', hideOnMobile: true, cell: (b) => <span className="text-muted">{b.submittedBy}</span> },
+                {
+                  key: 'cancel',
+                  header: '',
+                  align: 'right',
+                  cell: (b) => (
+                    <ConfirmButton
+                      label="ยกเลิก"
+                      icon={<Undo2 />}
+                      title={`ยกเลิก${BATCH_TYPE_LABEL[b.type]} #${b.id}?`}
+                      description={`รอบ ${thaiDate(b.cycleDate)} · ${b.employeeIds.length} ราย`}
+                      confirmLabel="ยกเลิกการส่ง"
+                      successMessage={`ยกเลิก batch #${b.id} แล้ว — รายการกลับไปเป็น “รอส่ง”`}
+                      onConfirm={async () => {
+                        await api.cancelInsuranceBatch(b.id);
+                        data.reload();
+                        batches.reload();
+                      }}
+                    >
+                      <p className="text-[13px] text-muted">ใช้กรณีส่งผิด — พนักงานใน batch นี้จะกลับไปอยู่ในรายการรอส่ง ต้องแจ้งบริษัทประกันให้ยกเลิกด้วย</p>
+                    </ConfirmButton>
+                  ),
+                },
               ]}
               empty={<EmptyState icon={<History />} title="ยังไม่มีประวัติการส่ง" />}
             />

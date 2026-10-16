@@ -1,11 +1,11 @@
-import { Check, Shirt } from 'lucide-react';
+import { Check, Shirt, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { useApi } from '../../../app/ApiContext';
 import { errorMessage } from '../../../application/errors';
 import type { Employee, ISODate, UniformEntitlement, UniformStatus } from '../../../domain/types';
 import { thaiDate } from '../../../shared/format';
 import { SIZES, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../../../shared/labels';
-import { Badge, Button, Card, EmptyState, Select, Table, useToast } from '../../../ui';
+import { Badge, Button, Card, Combobox, ConfirmButton, EmptyState, Table, useToast } from '../../../ui';
 
 /** ไซซ์ + ปุ่มบันทึกแจก ใช้ทั้งในหน้ารายละเอียดและหน้าชุดฟอร์ม */
 export function IssueAction({
@@ -43,16 +43,29 @@ export function IssueAction({
 
   return (
     <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-      <Select aria-label="ไซซ์" value={size} onChange={(e) => setSize(e.target.value)} className="w-24 [&_select]:h-8 [&_select]:text-[13px]">
-        <option value="">ไซซ์</option>
-        {SIZES.map((s) => (
-          <option key={s}>{s}</option>
-        ))}
-      </Select>
+      <Combobox aria-label="ไซซ์" size="sm" placeholder="ไซซ์" value={size} onChange={setSize} options={SIZES.map((s) => ({ value: s, label: s }))} className="w-24" />
       <Button size="sm" variant="primary" disabled={!size} loading={busy} onClick={save}>
         บันทึกแจก
       </Button>
     </div>
+  );
+}
+
+function CancelIssue({ issueId, label, onDone }: { issueId: number; label: string; onDone: () => void }) {
+  const { api } = useApi();
+  return (
+    <ConfirmButton
+      icon={<Undo2 />}
+      title={`ยกเลิกการแจก (${label})?`}
+      confirmLabel="ยกเลิกการแจก"
+      successMessage="ยกเลิกแล้ว — กลับไปเป็น “ค้างแจก”"
+      onConfirm={async () => {
+        await api.cancelUniformIssue(issueId);
+        onDone();
+      }}
+    >
+      <p className="text-[13px] text-muted">ใช้กรณีบันทึกผิด เช่น เลือกไซซ์ผิด แล้วบันทึกใหม่ได้ทันที</p>
+    </ConfirmButton>
   );
 }
 
@@ -83,9 +96,12 @@ export function UniformCard({ emp, st, today, onChange }: { emp: Employee; st: U
               align: 'right',
               cell: (e) =>
                 e.issued ? (
-                  <Badge tone="success">
-                    <Check className="size-3" /> แจกแล้ว
-                  </Badge>
+                  <span className="inline-flex items-center gap-1">
+                    <Badge tone="success">
+                      <Check className="size-3" /> แจกแล้ว
+                    </Badge>
+                    {e.issueId !== null && <CancelIssue issueId={e.issueId} label={UNIFORM_EVENT_LABEL[e.event]} onDone={onChange} />}
+                  </span>
                 ) : emp.status === 'ACTIVE' ? (
                   <IssueAction employeeId={emp.id} entitlementKey={e.key} event={e.event} qty={e.qty} today={today} onDone={onChange} />
                 ) : (

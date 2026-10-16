@@ -1,7 +1,9 @@
 import { insuranceStatus } from '../../domain/insurance';
+import { BATCH_TYPE_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels';
 import { addDays, nextCycleDate } from '../../domain/date';
 import { uniformStatus } from '../../domain/uniform';
 import type {
+  ActivityLog,
   BatchType,
   Company,
   CompanyCode,
@@ -22,6 +24,7 @@ export interface MockDb {
   batches: InsuranceBatch[];
   issues: UniformIssue[];
   rules: RuleSet;
+  activities: ActivityLog[];
 }
 
 const SYSTEM_USER = 'ระบบ (ข้อมูลตั้งต้น)';
@@ -85,6 +88,8 @@ interface Draft extends Partial<Employee> {
   startDays: number; // เริ่มงานกี่วันก่อนวันนี้
   /** edge case: ไม่ต้องสร้างประวัติแจกชุดอัตโนมัติ */
   keepUniformPending?: boolean;
+  /** edge case: ลืมบันทึกวันผ่านทดลองงาน (ทดสอบคิวงานคุณภาพข้อมูล) */
+  skipProbation?: boolean;
 }
 
 export function buildSeed(today: ISODate): MockDb {
@@ -112,6 +117,7 @@ export function buildSeed(today: ISODate): MockDb {
     // ครบ 30 วันแล้ว รอแจ้งเข้ารอบถัดไป
     { companyCode: 'PRO', employeeType: 'CENTRAL', deptGroup: 'ฝ่ายขาย', level: 3, startDays: 42, firstName: 'จิราพร', lastName: 'ฝ่ายขาย' },
     { companyCode: 'AS', employeeType: 'CENTRAL', deptGroup: 'วิศวกรรมและการออกแบบ', level: 4, startDays: 38, firstName: 'ภูมิพัฒน์', lastName: 'ออกแบบ' },
+    { companyCode: 'AS', employeeType: 'CENTRAL', deptGroup: 'ฝ่ายขาย', level: 2, startDays: 160, skipProbation: true, firstName: 'ศักดิ์ชัย', lastName: 'ลืมบันทึก' },
   ];
 
   const random: Draft[] = [];
@@ -171,7 +177,7 @@ export function buildSeed(today: ISODate): MockDb {
       salary: d.salary ?? salaryFor(d.employeeType, level),
       birthDate: d.birthDate ?? birthForAge(rnd.int(20, 58)),
       startDate,
-      probationPassDate: pass <= (d.endDate ?? today) ? pass : null,
+      probationPassDate: !d.skipProbation && pass <= (d.endDate ?? today) ? pass : null,
       status,
       lastWorkingDate: d.lastWorkingDate ?? null,
       endDate: d.endDate ?? null,
@@ -227,5 +233,37 @@ export function buildSeed(today: ISODate): MockDb {
     }
   }
 
-  return { companies: COMPANIES, sites: SITES, employees, batches, issues, rules };
+  // ----- บันทึกกิจกรรมย้อนหลัง (60 วัน) จากประวัติที่สร้างไว้ -----
+  const empById = new Map(employees.map((e) => [e.id, e]));
+  const since = addDays(today, -60);
+  const raw: Omit<ActivityLog, 'id'>[] = [
+    ...batches
+      .filter((b) => b.submittedAt.slice(0, 10) >= since)
+      .map((b) => ({
+        at: b.submittedAt,
+        user: b.submittedBy,
+        entity: 'INSURANCE_BATCH' as const,
+        entityId: String(b.id),
+        action: 'CREATE' as const,
+        summary: `ส่ง${BATCH_TYPE_LABEL[b.type]} ${b.employeeIds.length} ราย (รอบ ${b.cycleDate})`,
+        employeeId: b.employeeIds.length === 1 ? b.employeeIds[0] : null,
+      })),
+    ...issues
+      .filter((i) => i.issuedAt >= since)
+      .map((i) => {
+        const e = empById.get(i.employeeId);
+        return {
+          at: `${i.issuedAt}T${String(9 + (i.id % 8)).padStart(2, '0')}:${String((i.id * 7) % 60).padStart(2, '0')}:00`,
+          user: i.issuedBy,
+          entity: 'UNIFORM_ISSUE' as const,
+          entityId: String(i.id),
+          action: 'CREATE' as const,
+          summary: `แจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[i.event]}) ${i.qty} ตัว ไซซ์ ${i.size} ให้ ${e?.firstName ?? ''} ${e?.lastName ?? ''}`.trim(),
+          employeeId: i.employeeId,
+        };
+      }),
+  ];
+  const activities: ActivityLog[] = raw.sort((a, b) => a.at.localeCompare(b.at)).map((a, i) => ({ ...a, id: i + 1 }));
+
+  return { companies: COMPANIES, sites: SITES, employees, batches, issues, rules, activities };
 }

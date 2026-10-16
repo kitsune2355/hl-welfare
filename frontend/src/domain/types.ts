@@ -209,3 +209,46 @@ export interface EmployeeFilter {
   employeeType?: EmployeeType | '';
   status?: EmployeeStatus | '';
 }
+
+// ----- Monitoring -----
+export type TaskKind =
+  | 'INSURANCE_URGENT'
+  | 'INSURANCE_IN'
+  | 'INSURANCE_OUT'
+  | 'UNIFORM_ISSUE'
+  | 'PROBATION_MISSING'
+  | 'UNIFORM_RULE_MISSING';
+export type TaskSeverity = 'critical' | 'warning' | 'info';
+
+/** งาน 1 รายการในคิวงาน (คำนวณสด ไม่ได้เก็บใน DB) */
+export interface MonitorTask {
+  id: string;                      // `${kind}:${employeeId}[:key]`
+  kind: TaskKind;
+  severity: TaskSeverity;
+  employee: Employee;
+  title: string;
+  detail: string;
+  dueDate: ISODate | null;
+  overdueDays: number;             // > 0 = เลยกำหนดมาแล้ว
+}
+
+export type ActivityEntity = 'EMPLOYEE' | 'SITE' | 'INSURANCE_BATCH' | 'UNIFORM_ISSUE';
+export type ActivityAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'CANCEL';
+
+/** บันทึกกิจกรรม (= ตาราง audit_log ฝั่ง PHP) */
+export interface ActivityLog {
+  id: number;
+  at: string;                      // YYYY-MM-DDTHH:mm:ss
+  user: string;
+  entity: ActivityEntity;
+  entityId: string;
+  action: ActivityAction;
+  summary: string;                 // ข้อความภาษาไทยสำหรับแสดงผล
+  employeeId: number | null;       // ใช้ลิงก์ไปหน้าพนักงาน
+}
+
+export interface ActivityFilter {
+  entity?: ActivityEntity;
+  employeeId?: number;
+  limit?: number;
+}

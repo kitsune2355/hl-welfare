@@ -14,6 +14,7 @@ const PvdPage = page(() => import('../features/pvd/PvdPage'), 'PvdPage');
 const UniformPage = page(() => import('../features/uniform/UniformPage'), 'UniformPage');
 const RulesPage = page(() => import('../features/rules/RulesPage'), 'RulesPage');
 const SitesPage = page(() => import('../features/sites/SitesPage'), 'SitesPage');
+const MonitorPage = page(() => import('../features/monitor/MonitorPage'), 'MonitorPage');
 const NotFoundPage = page(() => import('../features/NotFoundPage'), 'NotFoundPage');
 
 export const router = createBrowserRouter([
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <DashboardPage /> },
+      { path: 'monitor', element: <MonitorPage /> },
       { path: 'employees', element: <EmployeesPage /> },
       { path: 'employees/new', element: <EmployeeFormPage /> },
       { path: 'employees/:id', element: <EmployeeDetailPage /> },

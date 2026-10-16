@@ -40,7 +40,8 @@
 | กองทุนสำรองเลี้ยงชีพ (PVD) | สิทธิสมาชิก, ยอดหักสะสม/สมทบ 2%, % สิทธิเงินสมทบ (vesting) |
 | ชุดฟอร์ม | สิทธิตามกลุ่ม/ระดับ/ตำแหน่ง, รายการค้างแจก, บันทึกการแจก + ไซซ์ |
 | เงื่อนไขสวัสดิการ | แสดงกฎทั้งหมด (เฟส 2: แก้ไขได้) |
-| หน่วยงาน | ตั้งค่าหน่วยงานว่าได้ประกันกลุ่มไหม (แม่บ้าน CNS) และสีโปโล (Pro Site) |
+| หน่วยงาน | เพิ่ม/แก้/ลบหน่วยงาน, ได้ประกันกลุ่มไหม (แม่บ้าน CNS) และสีโปโล (Pro Site) |
+| ศูนย์ติดตามงาน | คิวงานรวมทุกเรื่องที่ต้องทำ (ด่วน/ต้องทำ/ติดตาม) + บันทึกกิจกรรม (audit log) + รีเฟรชอัตโนมัติ |
 
 **บริษัทในเครือ:** HL (แฮปปี้แลนด์), PRO, CNS, CIC, AS
 
@@ -175,6 +176,7 @@ hl-welfare/
 │       │   └── usecases/
 │       │       ├── dashboard.ts       ← buildDashboard()
 │       │       ├── insuranceCycle.ts  ← buildInsuranceCycle()
+│       │       ├── workQueue.ts       ← buildWorkQueue() คิวงานของศูนย์ติดตาม
 │       │       └── uniformPending.ts  ← buildUniformPending()
 │       │
 │       ├── infrastructure/        ← ③ adapter
@@ -201,7 +203,11 @@ hl-welfare/
 │       │   ├── Card.tsx  Badge.tsx  StatCard.tsx  Skeleton.tsx
 │       │   ├── Table.tsx          ← ตาราง (desktop) / การ์ด (มือถือ) + แบ่งหน้า
 │       │   ├── Pagination.tsx
-│       │   ├── Field.tsx          ← Field, Input, Select, TextField, SelectField
+│       │   ├── Combobox.tsx       ← select ที่พิมพ์ค้นหาได้ (ใช้แทน <select> ทุกจุด)
+│       │   ├── DataGrid.tsx       ← ตารางแบบ Excel: คลิกแก้ในเซลล์, เพิ่มแถว, บันทึกอัตโนมัติ
+│       │   ├── DataGrid.test.tsx  ← ทดสอบคีย์บอร์ด/การบันทึก (jsdom + Testing Library)
+│       │   ├── ConfirmButton.tsx  ← ปุ่มยืนยันก่อนยกเลิก/ลบ
+│       │   ├── Field.tsx          ← Field, Input, TextField, SelectField (Combobox)
 │       │   ├── Feedback.tsx       ← Alert, EmptyState, ErrorState
 │       │   ├── Overlay.tsx        ← Modal (focus trap), ToastProvider/useToast
 │       │   ├── Misc.tsx           ← PageHeader, Avatar, Switch, Tabs, Progress, InfoList
@@ -210,8 +216,10 @@ hl-welfare/
 │       ├── features/              ← ⑥ หน้าจอแยกตาม module
 │       │   ├── common.tsx         ← EmployeeCell (Avatar + ชื่อ + รหัส)
 │       │   ├── dashboard/DashboardPage.tsx
+│       │   ├── monitor/           ← MonitorPage (คิวงาน + กิจกรรม), ActivityFeed
 │       │   ├── employees/
-│       │   │   ├── EmployeesPage.tsx
+│       │   │   ├── EmployeesPage.tsx       ← ตาราง Excel (DataGrid) แก้/เพิ่ม/ลบในตาราง
+│       │   │   ├── employeeRules.ts        ← validateEmployee + normalizeEmployee (ใช้ร่วมฟอร์ม/ตาราง)
 │       │   │   ├── EmployeeDetailPage.tsx   ← /employees/:id
 │       │   │   ├── EmployeeFormPage.tsx     ← /employees/new, /employees/:id/edit
 │       │   │   └── components/    ← BenefitCards (Insurance/Pvd), UniformCard + IssueAction, Timeline
@@ -337,6 +345,7 @@ interface ImportMeta { readonly env: ImportMetaEnv; }
 | Path | Page |
 |---|---|
 | `/` | DashboardPage |
+| `/monitor` | MonitorPage — ศูนย์ติดตามงาน (`?severity=critical|warning|info`, `?kind=`) |
 | `/employees` | EmployeesPage (filter ผ่าน query string: `q`, `company`, `type`, `status`) |
 | `/employees/new` | EmployeeFormPage (โหมดเพิ่ม) |
 | `/employees/:id` | EmployeeDetailPage |
@@ -716,8 +725,29 @@ export interface WelfareApi {
   listUniformIssues(employeeId?: number): Promise<UniformIssue[]>;
   createUniformIssue(input: Omit<UniformIssue, 'id' | 'issuedBy'>): Promise<UniformIssue>;
   listUniformPending(): Promise<UniformPendingRow[]>;
+
+  // ----- CRUD เพิ่มเติม -----
+  createSite(input: Omit<Site, 'id'>): Promise<Site>;
+  deleteSite(id: number): Promise<void>;                 // 409 ถ้ายังมีพนักงาน
+  deleteEmployee(id: number): Promise<void>;             // 409 ถ้ามีประวัติแจ้งประกัน/แจกชุด
+  cancelInsuranceBatch(id: number): Promise<void>;       // รายการกลับเป็น "รอส่ง"
+  cancelUniformIssue(id: number): Promise<void>;         // กลับเป็น "ค้างแจก"
+
+  // ----- Monitoring -----
+  getWorkQueue(): Promise<MonitorTask[]>;
+  listActivity(filter?: { entity?: ActivityEntity; employeeId?: number; limit?: number }): Promise<ActivityLog[]>;
 }
 ```
+
+**ตาราง CRUD**
+| ข้อมูล | Create | Read | Update | Delete |
+|---|---|---|---|---|
+| พนักงาน | ตาราง Excel / ฟอร์มเต็ม | ✅ | ตาราง Excel / ฟอร์ม (รวมพ้นสภาพ) | ✅ เฉพาะที่ยังไม่มีประวัติ (ไม่งั้นใช้พ้นสภาพ) |
+| หน่วยงาน | ตาราง Excel | ✅ | ตาราง Excel (บริษัทแก้ได้ตอนสร้างเท่านั้น) | ✅ เฉพาะที่ไม่มีพนักงาน |
+| แจ้งประกัน (batch) | ✅ | ✅ | – | ยกเลิกได้ (ส่งผิด) |
+| แจกชุดฟอร์ม | ✅ | ✅ | – | ยกเลิกได้ (บันทึกผิด) |
+| เงื่อนไขสวัสดิการ | – | ✅ | เฟส 3 | – |
+| บันทึกกิจกรรม | อัตโนมัติทุกการเปลี่ยนแปลง | ✅ | ❌ (ห้ามแก้) | ❌ |
 
 ### REST Endpoints (PHP)
 
@@ -741,6 +771,13 @@ export interface WelfareApi {
 | GET | `/api/uniform/issues` | `?employeeId=` | `UniformIssue[]` |
 | POST | `/api/uniform/issues` | `{employeeId, entitlementKey, event, qty, size, issuedAt}` | `UniformIssue` (201) |
 | GET | `/api/uniform/pending` | – | `UniformPendingRow[]` |
+| POST | `/api/sites` | `{companyCode, name, hasGroupInsurance, poloColor}` | `Site` (201) |
+| DELETE | `/api/sites/{id}` | – | 204 / 409 |
+| DELETE | `/api/employees/{id}` | – | 204 / 409 |
+| DELETE | `/api/insurance/batches/{id}` | – | 204 |
+| DELETE | `/api/uniform/issues/{id}` | – | 204 |
+| GET | `/api/monitor/tasks` | – | `MonitorTask[]` (เรียงด่วนก่อน) |
+| GET | `/api/activity` | `?entity=&employeeId=&limit=` | `ActivityLog[]` (ใหม่ก่อน) |
 
 **Validation ที่ต้องมีทั้ง mock และ PHP**
 - `empCode` ห้ามซ้ำ → 409 `"รหัสพนักงานซ้ำ"`
@@ -748,6 +785,8 @@ export interface WelfareApi {
 - `employeeIds` ว่าง → 422 `"ไม่มีรายการที่เลือก"`
 - แจกชุดฟอร์มซ้ำ key เดิม → 409 `"รายการนี้แจกไปแล้ว"`
 - ไม่พบข้อมูล → 404
+- ลบหน่วยงานที่ยังมีพนักงาน / ลบพนักงานที่มีประวัติ → 409 พร้อมข้อความแนะนำทางเลือก
+- ทุก create/update/delete/cancel ต้องเขียน `audit_log` (= `ActivityLog`) พร้อม `summary` ภาษาไทย
 
 ### `infrastructure/createApi.ts` + `app/ApiContext.tsx` (Dependency Injection)
 ```ts
@@ -883,7 +922,10 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 | `StatCard` | `label`, `value`, `hint`, `icon`, `tone`, `to` | คลิกได้ → ไปหน้าที่เกี่ยวข้อง |
 | `Table` | `columns`, `rows`, `rowKey`, `onRowClick`, `empty`, `loading`, `pageSize`, `page`/`onPageChange` | ≥768px = ตาราง · <768px = **การ์ดรายแถว** (คอลัมน์กำหนดตำแหน่งด้วย `mobile: lead/title/aside/field/footer`) · ใส่ `pageSize` = แบ่งหน้าอัตโนมัติ |
 | `Pagination` | `page`, `pageSize`, `total`, `onPageChange`, `onPageSizeChange` | "แสดง 1–25 จาก 248" · เลือก 10/25/50/100 ต่อหน้า · เลขหน้าแบบย่อ `1 … 4 5 6 … 20` · มือถือแสดง "หน้า x / y" |
-| `Input` / `Select` / `Field` | `label`, `hint`, `error`, `required` | error ใต้ช่อง สีแดง + `aria-invalid` |
+| `Input` / `Field` / `SelectField` | `label`, `hint`, `error`, `required` | error ใต้ช่อง สีแดง + `aria-invalid` |
+| `Combobox` | `options`, `clearable`, `creatable`, `variant: default/cell`, `autoOpen` | **select ทุกจุดพิมพ์ค้นหาได้** · ↑↓ Enter Esc · `creatable` พิมพ์ค่าใหม่ได้ (เช่น ตำแหน่ง) · popover แบบ portal ไม่ถูกตัดในตาราง |
+| `DataGrid` | `columns` (`editor: text/number/date/select/switch`, `editable(row)`), `validate`, `onSave`, `newRow`, `onDelete`, `onOpen`, `pageSize` | ตารางแบบ Excel — ดูข้อ 10.7 |
+| `ConfirmButton` | `title`, `confirmLabel`, `successMessage`, `onConfirm` | ยืนยันก่อนยกเลิก/ลบ + Toast อัตโนมัติ |
 | `Switch` | `checked`, `onChange`, `label` | ใช้ในหน้าหน่วยงาน |
 | `Tabs` | `items`, `value`, `onChange` (sync กับ URL) | underline indicator |
 | `Modal` | `open`, `title`, `footer`, `onClose` | trap focus, `Esc` ปิด, backdrop blur |
@@ -926,7 +968,27 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 - ตัวเลขชิดขวา + `tabular-nums`
 - Responsive: ≥1280 4 คอลัมน์ Stat · 640–1279 2 คอลัมน์ · <640 1 คอลัมน์ · ตาราง <768px เปลี่ยนเป็นการ์ดรายแถว · ตัวกรองบนมือถือเรียง 2 คอลัมน์ ช่องค้นหาเต็มแถว · sidebar <1024px เป็น drawer
 
-### 10.7 การแบ่งหน้า (ข้อมูลเยอะ)
+### 10.7 ตารางแบบ Excel (DataGrid)
+ใช้กับข้อมูลที่ HR แก้บ่อย: **พนักงาน** และ **หน่วยงาน** · ตารางอ่านอย่างเดียว (ประกัน, PVD, ชุดฟอร์ม, ประวัติ) ใช้ `Table` ที่ปรับหน้าตาเป็นเส้นตารางแบบ Excel + เลขแถว
+
+| การใช้งาน | ผลลัพธ์ |
+|---|---|
+| คลิกเซลล์ | เลือกเซลล์ (กรอบสีหลัก) |
+| ดับเบิลคลิก / Enter / F2 / พิมพ์ตัวอักษร | เริ่มแก้ไข (พิมพ์ = แทนค่าด้วยตัวที่พิมพ์) |
+| Enter / Tab / Shift+Tab | บันทึกแล้วเลื่อนลง / ขวา / ซ้าย |
+| Esc | ยกเลิกการแก้ |
+| ← ↑ ↓ → | เลื่อนเซลล์ |
+| Space บนเซลล์สวิตช์ / คลิกสวิตช์ | สลับค่าและบันทึกทันที |
+| เซลล์ select | เปิด Combobox ค้นหาได้ในเซลล์ |
+| ปุ่ม "+ เพิ่มแถว" | แถวใหม่ขึ้นบนสุด (ป้าย "ใหม่") · ช่องบังคับที่ยังว่างขึ้นกรอบแดง · **บันทึกอัตโนมัติเมื่อกรอกครบ** |
+
+- **บันทึกรายแถวอัตโนมัติ** หลังแก้แต่ละเซลล์ — ถ้าข้อมูลยังไม่ผ่าน validation จะยังไม่ส่ง และแสดง ⚠ ที่เลขแถว
+- สถานะที่คอลัมน์เลขแถว: ⟳ กำลังบันทึก · ✓ บันทึกแล้ว · ⚠ ผิดพลาด (เลือกแถวเพื่อดูข้อความ) · "ใหม่"
+- เซลล์ที่แก้ไม่ได้สำหรับแถวนั้น (เช่น ระดับ ของ Pro Site) เป็นพื้นเทา · หัวตาราง + เลขแถว + ปุ่มท้ายแถว ติดอยู่กับที่เมื่อเลื่อน
+- เปลี่ยนบริษัท/ประเภท → `normalizeEmployee` จัดหน่วยงาน/ฝ่าย/ตำแหน่งให้สอดคล้องอัตโนมัติ
+- การพ้นสภาพ (หลายช่อง ผลกระทบสูง) ยังทำผ่านฟอร์มเต็มที่หน้ารายละเอียด
+
+### 10.8 การแบ่งหน้า (ข้อมูลเยอะ)
 | หน้า | ต่อหน้า | หมายเหตุ |
 |---|---|---|
 | พนักงาน | 25 | เลขหน้าเก็บใน URL (`?page=`) · เปลี่ยนตัวกรอง → กลับหน้า 1 |
@@ -948,14 +1010,15 @@ private async req<T>(path: string, init?: RequestInit): Promise<T> {
 | หน้า | องค์ประกอบ | UX ที่ต้องมี |
 |---|---|---|
 | **ภาพรวม** | คำทักทาย + วันที่วันนี้ · Stat 4 ใบ: พนักงานปัจจุบัน, รอบแจ้งประกันถัดไป (เข้า/ออก), แจ้งออกทันทีค้าง, ชุดฟอร์มค้างแจก · กราฟแท่งแนวนอนพนักงานแยกบริษัท · รายการ "จะครบสิทธิใน 30 วัน" | Stat คลิกไปหน้าที่เกี่ยวข้อง · แจ้งออกทันทีค้าง > 0 → Alert แดงด้านบน + ปุ่ม "ไปส่งแจ้ง" |
-| **พนักงาน** | ค้นหา รหัส/ชื่อ, filter บริษัท/ประเภท/สถานะ (เก็บใน URL) · ปุ่ม "เพิ่มพนักงาน" · ตาราง (Avatar+ชื่อ, บริษัท/หน่วยงาน, ประเภท, วันเริ่มงาน, สถานะ) | ค้นหาแบบ debounce 250ms · ปุ่ม "ล้างตัวกรอง" · แสดงจำนวนผลลัพธ์ · คลิกทั้งแถวเพื่อเปิด |
-| **รายละเอียดพนักงาน** | Header: Avatar, ชื่อ, รหัส, Badge สถานะ, ปุ่มแก้ไข · แถบข้อมูลย่อ (บริษัท, หน่วยงาน, ประเภท, สัญญา, อายุงาน) · การ์ดประกันกลุ่ม · การ์ด PVD · การ์ดชุดฟอร์ม (ตารางแต่ละรอบ + เลือกไซซ์ + "บันทึกแจก") | การ์ดสิทธิ = Badge ใหญ่ + timeline (เริ่มงาน → ครบสิทธิ → รอบแจ้งเข้า → แจ้งออก) · ไม่มีสิทธิ = แสดงเหตุผลเป็นข้อๆ |
+| **ศูนย์ติดตามงาน** | Stat ด่วน/ต้องทำ/ติดตาม/กิจกรรมวันนี้ (คลิกกรอง) · คิวงาน (ระดับ, งาน, พนักงาน, กำหนด/เลยมา N วัน, ปุ่มไปดำเนินการ) กรองตามประเภท + ค้นหา · บันทึกกิจกรรม (ไทม์ไลน์ กรองตามประเภท, โหลดเพิ่ม) | รีเฟรชอัตโนมัติทุก 60 วิ (ปิดได้) + เมื่อกลับมาที่แท็บ · แสดงเวลาอัปเดตล่าสุด |
+| **พนักงาน** | ค้นหา รหัส/ชื่อ, filter บริษัท/ประเภท/สถานะ (Combobox, เก็บใน URL) · **ตาราง Excel** แก้ทุกช่องในตาราง · "+ เพิ่มแถว" · ปุ่มเปิดรายละเอียด / ลบ ท้ายแถว · ปุ่ม "เพิ่มด้วยฟอร์มเต็ม" | ค้นหาแบบ debounce 250ms · ล้างตัวกรอง · บันทึกอัตโนมัติรายแถว · ลบต้องยืนยัน |
+| **รายละเอียดพนักงาน** | Header: Avatar, ชื่อ, รหัส, Badge สถานะ, ปุ่มแก้ไข · แถบข้อมูลย่อ (บริษัท, หน่วยงาน, ประเภท, สัญญา, อายุงาน) · การ์ดประกันกลุ่ม · การ์ด PVD · การ์ดชุดฟอร์ม (ตารางแต่ละรอบ + เลือกไซซ์ + "บันทึกแจก" + ยกเลิกการแจก) · **ประวัติการเปลี่ยนแปลง** | การ์ดสิทธิ = Badge ใหญ่ + timeline (เริ่มงาน → ครบสิทธิ → รอบแจ้งเข้า → แจ้งออก) · ไม่มีสิทธิ = แสดงเหตุผลเป็นข้อๆ |
 | **ฟอร์มพนักงาน** | แบ่ง section: ข้อมูลส่วนตัว / การจ้างงาน / การพ้นสภาพ · บริษัท→หน่วยงาน (กรองตามบริษัท), ประเภท (ส่วนกลางแสดงฝ่าย+ระดับ / Pro Site แสดงตำแหน่ง), สัญญา, เงินเดือน, วันเริ่มงาน, ผ่านทดลองงาน | ช่องที่ไม่เกี่ยวซ่อนอัตโนมัติ · validation ใต้ช่อง · ปุ่มบันทึก sticky ด้านล่าง · บันทึกสำเร็จ → Toast + กลับหน้ารายละเอียด |
-| **ประกันกลุ่ม** | เลือกรอบ (วันที่ 5, ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · 3 section: แจ้งออกทันที / แจ้งเข้า / แจ้งออก · checkbox เลือก → "ส่งแจ้ง" · ส่งออก CSV · ประวัติ batch | ตัวนับในหัว section · เลือกทั้งหมด · Modal ยืนยัน "ส่งแจ้งเข้า 5 ราย รอบ 5 พ.ย. 69?" · แถวที่ส่งแล้วแสดง Badge เขียว checkbox ปิด |
+| **ประกันกลุ่ม** | เลือกรอบ (วันที่ 5, ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · 3 section: แจ้งออกทันที / แจ้งเข้า / แจ้งออก · checkbox เลือก → "ส่งแจ้ง" · ส่งออก CSV · ประวัติ batch + **ยกเลิก batch** | ตัวนับในหัว section · เลือกทั้งหมด · Modal ยืนยัน "ส่งแจ้งเข้า 5 ราย รอบ 5 พ.ย. 69?" · แถวที่ส่งแล้วแสดง Badge เขียว checkbox ปิด |
 | **PVD** | Stat: สมาชิก, หักสะสมรวม/เดือน, สมทบรวม/เดือน · ตารางสมาชิก (วันเป็นสมาชิก, เงินเดือน, หัก, สมทบ, อายุสมาชิก, vesting) · ส่งออก CSV | Alert เหลืองถ้า vesting เป็นค่าตัวอย่าง · vesting แสดงเป็น progress bar |
 | **ชุดฟอร์ม** | แท็บ "ค้างแจก" (เลือกไซซ์ + บันทึกแจกในแถว) / "ประวัติการแจก" · สรุปจำนวนตามแบบเสื้อ (วางแผนสั่งผลิต) | แถวเกินกำหนด > 30 วัน Badge แดง · บันทึกแล้วแถวหายพร้อม Toast |
 | **เงื่อนไขสวัสดิการ** | แท็บ: ประกันกลุ่ม / PVD / ชุดฟอร์ม / ค่าตั้งค่า (read-only ในเฟส 1) + รายการประเด็นที่รอยืนยันกับ HR | |
-| **หน่วยงาน** | ตารางหน่วยงานจัดกลุ่มตามบริษัท · Switch "ได้รับประกันกลุ่ม" · เลือกสีโปโล (swatch) | บันทึกทันที (optimistic) + Toast · ล้มเหลว → ย้อนค่า |
+| **หน่วยงาน** | **ตาราง Excel**: บริษัท, ชื่อ, สวิตช์ประกันกลุ่ม, สีโปโล · "+ เพิ่มหน่วยงาน" · ลบท้ายแถว | บันทึกทันที · ลบได้เฉพาะที่ไม่มีพนักงาน |
 
 **UI** — ภาษาไทยทั้งหมด · รายละเอียด token/component/layout ดู [ข้อ 10](#10-design-system--ux)
 
@@ -1268,16 +1331,21 @@ CREATE TABLE uniform_issues (
   FOREIGN KEY (employee_id) REFERENCES employees(id)
 ) ENGINE=InnoDB;
 
+-- = ActivityLog ในหน้าศูนย์ติดตามงาน (ห้ามแก้/ลบ)
 CREATE TABLE audit_log (
   id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  entity     VARCHAR(50) NOT NULL,
+  entity     ENUM('EMPLOYEE','SITE','INSURANCE_BATCH','UNIFORM_ISSUE') NOT NULL,
   entity_id  VARCHAR(50) NOT NULL,
-  action     VARCHAR(20) NOT NULL,
+  action     ENUM('CREATE','UPDATE','DELETE','CANCEL') NOT NULL,
+  summary    VARCHAR(500) NOT NULL,      -- ข้อความภาษาไทยสำหรับแสดงผล
+  employee_id INT UNSIGNED NULL,         -- ลิงก์ไปหน้าพนักงาน
   before_json JSON NULL,
   after_json  JSON NULL,
   user_name  VARCHAR(100) NOT NULL,
   at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_audit_entity (entity, entity_id)
+  INDEX idx_audit_entity (entity, entity_id),
+  INDEX idx_audit_employee (employee_id),
+  INDEX idx_audit_at (at)
 ) ENGINE=InnoDB;
 ```
 
@@ -1412,13 +1480,17 @@ describe('ชุดฟอร์ม', () => {
 - [x] หน้า: ภาพรวม, พนักงาน, รายละเอียด/ฟอร์ม, ประกันกลุ่ม, PVD, ชุดฟอร์ม, เงื่อนไข, หน่วยงาน, 404
 - [ ] ส่งออก CSV เปิดใน Excel แล้วภาษาไทยไม่เพี้ยน (ใส่ UTF-8 BOM แล้ว — รอทดสอบเปิดใน Excel จริง)
 - [x] `npm run build` ผ่าน ไม่มี type error
+- [x] CRUD ครบ (พนักงาน/หน่วยงาน ลบได้ตามเงื่อนไข, ยกเลิก batch/การแจก)
+- [x] ศูนย์ติดตามงาน: คิวงาน + บันทึกกิจกรรม + รีเฟรชอัตโนมัติ
+- [x] Combobox แทน select ทุกจุด · DataGrid แบบ Excel (พนักงาน, หน่วยงาน) + component test
 
 ### เฟส 2 — PHP + MySQL
 - [ ] `schema.sql`, `seed.sql` (ข้อมูลตรงกับ mock)
 - [ ] Router, Request, Response, Infrastructure/Database
 - [ ] Application/Port (interface) + Infrastructure/Persistence (PDO)
 - [ ] `Domain/Eligibility.php` + PHPUnit ผ่าน (case เดียวกับ TS)
-- [ ] Service + Controller ครบทุก endpoint ในข้อ 8
+- [ ] Service + Controller ครบทุก endpoint ในข้อ 8 (รวม DELETE, `/monitor/tasks`, `/activity`)
+- [ ] `Application/Service/WorkQueueService` คู่แฝดของ `usecases/workQueue.ts`
 - [ ] Validation + transaction + unique key กันซ้ำ
 - [ ] audit_log
 - [ ] สลับ `VITE_API_MODE=http` แล้วทุกหน้าทำงานเหมือน mock

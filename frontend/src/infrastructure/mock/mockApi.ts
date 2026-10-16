@@ -2,6 +2,7 @@ import { ApiError } from '../../application/errors';
 import type {
   EmployeeInput,
   InsuranceBatchInput,
+  SiteInput,
   SitePatch,
   UniformIssueInput,
   WelfareApi,
@@ -9,13 +10,24 @@ import type {
 import { buildDashboard } from '../../application/usecases/dashboard';
 import { buildInsuranceCycle, sentIndex } from '../../application/usecases/insuranceCycle';
 import { buildUniformPending } from '../../application/usecases/uniformPending';
+import { buildWorkQueue } from '../../application/usecases/workQueue';
 import { todayISO } from '../../domain/date';
 import { benefitsOf } from '../../domain/eligibility';
+import { BATCH_TYPE_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels';
 import { pvdStatus } from '../../domain/pvd';
-import type { Employee, EmployeeFilter, ISODate, PvdRow, Site } from '../../domain/types';
+import type {
+  ActivityAction,
+  ActivityEntity,
+  ActivityFilter,
+  Employee,
+  EmployeeFilter,
+  ISODate,
+  PvdRow,
+  Site,
+} from '../../domain/types';
 import { buildSeed, type MockDb } from './seed';
 
-const STORAGE_KEY = 'hl-welfare-mock-v2'; // v2: seed ใหญ่ขึ้น (ทดสอบ pagination)
+const STORAGE_KEY = 'hl-welfare-mock-v3'; // v3: + activities (บันทึกกิจกรรม)
 const LATENCY_MS = 150;
 const CURRENT_USER = 'HR (mock)';
 
@@ -29,13 +41,21 @@ function load(today: ISODate): MockDb {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const s = JSON.parse(raw) as Stored;
-      if (s?.db?.employees) return s.db;
+      if (s?.db?.employees && s.db.activities) return s.db;
     }
   } catch {
     /* localStorage ใช้ไม่ได้ → ใช้ seed ใหม่ */
   }
   return buildSeed(today);
 }
+
+const nextId = (xs: { id: number }[]) => Math.max(0, ...xs.map((x) => x.id)) + 1;
+const nowStamp = () => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${todayISO(d)}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+};
+const fullName = (e: Employee) => `${e.firstName} ${e.lastName}`;
 
 /** WelfareApi ในหน่วยความจำ + localStorage — ใช้ domain/use-case ชุดเดียวกับ PHP */
 export class MockApi implements WelfareApi {
@@ -61,6 +81,20 @@ export class MockApi implements WelfareApi {
     }
   }
 
+  /** = เขียน audit_log ฝั่ง PHP */
+  private log(entity: ActivityEntity, action: ActivityAction, entityId: number, summary: string, employeeId: number | null = null) {
+    this.db.activities.push({
+      id: nextId(this.db.activities),
+      at: nowStamp(),
+      user: CURRENT_USER,
+      entity,
+      entityId: String(entityId),
+      action,
+      summary,
+      employeeId,
+    });
+  }
+
   private site(id: number): Site | null {
     return this.db.sites.find((s) => s.id === id) ?? null;
   }
@@ -71,7 +105,7 @@ export class MockApi implements WelfareApi {
     return e;
   }
 
-  // ---------- WelfareApi ----------
+  // ---------- Dashboard / Monitor ----------
   getDashboard() {
     return this.run(() => {
       const { employees, sites, rules, batches, issues } = this.db;
@@ -79,6 +113,23 @@ export class MockApi implements WelfareApi {
     });
   }
 
+  getWorkQueue() {
+    return this.run(() => {
+      const { employees, sites, rules, batches, issues } = this.db;
+      return buildWorkQueue(this.today(), employees, sites, rules, batches, issues);
+    });
+  }
+
+  listActivity(filter: ActivityFilter = {}) {
+    return this.run(() =>
+      this.db.activities
+        .filter((a) => (!filter.entity || a.entity === filter.entity) && (filter.employeeId === undefined || a.employeeId === filter.employeeId))
+        .sort((a, b) => b.at.localeCompare(a.at) || b.id - a.id)
+        .slice(0, filter.limit ?? 200),
+    );
+  }
+
+  // ---------- Companies / Sites ----------
   listCompanies() {
     return this.run(() => this.db.companies);
   }
@@ -87,16 +138,50 @@ export class MockApi implements WelfareApi {
     return this.run(() => this.db.sites);
   }
 
+  createSite(input: SiteInput) {
+    return this.run(() => {
+      if (!input.name.trim()) throw new ApiError('กรุณาระบุชื่อหน่วยงาน', 422);
+      if (this.db.sites.some((s) => s.companyCode === input.companyCode && s.name === input.name.trim())) {
+        throw new ApiError('มีหน่วยงานชื่อนี้ในบริษัทแล้ว', 409);
+      }
+      const site: Site = { ...input, name: input.name.trim(), id: nextId(this.db.sites) };
+      this.db.sites.push(site);
+      this.log('SITE', 'CREATE', site.id, `เพิ่มหน่วยงาน “${site.name}” (${site.companyCode})`);
+      this.persist();
+      return site;
+    });
+  }
+
   updateSite(id: number, patch: SitePatch) {
     return this.run(() => {
       const s = this.db.sites.find((x) => x.id === id);
       if (!s) throw new ApiError('ไม่พบหน่วยงาน', 404);
+      if (patch.name !== undefined && !patch.name.trim()) throw new ApiError('กรุณาระบุชื่อหน่วยงาน', 422);
+      const changes: string[] = [];
+      if (patch.name !== undefined && patch.name !== s.name) changes.push(`ชื่อ → ${patch.name}`);
+      if (patch.hasGroupInsurance !== undefined && patch.hasGroupInsurance !== s.hasGroupInsurance)
+        changes.push(patch.hasGroupInsurance ? 'ได้รับประกันกลุ่ม' : 'ไม่ได้รับประกันกลุ่ม');
+      if (patch.poloColor !== undefined && patch.poloColor !== s.poloColor) changes.push(`โปโลสี${patch.poloColor === 'NAVY' ? 'น้ำเงิน' : 'ดำ'}`);
       Object.assign(s, patch);
+      if (changes.length) this.log('SITE', 'UPDATE', s.id, `แก้ไขหน่วยงาน “${s.name}”: ${changes.join(', ')}`);
       this.persist();
       return s;
     });
   }
 
+  deleteSite(id: number) {
+    return this.run(() => {
+      const s = this.db.sites.find((x) => x.id === id);
+      if (!s) throw new ApiError('ไม่พบหน่วยงาน', 404);
+      const n = this.db.employees.filter((e) => e.siteId === id).length;
+      if (n > 0) throw new ApiError(`ลบไม่ได้ — ยังมีพนักงานในหน่วยงานนี้ ${n} คน`, 409);
+      this.db.sites = this.db.sites.filter((x) => x.id !== id);
+      this.log('SITE', 'DELETE', id, `ลบหน่วยงาน “${s.name}”`);
+      this.persist();
+    });
+  }
+
+  // ---------- Employees ----------
   listEmployees(filter: EmployeeFilter = {}) {
     return this.run(() => {
       const q = filter.q?.trim().toLowerCase() ?? '';
@@ -123,18 +208,35 @@ export class MockApi implements WelfareApi {
     return this.run(() => {
       const dup = this.db.employees.find((e) => e.empCode === input.empCode && e.id !== input.id);
       if (dup) throw new ApiError('รหัสพนักงานซ้ำ', 409);
-      if (!this.site(input.siteId)) throw new ApiError('ไม่พบหน่วยงาน', 422);
+      const site = this.site(input.siteId);
+      if (!site) throw new ApiError('ไม่พบหน่วยงาน', 422);
+      if (site.companyCode !== input.companyCode) throw new ApiError('หน่วยงานไม่ได้อยู่ในบริษัทที่เลือก', 422);
 
       if (input.id) {
         const e = this.employee(input.id);
+        const wasActive = e.status === 'ACTIVE';
         Object.assign(e, input);
+        const terminated = wasActive && e.status === 'INACTIVE';
+        this.log('EMPLOYEE', 'UPDATE', e.id, terminated ? `บันทึกพ้นสภาพ ${fullName(e)} (${e.empCode})` : `แก้ไขข้อมูล ${fullName(e)} (${e.empCode})`, e.id);
         this.persist();
         return e;
       }
-      const created: Employee = { ...input, id: Math.max(0, ...this.db.employees.map((e) => e.id)) + 1 };
+      const created: Employee = { ...input, id: nextId(this.db.employees) };
       this.db.employees.push(created);
+      this.log('EMPLOYEE', 'CREATE', created.id, `เพิ่มพนักงาน ${fullName(created)} (${created.empCode})`, created.id);
       this.persist();
       return created;
+    });
+  }
+
+  deleteEmployee(id: number) {
+    return this.run(() => {
+      const e = this.employee(id);
+      const hasHistory = this.db.batches.some((b) => b.employeeIds.includes(id)) || this.db.issues.some((i) => i.employeeId === id);
+      if (hasHistory) throw new ApiError('ลบไม่ได้ — มีประวัติแจ้งประกัน/แจกชุดแล้ว ให้ใช้ “บันทึกพ้นสภาพ” แทน', 409);
+      this.db.employees = this.db.employees.filter((x) => x.id !== id);
+      this.log('EMPLOYEE', 'DELETE', id, `ลบพนักงาน ${fullName(e)} (${e.empCode})`);
+      this.persist();
     });
   }
 
@@ -142,6 +244,7 @@ export class MockApi implements WelfareApi {
     return this.run(() => this.db.rules);
   }
 
+  // ---------- Insurance ----------
   getInsuranceCycle(cycleDate: ISODate) {
     return this.run(() => {
       const { employees, sites, rules, batches } = this.db;
@@ -161,15 +264,22 @@ export class MockApi implements WelfareApi {
       const already = input.employeeIds.filter((id) => sent.has(id)).length;
       if (already > 0) throw new ApiError(`มีพนักงานที่ถูกแจ้งไปแล้ว ${already} ราย`, 409);
 
-      const batch = {
-        id: Math.max(0, ...this.db.batches.map((b) => b.id)) + 1,
-        ...input,
-        submittedAt: new Date().toISOString().slice(0, 19),
-        submittedBy: CURRENT_USER,
-      };
+      const batch = { id: nextId(this.db.batches), ...input, submittedAt: nowStamp(), submittedBy: CURRENT_USER };
       this.db.batches.push(batch);
+      const one = input.employeeIds.length === 1 ? input.employeeIds[0] : null;
+      this.log('INSURANCE_BATCH', 'CREATE', batch.id, `ส่ง${BATCH_TYPE_LABEL[input.type]} ${input.employeeIds.length} ราย (รอบ ${input.cycleDate})`, one);
       this.persist();
       return batch;
+    });
+  }
+
+  cancelInsuranceBatch(id: number) {
+    return this.run(() => {
+      const b = this.db.batches.find((x) => x.id === id);
+      if (!b) throw new ApiError('ไม่พบรายการส่งแจ้ง', 404);
+      this.db.batches = this.db.batches.filter((x) => x.id !== id);
+      this.log('INSURANCE_BATCH', 'CANCEL', id, `ยกเลิก${BATCH_TYPE_LABEL[b.type]} #${id} (${b.employeeIds.length} ราย)`);
+      this.persist();
     });
   }
 
@@ -185,6 +295,7 @@ export class MockApi implements WelfareApi {
     });
   }
 
+  // ---------- Uniform ----------
   listUniformIssues(employeeId?: number) {
     return this.run(() =>
       this.db.issues
@@ -195,15 +306,27 @@ export class MockApi implements WelfareApi {
 
   createUniformIssue(input: UniformIssueInput) {
     return this.run(() => {
-      this.employee(input.employeeId);
+      const e = this.employee(input.employeeId);
       if (!input.size.trim()) throw new ApiError('กรุณาเลือกไซซ์', 422);
       if (this.db.issues.some((i) => i.employeeId === input.employeeId && i.entitlementKey === input.entitlementKey)) {
         throw new ApiError('รายการนี้แจกไปแล้ว', 409);
       }
-      const issue = { ...input, id: Math.max(0, ...this.db.issues.map((i) => i.id)) + 1, issuedBy: CURRENT_USER };
+      const issue = { ...input, id: nextId(this.db.issues), issuedBy: CURRENT_USER };
       this.db.issues.push(issue);
+      this.log('UNIFORM_ISSUE', 'CREATE', issue.id, `แจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[input.event]}) ${input.qty} ตัว ไซซ์ ${input.size} ให้ ${fullName(e)}`, e.id);
       this.persist();
       return issue;
+    });
+  }
+
+  cancelUniformIssue(id: number) {
+    return this.run(() => {
+      const i = this.db.issues.find((x) => x.id === id);
+      if (!i) throw new ApiError('ไม่พบรายการแจก', 404);
+      const e = this.db.employees.find((x) => x.id === i.employeeId);
+      this.db.issues = this.db.issues.filter((x) => x.id !== id);
+      this.log('UNIFORM_ISSUE', 'CANCEL', id, `ยกเลิกการแจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[i.event]}) ของ ${e ? fullName(e) : `#${i.employeeId}`}`, i.employeeId);
+      this.persist();
     });
   }
 

@@ -1,4 +1,4 @@
-import { Check, Download, History, PackageCheck, Shirt } from 'lucide-react';
+import { Check, Download, History, PackageCheck, Shirt, Undo2 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { useApi } from '../../app/ApiContext';
@@ -7,7 +7,7 @@ import { downloadCsv } from '../../shared/csv';
 import { relativeDays, thaiDate } from '../../shared/format';
 import { useAsync } from '../../shared/hooks/useAsync';
 import { UNIFORM_EVENT_LABEL } from '../../shared/labels';
-import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, Table, Tabs } from '../../ui';
+import { Badge, Button, Card, ConfirmButton, EmptyState, ErrorState, PageHeader, Table, Tabs } from '../../ui';
 import { EmployeeCell } from '../common';
 import { IssueAction } from '../employees/components/UniformCard';
 
@@ -153,6 +153,24 @@ export function UniformPage() {
               { key: 'ev', header: 'รอบ', cell: (i) => UNIFORM_EVENT_LABEL[i.event] + (i.event === 'ANNUAL' ? ` ${Number(i.entitlementKey.slice(7)) + 543}` : '') },
               { key: 'qty', header: 'จำนวน', align: 'right', cell: (i) => <span className="num">{i.qty} ตัว</span> },
               { key: 'size', header: 'ไซซ์', align: 'center', mobile: 'aside', cell: (i) => <Badge tone="primary" dot={false}>{i.size}</Badge> },
+              {
+                key: 'cancel',
+                header: '',
+                align: 'right',
+                cell: (i) => (
+                  <ConfirmButton
+                    icon={<Undo2 />}
+                    title="ยกเลิกการแจกนี้?"
+                    description={`${UNIFORM_EVENT_LABEL[i.event]} · ${i.qty} ตัว · ไซซ์ ${i.size}`}
+                    confirmLabel="ยกเลิกการแจก"
+                    successMessage="ยกเลิกแล้ว — รายการกลับไปเป็น “ค้างแจก”"
+                    onConfirm={async () => {
+                      await api.cancelUniformIssue(i.id);
+                      refresh();
+                    }}
+                  />
+                ),
+              },
               { key: 'by', header: 'บันทึกโดย', hideOnMobile: true, cell: (i) => <span className="flex items-center gap-1.5 text-muted"><Check className="size-3.5 text-success" />{i.issuedBy}</span> },
             ]}
             empty={<EmptyState icon={<History />} title="ยังไม่มีประวัติการแจก" />}

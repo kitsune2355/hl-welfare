@@ -2,6 +2,7 @@ import {
   BookOpenText,
   Building2,
   LayoutDashboard,
+  ListChecks,
   Menu,
   Moon,
   PiggyBank,
@@ -31,6 +32,7 @@ interface NavItem {
 
 const MAIN: NavItem[] = [
   { to: '/', label: 'ภาพรวม', icon: <LayoutDashboard /> },
+  { to: '/monitor', label: 'ศูนย์ติดตามงาน', icon: <ListChecks /> },
   { to: '/employees', label: 'พนักงาน', icon: <Users /> },
   { to: '/insurance', label: 'ประกันกลุ่ม', icon: <ShieldPlus />, count: (d) => d.urgentPending, countTone: 'danger' },
   { to: '/pvd', label: 'กองทุนสำรองฯ', icon: <PiggyBank /> },

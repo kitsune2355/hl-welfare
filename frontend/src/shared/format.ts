@@ -44,3 +44,22 @@ const intFmt = new Intl.NumberFormat('th-TH');
 
 export const money = (n: number) => moneyFmt.format(n);
 export const int = (n: number) => intFmt.format(n);
+
+/** "เมื่อสักครู่" / "5 นาทีที่แล้ว" / "3 ชม.ที่แล้ว" / "เมื่อวาน 14:05" / "12 ต.ค. 69 09:30" */
+export function timeAgo(stamp: string, now = new Date()): string {
+  const t = new Date(stamp.length === 10 ? `${stamp}T00:00:00` : stamp);
+  const sec = Math.round((now.getTime() - t.getTime()) / 1000);
+  if (sec < 60) return 'เมื่อสักครู่';
+  if (sec < 3600) return `${Math.floor(sec / 60)} นาทีที่แล้ว`;
+  if (sec < 6 * 3600) return `${Math.floor(sec / 3600)} ชม.ที่แล้ว`;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const hm = stamp.slice(11, 16);
+  if (t.toDateString() === now.toDateString()) return `วันนี้ ${hm}`;
+  if (t.toDateString() === yesterday.toDateString()) return `เมื่อวาน ${hm}`;
+  return thaiDateTime(stamp);
+}
+
+export function clock(d: Date): string {
+  return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}

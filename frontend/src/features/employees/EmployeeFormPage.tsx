@@ -7,6 +7,7 @@ import type { EmployeeInput } from '../../application/ports';
 import { addDays, todayISO } from '../../domain/date';
 import type { CompanyCode, ContractType, EmployeeType, EndReason } from '../../domain/types';
 import { useAsync } from '../../shared/hooks/useAsync';
+import { validateEmployee } from './employeeRules';
 import {
   COMPANY_CODES,
   CONTRACT_LABEL,
@@ -46,29 +47,28 @@ function blank(): Form {
   };
 }
 
-function validate(f: Form): Errors {
-  const e: Errors = {};
-  if (!f.empCode.trim()) e.empCode = 'กรุณากรอกรหัสพนักงาน';
-  if (!f.firstName.trim()) e.firstName = 'กรุณากรอกชื่อ';
-  if (!f.lastName.trim()) e.lastName = 'กรุณากรอกนามสกุล';
-  if (!f.birthDate) e.birthDate = 'กรุณาระบุวันเกิด';
-  if (!f.startDate) e.startDate = 'กรุณาระบุวันเริ่มงาน';
-  if (f.birthDate && f.startDate && f.birthDate >= f.startDate) e.birthDate = 'วันเกิดต้องก่อนวันเริ่มงาน';
-  if (f.probationPassDate && f.probationPassDate < f.startDate) e.probationPassDate = 'ต้องไม่ก่อนวันเริ่มงาน';
-  if (!(Number(f.salary) >= 0) || f.salary === '') e.salary = 'กรุณากรอกเงินเดือน (ตัวเลข)';
-  if (f.employeeType === 'CENTRAL') {
-    if (!f.deptGroup) e.deptGroup = 'กรุณาเลือกกลุ่ม/ฝ่าย';
-    if (!(Number(f.level) >= 1)) e.level = 'ระดับต้องเป็นตัวเลข ≥ 1';
-  }
-  if (f.employeeType === 'PRO_SITE' && !f.position?.trim()) e.position = 'กรุณาระบุตำแหน่ง';
-  if (f.status === 'INACTIVE') {
-    if (!f.endReason) e.endReason = 'กรุณาเลือกเหตุผล';
-    if (!f.endDate) e.endDate = 'กรุณาระบุวันพ้นสภาพ';
-    if (f.endReason === 'ABSENT_3D' && !f.lastWorkingDate) e.lastWorkingDate = 'ขาดงาน 3 วันต้องระบุวันทำงานสุดท้าย';
-    if (f.endDate && f.endDate < f.startDate) e.endDate = 'ต้องไม่ก่อนวันเริ่มงาน';
-  }
-  return e;
+function toPayload(form: Form): EmployeeInput {
+  const central = form.employeeType === 'CENTRAL';
+  const inactive = form.status === 'INACTIVE';
+  return {
+    ...form,
+    empCode: form.empCode.trim(),
+    firstName: form.firstName.trim(),
+    lastName: form.lastName.trim(),
+    salary: Number(form.salary),
+    level: central ? Number(form.level) : null,
+    deptGroup: central ? form.deptGroup : null,
+    position: form.employeeType === 'PRO_SITE' ? (form.position?.trim() ?? null) : null,
+    contractType: form.employeeType === 'PRO_SITE' ? form.contractType : 'REGULAR',
+    probationPassDate: form.probationPassDate || null,
+    endReason: inactive ? form.endReason : null,
+    endDate: inactive ? form.endDate || null : null,
+    lastWorkingDate: inactive ? form.lastWorkingDate || form.endDate || null : null,
+  };
 }
+
+/** กฎเดียวกับตาราง Excel (employeeRules) */
+const validate = (f: Form): Errors => validateEmployee(toPayload(f)) as Errors;
 
 function Section({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
@@ -126,23 +126,7 @@ export function EmployeeFormPage() {
       toast.error('กรุณาตรวจสอบข้อมูลที่ไฮไลต์สีแดง');
       return;
     }
-    const central = form.employeeType === 'CENTRAL';
-    const inactive = form.status === 'INACTIVE';
-    const payload: EmployeeInput = {
-      ...form,
-      empCode: form.empCode.trim(),
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
-      salary: Number(form.salary),
-      level: central ? Number(form.level) : null,
-      deptGroup: central ? form.deptGroup : null,
-      position: form.employeeType === 'PRO_SITE' ? (form.position?.trim() ?? null) : null,
-      contractType: form.employeeType === 'PRO_SITE' ? form.contractType : 'REGULAR',
-      probationPassDate: form.probationPassDate || null,
-      endReason: inactive ? form.endReason : null,
-      endDate: inactive ? form.endDate || null : null,
-      lastWorkingDate: inactive ? form.lastWorkingDate || form.endDate || null : null,
-    };
+    const payload = toPayload(form);
     setSaving(true);
     try {
       const saved = await api.saveEmployee(payload);
@@ -200,12 +184,16 @@ export function EmployeeFormPage() {
           )}
           {form.employeeType === 'PRO_SITE' && (
             <>
-              <TextField label="ตำแหน่ง" required list="pro-positions" value={form.position ?? ''} onChange={(v) => set('position', v)} error={err('position')} hint="ตำแหน่งที่ไม่อยู่ในรายการ = “ตำแหน่งอื่นๆ”" />
-              <datalist id="pro-positions">
-                {PRO_POSITIONS.map((p) => (
-                  <option key={p} value={p} />
-                ))}
-              </datalist>
+              <SelectField
+                label="ตำแหน่ง"
+                required
+                creatable
+                value={form.position ?? ''}
+                onChange={(v) => set('position', v)}
+                options={PRO_POSITIONS.map((p) => ({ value: p, label: p }))}
+                error={err('position')}
+                hint="พิมพ์ตำแหน่งใหม่ได้ — ไม่อยู่ในรายการ = “ตำแหน่งอื่นๆ”"
+              />
             </>
           )}
           <TextField label="เงินเดือน (บาท)" type="number" min={0} step="0.01" required value={form.salary} onChange={(v) => set('salary', v)} error={err('salary')} hint="ใช้คำนวณยอดหัก/สมทบ PVD" />

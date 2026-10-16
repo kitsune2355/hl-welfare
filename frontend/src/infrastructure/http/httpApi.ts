@@ -2,11 +2,14 @@ import { ApiError } from '../../application/errors';
 import type {
   EmployeeInput,
   InsuranceBatchInput,
+  SiteInput,
   SitePatch,
   UniformIssueInput,
   WelfareApi,
 } from '../../application/ports';
 import type {
+  ActivityFilter,
+  ActivityLog,
   Company,
   DashboardData,
   Employee,
@@ -15,6 +18,7 @@ import type {
   InsuranceBatch,
   InsuranceCycle,
   ISODate,
+  MonitorTask,
   PvdRow,
   RuleSet,
   Site,
@@ -50,6 +54,10 @@ export class HttpApi implements WelfareApi {
     return this.req<T>(path, { method, body: JSON.stringify(data) });
   }
 
+  private async del(path: string): Promise<void> {
+    await this.req<unknown>(path, { method: 'DELETE' });
+  }
+
   getDashboard() {
     return this.req<DashboardData>('/dashboard');
   }
@@ -59,8 +67,14 @@ export class HttpApi implements WelfareApi {
   listSites() {
     return this.req<Site[]>('/sites');
   }
+  createSite(input: SiteInput) {
+    return this.send<Site>('POST', '/sites', input);
+  }
   updateSite(id: number, patch: SitePatch) {
     return this.send<Site>('PATCH', `/sites/${id}`, patch);
+  }
+  deleteSite(id: number) {
+    return this.del(`/sites/${id}`);
   }
   listEmployees(filter: EmployeeFilter = {}) {
     const qs = new URLSearchParams();
@@ -77,6 +91,9 @@ export class HttpApi implements WelfareApi {
   saveEmployee(emp: EmployeeInput) {
     return emp.id ? this.send<Employee>('PUT', `/employees/${emp.id}`, emp) : this.send<Employee>('POST', '/employees', emp);
   }
+  deleteEmployee(id: number) {
+    return this.del(`/employees/${id}`);
+  }
   getRules() {
     return this.req<RuleSet>('/rules');
   }
@@ -89,6 +106,9 @@ export class HttpApi implements WelfareApi {
   submitInsuranceBatch(input: InsuranceBatchInput) {
     return this.send<InsuranceBatch>('POST', '/insurance/batches', input);
   }
+  cancelInsuranceBatch(id: number) {
+    return this.del(`/insurance/batches/${id}`);
+  }
   listPvdMembers() {
     return this.req<PvdRow[]>('/pvd/members');
   }
@@ -100,5 +120,19 @@ export class HttpApi implements WelfareApi {
   }
   listUniformPending() {
     return this.req<UniformPendingRow[]>('/uniform/pending');
+  }
+  cancelUniformIssue(id: number) {
+    return this.del(`/uniform/issues/${id}`);
+  }
+  getWorkQueue() {
+    return this.req<MonitorTask[]>('/monitor/tasks');
+  }
+  listActivity(filter: ActivityFilter = {}) {
+    const qs = new URLSearchParams();
+    if (filter.entity) qs.set('entity', filter.entity);
+    if (filter.employeeId !== undefined) qs.set('employeeId', String(filter.employeeId));
+    if (filter.limit) qs.set('limit', String(filter.limit));
+    const s = qs.toString();
+    return this.req<ActivityLog[]>(`/activity${s ? `?${s}` : ''}`);
   }
 }

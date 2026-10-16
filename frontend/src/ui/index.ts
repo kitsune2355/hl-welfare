@@ -1,8 +1,11 @@
 export { Badge, type Tone } from './Badge';
 export { Button, ButtonLink, IconButton, buttonClass } from './Button';
 export { Card } from './Card';
+export { ConfirmButton } from './ConfirmButton';
+export { DataGrid, type CellValue, type GridColumn } from './DataGrid';
 export { Alert, EmptyState, ErrorState } from './Feedback';
-export { Field, Input, Select, SelectField, TextField } from './Field';
+export { Combobox, type ComboOption } from './Combobox';
+export { Field, Input, SelectField, TextField } from './Field';
 export { Avatar, InfoList, PageHeader, Progress, Switch, Tabs } from './Misc';
 export { Modal, ToastProvider, useToast } from './Overlay';
 export { Skeleton } from './Skeleton';

@@ -1,4 +1,4 @@
-import type { BatchType, EmployeeStatus, EmployeeType, UniformItemCode } from '../domain/types';
+import type { ActivityEntity, BatchType, EmployeeStatus, EmployeeType, TaskKind, TaskSeverity, UniformItemCode } from '../domain/types';
 
 export * from '../domain/labels';
 
@@ -36,3 +36,22 @@ export const DEPT_GROUPS = [
 export const PRO_POSITIONS = ['ช่างเทคนิค', 'ช่างทีมโมบาย', 'หัวหน้าช่างเทคนิค', 'วิศวกร', 'ผู้ควบคุมงาน', 'ธุรการโครงการ'];
 
 export const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'];
+
+export const TASK_KIND_LABEL: Record<TaskKind, string> = {
+  INSURANCE_URGENT: 'แจ้งออกทันที',
+  INSURANCE_IN: 'แจ้งเข้าประกัน',
+  INSURANCE_OUT: 'แจ้งออกประกัน',
+  UNIFORM_ISSUE: 'แจกชุดฟอร์ม',
+  PROBATION_MISSING: 'ข้อมูลไม่ครบ',
+  UNIFORM_RULE_MISSING: 'รอ HR ยืนยัน',
+};
+
+export const SEVERITY_LABEL: Record<TaskSeverity, string> = { critical: 'ด่วน', warning: 'ต้องทำ', info: 'ติดตาม' };
+export const SEVERITY_TONE: Record<TaskSeverity, Tone> = { critical: 'danger', warning: 'warning', info: 'info' };
+
+export const ACTIVITY_ENTITY_LABEL: Record<ActivityEntity, string> = {
+  EMPLOYEE: 'พนักงาน',
+  SITE: 'หน่วยงาน',
+  INSURANCE_BATCH: 'ประกันกลุ่ม',
+  UNIFORM_ISSUE: 'ชุดฟอร์ม',
+};
