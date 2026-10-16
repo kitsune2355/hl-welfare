@@ -23,6 +23,10 @@ const SETTINGS = [
   { id: 'sites', href: 'sites.html', label: 'หน่วยงาน', icon: 'building-2' },
 ];
 
+/** เมนูด้านล่าง (มือถือ <768px) — 4 หน้าหลัก + "เพิ่มเติม" (เปิดเมนูเต็ม: PVD, เงื่อนไข, หน่วยงาน, ผู้ใช้) */
+const BOTTOM_NAV = ['dashboard', 'employees', 'insurance', 'uniform'];
+const BOTTOM_LABEL = { dashboard: 'ภาพรวม', employees: 'พนักงาน', insurance: 'ประกัน', uniform: 'ชุดฟอร์ม' };
+
 // ----- ธีม: ค่าเริ่มต้น = สว่าง, โหมดมืดเปิดเมื่อผู้ใช้กดเท่านั้น -----
 const THEME_KEY = 'hl-theme';
 const isDark = () => document.documentElement.dataset.theme === 'dark';
@@ -87,33 +91,60 @@ export function initPage(active, { tour = active } = {}) {
   const app = document.createElement('div');
   app.className = 'app';
   app.innerHTML = String(html`<header class="topbar">
-    <button class="btn-icon menu-btn" id="menu-btn" aria-label="เปิดเมนู">${raw(icon('menu'))}</button>
+    <div class="topbar-start">
+      <button class="btn-icon menu-btn" id="menu-btn" aria-label="เปิดเมนู">${raw(icon('menu'))}</button>
+      <a class="topbar-logo" href="index.html" aria-label="HL Welfare หน้าแรก"><img src="favicon.svg" alt="" /></a>
+    </div>
     <form class="search" role="search" id="global-search">
       ${raw(icon('search'))}
       <input class="input" name="q" placeholder="ค้นหาพนักงาน…" aria-label="ค้นหาพนักงาน" autocomplete="off" />
       <span class="kbd">/</span>
     </form>
-    <span class="spacer"></span>
-    <button class="btn-icon" id="help-btn" aria-label="แนะนำการใช้งาน" title="แนะนำการใช้งาน">${raw(icon('circle-help'))}</button>
-    <button class="btn-icon" id="theme-btn"></button>
+    <div class="topbar-end">
+      <button class="btn-icon" id="help-btn" aria-label="แนะนำการใช้งาน" title="แนะนำการใช้งาน">${raw(icon('circle-help'))}</button>
+      <button class="btn-icon" id="theme-btn"></button>
+    </div>
   </header>`);
+
+  const bottom = document.createElement('nav');
+  bottom.className = 'bottom-nav';
+  bottom.setAttribute('aria-label', 'เมนูด้านล่าง');
+  const inMore = !BOTTOM_NAV.includes(active);
+  bottom.innerHTML = String(
+    html`${BOTTOM_NAV.map((id) => {
+        const m = MENU.find((x) => x.id === id);
+        return html`<a href="${m.href}" class="bn-item${id === active ? ' active' : ''}" data-nav="${id}" ${id === active ? raw('aria-current="page"') : ''}>
+          <span class="bn-ico">${raw(icon(m.icon))}<b class="nav-count hidden ${m.tone ?? ''}"></b></span>
+          <span>${BOTTOM_LABEL[id]}</span>
+        </a>`;
+      })}
+      <button type="button" class="bn-item${inMore ? ' active' : ''}" id="more-btn" aria-label="เมนูเพิ่มเติม">
+        <span class="bn-ico">${raw(icon('layout-grid'))}</span>
+        <span>เพิ่มเติม</span>
+      </button>`,
+  );
 
   main.before(sidebar);
   main.before(app);
   app.append(main);
+  document.body.append(bottom);
 
   // ----- events -----
   const closeDrawer = () => {
     document.body.classList.remove('drawer-open');
     document.querySelector('body > .backdrop')?.remove();
   };
-  document.getElementById('menu-btn').onclick = () => {
+  const openDrawer = () => {
+    if (document.body.classList.contains('drawer-open')) return closeDrawer();
     document.body.classList.add('drawer-open');
     const bd = document.createElement('div');
     bd.className = 'backdrop';
     bd.onclick = closeDrawer;
     document.body.append(bd);
   };
+  document.getElementById('menu-btn').onclick = openDrawer;
+  document.getElementById('more-btn').onclick = openDrawer;
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && closeDrawer());
   document.getElementById('theme-btn').onclick = toggleTheme;
   document.getElementById('logout-btn')?.addEventListener('click', logout);
   drawThemeButton();
@@ -149,10 +180,11 @@ export async function refreshCounts() {
     const d = await api.getDashboard();
     for (const m of MENU) {
       if (!m.count) continue;
-      const el = document.querySelector(`[data-nav="${m.id}"] .nav-count`);
       const n = m.count(d);
-      el.textContent = String(n);
-      el.classList.toggle('hidden', n === 0);
+      document.querySelectorAll(`[data-nav="${m.id}"] .nav-count`).forEach((el) => {
+        el.textContent = String(n);
+        el.classList.toggle('hidden', n === 0);
+      });
     }
   } catch {
     /* ตัวนับไม่สำคัญพอจะแจ้ง error */

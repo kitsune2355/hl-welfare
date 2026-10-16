@@ -4,6 +4,7 @@
 // คอลัมน์ที่ไม่ต้องการให้กรอง: ใส่ filter: false ในนิยามคอลัมน์
 // ค่าที่ใช้กรอง: text(row) ถ้ามี · ไม่มี = ข้อความที่แสดงในเซลล์
 // ค่าที่ใช้เรียง: sort(row) ถ้ามี (เช่น วันที่ ISO, ตัวเลข) · ไม่มี = ค่าที่ใช้กรอง
+// ตรึงคอลัมน์ไว้ด้านซ้าย: ปุ่มในกล่องเดียวกัน · จำแยกต่อตาราง/ต่อเครื่อง (localStorage hl-pins:<หน้า>#<id ตาราง>)
 import { esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 
@@ -17,6 +18,36 @@ export const stripHtml = (h) =>
     .trim();
 
 const EMPTY = '(ว่าง)';
+
+// ----- คอลัมน์ที่ตรึงไว้ด้านซ้าย -----
+/** id ของตาราง (ใช้จำการตรึงคอลัมน์) = ชื่อไฟล์หน้า + id ของตาราง/กล่องที่ใกล้ที่สุด */
+export function tableId(root, opts = {}) {
+  const page = location.pathname.split('/').pop() || 'index.html';
+  return `${page}#${opts.id || root.id || root.closest('[id]')?.id || 'table'}`;
+}
+
+export function loadPins(id) {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(`hl-pins:${id}`) ?? '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+export function savePins(id, pins) {
+  try {
+    if (pins.size) localStorage.setItem(`hl-pins:${id}`, JSON.stringify([...pins]));
+    else localStorage.removeItem(`hl-pins:${id}`);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** เรียงคอลัมน์: ที่ตรึงไว้มาก่อน (คงลำดับเดิม) */
+export const orderByPins = (columns, pins) => [...columns.filter((c) => pins.has(c.key)), ...columns.filter((c) => !pins.has(c.key))];
+
+/** ไอคอนหมุดเล็ก ๆ หน้าชื่อคอลัมน์ที่ตรึงไว้ */
+export const pinMark = (pinned) => (pinned ? raw(`<span class="th-pin" title="ตรึงไว้ด้านซ้าย">${icon('pin')}</span>`) : '');
 const collator = new Intl.Collator('th', { numeric: true, sensitivity: 'base' });
 
 export function compareValues(a, b) {
@@ -93,9 +124,10 @@ export function filterSummary(state, labelOf) {
 /**
  * เปิดกล่องกรองใต้หัวคอลัมน์
  * @param {{anchor: HTMLElement, label: string, values: string[], selected: Set<string>|null,
- *   sortDir: 0|1|-1, onApply: (r: {selected: Set<string>|null, sortDir: 0|1|-1}) => void}} o
+ *   sortDir: 0|1|-1, onApply: (r: {selected: Set<string>|null, sortDir: 0|1|-1}) => void,
+ *   pinned?: boolean, onPin?: () => void}} o
  */
-export function openColumnFilter({ anchor, label, values, selected, sortDir, onApply }) {
+export function openColumnFilter({ anchor, label, values, selected, sortDir, onApply, pinned = false, onPin }) {
   document.querySelector('.popover.col-filter')?.remove();
   const counts = new Map();
   for (const v of values) counts.set(v || EMPTY, (counts.get(v || EMPTY) ?? 0) + 1);
@@ -107,6 +139,9 @@ export function openColumnFilter({ anchor, label, values, selected, sortDir, onA
   pop.setAttribute('role', 'dialog');
   pop.setAttribute('aria-label', `กรองคอลัมน์ ${label}`);
   pop.innerHTML = String(html`<div class="cf-sort">
+      ${onPin
+        ? html`<button type="button" class="cf-btn${pinned ? ' on' : ''}" data-pin>${raw(icon(pinned ? 'pin-off' : 'pin'))} ${pinned ? 'เลิกตรึงคอลัมน์' : 'ตรึงคอลัมน์ไว้ด้านซ้าย'}</button>`
+        : ''}
       <button type="button" class="cf-btn${sortDir === 1 ? ' on' : ''}" data-sort="1">${raw(icon('arrow-up-narrow-wide'))} เรียงน้อย → มาก</button>
       <button type="button" class="cf-btn${sortDir === -1 ? ' on' : ''}" data-sort="-1">${raw(icon('arrow-down-wide-narrow'))} เรียงมาก → น้อย</button>
     </div>
@@ -188,6 +223,10 @@ export function openColumnFilter({ anchor, label, values, selected, sortDir, onA
         apply(sortDir === d ? 0 : d); // กดซ้ำ = ยกเลิกการเรียง
       }),
   );
+  pop.querySelector('[data-pin]')?.addEventListener('click', () => {
+    close();
+    onPin?.();
+  });
   pop.querySelector('[data-reset]').onclick = () => {
     onApply({ selected: null, sortDir: 0 });
     close();

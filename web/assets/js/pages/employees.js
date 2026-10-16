@@ -4,7 +4,7 @@ import { initPage, refreshCounts } from '../app/shell.js';
 import { normalizeEmployee, validateEmployee } from '../application/employeeRules.js';
 import { todayISO } from '../domain/date.js';
 import { $, debounce, getParam, html, setParams } from '../shared/dom.js';
-import { money, thaiDate } from '../shared/format.js';
+import { thaiDate } from '../shared/format.js';
 import {
   COMPANY_CODES,
   CONTRACT_LABEL,
@@ -124,17 +124,6 @@ const columns = [
     options: () => opts(CONTRACT_LABEL),
     set: setField('contractType', str),
   },
-  {
-    key: 'salary',
-    header: 'เงินเดือน',
-    width: 110,
-    align: 'right',
-    required: true,
-    editor: 'number',
-    value: (e) => e.salary,
-    display: (e) => html`<span class="num">${e.salary ? money(e.salary) : ''}</span>`,
-    set: setField('salary', (v) => Number(v) || 0),
-  },
   { key: 'birthDate', header: 'วันเกิด', width: 110, required: true, editor: 'date', value: (e) => e.birthDate, display: (e) => (e.birthDate ? thaiDate(e.birthDate) : ''), set: setField('birthDate', str) },
   { key: 'startDate', header: 'วันเริ่มงาน', width: 110, required: true, editor: 'date', value: (e) => e.startDate, display: (e) => thaiDate(e.startDate), set: setField('startDate', str) },
   {
@@ -180,7 +169,11 @@ function blankEmployee() {
 const grid = new ExcelGrid($('#grid'), {
   columns,
   rowKey: (e) => e.id,
-  validate: (e) => validateEmployee(e),
+  // ตารางไม่มีคอลัมน์เงินเดือน → ไม่ตรวจเงินเดือนที่นี่ (กรอก/แก้ได้ที่ฟอร์มเต็ม ซึ่งยังบังคับกรอกเพราะใช้คำนวณ PVD)
+  validate: (e) => {
+    const { salary: _salary, ...errors } = validateEmployee(e);
+    return errors;
+  },
   newRow: blankEmployee,
   pageSize: 25,
   page: Math.max(1, Number(getParam('page')) || 1),

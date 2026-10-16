@@ -13,7 +13,18 @@
 // ปุ่มในเซลล์: ใส่ data-action="..." แล้วดักด้วย on(container, 'click', '[data-action="..."]', fn)
 import { html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
-import { FilterState, filterSummary, headerFilterButton, openColumnFilter, stripHtml } from './columnFilter.js';
+import {
+  FilterState,
+  filterSummary,
+  headerFilterButton,
+  loadPins,
+  openColumnFilter,
+  orderByPins,
+  pinMark,
+  savePins,
+  stripHtml,
+  tableId,
+} from './columnFilter.js';
 import { enhanceSelects } from './combobox.js';
 
 export const PAGE_SIZES = [10, 25, 50, 100];
@@ -91,6 +102,8 @@ export class DataTable {
     this.page = opts.page ?? 1;
     this.size = opts.pageSize ?? 0;
     this.filter = new FilterState();
+    this.tid = tableId(root, opts);
+    this.pins = loadPins(this.tid); // คอลัมน์ที่ผู้ใช้ตรึงไว้ด้านซ้าย
     root.addEventListener('click', (e) => {
       const fb = e.target.closest('[data-col-filter]');
       if (fb) return this.openFilter(fb);
@@ -160,6 +173,37 @@ export class DataTable {
         this.page = 1;
         this.render();
       },
+      pinned: this.pins.has(key),
+      onPin: () => {
+        if (this.pins.has(key)) this.pins.delete(key);
+        else this.pins.add(key);
+        savePins(this.tid, this.pins);
+        this.render();
+      },
+    });
+  }
+
+  /** ตรึงคอลัมน์: วัดความกว้างจริงหลัง render แล้วตั้ง sticky left ให้ทุกเซลล์ของคอลัมน์นั้น */
+  applyPins() {
+    const table = this.root.querySelector('.table');
+    if (!table) return;
+    const keys = this.o.columns.filter((c) => this.pins.has(c.key)).map((c) => c.key);
+    let left = 0;
+    const rownums = table.querySelectorAll('.rownum');
+    if (keys.length && rownums.length) {
+      rownums.forEach((el) => el.classList.add('pinned'));
+      rownums.forEach((el) => (el.style.left = '0px'));
+      left = rownums[0].offsetWidth;
+    }
+    keys.forEach((key, i) => {
+      const cells = table.querySelectorAll(`[data-col="${key}"]`);
+      const w = cells[0]?.offsetWidth ?? 0;
+      cells.forEach((el) => {
+        el.classList.add('pinned');
+        el.classList.toggle('pin-edge', i === keys.length - 1);
+        el.style.left = `${left}px`;
+      });
+      left += w;
     });
   }
 
@@ -173,7 +217,8 @@ export class DataTable {
   }
 
   render() {
-    const { columns, rowKey, onRowClick, rowNumbers, rowClass, empty } = this.o;
+    const { rowKey, onRowClick, rowNumbers, rowClass, empty } = this.o;
+    const columns = orderByPins(this.o.columns, this.pins);
     const rows = this.visible();
     const offset = this.size ? (this.page - 1) * this.size : 0;
     const align = (c) => (c.align && c.align !== 'left' ? c.align : '');
@@ -188,9 +233,9 @@ export class DataTable {
             ${rowNumbers ? html`<th class="rownum">#</th>` : ''}
             ${columns.map(
               (c) =>
-                html`<th class="${align(c)} ${c.cls ?? ''}">
+                html`<th class="${align(c)} ${c.cls ?? ''}" data-col="${c.key}">
                   ${this.canFilter(c) && !loading
-                    ? html`<span class="th-inner"><span>${c.header}</span>${headerFilterButton(c.key, c.header, this.filter)}</span>`
+                    ? html`<span class="th-inner"><span>${pinMark(this.pins.has(c.key))}${c.header}</span>${headerFilterButton(c.key, c.header, this.filter)}</span>`
                     : c.header}
                 </th>`,
             )}
@@ -201,13 +246,13 @@ export class DataTable {
             ? Array.from(
                 { length: 6 },
                 () => html`<tr>
-                  ${rowNumbers ? html`<td class="rownum"></td>` : ''} ${columns.map(() => html`<td><div class="skeleton sk-line"></div></td>`)}
+                  ${rowNumbers ? html`<td class="rownum"></td>` : ''} ${columns.map((c) => html`<td data-col="${c.key}"><div class="skeleton sk-line"></div></td>`)}
                 </tr>`,
               )
             : rows.map(
                 (r, i) => html`<tr data-key="${rowKey(r)}" class="${onRowClick ? 'clickable' : ''} ${rowClass?.(r) ?? ''}">
                   ${rowNumbers ? html`<td class="rownum num">${offset + i + 1}</td>` : ''}
-                  ${columns.map((c) => html`<td class="${align(c)} ${c.cls ?? ''}">${c.cell(r)}</td>`)}
+                  ${columns.map((c) => html`<td class="${align(c)} ${c.cls ?? ''}" data-col="${c.key}">${c.cell(r)}</td>`)}
                 </tr>`,
               )}
         </tbody>
@@ -259,6 +304,7 @@ export class DataTable {
         },
       });
     }
+    this.applyPins();
     this.o.onRender?.(this.root); // เช่น แปลง <select data-combobox> ในเซลล์
   }
 }

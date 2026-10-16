@@ -21,7 +21,18 @@
 //   และ mobileAddHref = ลิงก์ของปุ่ม "เพิ่ม" บนมือถือ (เช่น ฟอร์มเต็ม) เพราะการกรอกในเซลล์บนจอเล็กไม่สะดวก
 import { esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
-import { FilterState, filterSummary, headerFilterButton, openColumnFilter, stripHtml } from './columnFilter.js';
+import {
+  FilterState,
+  filterSummary,
+  headerFilterButton,
+  loadPins,
+  openColumnFilter,
+  orderByPins,
+  pinMark,
+  savePins,
+  stripHtml,
+  tableId,
+} from './columnFilter.js';
 import { openPicker } from './combobox.js';
 import { pagerHtml, wirePager } from './table.js';
 
@@ -31,7 +42,10 @@ export class ExcelGrid {
   constructor(root, opts) {
     this.root = root;
     this.o = { addLabel: 'เพิ่มแถว', ...opts };
-    this.cols = opts.columns;
+    this.allCols = opts.columns;
+    this.tid = tableId(root, opts);
+    this.pins = loadPins(this.tid); // คอลัมน์ที่ผู้ใช้ตรึงไว้ด้านซ้าย
+    this.cols = orderByPins(this.allCols, this.pins);
     this.rows = null;
     this.drafts = new Map(); // key → แถวที่แก้แล้วแต่ยังไม่บันทึก/บันทึกไม่ผ่าน
     this.newRows = []; // { key, row }
@@ -112,7 +126,28 @@ export class ExcelGrid {
         else if (this.filter.sort?.key === key) this.filter.sort = null;
         this.afterFilterChange();
       },
+      pinned: this.pins.has(key),
+      onPin: () => {
+        if (this.pins.has(key)) this.pins.delete(key);
+        else this.pins.add(key);
+        savePins(this.tid, this.pins);
+        this.cols = orderByPins(this.allCols, this.pins);
+        this.active = null;
+        this.render();
+      },
     });
+  }
+
+  /** ตำแหน่ง sticky ของคอลัมน์ที่ตรึง: ถัดจากคอลัมน์เลขแถว (52px) เรียงตามความกว้าง */
+  pinOffsets() {
+    const out = {};
+    let left = 52;
+    const pinned = this.cols.filter((c) => this.pins.has(c.key));
+    pinned.forEach((c, i) => {
+      out[c.key] = { left, edge: i === pinned.length - 1 };
+      left += c.width;
+    });
+    return out;
   }
 
   afterFilterChange() {
@@ -419,13 +454,16 @@ export class ExcelGrid {
     const unsaved = this.newRows.length + this.drafts.size;
     const errors = [...this.status.values()].filter((s) => s.state === 'error').length;
     const loading = this.rows === null;
+    const pins = this.pinOffsets();
+    const pinStyle = (c, z) => (pins[c.key] ? `position:sticky;left:${pins[c.key].left}px;z-index:${z}` : '');
+    const pinCls = (c) => (pins[c.key] ? ` pinned${pins[c.key].edge ? ' pin-edge' : ''}` : '');
 
     const body = loading
       ? Array.from(
           { length: 8 },
           () => html`<tr>
             <td class="stick-left"></td>
-            ${this.cols.map(() => html`<td><div class="cell"><div class="skeleton sk-line"></div></div></td>`)}
+            ${this.cols.map((c) => html`<td class="${pinCls(c)}" style="${pinStyle(c, 2)}"><div class="cell"><div class="skeleton sk-line"></div></div></td>`)}
             ${hasActions ? html`<td class="stick-right"></td>` : ''}
           </tr>`,
         )
@@ -438,7 +476,7 @@ export class ExcelGrid {
               const editable = this.canEdit(col, entry.row);
               const err = errs[col.key];
               const isActive = this.active?.r === r && this.active?.c === c;
-              const cls = [editable ? 'editable' : col.editor ? 'locked' : 'muted', err ? 'invalid' : '', isActive ? 'active' : ''].join(' ');
+              const cls = [editable ? 'editable' : col.editor ? 'locked' : 'muted', err ? 'invalid' : '', isActive ? 'active' : ''].join(' ') + pinCls(col);
               let content;
               if (col.editor === 'switch') {
                 content = html`<span class="switch sm" aria-checked="${!!col.value(entry.row)}" aria-hidden="true"></span>`;
@@ -448,7 +486,7 @@ export class ExcelGrid {
                 const v = fmt(col.value(entry.row));
                 content = v ? html`<span class="truncate ${col.editor === 'number' ? 'num' : ''}">${v}</span>` : err ? html`<span class="must">ต้องกรอก</span>` : '';
               }
-              return html`<td data-r="${r}" data-c="${c}" class="${cls}" role="gridcell" ${err ? raw(`title="${esc(err)}"`) : ''}>
+              return html`<td data-r="${r}" data-c="${c}" data-col="${col.key}" class="${cls}" style="${pinStyle(col, 2)}" role="gridcell" ${err ? raw(`title="${esc(err)}"`) : ''}>
                 <div class="cell ${col.align ?? ''}">${content}</div>
               </td>`;
             })}
@@ -487,9 +525,9 @@ export class ExcelGrid {
               <th class="stick-left">#</th>
               ${this.cols.map(
                 (c) =>
-                  html`<th>
+                  html`<th class="${pinCls(c)}" style="${pinStyle(c, 4)}" data-col="${c.key}">
                     <span class="th-inner" style="justify-content:${c.align === 'right' ? 'flex-end' : c.align === 'center' ? 'center' : 'space-between'}"
-                      ><span class="truncate">${c.header}${c.required ? html`<span class="req">*</span>` : ''}</span>${this.canFilter(c) && !loading
+                      ><span class="truncate">${pinMark(this.pins.has(c.key))}${c.header}${c.required ? html`<span class="req">*</span>` : ''}</span>${this.canFilter(c) && !loading
                         ? headerFilterButton(c.key, c.header, this.filter)
                         : ''}</span
                     >
