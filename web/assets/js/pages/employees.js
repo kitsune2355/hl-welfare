@@ -26,21 +26,42 @@ const opts = (rec) => Object.entries(rec).map(([value, label]) => ({ value, labe
 const str = (v) => (v === null || v === undefined ? '' : String(v));
 let sites = [];
 
-// ----- ตัวกรองจาก URL -----
+// ----- ตัวกรองจาก URL: ช่องค้นหา + แท็กกรองเร็ว -----
+/** กลุ่มแท็กกรองเร็ว — เลือกได้กลุ่มละ 1 ค่า (กดซ้ำ = ยกเลิก) · เพิ่ม/ลบกลุ่มได้ที่นี่ */
+const TAG_GROUPS = [
+  { param: 'status', field: 'status', label: 'สถานะ', options: STATUS_LABEL },
+  { param: 'type', field: 'employeeType', label: 'ประเภท', options: EMPLOYEE_TYPE_LABEL },
+  { param: 'company', field: 'companyCode', label: 'บริษัท', options: Object.fromEntries(COMPANY_CODES.map((c) => [c, c])) },
+];
 const filter = () => ({
   q: getParam('q'),
   companyCode: getParam('company'),
   employeeType: getParam('type'),
   status: getParam('status'),
 });
-function fillFilterForm() {
+/** พนักงานที่ตรงคำค้น (ยังไม่กรองด้วยแท็ก) — ใช้นับจำนวนบนแท็ก */
+let matched = [];
+const matchTags = (e, f, except) => TAG_GROUPS.every((g) => g === except || !f[g.field] || e[g.field] === f[g.field]);
+
+function drawTags() {
   const f = filter();
-  form.q.value = f.q;
-  for (const [name, v] of [['company', f.companyCode], ['type', f.employeeType], ['status', f.status]]) {
-    form[name].value = v;
-    form[name].refreshCombobox?.();
-  }
-  $('#clear').classList.toggle('hidden', !(f.q || f.companyCode || f.employeeType || f.status));
+  const any = TAG_GROUPS.some((g) => f[g.field]);
+  $('#quick-tags').innerHTML = String(html`${TAG_GROUPS.map((g) => {
+      // นับแบบ faceted: ใช้ตัวกรองของกลุ่มอื่น แต่ไม่ใช้ของกลุ่มตัวเอง
+      const pool = matched.filter((e) => matchTags(e, f, g));
+      return html`<span class="tag-group" role="group" aria-label="${g.label}">
+        ${Object.entries(g.options).map(([value, label]) => {
+          const on = f[g.field] === value;
+          const n = pool.filter((e) => e[g.field] === value).length;
+          return html`<button type="button" class="chip${on ? ' active' : ''}${!n && !on ? ' empty' : ''}" data-tag="${g.param}" data-value="${value}" aria-pressed="${on}">${label} <span class="n num">${n}</span></button>`;
+        })}
+      </span>`;
+    })}
+    ${any ? html`<button type="button" class="chip chip-clear" data-clear-tags>ล้างแท็ก</button>` : ''}`);
+}
+function fillFilterForm() {
+  form.q.value = filter().q;
+  drawTags();
 }
 
 /** แก้ค่า 1 field แล้วจัด field ที่เกี่ยวข้องให้สอดคล้อง (เช่น เปลี่ยนบริษัท → หน่วยงานแรกของบริษัท) */
@@ -213,28 +234,34 @@ async function load() {
   grid.setRows(null);
   try {
     const f = filter();
-    const [list, siteList] = await Promise.all([api.listEmployees(f), sites.length ? sites : api.listSites()]);
+    // ดึงตามคำค้นครั้งเดียว แล้วกรองด้วยแท็กในเบราว์เซอร์ → นับจำนวนบนแท็กได้ทันที
+    const [list, siteList] = await Promise.all([api.listEmployees({ q: f.q }), sites.length ? sites : api.listSites()]);
     sites = siteList;
-    grid.setRows(list);
+    matched = list;
+    drawTags();
+    grid.setRows(list.filter((e) => matchTags(e, f)));
   } catch (e) {
     $('#grid').innerHTML = String(html`<div style="padding:16px">${errorState(e)}</div>`);
   }
 }
 
 // ----- events: เปลี่ยนตัวกรอง → เขียนลง URL → โหลดใหม่ -----
-const applyFilter = () => {
-  setParams({ q: form.q.value.trim(), company: form.company.value, type: form.type.value, status: form.status.value, page: '' });
+const applyFilter = (params = {}) => {
+  setParams({ q: form.q.value.trim(), ...params, page: '' });
   grid.page = 1;
   fillFilterForm();
   load();
 };
 form.addEventListener('submit', (e) => e.preventDefault());
-form.q.addEventListener('input', debounce(applyFilter, 250));
-form.addEventListener('change', (e) => e.target.matches('select') && applyFilter());
-$('#clear').onclick = () => {
-  form.reset();
-  applyFilter();
-};
+form.q.addEventListener('input', debounce(() => applyFilter(), 250));
+$('#quick-tags').addEventListener('click', (e) => {
+  const tag = e.target.closest('[data-tag]');
+  if (tag) {
+    const { tag: param, value } = tag.dataset;
+    return applyFilter({ [param]: getParam(param) === value ? '' : value }); // กดซ้ำ = ยกเลิก
+  }
+  if (e.target.closest('[data-clear-tags]')) applyFilter(Object.fromEntries(TAG_GROUPS.map((g) => [g.param, ''])));
+});
 
 fillFilterForm();
 load();

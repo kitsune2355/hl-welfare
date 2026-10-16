@@ -869,6 +869,67 @@ button.stat:hover {
 .filters .combo {
   width: 170px;
 }
+/* ช่องค้นหา + แท็กกรองเร็ว (เช่น หน้าพนักงาน) */
+.filters.stack {
+  flex-direction: column;
+  flex-wrap: nowrap; /* wrap + column = บรรทัดกว้างตามเนื้อหา → แท็กล้นการ์ด */
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px 16px;
+}
+.filters .search-box {
+  max-width: 480px;
+}
+.quick-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.tag-group {
+  display: flex;
+  gap: 6px;
+  padding-right: 10px;
+  margin-right: 4px;
+  border-right: 1px solid var(--border);
+}
+.tag-group:last-of-type {
+  border-right: 0;
+}
+.chip {
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.chip.empty {
+  opacity: 0.5;
+}
+.chip-clear {
+  border-style: dashed;
+}
+@media (max-width: 767px) {
+  /* มือถือ: แท็กเป็นแถวเดียว ปัดซ้าย-ขวา (ไม่แสดง scrollbar) */
+  .filters .search-box {
+    max-width: none;
+  }
+  .quick-tags {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin: 0 -16px;
+    padding: 0 16px 2px;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 24px), transparent);
+  }
+  .quick-tags::-webkit-scrollbar {
+    display: none;
+  }
+  .quick-tags .chip {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
 @media (max-width: 639px) {
   .filters .combo,
   .filters .btn {

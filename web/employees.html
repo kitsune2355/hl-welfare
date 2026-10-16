@@ -31,33 +31,14 @@
       </div>
 
       <section class="card fill">
-        <!-- ตัวกรอง: ค่าถูกเก็บใน URL (?q=&company=&type=&status=) -->
-        <form class="filters" id="filters">
-          <div class="input-icon grow">
+        <!-- ตัวกรอง: ช่องค้นหา + แท็กกรองเร็ว · ค่าถูกเก็บใน URL (?q=&status=&type=&company=) -->
+        <form class="filters stack" id="filters">
+          <div class="input-icon search-box">
             <i data-icon="search"></i>
-            <input class="input" name="q" placeholder="ค้นหารหัส หรือ ชื่อ-สกุล" aria-label="ค้นหา" autocomplete="off" />
+            <input class="input" type="search" name="q" placeholder="ค้นหารหัส หรือ ชื่อ-สกุล" aria-label="ค้นหา" autocomplete="off" />
           </div>
-          <select name="company" data-combobox aria-label="บริษัท" class="combo">
-            <option value="">ทุกบริษัท</option>
-            <option>HL</option>
-            <option>PRO</option>
-            <option>CNS</option>
-            <option>CIC</option>
-            <option>AS</option>
-          </select>
-          <select name="type" data-combobox aria-label="ประเภท" class="combo">
-            <option value="">ทุกประเภท</option>
-            <option value="CENTRAL">ส่วนกลาง</option>
-            <option value="PRO_SITE">Pro Site</option>
-            <option value="DAILY">รายวัน</option>
-            <option value="MAID_CNS">แม่บ้าน CNS</option>
-          </select>
-          <select name="status" data-combobox aria-label="สถานะ" class="combo">
-            <option value="">ทุกสถานะ</option>
-            <option value="ACTIVE">ทำงานอยู่</option>
-            <option value="INACTIVE">พ้นสภาพ</option>
-          </select>
-          <button type="button" class="btn btn-ghost hidden" id="clear"><i data-icon="filter-x"></i> ล้างตัวกรอง</button>
+          <!-- แท็กสร้างจาก TAG_GROUPS ใน pages/employees.js -->
+          <div class="quick-tags" id="quick-tags" role="group" aria-label="กรองเร็ว"></div>
         </form>
 
         <div id="grid" class="fill-body"></div>

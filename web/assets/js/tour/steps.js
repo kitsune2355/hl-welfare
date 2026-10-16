@@ -55,7 +55,8 @@ export const TOUR_STEPS = {
   employees: {
     ready: '.xgrid td[data-r], .xgrid-wrap .empty',
     steps: [
-      { element: '#filters', title: 'ค้นหาและกรอง', text: 'ทุกช่องเลือก <b>พิมพ์เพื่อค้นหาได้</b> · ตัวกรองถูกเก็บในลิงก์ แชร์ให้เพื่อนร่วมงานได้', side: 'bottom' },
+      { element: '#filters .search-box', title: 'ค้นหา', text: 'พิมพ์ <b>รหัส</b> หรือ <b>ชื่อ-สกุล</b> ผลลัพธ์กรองทันที', side: 'bottom', align: 'start' },
+      { element: '#quick-tags', title: 'แท็กกรองเร็ว', text: 'แตะแท็กเพื่อกรองตาม <b>สถานะ / ประเภท / บริษัท</b> (กลุ่มละ 1 ค่า · แตะซ้ำ = ยกเลิก) · ตัวเลขบนแท็กคือจำนวนที่จะได้ · ตัวกรองถูกเก็บในลิงก์ แชร์ให้เพื่อนร่วมงานได้', side: 'bottom', align: 'start' },
       { element: '.xgrid thead .th-filter', title: 'กรองที่หัวคอลัมน์', text: 'คลิกไอคอนกรวย เพื่อ <b>เรียง</b>, <b>ติ๊กเลือกค่าที่ต้องการ</b> แบบ Excel AutoFilter หรือ <b>ตรึงคอลัมน์ไว้ด้านซ้าย</b> (เลื่อนตารางแล้วคอลัมน์นั้นอยู่กับที่)', side: 'bottom', align: 'start' },
       { element: '.xgrid tbody tr:first-child td[data-col="firstName"]', title: 'แก้ไขเหมือน Excel', text: '<b>ดับเบิลคลิก</b> หรือเลือกเซลล์แล้ว <b>พิมพ์ได้เลย</b><br><kbd>Enter</kbd> / <kbd>Tab</kbd> = บันทึก · <kbd>Esc</kbd> = ยกเลิก · ลูกศร = เลื่อนเซลล์', side: 'bottom' },
       { element: '.xgrid thead', title: 'ช่องที่ต้องกรอก', text: 'หัวคอลัมน์ที่มี <b style="color:var(--danger)">*</b> ต้องกรอก · ช่องสีเทาแก้ไม่ได้สำหรับพนักงานประเภทนั้น (เช่น ระดับ ของ Pro Site)', side: 'bottom' },
