@@ -146,7 +146,7 @@ function taskLink(t) {
   if (t.kind === 'INSURANCE_IN') return { href: 'insurance.html?tab=in', label: 'ไปส่งออกไฟล์' };
   if (t.kind === 'INSURANCE_OUT') return { href: 'insurance.html?tab=out', label: 'ไปส่งออกไฟล์' };
   if (t.kind === 'UNIFORM_ISSUE') return { href: 'uniform.html', label: 'ไปแจกชุด' };
-  if (t.kind === 'PROBATION_MISSING') return { href: `employee-form.html?id=${t.employee.id}`, label: 'บันทึกข้อมูล' };
+  if (t.kind === 'PROBATION_MISSING') return { href: `employees.html?q=${encodeURIComponent(t.employee.empCode)}`, label: 'บันทึกข้อมูล' };
   return { href: `employee.html?id=${t.employee.id}`, label: 'ดูพนักงาน' };
 }
 

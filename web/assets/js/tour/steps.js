@@ -63,7 +63,7 @@ export const TOUR_STEPS = {
       { element: '[data-grid-act="add"]', title: 'เพิ่มพนักงาน', text: 'เพิ่มแถวใหม่ด้านบน กรอกให้ครบทุกช่องที่มี * แล้วระบบจะบันทึกให้เอง', side: 'bottom', align: 'start' },
       { element: '.xgrid tbody tr:first-child .row-actions', title: 'เปิดรายละเอียด / ลบ', text: 'ดูสิทธิสวัสดิการรายคน หรือลบข้อมูลที่บันทึกผิด (ลบได้เฉพาะคนที่ยังไม่มีประวัติ)', side: 'left' },
       { element: '#grid .pager', title: 'แบ่งหน้า', text: 'ปุ่ม ⟪ ‹ › ⟫ = หน้าแรก / ก่อนหน้า / ถัดไป / สุดท้าย · แตะ <b>10 / 25 / 50 / 100</b> เพื่อเปลี่ยนจำนวนแถวต่อหน้า · ข้อมูลเยอะพิมพ์เลขที่ช่อง <b>ไปหน้า</b> แล้วกด Enter', side: 'top' },
-      { element: 'a[href="employee-form.html"]', title: 'ฟอร์มเต็ม', text: 'ถ้าชอบกรอกทีละช่องแบบฟอร์ม ใช้ปุ่มนี้แทนได้', side: 'bottom', align: 'end' },
+      { element: '.xgrid thead th[data-col="status"]', title: 'บันทึกพ้นสภาพ', text: 'เปลี่ยน <b>สถานะ</b> เป็น “พ้นสภาพ” แล้วกรอก <b>เหตุผล</b> + <b>วันพ้นสภาพ</b> ในแถวเดียวกัน · เลิกจ้าง/กระทำผิด ต้องแจ้งออกประกันกลุ่ม <b>ทันที</b>', side: 'bottom', align: 'end' },
     ],
   },
 
@@ -75,17 +75,6 @@ export const TOUR_STEPS = {
       { element: '#pvd', title: 'กองทุนสำรองเลี้ยงชีพ', text: 'วันเป็นสมาชิก ยอดหัก/สมทบต่อเดือน และ % สิทธิในเงินสมทบ (vesting)', side: 'left' },
       { element: '#uniform', title: 'ชุดฟอร์ม', text: 'สิทธิแต่ละรอบ — เลือกไซซ์แล้วกด <b>บันทึกแจก</b> ได้ที่นี่ · บันทึกผิดกดย้อนกลับ ↶ ได้', side: 'top' },
       { element: '#activity', title: 'ประวัติการเปลี่ยนแปลง', text: 'ทุกการแก้ไขของพนักงานคนนี้ เรียงจากล่าสุด', side: 'top' },
-    ],
-  },
-
-  'employee-form': {
-    ready: '#companyCode__combo',
-    steps: [
-      { element: '#empCode', title: 'กรอกข้อมูล', text: 'ช่องที่มี <b style="color:var(--danger)">*</b> ต้องกรอก · ถ้ากรอกไม่ครบ ระบบจะบอกใต้ช่องนั้น', side: 'bottom' },
-      { element: '#companyCode__combo', title: 'ช่องเลือกค้นหาได้', text: 'คลิกแล้ว <b>พิมพ์เพื่อค้นหา</b> · หน่วยงานจะกรองตามบริษัทที่เลือกให้อัตโนมัติ', side: 'bottom' },
-      { element: '#employeeType__combo', title: 'ประเภทพนักงาน', text: 'เลือกแล้วช่องที่เกี่ยวข้องจะแสดงเอง: ส่วนกลาง → ฝ่าย + ระดับ · Pro Site → ตำแหน่ง + สัญญา', side: 'bottom' },
-      { element: '#inactive', title: 'บันทึกพ้นสภาพ', text: 'เปิดสวิตช์เมื่อพนักงานลาออก/ขาดงาน/ถูกเลิกจ้าง · เลิกจ้างหรือกระทำผิดต้องไปแจ้งออกประกัน <b>ทันที</b>', side: 'left' },
-      { element: '#save', title: 'บันทึก', text: 'ระบบคำนวณสิทธิประกัน / PVD / ชุดฟอร์มใหม่ให้ทันทีหลังบันทึก', side: 'top', align: 'end' },
     ],
   },
 

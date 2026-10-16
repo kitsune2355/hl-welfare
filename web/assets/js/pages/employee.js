@@ -155,7 +155,7 @@ async function load() {
           </div>
         </div>
         <div class="page-actions">
-          <a class="btn" href="employee-form.html?id=${e.id}">${raw(icon('pencil'))} ${e.status === 'ACTIVE' ? 'แก้ไข / บันทึกพ้นสภาพ' : 'แก้ไข'}</a>
+          <a class="btn" href="employees.html?q=${encodeURIComponent(e.empCode)}">${raw(icon('pencil'))} ${e.status === 'ACTIVE' ? 'แก้ไข / บันทึกพ้นสภาพ' : 'แก้ไข'} ในตาราง</a>
         </div>`,
     );
     render(

@@ -413,7 +413,7 @@ function exportCard(d) {
           <ul>
             ${d.missing.map(
               (m) => html`<li>
-                <a href="employee-form.html?id=${m.employee.id}" target="_blank" rel="noopener">${m.employee.firstName} ${m.employee.lastName}</a>
+                <a href="employees.html?q=${encodeURIComponent(m.employee.empCode)}" target="_blank" rel="noopener">${m.employee.firstName} ${m.employee.lastName}</a>
                 <span class="num muted">${m.employee.empCode}</span>
                 <span class="muted">ขาด ${m.fields.map((x) => EMPLOYEE_FIELD_LABEL[x] ?? x).join(', ')}</span>
               </li>`,

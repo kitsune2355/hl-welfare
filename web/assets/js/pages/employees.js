@@ -1,8 +1,9 @@
-// หน้า: พนักงาน (employees.html) — ตาราง Excel แก้/เพิ่ม/ลบในตาราง
+// หน้า: พนักงาน (employees.html) — ตาราง Excel เพิ่ม / แก้ไข / ลบ / บันทึกพ้นสภาพ ในตารางทั้งหมด (ไม่มีฟอร์มแยก)
 import { api } from '../app/api.js';
 import { initPage, refreshCounts } from '../app/shell.js';
 import { normalizeEmployee, validateEmployee } from '../application/employeeRules.js';
 import { todayISO } from '../domain/date.js';
+import { digitsOnly, formatThaiId } from '../domain/thaiId.js';
 import { $, debounce, getParam, html, setParams } from '../shared/dom.js';
 import { thaiDate } from '../shared/format.js';
 import {
@@ -11,13 +12,18 @@ import {
   DEPT_GROUPS,
   EMPLOYEE_TYPE_LABEL,
   EMPLOYEE_TYPE_TONE,
+  END_REASON_LABEL,
+  GENDER_LABEL,
+  TITLES,
   PRO_POSITIONS,
   STATUS_LABEL,
   STATUS_TONE,
 } from '../shared/labels.js';
-import { badge, employeeCell, emptyState, errorState } from '../ui/components.js';
+import { badge, emptyState, errorState } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { confirmAction, toast } from '../ui/overlay.js';
+
+const URGENT = ['TERMINATED', 'MISCONDUCT'];
 
 initPage('employees');
 
@@ -159,7 +165,74 @@ const columns = [
     display: (e) => (e.probationPassDate ? thaiDate(e.probationPassDate) : ''),
     set: setField('probationPassDate', (v) => str(v) || null),
   },
-  { key: 'status', header: 'สถานะ', width: 100, value: (e) => e.status, display: (e) => badge(STATUS_LABEL[e.status], STATUS_TONE[e.status]) },
+  // ----- ข้อมูลแจ้งประกัน (ไม่บังคับ — ว่างแล้วระบบเตือนตอนส่งออก) -----
+  {
+    key: 'title',
+    header: 'คำนำหน้า',
+    width: 90,
+    editor: 'select',
+    value: (e) => e.title,
+    options: () => TITLES.map((t) => ({ value: t, label: t })),
+    // เลือกคำนำหน้า → เลือกเพศให้
+    set: (row, v) => normalizeEmployee({ ...row, title: str(v) || null, gender: v ? (v === 'นาย' ? 'M' : 'F') : row.gender }, sites),
+  },
+  { key: 'gender', header: 'เพศ', width: 70, editor: 'select', value: (e) => e.gender, display: (e) => GENDER_LABEL[e.gender] ?? '', options: () => opts(GENDER_LABEL), set: setField('gender', (v) => str(v) || null) },
+  {
+    key: 'nationalId',
+    header: 'เลขบัตรประชาชน',
+    width: 150,
+    editor: 'text',
+    value: (e) => (e.nationalId ? formatThaiId(e.nationalId) : ''),
+    display: (e) => (e.nationalId ? html`<span class="num">${formatThaiId(e.nationalId)}</span>` : ''),
+    set: setField('nationalId', (v) => digitsOnly(str(v)) || null),
+  },
+  { key: 'phone', header: 'โทรศัพท์มือถือ', width: 120, editor: 'text', value: (e) => e.phone, set: setField('phone', (v) => digitsOnly(str(v)) || null) },
+  { key: 'email', header: 'อีเมล', width: 180, editor: 'text', value: (e) => e.email, set: setField('email', (v) => str(v).trim() || null) },
+  // ----- พ้นสภาพ: เปลี่ยนสถานะเป็น "พ้นสภาพ" แล้วกรอกเหตุผล + วันที่ -----
+  {
+    key: 'status',
+    header: 'สถานะ',
+    width: 110,
+    editor: 'select',
+    value: (e) => e.status,
+    display: (e) => badge(STATUS_LABEL[e.status], STATUS_TONE[e.status]),
+    options: () => opts(STATUS_LABEL),
+    set: (row, v) =>
+      v === 'ACTIVE'
+        ? { ...row, status: 'ACTIVE', endReason: null, endDate: null, lastWorkingDate: null }
+        : { ...row, status: 'INACTIVE', endDate: row.endDate ?? todayISO() },
+  },
+  {
+    key: 'endReason',
+    header: 'เหตุผลพ้นสภาพ',
+    width: 140,
+    editor: 'select',
+    editable: (e) => e.status === 'INACTIVE',
+    value: (e) => e.endReason,
+    display: (e) => (e.endReason ? (URGENT.includes(e.endReason) ? badge(END_REASON_LABEL[e.endReason], 'danger') : END_REASON_LABEL[e.endReason]) : ''),
+    options: () => opts(END_REASON_LABEL),
+    set: setField('endReason', (v) => str(v) || null),
+  },
+  {
+    key: 'lastWorkingDate',
+    header: 'ทำงานวันสุดท้าย',
+    width: 120,
+    editor: 'date',
+    editable: (e) => e.status === 'INACTIVE',
+    value: (e) => e.lastWorkingDate,
+    display: (e) => (e.lastWorkingDate ? thaiDate(e.lastWorkingDate) : ''),
+    set: setField('lastWorkingDate', (v) => str(v) || null),
+  },
+  {
+    key: 'endDate',
+    header: 'วันพ้นสภาพ',
+    width: 110,
+    editor: 'date',
+    editable: (e) => e.status === 'INACTIVE',
+    value: (e) => e.endDate,
+    display: (e) => (e.endDate ? thaiDate(e.endDate) : ''),
+    set: setField('endDate', (v) => str(v) || null),
+  },
 ];
 
 function blankEmployee() {
@@ -193,7 +266,7 @@ function blankEmployee() {
 const grid = new ExcelGrid($('#grid'), {
   columns,
   rowKey: (e) => e.id,
-  // ตารางไม่มีคอลัมน์เงินเดือน → ไม่ตรวจเงินเดือนที่นี่ (กรอก/แก้ได้ที่ฟอร์มเต็ม ซึ่งยังบังคับกรอกเพราะใช้คำนวณ PVD)
+  // ไม่มีช่องเงินเดือนในระบบ (ไม่ต้องกรอก) → ไม่ตรวจเงินเดือน
   validate: (e) => {
     const { salary: _salary, ...errors } = validateEmployee(e);
     return errors;
@@ -203,21 +276,18 @@ const grid = new ExcelGrid($('#grid'), {
   page: Math.max(1, Number(getParam('page')) || 1),
   onPageChange: (p) => setParams({ page: p > 1 ? p : '' }),
   onSave: async (row, isNew) => {
-    const saved = await api.saveEmployee(isNew ? { ...row, id: undefined } : row);
+    // ขาดงาน 3 วัน: ไม่กรอกวันทำงานสุดท้าย → ใช้วันพ้นสภาพ (เหมือนฟอร์มเดิม)
+    const payload = row.status === 'INACTIVE' && !row.lastWorkingDate && row.endReason !== 'ABSENT_3D' ? { ...row, lastWorkingDate: row.endDate } : row;
+    const saved = await api.saveEmployee(isNew ? { ...payload, id: undefined } : payload);
     if (isNew) toast.success(`เพิ่มพนักงาน ${saved.firstName} ${saved.lastName} แล้ว`);
+    if (saved.status === 'INACTIVE' && URGENT.includes(saved.endReason)) {
+      toast.error(`${saved.firstName} ${saved.lastName}: ${END_REASON_LABEL[saved.endReason]} — ต้องแจ้งออกจากประกันกลุ่มทันที (หน้า “ประกันกลุ่ม”)`);
+    }
     refreshCounts();
     return saved;
   },
   onOpen: (e) => (location.href = `employee.html?id=${e.id}`),
-  // มือถือ: แสดงเป็นการ์ด แตะเพื่อเปิดรายละเอียด · ปุ่มเพิ่มไปที่ฟอร์มเต็ม
-  mobileAddHref: 'employee-form.html',
-  mobileAddLabel: 'เพิ่มพนักงาน',
-  mobileCard: (e) => html`${employeeCell(e)}
-    <div class="row wrap" style="gap:6px">
-      ${badge(EMPLOYEE_TYPE_LABEL[e.employeeType], EMPLOYEE_TYPE_TONE[e.employeeType], { dot: false })}
-      ${badge(STATUS_LABEL[e.status], STATUS_TONE[e.status])}
-      <span class="small muted truncate">${e.companyCode} · ${sites.find((s) => s.id === e.siteId)?.name ?? ''}</span>
-    </div>`,
+  // มือถือก็ใช้ตารางเดียวกัน (เลื่อนแนวนอน) — เพิ่ม/แก้ได้ในตารางทุกขนาดจอ
   onDelete: (e) =>
     confirmAction({
       title: 'ลบพนักงาน?',
