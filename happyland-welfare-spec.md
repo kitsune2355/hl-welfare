@@ -107,14 +107,14 @@ node -v && npm -v && php -v && composer -V && mysql --version
 | `infrastructure/` | adapter ที่ implement port: `MockApi` (memory + localStorage), `HttpApi` (fetch → PHP) | `application`, `domain` | `features`, `ui` |
 | `shared/` | format วันที่/เงิน, label ภาษาไทย, CSV, hooks ทั่วไป | `domain` (type เท่านั้น) | `infrastructure`, `features` |
 | `ui/` | design system — Button, Card, Badge, Table, Modal, Toast ฯลฯ **ไม่รู้จัก domain** | `shared/cn` | `domain`, `application`, `infrastructure` |
-| `features/` | หน้าจอแต่ละ module ใช้ API ผ่าน `useApi()` | `application`, `domain`, `ui`, `shared` | `infrastructure` (ต้องผ่าน DI) |
+| `features/` | หน้าจอแต่ละ module ใช้ API ผ่าน `useApi()` | `application`, `domain`, `ui`, `shared`, `app/ApiContext` (เฉพาะ `useApi`) | `infrastructure` (ต้องผ่าน DI) |
 | `app/` | composition root: เลือก adapter จาก `.env`, ประกอบ router, layout, providers | ทุกชั้น | – |
 
 **ผลลัพธ์ที่ได้**
 - เปลี่ยน mock → PHP ได้โดยแก้ `.env` บรรทัดเดียว หน้าจอไม่ต้องแก้
 - ทดสอบกฎสวัสดิการได้โดยไม่ต้องเปิดเบราว์เซอร์/DB (Vitest + PHPUnit ใช้ case ชุดเดียวกัน)
 - ปรับหน้าตา (design token) ได้โดยไม่กระทบตรรกะ
-- ตรวจกฎการ import อัตโนมัติด้วย ESLint `no-restricted-imports` (ตั้งไว้ใน `eslint.config.js`)
+- ตรวจกฎการ import อัตโนมัติด้วย oxlint `no-restricted-imports` (ตั้งไว้ใน `.oxlintrc.json` แยก override ต่อชั้น) → `npx oxlint`
 
 ### 3.2 การไหลของข้อมูล (ตัวอย่าง: เปิดหน้ารายละเอียดพนักงาน)
 
@@ -152,7 +152,7 @@ hl-welfare/
 │   ├── index.html                 ← โหลดฟอนต์ IBM Plex Sans Thai
 │   ├── package.json
 │   ├── vite.config.ts             ← plugin react + tailwind, proxy /api → http://localhost:8000
-│   ├── eslint.config.js           ← บังคับกฎ import ตามชั้น (ข้อ 3.1)
+│   ├── .oxlintrc.json             ← บังคับกฎ import ตามชั้น (ข้อ 3.1)
 │   ├── .env.example               ← VITE_API_MODE=mock | http
 │   └── src/
 │       ├── main.tsx
@@ -162,6 +162,7 @@ hl-welfare/
 │       ├── domain/                ← ① แกนกลาง: pure, ไม่มี I/O
 │       │   ├── types.ts           ← entity/value type ทั้งหมด (ตรงกับ JSON ของ PHP)
 │       │   ├── date.ts            ← addDays, ageAt, nextCycleDate, diffDays (UTC)
+│       │   ├── labels.ts          ← คำศัพท์ภาษาไทยของ enum (ubiquitous language)
 │       │   ├── insurance.ts       ← insuranceStatus, insuranceExit
 │       │   ├── pvd.ts             ← pvdStatus
 │       │   ├── uniform.ts         ← matchUniformRule, resolveItems, uniformStatus
@@ -181,13 +182,14 @@ hl-welfare/
 │       │   ├── mock/
 │       │   │   ├── rules.ts       ← กฎตั้งต้นจากไฟล์ Excel
 │       │   │   ├── seed.ts        ← ข้อมูลพนักงานจำลอง + edge cases (PRNG deterministic)
-│       │   │   └── mockApi.ts     ← implement WelfareApi ในหน่วยความจำ + localStorage
+│       │   │   ├── mockApi.ts     ← implement WelfareApi ในหน่วยความจำ + localStorage
+│       │   │   └── mockApi.test.ts← ทดสอบ validation (409/422/404)
 │       │   └── http/
 │       │       └── httpApi.ts     ← implement WelfareApi ด้วย fetch → PHP
 │       │
 │       ├── shared/                ← ④ ของใช้ร่วม
 │       │   ├── format.ts          ← thaiDate (5 พ.ย. 69), money (1,234.00)
-│       │   ├── labels.ts          ← ข้อความภาษาไทยของ enum + tone ของ badge
+│       │   ├── labels.ts          ← re-export domain/labels + tone ของ badge + ตัวเลือกฟอร์ม
 │       │   ├── csv.ts             ← ส่งออก CSV (UTF-8 BOM ให้ Excel อ่านไทยได้)
 │       │   ├── cn.ts              ← รวม className
 │       │   └── hooks/
@@ -195,19 +197,22 @@ hl-welfare/
 │       │       └── useTheme.ts    ← light / dark / system
 │       │
 │       ├── ui/                    ← ⑤ Design system (ไม่รู้จัก domain)
-│       │   ├── Button.tsx  Card.tsx  Badge.tsx  StatCard.tsx  Table.tsx
-│       │   ├── Field.tsx (Input/Select/Label)  Switch.tsx  Tabs.tsx
-│       │   ├── Modal.tsx  Toast.tsx  Skeleton.tsx  EmptyState.tsx
-│       │   ├── PageHeader.tsx  Avatar.tsx  Alert.tsx
+│       │   ├── Button.tsx         ← Button, ButtonLink, IconButton
+│       │   ├── Card.tsx  Badge.tsx  StatCard.tsx  Table.tsx  Skeleton.tsx
+│       │   ├── Field.tsx          ← Field, Input, Select, TextField, SelectField
+│       │   ├── Feedback.tsx       ← Alert, EmptyState, ErrorState
+│       │   ├── Overlay.tsx        ← Modal (focus trap), ToastProvider/useToast
+│       │   ├── Misc.tsx           ← PageHeader, Avatar, Switch, Tabs, Progress, InfoList
 │       │   └── index.ts
 │       │
 │       ├── features/              ← ⑥ หน้าจอแยกตาม module
+│       │   ├── common.tsx         ← EmployeeCell (Avatar + ชื่อ + รหัส)
 │       │   ├── dashboard/DashboardPage.tsx
 │       │   ├── employees/
 │       │   │   ├── EmployeesPage.tsx
 │       │   │   ├── EmployeeDetailPage.tsx   ← /employees/:id
 │       │   │   ├── EmployeeFormPage.tsx     ← /employees/new, /employees/:id/edit
-│       │   │   └── components/ InsuranceCard, PvdCard, UniformCard
+│       │   │   └── components/    ← BenefitCards (Insurance/Pvd), UniformCard + IssueAction, Timeline
 │       │   ├── insurance/InsurancePage.tsx
 │       │   ├── pvd/PvdPage.tsx
 │       │   ├── uniform/UniformPage.tsx
@@ -219,7 +224,7 @@ hl-welfare/
 │           ├── App.tsx            ← RouterProvider
 │           ├── router.tsx         ← createBrowserRouter (lazy route ต่อ feature)
 │           ├── ApiContext.tsx     ← <ApiProvider> + useApi()
-│           └── layout/            ← AppShell, Sidebar, Topbar
+│           └── layout/AppShell.tsx← Sidebar (ตัวนับงานค้าง), Topbar (ค้นหา /, สลับธีม), drawer มือถือ
 │
 ├── backend/                       ← PHP 8.2+ (ไม่ใช้ framework, PSR-4) — เฟส 2
 │   ├── composer.json
@@ -346,6 +351,7 @@ interface ImportMeta { readonly env: ImportMetaEnv; }
 npm run dev      # http://localhost:5173
 npm test         # vitest
 npm run build    # ตรวจ type + build
+npx oxlint       # lint + ตรวจกฎ import ตามชั้น
 ```
 
 ---
@@ -1382,17 +1388,17 @@ describe('ชุดฟอร์ม', () => {
 ## 16. Checklist
 
 ### เฟส 1 — Frontend + Mock
-- [ ] สร้างโปรเจกต์ Vite React 19 + TS + Tailwind 4, ติดตั้ง react-router, lucide-react
-- [ ] `domain/types.ts`, `application/ports.ts`, `application/errors.ts`
-- [ ] `domain/date.ts`, `insurance.ts`, `pvd.ts`, `uniform.ts` + test ผ่านทั้งหมด
-- [ ] `application/usecases/*` (dashboard, insuranceCycle, uniformPending)
-- [ ] `infrastructure/mock/*`, `infrastructure/createApi.ts`, `app/ApiContext.tsx`
-- [ ] `infrastructure/http/httpApi.ts` (เขียนไว้ก่อน ยังไม่ใช้)
-- [ ] Design tokens + `ui/*` components + AppShell (light/dark, มือถือ)
-- [ ] ESLint กฎ import ตามชั้น ผ่าน
-- [ ] หน้า: ภาพรวม, พนักงาน, รายละเอียด/ฟอร์ม, ประกันกลุ่ม, PVD, ชุดฟอร์ม, เงื่อนไข, หน่วยงาน, 404
-- [ ] ส่งออก CSV เปิดใน Excel แล้วภาษาไทยไม่เพี้ยน (UTF-8 BOM)
-- [ ] `npm run build` ผ่าน ไม่มี type error
+- [x] สร้างโปรเจกต์ Vite React 19 + TS + Tailwind 4, ติดตั้ง react-router, lucide-react
+- [x] `domain/types.ts`, `application/ports.ts`, `application/errors.ts`
+- [x] `domain/date.ts`, `insurance.ts`, `pvd.ts`, `uniform.ts` + test ผ่านทั้งหมด
+- [x] `application/usecases/*` (dashboard, insuranceCycle, uniformPending)
+- [x] `infrastructure/mock/*`, `infrastructure/createApi.ts`, `app/ApiContext.tsx`
+- [x] `infrastructure/http/httpApi.ts` (เขียนไว้ก่อน ยังไม่ใช้)
+- [x] Design tokens + `ui/*` components + AppShell (light/dark, มือถือ)
+- [x] oxlint กฎ import ตามชั้น ผ่าน
+- [x] หน้า: ภาพรวม, พนักงาน, รายละเอียด/ฟอร์ม, ประกันกลุ่ม, PVD, ชุดฟอร์ม, เงื่อนไข, หน่วยงาน, 404
+- [ ] ส่งออก CSV เปิดใน Excel แล้วภาษาไทยไม่เพี้ยน (ใส่ UTF-8 BOM แล้ว — รอทดสอบเปิดใน Excel จริง)
+- [x] `npm run build` ผ่าน ไม่มี type error
 
 ### เฟส 2 — PHP + MySQL
 - [ ] `schema.sql`, `seed.sql` (ข้อมูลตรงกับ mock)
