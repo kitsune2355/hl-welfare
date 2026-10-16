@@ -2132,6 +2132,175 @@ button.stat:hover {
     align-items: flex-end;
   }
 }
+/* modal กว้าง (openModal({ size: 'lg' })) — หัว/ท้ายอยู่กับที่ เนื้อหาเลื่อนภายใน */
+.modal-lg {
+  display: flex;
+  flex-direction: column;
+  max-width: 820px;
+  max-height: calc(100dvh - 32px);
+}
+.modal-lg .modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 16px;
+  color: var(--fg);
+}
+.modal-lg .modal-foot {
+  margin-top: 0;
+}
+.modal-foot .foot-start {
+  margin-right: auto;
+}
+.danger-text {
+  color: var(--danger);
+}
+.danger-text:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+@media (max-width: 639px) {
+  .modal-lg {
+    max-height: calc(100dvh - 24px);
+    border-radius: 16px 16px 0 0;
+  }
+  .modal-layer:has(.modal-lg) {
+    padding: 12px 0 0;
+  }
+  .modal-lg .modal-head,
+  .modal-lg .modal-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .modal-lg .modal-foot {
+    flex-wrap: wrap;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    border-radius: 0;
+  }
+}
+
+/* ประวัติการส่งแจ้ง: ตัวอย่างรายชื่อ + รายละเอียด batch */
+.names-col {
+  max-width: 320px;
+}
+.names-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.names-preview .more {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+.row-actions {
+  display: inline-flex;
+  gap: 2px;
+  white-space: nowrap;
+}
+.batch-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.batch-search {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  margin: 0 0 10px;
+  padding: 4px 0;
+  background: var(--surface);
+}
+.batch-items {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.bi-row {
+  display: grid;
+  grid-template-columns: 28px minmax(180px, 1.5fr) minmax(140px, 1.2fr) 104px minmax(90px, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+.bi-row + .bi-row {
+  border-top: 1px solid var(--border);
+}
+.bi-row:hover {
+  background: var(--surface-2);
+}
+.bi-row[hidden] {
+  display: none;
+}
+.bi-no {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+.bi-co,
+.bi-date {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+.bi-co small,
+.bi-date small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.bi-reason {
+  color: var(--muted);
+}
+.bi-none .empty {
+  padding: 24px 16px;
+}
+@media (max-width: 639px) {
+  /* มือถือ: ชื่อ + วันที่ บรรทัดแรก · บริษัท/หน่วยงาน + เหตุผล บรรทัดสอง */
+  .bi-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+    padding: 12px;
+  }
+  .bi-no {
+    display: none;
+  }
+  .bi-emp {
+    grid-area: 1 / 1;
+    min-width: 0;
+  }
+  .bi-date {
+    grid-area: 1 / 2;
+    align-items: flex-end;
+    text-align: right;
+  }
+  .bi-co {
+    grid-area: 2 / 1;
+  }
+  .bi-reason {
+    grid-area: 2 / 2;
+  }
+  .bi-co {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .bi-reason {
+    font-size: 12px;
+    text-align: right;
+  }
+}
 
 /* Toast */
 .toasts {

@@ -78,6 +78,25 @@ describe('MockApi CRUD + monitoring', () => {
     const batches = await api.listInsuranceBatches();
     await expect(api.deleteEmployee(batches[0].employeeIds[0])).rejects.toMatchObject({ status: 409 });
   });
+  it('ประวัติการส่ง: รายชื่อย่อในรายการ + รายละเอียด batch (วันมีผล/เหตุผลตรงกับหน้ารอบ)', async () => {
+    const api = make();
+    const cycle = await api.getInsuranceCycle('2026-11-05');
+    const urgent = cycle.rows.filter((r) => r.type === 'URGENT');
+    const b = await api.submitInsuranceBatch({ cycleDate: '2026-11-05', type: 'URGENT', employeeIds: urgent.map((r) => r.employee.id) });
+    const [listed] = await api.listInsuranceBatches();
+    expect(listed.id).toBe(b.id);
+    expect(listed.employees.map((e) => e.empCode).sort()).toEqual(urgent.map((r) => r.employee.empCode).sort());
+    expect(listed.employees[0].salary).toBe(undefined); // ข้อมูลย่อ ไม่ส่งเงินเดือน
+    const d = await api.getInsuranceBatch(b.id);
+    expect(d.items.length).toBe(urgent.length);
+    for (const it of d.items) {
+      const r = urgent.find((x) => x.employee.id === it.employee.id);
+      expect(it.effectiveDate).toBe(r.effectiveDate);
+      expect(it.reason).toBe(r.reason);
+      expect(it.siteName.length > 0).toBe(true);
+    }
+    await expect(api.getInsuranceBatch(9999)).rejects.toBeInstanceOf(ApiError);
+  });
   it('ยกเลิก batch / ยกเลิกการแจก → กลับเป็นงานค้าง', async () => {
     const api = make();
     const cycle = await api.getInsuranceCycle('2026-11-05');

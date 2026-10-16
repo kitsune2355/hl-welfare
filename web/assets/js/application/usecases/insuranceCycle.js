@@ -50,3 +50,41 @@ export function buildInsuranceCycle(cycleDate, employees, sites, rules, batches)
   rows.sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
   return { cycleDate, rows };
 }
+
+/** ข้อมูลพนักงานแบบย่อ (ใช้แสดงรายชื่อใน batch) */
+export const employeeLite = (e) => ({
+  id: e.id,
+  empCode: e.empCode,
+  firstName: e.firstName,
+  lastName: e.lastName,
+  companyCode: e.companyCode,
+  employeeType: e.employeeType,
+  siteId: e.siteId,
+  status: e.status,
+});
+
+/**
+ * รายละเอียด batch ที่ส่งแจ้งแล้ว — รายชื่อพนักงาน + วันมีผล + เหตุผล
+ * วันมีผล/เหตุผลคำนวณด้วยกฎเดียวกับหน้ารอบ (buildInsuranceCycle ของรอบที่ส่ง) จึงตรงกับที่เห็นตอนส่ง
+ * @returns {InsuranceBatch & {items: {employee, siteName, effectiveDate: string|null, reason: string}[]}}
+ */
+export function buildBatchDetail(batch, employees, sites, rules, batches) {
+  const dir = directionOf(batch.type);
+  const cycleRows = buildInsuranceCycle(batch.cycleDate, employees, sites, rules, batches).rows.filter((r) => directionOf(r.type) === dir);
+  const rowOf = new Map(cycleRows.map((r) => [r.employee.id, r]));
+  const empById = new Map(employees.map((e) => [e.id, e]));
+  const siteById = new Map(sites.map((s) => [s.id, s]));
+  const items = batch.employeeIds
+    .map((id) => {
+      const emp = empById.get(id);
+      const row = rowOf.get(id);
+      return {
+        employee: emp ? employeeLite(emp) : { id, empCode: `#${id}`, firstName: '(ไม่พบข้อมูลพนักงาน)', lastName: '' },
+        siteName: emp ? (siteById.get(emp.siteId)?.name ?? '') : '',
+        effectiveDate: row?.effectiveDate ?? null,
+        reason: row?.reason ?? '',
+      };
+    })
+    .sort((a, b) => a.employee.empCode.localeCompare(b.employee.empCode));
+  return { ...batch, items };
+}

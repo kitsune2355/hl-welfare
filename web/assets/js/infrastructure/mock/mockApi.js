@@ -1,6 +1,6 @@
 import { ApiError } from '../../application/errors.js';
 import { buildDashboard } from '../../application/usecases/dashboard.js';
-import { buildInsuranceCycle, sentIndex } from '../../application/usecases/insuranceCycle.js';
+import { buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex } from '../../application/usecases/insuranceCycle.js';
 import { buildUniformPending } from '../../application/usecases/uniformPending.js';
 import { buildWorkQueue } from '../../application/usecases/workQueue.js';
 import { todayISO } from '../../domain/date.js';
@@ -224,7 +224,21 @@ export class MockApi {
     });
   }
   listInsuranceBatches() {
-    return this.run(() => [...this.db.batches].sort((a, b) => b.id - a.id));
+    return this.run(() => {
+      // แนบรายชื่อแบบย่อ (แสดงตัวอย่างชื่อ + ค้นหาในตารางประวัติ)
+      const byId = new Map(this.db.employees.map((e) => [e.id, e]));
+      return [...this.db.batches]
+        .sort((a, b) => b.id - a.id)
+        .map((b) => ({ ...b, employees: b.employeeIds.map((id) => byId.get(id)).filter(Boolean).map(employeeLite) }));
+    });
+  }
+  getInsuranceBatch(id) {
+    return this.run(() => {
+      const b = this.db.batches.find((x) => x.id === id);
+      if (!b) throw new ApiError('ไม่พบรายการส่งแจ้ง', 404);
+      const { employees, sites, rules, batches } = this.db;
+      return buildBatchDetail(b, employees, sites, rules, batches);
+    });
   }
   submitInsuranceBatch(input) {
     return this.run(() => {

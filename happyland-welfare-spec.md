@@ -461,6 +461,23 @@ export interface InsuranceBatch {
   employeeIds: number[];
   submittedAt: string;
   submittedBy: string;
+  employees?: EmployeeLite[];      // แนบมาใน GET /insurance/batches — แสดงตัวอย่างชื่อ + ค้นหา
+}
+
+/** ข้อมูลพนักงานแบบย่อ (ไม่มีเงินเดือน/วันเกิด) */
+export interface EmployeeLite {
+  id: number; empCode: string; firstName: string; lastName: string;
+  companyCode: CompanyCode; employeeType: EmployeeType; siteId: number; status: EmployeeStatus;
+}
+
+/** GET /insurance/batches/{id} — รายชื่อใน batch (usecase: buildBatchDetail) */
+export interface InsuranceBatchDetail extends InsuranceBatch {
+  items: {
+    employee: EmployeeLite;
+    siteName: string;
+    effectiveDate: ISODate | null;   // IN = วันครบสิทธิ · OUT/URGENT = วันมีผลการออก (คำนวณแบบเดียวกับหน้ารอบที่ส่ง)
+    reason: string;
+  }[];                               // เรียงตามรหัสพนักงาน
 }
 
 export interface UniformIssue {
@@ -638,6 +655,7 @@ export interface WelfareApi {
 
   getInsuranceCycle(cycleDate: ISODate): Promise<InsuranceCycle>;
   listInsuranceBatches(): Promise<InsuranceBatch[]>;
+  getInsuranceBatch(id: number): Promise<InsuranceBatchDetail>;
   submitInsuranceBatch(input: { cycleDate: ISODate; type: BatchType; employeeIds: number[] }): Promise<InsuranceBatch>;
 
   listPvdMembers(): Promise<PvdRow[]>;
@@ -690,7 +708,8 @@ export interface WelfareApi {
 | GET | `/api/employees/{id}/benefits` | – | `EmployeeBenefits` |
 | GET | `/api/rules` | – | `RuleSet` |
 | GET | `/api/insurance/cycles/{YYYY-MM-DD}` | – | `InsuranceCycle` |
-| GET | `/api/insurance/batches` | – | `InsuranceBatch[]` (ใหม่ก่อน) |
+| GET | `/api/insurance/batches` | – | `InsuranceBatch[]` (ใหม่ก่อน · แนบ `employees` แบบย่อ) |
+| GET | `/api/insurance/batches/{id}` | – | `InsuranceBatchDetail` / 404 |
 | POST | `/api/insurance/batches` | `{cycleDate, type, employeeIds}` | `InsuranceBatch` (201) |
 | GET | `/api/pvd/members` | – | `PvdRow[]` |
 | GET | `/api/uniform/issues` | `?employeeId=` | `UniformIssue[]` |
@@ -1067,7 +1086,7 @@ employees: {
 | **พนักงาน** | **ช่องค้นหา** รหัส/ชื่อ + **แท็กกรองเร็ว** สถานะ / ประเภท / บริษัท (กลุ่มละ 1 ค่า แตะซ้ำ = ยกเลิก · ตัวเลขบนแท็ก = จำนวนที่จะได้ นับตามคำค้นและแท็กกลุ่มอื่น · "ล้างแท็ก" · เก็บใน URL `?q=&status=&type=&company=` · มือถือแท็กเป็นแถวเดียวปัดซ้าย-ขวา · กำหนดกลุ่มที่ `TAG_GROUPS` ใน `pages/employees.js`) · **ตาราง Excel** แก้ทุกช่องในตาราง (**ไม่แสดงเงินเดือน** — แก้ที่ฟอร์มพนักงาน · เพิ่มแถวจากตารางได้โดยไม่ต้องกรอกเงินเดือน) · "+ เพิ่มแถว" · ปุ่มเปิดรายละเอียด / ลบ ท้ายแถว · ปุ่ม "เพิ่มด้วยฟอร์มเต็ม" | ค้นหาแบบ debounce 250ms · ล้างตัวกรอง · บันทึกอัตโนมัติรายแถว · ลบต้องยืนยัน |
 | **รายละเอียดพนักงาน** | Header: Avatar, ชื่อ, รหัส, Badge สถานะ, ปุ่มแก้ไข · แถบข้อมูลย่อ (บริษัท, หน่วยงาน, ประเภท, สัญญา, อายุงาน) · การ์ดประกันกลุ่ม · การ์ด PVD · การ์ดชุดฟอร์ม (ตารางแต่ละรอบ + เลือกไซซ์ + "บันทึกแจก" + ยกเลิกการแจก) · **ประวัติการเปลี่ยนแปลง** | การ์ดสิทธิ = Badge ใหญ่ + timeline (เริ่มงาน → ครบสิทธิ → รอบแจ้งเข้า → แจ้งออก) · ไม่มีสิทธิ = แสดงเหตุผลเป็นข้อๆ |
 | **ฟอร์มพนักงาน** | แบ่ง section: ข้อมูลส่วนตัว / การจ้างงาน / การพ้นสภาพ · บริษัท→หน่วยงาน (กรองตามบริษัท), ประเภท (ส่วนกลางแสดงฝ่าย+ระดับ / Pro Site แสดงตำแหน่ง), สัญญา, เงินเดือน, วันเริ่มงาน, ผ่านทดลองงาน | ช่องที่ไม่เกี่ยวซ่อนอัตโนมัติ · validation ใต้ช่อง · ปุ่มบันทึก sticky ด้านล่าง · บันทึกสำเร็จ → Toast + กลับหน้ารายละเอียด |
-| **ประกันกลุ่ม** | เลือกรอบ (วันที่ 5, ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · **แท็บ**: แจ้งออกทันที / แจ้งเข้า / แจ้งออก / ประวัติการส่ง — ตัวเลขบนแท็บ = จำนวนรอส่ง (แดง/ฟ้า/เหลือง) · checkbox เลือก → "ส่งแจ้ง" · ส่งออก CSV · **ยกเลิก batch** ในแท็บประวัติ | ตัวนับในหัว section · เลือกทั้งหมด · Modal ยืนยัน "ส่งแจ้งเข้า 5 ราย รอบ 5 พ.ย. 69?" · แถวที่ส่งแล้วแสดง Badge เขียว checkbox ปิด |
+| **ประกันกลุ่ม** | เลือกรอบ (วันที่ 5, ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · **แท็บ**: แจ้งออกทันที / แจ้งเข้า / แจ้งออก / ประวัติการส่ง — ตัวเลขบนแท็บ = จำนวนรอส่ง (แดง/ฟ้า/เหลือง) · checkbox เลือก → "ส่งแจ้ง" · ส่งออก CSV · **แท็บประวัติการส่ง**: คอลัมน์ "รายชื่อ" (2 ชื่อแรก + "+N" · ค้นหาชื่อที่หัวคอลัมน์ได้) · **คลิกแถว / "ดูรายชื่อ" → modal รายชื่อใน batch** (รหัส-ชื่อ ลิงก์ไปหน้าพนักงาน, บริษัท·ประเภท, หน่วยงาน, วันครบสิทธิ/วันมีผล, เหตุผล · ค้นหาในรายชื่อเมื่อ > 5 ราย · ส่งออก CSV เฉพาะ batch · ยกเลิกการส่ง) · ลิงก์ตรง `?batch=<id>` · **ยกเลิก batch** | ตัวนับในหัว section · เลือกทั้งหมด · Modal ยืนยัน "ส่งแจ้งเข้า 5 ราย รอบ 5 พ.ย. 69?" · แถวที่ส่งแล้วแสดง Badge เขียว checkbox ปิด |
 | **PVD** | Stat: สมาชิก, หักสะสมรวม/เดือน, สมทบรวม/เดือน · ตารางสมาชิก (วันเป็นสมาชิก, เงินเดือน, หัก, สมทบ, อายุสมาชิก, vesting) · ส่งออก CSV | Alert เหลืองถ้า vesting เป็นค่าตัวอย่าง · vesting แสดงเป็น progress bar |
 | **ชุดฟอร์ม** | แท็บ "ค้างแจก" (เลือกไซซ์ + บันทึกแจกในแถว) / "ประวัติการแจก" · สรุปจำนวนตามแบบเสื้อ (วางแผนสั่งผลิต) | แถวเกินกำหนด > 30 วัน Badge แดง · บันทึกแล้วแถวหายพร้อม Toast |
 | **เงื่อนไขสวัสดิการ** | แท็บ: ประกันกลุ่ม / PVD / ชุดฟอร์ม / ค่าตั้งค่า (read-only ในเฟส 1) + รายการประเด็นที่รอยืนยันกับ HR | |
@@ -1160,6 +1179,7 @@ $r->get('/api/employees/{id}/benefits',       [EmployeeController::class, 'benef
 $r->get('/api/rules',                         [RuleController::class, 'index']);
 $r->get('/api/insurance/cycles/{date}',       [InsuranceController::class, 'cycle']);
 $r->get('/api/insurance/batches',             [InsuranceController::class, 'batches']);
+$r->get('/api/insurance/batches/{id}',        [InsuranceController::class, 'batch']);   // รายชื่อใน batch
 $r->post('/api/insurance/batches',            [InsuranceController::class, 'submit']);
 $r->get('/api/pvd/members',                   [PvdController::class, 'index']);
 $r->get('/api/uniform/issues',                [UniformController::class, 'issues']);
@@ -1561,7 +1581,7 @@ describe('ประกันกลุ่ม', () => {
 
 ### เฟส 1 — หน้าเว็บ (HTML + JS) + Mock ✅
 - [x] กฎสวัสดิการ `domain/*.js` + use-case `application/usecases/*.js` + validation `employeeRules.js`
-- [x] `npm test` ผ่าน 33/33 (node:test ไม่ต้องติดตั้งแพ็กเกจ)
+- [x] `npm test` ผ่าน 34/34 (node:test ไม่ต้องติดตั้งแพ็กเกจ)
 - [x] MockApi (localStorage, seed + edge cases, บันทึกกิจกรรม) + HttpApi (พร้อมใช้เฟส 2) + `config.js`
 - [x] `app.css` design tokens (โทนสว่าง + โหมดมืด) + responsive (มือถือ/แท็บเล็ต)
 - [x] UI: DataTable (แบ่งหน้า + การ์ดมือถือ), ExcelGrid, Combobox (`<select data-combobox>`), Modal/Toast/confirm, ไอคอน SVG ในตัว
@@ -1575,6 +1595,7 @@ describe('ประกันกลุ่ม', () => {
 - [x] ตรึงคอลัมน์ไว้ด้านซ้ายทุกตาราง (จำต่อตาราง)
 - [x] มือถือ: เมนูด้านล่าง (bottom navigation) ซ่อนเมื่อปัดขึ้น / แสดงเมื่อปัดลง + topbar ช่องค้นหาชิดโลโก้
 - [x] หน้าพนักงาน: ช่องค้นหา + แท็กกรองเร็ว (แทน select 3 ช่อง)
+- [x] ประวัติการส่งแจ้ง: ดูรายชื่อพนักงานในแต่ละ batch (modal + ค้นหา + CSV) · `GET /api/insurance/batches/{id}`
 - [x] แถบแบ่งหน้าใหม่ทั้งระบบ: หน้าแรก/สุดท้าย, แถวต่อหน้าแบบ segmented, ช่องไปหน้า, มือถือพิมพ์เลขหน้าได้
 - [x] หน้า login + อนิเมชันเมื่อสำเร็จ + ป้องกันทุกหน้า (mock) · ธีม gradient น้ำเงิน → เขียวทั้งระบบ
 - [x] Responsive ใหม่: breakpoints 1024/900/768/640, การ์ดบนมือถือ, พื้นที่กดบนจอสัมผัส, scrollbar ชิดขอบจอ, tour ไฮไลต์ตรงตำแหน่ง
@@ -1588,6 +1609,7 @@ describe('ประกันกลุ่ม', () => {
 - [ ] `Domain/Eligibility.php` + PHPUnit ผ่าน (case เดียวกับ JS)
 - [ ] Service + Controller ครบทุก endpoint ในข้อ 8 (รวม DELETE, `/monitor/tasks`, `/activity`)
 - [ ] `Application/Service/WorkQueueService` คู่แฝดของ `usecases/workQueue.js`
+- [ ] `InsuranceCycleService::batchDetail()` คู่แฝดของ `buildBatchDetail` (`usecases/insuranceCycle.js`) + `GET /api/insurance/batches/{id}`
 - [ ] Validation + transaction + unique key กันซ้ำ
 - [ ] audit_log (user_name จาก session)
 - [ ] ตาราง `users` + `POST /api/auth/login|logout`, `GET /api/auth/me` + ตรวจ session ทุก endpoint

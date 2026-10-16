@@ -1,5 +1,5 @@
 // หน้า: ประกันกลุ่ม (insurance.html?cycle=&tab=)
-// แท็บ: แจ้งออกทันที / แจ้งเข้า / แจ้งออก (ตัวเลข = รอส่ง) / ประวัติการส่ง
+// แท็บ: แจ้งออกทันที / แจ้งเข้า / แจ้งออก (ตัวเลข = รอส่ง) / ประวัติการส่ง (คลิกแถว = ดูรายชื่อใน batch · ลิงก์ตรง ?batch=)
 import { api } from '../app/api.js';
 import { initPage, refreshCounts } from '../app/shell.js';
 import { addMonths, nextCycleDate, todayISO } from '../domain/date.js';
@@ -8,8 +8,8 @@ import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js'
 import { relativeDays, thaiDate, thaiDateLong, thaiDateTime } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import { BATCH_TONE, BATCH_TYPE_LABEL, EMPLOYEE_TYPE_LABEL } from '../shared/labels.js';
-import { badge, emptyState, employeeCell, errorState, tabs } from '../ui/components.js';
-import { confirmAction } from '../ui/overlay.js';
+import { badge, emptyState, employeeCell, errorState, skeletonLines, tabs } from '../ui/components.js';
+import { confirmAction, openModal } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 
 initPage('insurance');
@@ -108,25 +108,153 @@ for (const s of SECTIONS) {
   });
 }
 
+/** ตัวอย่างรายชื่อใน batch: 2 ชื่อแรก + "+N" */
+const PREVIEW_NAMES = 2;
+const fullName = (e) => `${e.firstName} ${e.lastName}`;
+function namesPreview(b) {
+  const list = b.employees ?? [];
+  if (!list.length) return html`<span class="muted">${b.employeeIds.length} ราย</span>`;
+  const more = list.length - PREVIEW_NAMES;
+  return html`<span class="names-preview">
+    <span class="truncate">${list.slice(0, PREVIEW_NAMES).map(fullName).join(', ')}</span>
+    ${more > 0 ? html`<span class="more num">+${more}</span>` : ''}
+  </span>`;
+}
+
 const batchTable = new DataTable($('#batches'), {
   rowKey: (b) => b.id,
   pageSize: 25,
+  onRowClick: (b) => openBatch(b.id),
   columns: [
     { key: 'id', header: 'เลขที่', sort: (b) => b.id, cell: (b) => html`<span class="num muted">#${b.id}</span>` },
     { key: 'cycle', header: 'รอบ', sort: (b) => b.cycleDate, cell: (b) => html`<span class="num">${thaiDate(b.cycleDate)}</span>` },
     { key: 'type', header: 'ประเภท', mobile: 'aside', cell: (b) => badge(BATCH_TYPE_LABEL[b.type], BATCH_TONE[b.type]) },
+    // กรองหัวคอลัมน์ "รายชื่อ" = ค้นหาชื่อ/รหัสพนักงานใน batch ได้
+    {
+      key: 'names',
+      header: 'รายชื่อ',
+      cls: 'names-col',
+      text: (b) => (b.employees ?? []).map((e) => `${fullName(e)} (${e.empCode})`).join(', '),
+      cell: namesPreview,
+    },
     { key: 'n', header: 'จำนวน', align: 'right', sort: (b) => b.employeeIds.length, cell: (b) => html`<span class="num">${b.employeeIds.length} ราย</span>` },
     { key: 'at', header: 'ส่งเมื่อ', hideOnMobile: true, sort: (b) => b.submittedAt, cell: (b) => html`<span class="num muted">${thaiDateTime(b.submittedAt)}</span>` },
     { key: 'by', header: 'โดย', hideOnMobile: true, cell: (b) => html`<span class="muted">${b.submittedBy}</span>` },
     {
-      key: 'cancel',
+      key: 'actions',
       header: '',
       align: 'right',
-      cell: (b) => html`<button class="btn btn-ghost btn-sm" data-cancel-batch="${b.id}">${raw(icon('undo-2'))} ยกเลิก</button>`,
+      cell: (b) => html`<span class="row-actions">
+        <button class="btn btn-ghost btn-sm" data-open-batch="${b.id}">${raw(icon('users'))} ดูรายชื่อ</button>
+        <button class="btn btn-ghost btn-sm" data-cancel-batch="${b.id}">${raw(icon('undo-2'))} ยกเลิก</button>
+      </span>`,
     },
   ],
   empty: emptyState({ iconName: 'history', title: 'ยังไม่มีประวัติการส่ง' }),
 });
+
+// ----- รายละเอียด batch: รายชื่อพนักงานที่ถูกส่งแจ้ง (เปิดจากแถว / ลิงก์ ?batch=) -----
+function batchCsv(d) {
+  downloadCsv(
+    `insurance-batch-${d.id}-${d.cycleDate}.csv`,
+    ['เลขที่', 'ประเภทแจ้ง', 'รอบ', 'รหัสพนักงาน', 'ชื่อ', 'นามสกุล', 'บริษัท', 'ประเภทพนักงาน', 'หน่วยงาน', 'วันมีผล', 'เหตุผล', 'ส่งเมื่อ', 'ส่งโดย'],
+    d.items.map((it) => [
+      d.id,
+      BATCH_TYPE_LABEL[d.type],
+      d.cycleDate,
+      it.employee.empCode,
+      it.employee.firstName,
+      it.employee.lastName,
+      it.employee.companyCode ?? '',
+      EMPLOYEE_TYPE_LABEL[it.employee.employeeType] ?? '',
+      it.siteName,
+      it.effectiveDate ?? '',
+      it.reason,
+      d.submittedAt,
+      d.submittedBy,
+    ]),
+  );
+}
+
+function batchItemsHtml(d) {
+  const dateLabel = d.type === 'IN' ? 'วันครบสิทธิ' : 'วันมีผล';
+  return html`<div class="batch-items" role="list">
+    ${d.items.map(
+      (it, i) => html`<div
+        class="bi-row"
+        role="listitem"
+        data-search="${`${it.employee.empCode} ${fullName(it.employee)} ${it.siteName} ${it.employee.companyCode ?? ''}`.toLowerCase()}"
+      >
+        <span class="bi-no num">${i + 1}</span>
+        <span class="bi-emp">${employeeCell(it.employee, { link: true })}</span>
+        <span class="bi-co"
+          ><span><b>${it.employee.companyCode ?? ''}</b> · ${EMPLOYEE_TYPE_LABEL[it.employee.employeeType] ?? ''}</span><small class="truncate">${it.siteName}</small></span
+        >
+        <span class="bi-date"><small>${dateLabel}</small><b class="num">${it.effectiveDate ? thaiDate(it.effectiveDate) : '–'}</b></span>
+        <span class="bi-reason">${it.reason || ''}</span>
+      </div>`,
+    )}
+    <div class="bi-none hidden">${emptyState({ iconName: 'search', title: 'ไม่พบรายชื่อที่ค้นหา' })}</div>
+  </div>`;
+}
+
+async function openBatch(id) {
+  const b = batches.find((x) => x.id === id);
+  setParams({ batch: id });
+  const m = openModal({
+    size: 'lg',
+    title: b ? `${BATCH_TYPE_LABEL[b.type]} #${id}` : `รายการส่งแจ้ง #${id}`,
+    description: b ? `รอบ ${thaiDate(b.cycleDate)} · ส่งเมื่อ ${thaiDateTime(b.submittedAt)} โดย ${b.submittedBy}` : '',
+    body: html`<div data-batch-body>${skeletonLines(6)}</div>`,
+    footer: html`<button class="btn btn-ghost danger-text foot-start" data-batch-cancel disabled>${raw(icon('undo-2'))} ยกเลิกการส่ง</button>
+      <button class="btn" data-batch-csv disabled>${raw(icon('download'))} ส่งออก CSV</button>
+      <button class="btn btn-primary" data-close>ปิด</button>`,
+    onClose: () => setParams({ batch: '' }),
+  });
+  const body = m.el.querySelector('[data-batch-body]');
+  let d;
+  try {
+    d = await api.getInsuranceBatch(id);
+  } catch (e) {
+    render(body, errorState(e));
+    return;
+  }
+  render(
+    body,
+    html`<div class="batch-summary">
+        ${badge(BATCH_TYPE_LABEL[d.type], BATCH_TONE[d.type])}
+        <span><b class="num">${d.items.length}</b> ราย</span>
+        <span class="muted">รอบ <b class="num">${thaiDateLong(d.cycleDate)}</b></span>
+      </div>
+      ${d.items.length > 5
+        ? html`<div class="input-icon batch-search">
+            ${raw(icon('search'))}
+            <input class="input" type="search" placeholder="ค้นหาชื่อ รหัส หรือหน่วยงาน…" aria-label="ค้นหารายชื่อใน batch" autocomplete="off" />
+          </div>`
+        : ''}
+      ${batchItemsHtml(d)}`,
+  );
+  const search = body.querySelector('.batch-search input');
+  search?.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    let shown = 0;
+    body.querySelectorAll('.bi-row').forEach((r) => {
+      const hit = !q || r.dataset.search.includes(q);
+      r.hidden = !hit;
+      shown += hit;
+    });
+    body.querySelector('.bi-none').classList.toggle('hidden', shown > 0);
+  });
+  const csvBtn = m.el.querySelector('[data-batch-csv]');
+  csvBtn.disabled = false;
+  csvBtn.onclick = () => batchCsv(d);
+  const cancelBtn = m.el.querySelector('[data-batch-cancel]');
+  cancelBtn.disabled = false;
+  cancelBtn.onclick = () => {
+    m.close();
+    cancelBatch(d);
+  };
+}
 
 // ----- วาดแท็บ + ส่วนที่เลือก -----
 const openOf = (type) => (rows ?? []).filter((r) => r.type === type && !r.submitted);
@@ -239,8 +367,10 @@ on(sections, 'click', '[data-submit]', (_e, btn) => {
   });
 });
 
-on(sections, 'click', '[data-cancel-batch]', (_e, btn) => {
-  const b = batches.find((x) => x.id === Number(btn.dataset.cancelBatch));
+on(sections, 'click', '[data-open-batch]', (_e, btn) => openBatch(Number(btn.dataset.openBatch)));
+on(sections, 'click', '[data-cancel-batch]', (_e, btn) => cancelBatch(batches.find((x) => x.id === Number(btn.dataset.cancelBatch))));
+
+function cancelBatch(b) {
   confirmAction({
     title: `ยกเลิก${BATCH_TYPE_LABEL[b.type]} #${b.id}?`,
     description: `รอบ ${thaiDate(b.cycleDate)} · ${b.employeeIds.length} ราย`,
@@ -253,7 +383,7 @@ on(sections, 'click', '[data-cancel-batch]', (_e, btn) => {
       await Promise.all([loadCycle(), loadBatches()]);
     },
   });
-});
+}
 
 $('#export').onclick = () =>
   downloadCsv(
@@ -274,4 +404,12 @@ $('#export').onclick = () =>
   );
 
 loadCycle();
-loadBatches();
+loadBatches().then(() => {
+  // ลิงก์ตรง ?batch=12 → เปิดแท็บประวัติ + รายละเอียด batch
+  const id = Number(getParam('batch'));
+  if (!id) return;
+  tab = 'history';
+  setParams({ tab });
+  drawTabs();
+  openBatch(id);
+});

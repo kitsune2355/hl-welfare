@@ -40,14 +40,14 @@ export const errorMessage = (e) => (e instanceof Error ? e.message : 'ทำร�
 // ===================== Modal =====================
 /**
  * เปิด modal — คืน { el, close }
- * @param {{title: string, description?: string, body?: any, footer: any, onClose?: () => void}} opts
+ * @param {{title: string, description?: string, body?: any, footer: any, onClose?: () => void, size?: 'lg'}} opts  size lg = กว้าง 760px เนื้อหาเลื่อนภายใน
  */
-export function openModal({ title, description = '', body = '', footer, onClose }) {
+export function openModal({ title, description = '', body = '', footer, onClose, size = '' }) {
   const prev = document.activeElement;
   const layer = document.createElement('div');
   layer.className = 'modal-layer';
   layer.innerHTML = String(html`<div class="backdrop" data-close></div>
-    <div class="modal" role="dialog" aria-modal="true" aria-label="${title}">
+    <div class="modal${size ? ` modal-${size}` : ''}" role="dialog" aria-modal="true" aria-label="${title}">
       <div class="modal-head">
         <div>
           <h2>${title}</h2>

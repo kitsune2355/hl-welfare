@@ -82,6 +82,9 @@ export class HttpApi {
   listInsuranceBatches() {
     return this.req('/insurance/batches');
   }
+  getInsuranceBatch(id) {
+    return this.req(`/insurance/batches/${id}`);
+  }
   submitInsuranceBatch(input) {
     return this.send('POST', '/insurance/batches', input);
   }
