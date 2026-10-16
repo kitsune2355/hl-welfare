@@ -2732,6 +2732,17 @@ input[type='radio'] {
     background: color-mix(in srgb, var(--surface) 92%, transparent);
     backdrop-filter: blur(14px);
     box-shadow: 0 -8px 24px -16px rgb(15 23 42 / 0.35);
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  /* ปัดขึ้น = ซ่อนเมนูล่าง (shell.js → autoHideBottomNav) */
+  body.bn-hide .bottom-nav {
+    transform: translateY(calc(100% + 8px));
+  }
+  body.bn-hide .form-footer {
+    bottom: 0;
+  }
+  body.bn-hide .toasts {
+    bottom: calc(16px + env(safe-area-inset-bottom));
   }
   .bn-item {
     position: relative;
@@ -2796,9 +2807,11 @@ input[type='radio'] {
   }
   .form-footer {
     bottom: calc(64px + env(safe-area-inset-bottom));
+    transition: bottom 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   .toasts {
     bottom: calc(76px + env(safe-area-inset-bottom));
+    transition: bottom 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   /* เมนูเต็ม (เปิดจาก "เพิ่มเติม") อยู่เหนือเมนูด้านล่าง */
   .sidebar {

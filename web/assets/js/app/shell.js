@@ -27,6 +27,36 @@ const SETTINGS = [
 const BOTTOM_NAV = ['dashboard', 'employees', 'insurance', 'uniform'];
 const BOTTOM_LABEL = { dashboard: 'ภาพรวม', employees: 'พนักงาน', insurance: 'ประกัน', uniform: 'ชุดฟอร์ม' };
 
+/**
+ * มือถือ: ปัดขึ้น (เลื่อนอ่านต่อลงไป) = ซ่อนเมนูด้านล่าง · ปัดลง = แสดงกลับ
+ * ฟังการเลื่อนแบบ capture จึงใช้ได้ทั้ง window, .page และกล่องที่เลื่อนภายใน
+ * ปรับความไวได้ที่ HIDE_AFTER (เลื่อนพ้นด้านบนกี่ px ถึงเริ่มซ่อน) และ MIN_DELTA (ต้องเลื่อนอย่างน้อยกี่ px ต่อครั้ง)
+ */
+function autoHideBottomNav() {
+  const HIDE_AFTER = 56;
+  const MIN_DELTA = 8;
+  const lastTop = new WeakMap();
+  const setHidden = (hide) => document.body.classList.toggle('bn-hide', hide);
+  document.addEventListener(
+    'scroll',
+    (e) => {
+      const el = e.target === document ? document.scrollingElement : e.target;
+      if (!(el instanceof Element)) return;
+      const top = el.scrollTop;
+      const prev = lastTop.get(el);
+      if (prev === undefined) return lastTop.set(el, top);
+      const dy = top - prev;
+      if (Math.abs(dy) < MIN_DELTA) return; // เลื่อนแนวนอน / ขยับนิดเดียว ไม่นับ
+      lastTop.set(el, top);
+      if (document.body.classList.contains('drawer-open')) return;
+      setHidden(dy > 0 && top > HIDE_AFTER);
+    },
+    { capture: true, passive: true },
+  );
+  // เปลี่ยนหน้า/แท็บ (เช่น กดย้อนกลับ) → แสดงเมนูเสมอ
+  window.addEventListener('pageshow', () => setHidden(false));
+}
+
 // ----- ธีม: ค่าเริ่มต้น = สว่าง, โหมดมืดเปิดเมื่อผู้ใช้กดเท่านั้น -----
 const THEME_KEY = 'hl-theme';
 const isDark = () => document.documentElement.dataset.theme === 'dark';
@@ -145,6 +175,7 @@ export function initPage(active, { tour = active } = {}) {
   document.getElementById('menu-btn').onclick = openDrawer;
   document.getElementById('more-btn').onclick = openDrawer;
   document.addEventListener('keydown', (e) => e.key === 'Escape' && closeDrawer());
+  autoHideBottomNav();
   document.getElementById('theme-btn').onclick = toggleTheme;
   document.getElementById('logout-btn')?.addEventListener('click', logout);
   drawThemeButton();
