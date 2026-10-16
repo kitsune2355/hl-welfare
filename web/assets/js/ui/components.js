@@ -54,7 +54,7 @@ const ALERT_ICON = { info: 'info', success: 'check-circle-2', warning: 'alert-tr
 export function alertBox({ tone = 'info', title = '', body = '', action = '' }) {
   return html`<div class="alert tone-${tone}" role="${tone === 'danger' ? 'alert' : 'status'}">
     ${raw(icon(ALERT_ICON[tone]))}
-    <div class="alert-body">${title ? html`<b>${title}</b>` : ''}${body}</div>
+    <div class="alert-body">${title ? html`<b>${title}</b>` : ''}${body ? html`<span class="alert-text">${body}</span>` : ''}</div>
     ${action}
   </div>`;
 }

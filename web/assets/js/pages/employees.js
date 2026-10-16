@@ -15,7 +15,7 @@ import {
   STATUS_LABEL,
   STATUS_TONE,
 } from '../shared/labels.js';
-import { badge, emptyState, errorState } from '../ui/components.js';
+import { badge, employeeCell, emptyState, errorState } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { confirmAction, toast } from '../ui/overlay.js';
 
@@ -192,6 +192,15 @@ const grid = new ExcelGrid($('#grid'), {
     return saved;
   },
   onOpen: (e) => (location.href = `employee.html?id=${e.id}`),
+  // มือถือ: แสดงเป็นการ์ด แตะเพื่อเปิดรายละเอียด · ปุ่มเพิ่มไปที่ฟอร์มเต็ม
+  mobileAddHref: 'employee-form.html',
+  mobileAddLabel: 'เพิ่มพนักงาน',
+  mobileCard: (e) => html`${employeeCell(e)}
+    <div class="row wrap" style="gap:6px">
+      ${badge(EMPLOYEE_TYPE_LABEL[e.employeeType], EMPLOYEE_TYPE_TONE[e.employeeType], { dot: false })}
+      ${badge(STATUS_LABEL[e.status], STATUS_TONE[e.status])}
+      <span class="small muted truncate">${e.companyCode} · ${sites.find((s) => s.id === e.siteId)?.name ?? ''}</span>
+    </div>`,
   onDelete: (e) =>
     confirmAction({
       title: 'ลบพนักงาน?',

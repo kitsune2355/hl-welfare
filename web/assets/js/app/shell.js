@@ -90,7 +90,7 @@ export function initPage(active, { tour = active } = {}) {
     <button class="btn-icon menu-btn" id="menu-btn" aria-label="เปิดเมนู">${raw(icon('menu'))}</button>
     <form class="search" role="search" id="global-search">
       ${raw(icon('search'))}
-      <input class="input" name="q" placeholder="ค้นหาพนักงาน (รหัส / ชื่อ)" aria-label="ค้นหาพนักงาน" autocomplete="off" />
+      <input class="input" name="q" placeholder="ค้นหาพนักงาน…" aria-label="ค้นหาพนักงาน" autocomplete="off" />
       <span class="kbd">/</span>
     </form>
     <span class="spacer"></span>

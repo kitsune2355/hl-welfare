@@ -86,11 +86,22 @@ export async function startTour(page) {
     .filter(Boolean);
   if (!steps.length) return;
 
+  // driver.js ติดตามแค่การเลื่อนของหน้าต่าง แต่หน้าในระบบเลื่อนภายในกล่อง (.page, ตาราง)
+  // → เลื่อน element เข้ามากลางจอก่อนไฮไลต์ทุกขั้น และวาดตำแหน่งใหม่เมื่อกล่องใดก็ตามเลื่อน
+  const onAnyScroll = () => active?.refresh();
+  document.addEventListener('scroll', onAnyScroll, true);
+
   active = window.driver.js.driver({
     ...C.driver,
     steps,
-    onDestroyed: () => {
+    onHighlightStarted: (el, step, opts) => {
+      el?.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'instant' });
+      C.driver.onHighlightStarted?.(el, step, opts);
+    },
+    onDestroyed: (el, step, opts) => {
+      document.removeEventListener('scroll', onAnyScroll, true);
       active = null;
+      C.driver.onDestroyed?.(el, step, opts);
     },
   });
   active.drive();

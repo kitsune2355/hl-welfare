@@ -17,6 +17,8 @@
 // editor: 'text' | 'number' | 'date' | 'select' | 'switch' · ไม่ใส่ = อ่านอย่างเดียว
 // options(row) สำหรับ select · editable(row) = แก้ได้เฉพาะบางแถว · display(row) = HTML ที่แสดง
 // กรองคอลัมน์ที่หัวตาราง: เปิดอัตโนมัติ · filter: false = ปิด · text(row) = ข้อความที่ใช้กรอง (ไม่ใส่ = ข้อความที่แสดง)
+// มือถือ (<768px): ใส่ mobileCard(row) => HTML เพื่อแสดงเป็นการ์ดแทนตาราง (แตะการ์ด = onOpen)
+//   และ mobileAddHref = ลิงก์ของปุ่ม "เพิ่ม" บนมือถือ (เช่น ฟอร์มเต็ม) เพราะการกรอกในเซลล์บนจอเล็กไม่สะดวก
 import { esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import { FilterState, filterSummary, headerFilterButton, openColumnFilter, stripHtml } from './columnFilter.js';
@@ -42,6 +44,7 @@ export class ExcelGrid {
     this.filter = new FilterState();
     this.pinned = new Set(); // แถวที่เพิ่งแก้ — แสดงต่อแม้ไม่ตรงตัวกรอง (ไม่หายระหว่างแก้)
     this.handled = false;
+    if (opts.mobileCard) root.classList.add('has-mobile-cards');
     this.bind();
     this.render();
   }
@@ -316,6 +319,11 @@ export class ExcelGrid {
     root.addEventListener('click', (e) => {
       const fb = e.target.closest('[data-col-filter]');
       if (fb) return this.openFilter(fb);
+      const card = e.target.closest('[data-card-key]');
+      if (card) {
+        const entry = this.entries().find((x) => x.key === card.dataset.cardKey);
+        return entry && this.o.onOpen?.(entry.row);
+      }
       if (e.target.closest('[data-clear-col-filters]')) {
         this.filter.clear();
         return this.afterFilterChange();
@@ -462,7 +470,8 @@ export class ExcelGrid {
     const noMatch = !loading && this.rows.length > 0 && total === 0 && !this.newRows.length;
     const hadFocus = this.root.contains(document.activeElement);
     this.root.innerHTML = String(html`<div class="grid-toolbar">
-        ${newRow ? html`<button class="btn btn-primary btn-sm" data-grid-act="add">${raw(icon('plus'))} ${addLabel}</button>` : ''} ${toolbar ?? ''}
+        ${newRow ? html`<button class="btn btn-primary btn-sm ${this.o.mobileCard ? 'hide-mobile' : ''}" data-grid-act="add">${raw(icon('plus'))} ${addLabel}</button>` : ''}
+        ${this.o.mobileAddHref ? html`<a class="btn btn-primary btn-sm show-mobile" href="${this.o.mobileAddHref}">${raw(icon('plus'))} ${this.o.mobileAddLabel ?? addLabel}</a>` : ''} ${toolbar ?? ''}
         <span class="help">ดับเบิลคลิก / Enter / พิมพ์ = แก้ไข · Tab, Enter = บันทึก · Esc = ยกเลิก · ←↑↓→ เลื่อนเซลล์</span>
         ${unsaved || errors ? html`<span class="unsaved ${errors ? 'error' : ''}">${errors ? `มีข้อผิดพลาด ${errors} แถว` : `ยังไม่บันทึก ${unsaved} แถว`}</span>` : ''}
       </div>
@@ -495,6 +504,20 @@ export class ExcelGrid {
         </table>
         ${noMatch ? html`<div class="empty" style="padding:32px"><b>ไม่มีแถวที่ตรงกับตัวกรองคอลัมน์</b></div>` : !loading && entries.length === 0 ? (empty ?? '') : ''}
       </div>
+      ${this.o.mobileCard
+        ? html`<ul class="grid-cards">
+            ${loading
+              ? html`<li><div class="gc-body"><div class="skeleton sk-line"></div><div class="skeleton sk-line"></div></div></li>`
+              : entries
+                  .filter((e) => !e.isNew)
+                  .map(
+                    (e) => html`<li data-card-key="${e.key}" role="button" tabindex="0">
+                      <div class="gc-body">${this.o.mobileCard(e.row)}</div>
+                      ${raw(icon('chevron-right', 'gc-chev'))}
+                    </li>`,
+                  )}
+          </ul>`
+        : ''}
       <div class="grid-error hidden" role="alert"></div>
       ${showPager ? pagerHtml({ page: this.page, pageSize: this.size, total }) : ''}`);
 

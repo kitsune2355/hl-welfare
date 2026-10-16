@@ -47,7 +47,7 @@ export const TOUR_CONFIG = {
     stagePadding: 6,
     stageRadius: 10,
     popoverOffset: 12,
-    smoothScroll: true,
+    smoothScroll: false, // เลื่อนทันที — ตำแหน่งไฮไลต์ถูกต้องเสมอ (หน้าในระบบเลื่อนภายในกล่อง ไม่ใช่หน้าต่าง)
     animate: true,
     disableActiveInteraction: true, // ระหว่างแนะนำ ห้ามคลิกส่วนที่ไฮไลต์ (กันกดบันทึกโดยไม่ตั้งใจ)
     popoverClass: 'hl-tour',

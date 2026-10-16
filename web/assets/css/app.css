@@ -311,10 +311,11 @@ button {
 .topbar .spacer {
   flex: 1;
 }
+/* พื้นที่เนื้อหา: กล่องเต็มความกว้าง (scrollbar อยู่ขอบขวาของจอ) แต่เนื้อหากว้างสุด 1216px อยู่กลาง */
 .page {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 32px;
+  --page-max: 1216px;
+  width: 100%;
+  padding: 32px max(32px, calc((100% - var(--page-max)) / 2));
 }
 .menu-btn {
   display: none;
@@ -552,11 +553,17 @@ button {
 .mb {
   margin-bottom: 24px;
 }
-@media (max-width: 1279px) {
+/* breakpoints ของ grid
+   grid-4 : ≥1024 = 4 คอลัมน์ · <1024 = 2 คอลัมน์ (การ์ดตัวเลขแบบกะทัดรัดบนมือถือ)
+   grid-3 : ≥900  = 3 คอลัมน์ · <900 = 1 คอลัมน์ · grid-3.stats (การ์ดตัวเลข) = 3 คอลัมน์ถึง 640px
+   grid-2 : <768 = 1 คอลัมน์ */
+@media (max-width: 1023px) {
   .grid-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .grid-3 {
+}
+@media (max-width: 899px) {
+  .grid-3:not(.stats) {
     grid-template-columns: 1fr;
   }
   .span-2 {
@@ -569,8 +576,11 @@ button {
   }
 }
 @media (max-width: 639px) {
-  .grid-4 {
+  .grid-3.stats {
     grid-template-columns: 1fr;
+  }
+  .grid {
+    gap: 10px;
   }
 }
 
@@ -2444,4 +2454,198 @@ input[type='radio'] {
 .sidebar-user .btn-icon:hover {
   color: var(--danger);
   background: var(--surface);
+}
+
+
+/* =====================================================================
+   Responsive เพิ่มเติม
+   ===================================================================== */
+/* ซ่อน/แสดงตามขนาดจอ */
+@media (max-width: 639px) {
+  .hide-sm {
+    display: none !important;
+  }
+}
+@media (min-width: 768px) {
+  .show-mobile {
+    display: none !important;
+  }
+}
+@media (max-width: 767px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* การ์ดตัวเลข: กะทัดรัดลงเมื่อจอแคบ ให้ตารางมีพื้นที่ */
+@media (max-width: 1279px) {
+  .stat:not(.compact) {
+    padding: 16px;
+  }
+  .stat:not(.compact) .stat-value {
+    margin-top: 4px;
+    font-size: 24px;
+  }
+  .stat:not(.compact) .stat-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+}
+@media (max-width: 639px) {
+  .stat:not(.compact) {
+    padding: 12px;
+  }
+  .stat:not(.compact) .stat-label {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .stat:not(.compact) .stat-value {
+    font-size: 21px;
+  }
+  .stat:not(.compact) .stat-value small {
+    margin: 0 6px 0 2px;
+    font-size: 12px;
+  }
+  .stat-hint {
+    font-size: 11.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .stat:not(.compact) .stat-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+  .stat.compact {
+    padding: 10px 12px;
+  }
+  .stat.compact .stat-value {
+    font-size: 20px;
+  }
+}
+
+/* หัวหน้าบนมือถือ: เล็กลง ปุ่มเต็มแถว */
+@media (max-width: 639px) {
+  .page-head {
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .page-head h1 {
+    font-size: 20px;
+  }
+  .page-head p {
+    font-size: 13px;
+  }
+  .page-actions {
+    width: 100%;
+  }
+  .page-actions .combo {
+    flex: 1;
+    width: auto !important;
+  }
+  /* แจ้งเตือนที่มีหัวข้อ: แสดงแค่หัวข้อ + ปุ่ม (ซ่อนคำอธิบาย) */
+  .alert-body b + .alert-text {
+    display: none;
+  }
+  .alert {
+    align-items: center;
+  }
+  .card-head {
+    padding: 14px 16px;
+  }
+  .card-body {
+    padding: 16px;
+  }
+  .tab {
+    padding: 10px;
+  }
+}
+
+/* ตาราง Excel บนมือถือ: แสดงเป็นการ์ด (ExcelGrid option mobileCard) */
+.grid-cards {
+  display: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.grid-cards > li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.grid-cards > li:active {
+  background: var(--surface-2);
+}
+.grid-cards .gc-body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.grid-cards .gc-chev {
+  color: var(--muted);
+  font-size: 18px;
+}
+@media (max-width: 767px) {
+  .has-mobile-cards .xgrid-wrap {
+    display: none;
+  }
+  .has-mobile-cards .grid-cards {
+    display: block;
+  }
+  .has-mobile-cards .fill-body {
+    display: block;
+  }
+}
+
+/* จอสัมผัส: ขยายพื้นที่กดให้ ≥ 36–40px */
+@media (pointer: coarse) {
+  .btn {
+    min-height: 40px;
+  }
+  .btn-sm {
+    height: 38px;
+  }
+  .btn-icon,
+  .btn-icon.sm {
+    width: 40px;
+    height: 40px;
+  }
+  .page-btn {
+    min-width: 40px;
+    height: 40px;
+  }
+  .th-filter {
+    width: 32px;
+    height: 32px;
+    opacity: 0.8;
+  }
+  .chip {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+  .combo-btn.sm {
+    height: 38px;
+  }
+  .option {
+    padding: 11px 12px;
+  }
+  .cf-item {
+    padding: 9px 8px;
+  }
+  .kbd {
+    display: none;
+  }
+  .nav a {
+    padding: 11px 12px;
+  }
+  .table td {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
 }

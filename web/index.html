@@ -27,12 +27,12 @@
           <p id="today">กำลังโหลด…</p>
         </div>
         <div class="page-actions">
-          <span class="row small muted"><span class="live-dot" id="live-dot"></span><span id="updated"></span></span>
+          <span class="row small muted"><span class="live-dot" id="live-dot"></span><span id="updated" class="hide-sm"></span></span>
           <label class="row" style="font-size:13px">
             <button type="button" class="switch" role="switch" aria-checked="true" aria-label="รีเฟรชอัตโนมัติ" id="auto"></button>
-            อัตโนมัติ (60 วิ)
+            <span>อัตโนมัติ<span class="hide-sm"> (60 วิ)</span></span>
           </label>
-          <button class="btn btn-sm" id="refresh"><i data-icon="refresh-cw"></i> รีเฟรช</button>
+          <button class="btn btn-sm" id="refresh" title="รีเฟรช" aria-label="รีเฟรช"><i data-icon="refresh-cw"></i><span class="hide-sm">รีเฟรช</span></button>
         </div>
       </div>
 
@@ -73,7 +73,7 @@
 
       <!-- ===== แท็บ: คิวงาน ===== -->
       <div class="panel fill hidden" id="tab-queue">
-        <div id="sev-stats" class="grid grid-3 mb"></div>
+        <div id="sev-stats" class="grid grid-3 stats mb"></div>
         <section class="card fill">
           <header class="card-head">
             <div class="card-title">
