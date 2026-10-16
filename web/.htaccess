@@ -1,0 +1,8 @@
+# ให้เบราว์เซอร์ตรวจไฟล์ใหม่ทุกครั้ง (ไม่มีขั้นตอน build จึงไม่มีชื่อไฟล์แบบ hash)
+# ไฟล์ไม่เปลี่ยน → server ตอบ 304 (ไม่โหลดซ้ำ) · ไฟล์เปลี่ยน → ได้ไฟล์ใหม่ทันทีหลังอัปโหลด
+# ต้องเปิด mod_headers บน Apache — ถ้าไม่มี module นี้ บรรทัดด้านล่างจะถูกข้ามไป (ไม่ error)
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|css|json)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>

@@ -2132,13 +2132,28 @@ button.stat:hover {
     align-items: flex-end;
   }
 }
-/* modal กว้าง (openModal({ size: 'lg' })) — หัว/ท้ายอยู่กับที่ เนื้อหาเลื่อนภายใน */
-.modal-lg {
+/* modal กว้าง (openModal({ size: 'lg' })) — หัว/ท้ายอยู่กับที่ เนื้อหาเลื่อนภายใน
+   :has([data-batch-body]) = กันกรณีเบราว์เซอร์ยังใช้ overlay.js เก่าใน cache (ไม่มี class modal-lg) */
+.modal-lg,
+.modal:has([data-batch-body]) {
   display: flex;
   flex-direction: column;
-  max-width: 820px;
-  max-height: calc(100dvh - 32px);
+  max-width: 960px;
+  max-height: calc(100dvh - 48px);
 }
+@media (min-width: 1600px) {
+  .modal-lg,
+  .modal:has([data-batch-body]) {
+    max-width: 1080px;
+  }
+}
+.modal-lg .modal-head h2 {
+  font-size: 18px;
+}
+.modal-lg .modal-head p {
+  font-size: 14px;
+}
+.modal:has([data-batch-body]) .modal-body,
 .modal-lg .modal-body {
   flex: 1;
   min-height: 0;
@@ -2146,7 +2161,8 @@ button.stat:hover {
   padding-bottom: 16px;
   color: var(--fg);
 }
-.modal-lg .modal-foot {
+.modal-lg .modal-foot,
+.modal:has([data-batch-body]) .modal-foot {
   margin-top: 0;
 }
 .modal-foot .foot-start {
@@ -2226,11 +2242,19 @@ button.stat:hover {
 }
 .bi-row {
   display: grid;
-  grid-template-columns: 28px minmax(180px, 1.5fr) minmax(140px, 1.2fr) 104px minmax(90px, 1fr);
+  grid-template-columns: 32px minmax(200px, 1.5fr) minmax(170px, 1.3fr) 120px minmax(120px, 1fr);
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 16px;
+  padding: 12px 18px;
+  font-size: 14px;
+}
+.bi-row .avatar {
+  width: 34px;
+  height: 34px;
   font-size: 13px;
+}
+.bi-row .emp .code {
+  font-size: 12px;
 }
 .bi-row + .bi-row {
   border-top: 1px solid var(--border);
@@ -2256,7 +2280,7 @@ button.stat:hover {
 .bi-co small,
 .bi-date small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .bi-reason {
   color: var(--muted);
