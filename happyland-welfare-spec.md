@@ -1422,7 +1422,29 @@ mysql -u root -p < backend/database/seed.sql
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteRule ^ index.php [QSA,L]
   ```
-- Build frontend: `npm run build` → นำ `frontend/dist/*` ไปวางเป็นเว็บหลัก และตั้ง fallback ทุก path ไป `index.html` (เพราะเป็น SPA)
+### 14.1 นำ Frontend ขึ้น host (เช่น `https://develophpg.net/hl-welfare/`)
+
+> ⚠️ **ห้ามอัปโหลดโฟลเดอร์ source (`frontend/src`, `index.html` ต้นฉบับ)** — เบราว์เซอร์รัน `.tsx` ไม่ได้
+> ไฟล์ `.tsx` ทำงานได้เฉพาะตอน `npm run dev` เพราะ Vite dev server แปลงให้สด ๆ · บน host ต้องใช้ผลลัพธ์จาก `npm run build` เท่านั้น
+
+| อาการที่เคยเจอ | สาเหตุ | วิธีแก้ (ทำแล้วในโปรเจกต์) |
+|---|---|---|
+| เปิด `.../frontend/src/main.tsx` เห็นเป็นข้อความโค้ด | อัปโหลด source ขึ้นไปตรง ๆ → Apache ส่ง `.tsx` เป็น `text/plain` เบราว์เซอร์ไม่รัน | อัปโหลดเฉพาะ `frontend/dist/*` (JS ที่ build แล้ว) |
+| `.../hl-welfare/monitor` → 404 Not Found | SPA ใช้ URL ที่ไม่มีไฟล์จริงบน server · Apache หาไฟล์ `monitor` ไม่เจอ (และ host ไม่ได้ตั้ง rewrite ไป `index.html`) | build ใช้ **hash router** → URL เป็น `.../hl-welfare/#/monitor` server เห็นแค่ `index.html` เสมอ |
+| (จะเจอต่อ) JS/CSS 404 เมื่อวางใต้ sub-folder | build ปกติอ้าง `/assets/...` จาก root โดเมน | `vite.config.ts` ใช้ `base: './'` ตอน build → อ้าง `./assets/...` วางใต้ path ไหนก็ได้ |
+
+**ขั้นตอน**
+```bash
+cd frontend
+npm run build                 # ได้โฟลเดอร์ frontend/dist/
+```
+1. อัปโหลด **ไฟล์ทั้งหมดใน `frontend/dist/`** (index.html, favicon.svg, assets/) ไปที่โฟลเดอร์ `hl-welfare/` บน host
+2. เปิด `https://develophpg.net/hl-welfare/` → เมนูจะเป็น `.../hl-welfare/#/employees`, `#/monitor` ฯลฯ
+3. ไม่ต้องติดตั้ง Node.js / React บน host และไม่ต้องตั้งค่า `.htaccess` — เป็นไฟล์ static ล้วน (HTML + JS + CSS)
+
+- ทดสอบแล้วบน **Apache 2.2.8 (AppServ) ที่ปิด mod_rewrite** วางใต้ sub-folder: ทุกหน้าแสดงผลและโหลดข้อมูลได้
+- ถ้าภายหลัง host ตั้ง fallback ทุก path → `index.html` ได้ และอยากได้ URL ไม่มี `#` ให้ build ด้วย `VITE_ROUTER=browser` (ต้องตั้ง `base` เป็น path จริง เช่น `/hl-welfare/`)
+- โหมด mock เก็บข้อมูลใน `localStorage` ของแต่ละเบราว์เซอร์ — ยังไม่ใช่ข้อมูลกลาง จนกว่าจะต่อ PHP backend (เฟส 2) ซึ่งต้องตรวจว่า host มี PHP 8.2+ และ MySQL 8 / MariaDB 10.6+
 
 ---
 

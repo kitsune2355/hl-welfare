@@ -214,15 +214,15 @@ export function MonitorPage() {
             rowKey={(t) => t.id}
             pageSize={15}
             columns={[
-              { key: 'sev', header: 'ระดับ', mobile: 'aside', className: 'w-24', cell: (t) => <Badge tone={SEVERITY_TONE[t.severity]}>{SEVERITY_LABEL[t.severity]}</Badge> },
+              { key: 'sev', header: 'ระดับ', mobile: 'aside', className: 'w-20', cell: (t) => <Badge tone={SEVERITY_TONE[t.severity]}>{SEVERITY_LABEL[t.severity]}</Badge> },
               {
                 key: 'task',
                 header: 'งาน',
                 mobile: 'title',
                 cell: (t) => (
                   <div className="leading-tight">
-                    <p className="font-medium">{t.title}</p>
-                    <p className="max-w-72 truncate text-xs text-muted">{t.detail}</p>
+                    <p className="max-w-52 truncate font-medium" title={t.title}>{t.title}</p>
+                    <p className="max-w-52 truncate text-xs text-muted" title={t.detail}>{t.detail}</p>
                   </div>
                 ),
               },
@@ -230,6 +230,7 @@ export function MonitorPage() {
               {
                 key: 'due',
                 header: 'กำหนด',
+                className: 'whitespace-nowrap',
                 cell: (t) =>
                   t.dueDate ? (
                     <div className="leading-tight">
@@ -244,6 +245,7 @@ export function MonitorPage() {
                 key: 'go',
                 header: '',
                 align: 'right',
+                className: 'whitespace-nowrap',
                 cell: (t) => {
                   const l = taskLink(t);
                   return (

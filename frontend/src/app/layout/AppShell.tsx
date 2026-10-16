@@ -83,7 +83,7 @@ function Sidebar({ counts, onNavigate }: { counts?: DashboardData; onNavigate: (
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-5 py-5">
-        <img src="/favicon.svg" alt="" className="size-9" />
+        <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-9" />
         <div className="leading-tight">
           <p className="font-semibold">HL Welfare</p>
           <p className="text-xs text-muted">ระบบสวัสดิการพนักงาน</p>

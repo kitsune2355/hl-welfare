@@ -27,7 +27,7 @@ import type {
 } from '../../domain/types';
 import { buildSeed, type MockDb } from './seed';
 
-const STORAGE_KEY = 'hl-welfare-mock-v3'; // v3: + activities (บันทึกกิจกรรม)
+const STORAGE_KEY = 'hl-welfare-mock-v4'; // v4: seed ชุดฟอร์มค้างเฉพาะช่วง 120 วันล่าสุด
 const LATENCY_MS = 150;
 const CURRENT_USER = 'HR (mock)';
 

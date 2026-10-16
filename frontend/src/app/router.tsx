@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, createHashRouter } from 'react-router';
 import { AppShell } from './layout/AppShell';
 
 const page = <T extends Record<string, React.ComponentType>>(load: () => Promise<T>, name: keyof T) =>
@@ -17,7 +17,15 @@ const SitesPage = page(() => import('../features/sites/SitesPage'), 'SitesPage')
 const MonitorPage = page(() => import('../features/monitor/MonitorPage'), 'MonitorPage');
 const NotFoundPage = page(() => import('../features/NotFoundPage'), 'NotFoundPage');
 
-export const router = createBrowserRouter([
+/**
+ * production ใช้ hash router (`/hl-welfare/#/monitor`) → ทำงานบน static host ทุกแบบ
+ * โดยไม่ต้องมี mod_rewrite/.htaccess · dev ใช้ URL ปกติ
+ * ตั้ง VITE_ROUTER=browser ได้ถ้า host ตั้งค่า fallback ไป index.html ไว้แล้ว
+ */
+const useHash = import.meta.env.VITE_ROUTER ? import.meta.env.VITE_ROUTER === 'hash' : import.meta.env.PROD;
+const createRouter = useHash ? createHashRouter : createBrowserRouter;
+
+export const router = createRouter([
   {
     element: <AppShell />,
     children: [

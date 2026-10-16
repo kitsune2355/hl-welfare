@@ -219,7 +219,8 @@ export function buildSeed(today: ISODate): MockDb {
     if (pendingUniform.has(e.id)) continue;
     const st = uniformStatus(e, siteById.get(e.siteId) ?? null, rules, [], today);
     for (const ent of st.entitlements) {
-      if (ent.dueDate > cutoff || rnd.next() < 0.06) continue;
+      // เว้นบางรายการให้ค้าง เฉพาะที่ครบกำหนดใน 120 วันล่าสุด (ของเก่าถือว่าแจกครบแล้ว)
+      if (ent.dueDate > cutoff || (ent.dueDate > addDays(today, -120) && rnd.next() < 0.3)) continue;
       issues.push({
         id: issues.length + 1,
         employeeId: e.id,
