@@ -1,7 +1,9 @@
 import { ApiError } from '../../application/errors.js';
 import { buildDashboard } from '../../application/usecases/dashboard.js';
 import { buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex } from '../../application/usecases/insuranceCycle.js';
+import { buildInsurerExport } from '../../application/usecases/insurerExport.js';
 import { buildUniformPending } from '../../application/usecases/uniformPending.js';
+import { validateInsurerForm } from '../../application/insurerFormRules.js';
 import { buildWorkQueue } from '../../application/usecases/workQueue.js';
 import { todayISO } from '../../domain/date.js';
 import { benefitsOf } from '../../domain/eligibility.js';
@@ -10,7 +12,7 @@ import { pvdStatus } from '../../domain/pvd.js';
 import { buildSeed } from './seed.js';
 import { MOCK_USERS } from './users.js';
 
-const STORAGE_KEY = 'hl-welfare-mock-v4'; // v4: seed ชุดฟอร์มค้างเฉพาะช่วง 120 วันล่าสุด
+const STORAGE_KEY = 'hl-welfare-mock-v5'; // v5: แบบฟอร์มบริษัทประกัน + ข้อมูลส่วนตัวพนักงาน (เพศ คำนำหน้า เลขบัตร โทร อีเมล)
 
 const LATENCY_MS = 150;
 
@@ -273,6 +275,88 @@ export class MockApi {
         `ยกเลิก${BATCH_TYPE_LABEL[b.type]} #${id} (${b.employeeIds.length} ราย)`,
       );
       this.persist();
+    });
+  }
+  // ---------- แบบฟอร์มบริษัทประกัน (CRUD) + ส่งออกไฟล์ ----------
+  insurer(id) {
+    const f = this.db.insurers.find((x) => x.id === id);
+    if (!f) throw new ApiError('ไม่พบแบบฟอร์มบริษัทประกัน', 404);
+    return f;
+  }
+  listInsurers() {
+    return this.run(() => [...this.db.insurers].sort((a, b) => Number(b.active) - Number(a.active) || a.id - b.id));
+  }
+  saveInsurer(input) {
+    return this.run(() => {
+      const errors = validateInsurerForm(input, this.db.insurers);
+      if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
+      if (input.id) {
+        const f = this.insurer(input.id);
+        Object.assign(f, structuredClone(input));
+        this.log('INSURER_FORM', 'UPDATE', f.id, `แก้ไขแบบฟอร์ม ${f.shortName}`);
+        this.persist();
+        return f;
+      }
+      const created = { ...structuredClone(input), id: nextId(this.db.insurers) };
+      this.db.insurers.push(created);
+      this.log('INSURER_FORM', 'CREATE', created.id, `เพิ่มแบบฟอร์ม ${created.shortName}`);
+      this.persist();
+      return created;
+    });
+  }
+  deleteInsurer(id) {
+    return this.run(() => {
+      const f = this.insurer(id);
+      // ประวัติการส่งออกเก็บชื่อบริษัทประกันไว้ในตัว (insurerName) จึงลบแบบฟอร์มได้โดยไม่เสียประวัติ
+      this.db.insurers = this.db.insurers.filter((x) => x.id !== id);
+      this.log('INSURER_FORM', 'DELETE', id, `ลบแบบฟอร์ม ${f.shortName}`);
+      this.persist();
+    });
+  }
+  /**
+   * ข้อมูลสำหรับไฟล์แจ้งบริษัทประกัน รอบ cycleDate
+   * record = true → บันทึกว่าแจ้งแล้ว (แทนที่การส่งออกเดิมของรอบ + บริษัทประกันเดียวกัน)
+   */
+  exportInsurance({ cycleDate, insurerId, record = false }) {
+    return this.run(() => {
+      const insurer = this.insurer(insurerId);
+      const { employees, sites, rules, companies } = this.db;
+      const data = buildInsurerExport({ cycleDate, insurer, employees, sites, rules, batches: this.db.batches, companies });
+      if (!record) return { ...data, batches: [] };
+      const replaced = this.db.batches.filter((b) => b.cycleDate === cycleDate && b.insurerId === insurerId);
+      this.db.batches = this.db.batches.filter((b) => !replaced.includes(b));
+      const all = data.companies.flatMap((c) => [...c.in, ...c.out]);
+      const created = [];
+      for (const type of ['IN', 'OUT', 'URGENT']) {
+        const ids = all.filter((r) => r.type === type).map((r) => r.employee.id);
+        if (!ids.length) continue;
+        const batch = {
+          id: nextId(this.db.batches),
+          cycleDate,
+          type,
+          employeeIds: ids,
+          submittedAt: nowStamp(),
+          submittedBy: this.actor,
+          insurerId,
+          insurerName: insurer.shortName,
+        };
+        this.db.batches.push(batch);
+        created.push(batch);
+      }
+      const n = all.length;
+      this.log(
+        'INSURANCE_BATCH',
+        'CREATE',
+        created.map((b) => b.id).join(',') || '-',
+        `ส่งออกไฟล์แจ้ง${insurer.shortName} รอบ ${cycleDate}: เข้า ${all.filter((r) => r.type === 'IN').length} · ออก ${all.filter((r) => r.type !== 'IN').length} ราย${replaced.length ? ' (แทนที่ไฟล์เดิมของรอบนี้)' : ''}`,
+        n === 1 ? all[0].employee.id : null,
+      );
+      this.persist();
+      // ข้อมูลหลังบันทึก: ทุกแถวเป็น "ส่งออกแล้ว"
+      return {
+        ...buildInsurerExport({ cycleDate, insurer, employees, sites, rules, batches: this.db.batches, companies }),
+        batches: created,
+      };
     });
   }
   listPvdMembers() {

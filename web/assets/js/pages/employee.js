@@ -2,6 +2,7 @@
 import { api } from '../app/api.js';
 import { initPage, refreshCounts } from '../app/shell.js';
 import { todayISO } from '../domain/date.js';
+import { formatThaiId } from '../domain/thaiId.js';
 import { $, getParam, html, on, raw, render } from '../shared/dom.js';
 import { money, relativeDays, tenure, thaiDate } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
@@ -10,6 +11,7 @@ import {
   EMPLOYEE_TYPE_LABEL,
   EMPLOYEE_TYPE_TONE,
   END_REASON_LABEL,
+  GENDER_LABEL,
   STATUS_LABEL,
   STATUS_TONE,
   UNIFORM_EVENT_LABEL,
@@ -138,6 +140,8 @@ async function load() {
   try {
     const [b, rules, activity] = await Promise.all([api.getEmployeeBenefits(id), api.getRules(), api.listActivity({ employeeId: id, limit: 30 })]);
     const e = b.employee;
+    // ข้อมูลที่ไฟล์แจ้งประกันใช้ แต่ยังว่าง
+    const missing = () => html`<span class="muted">– ยังไม่กรอก</span>`;
     const name = `${e.firstName} ${e.lastName}`;
     document.title = `${name} · HL Welfare`;
     render($('#crumb'), name);
@@ -165,6 +169,10 @@ async function load() {
         { label: 'ผ่านทดลองงาน', value: thaiDate(e.probationPassDate) },
         { label: 'อายุงาน', value: tenure(e.startDate, e.endDate ?? today) },
         { label: 'เงินเดือน', value: html`<span class="num">${money(e.salary)} ฿</span>` },
+        { label: 'วันเกิด', value: thaiDate(e.birthDate) },
+        { label: 'คำนำหน้า / เพศ', value: [e.title, GENDER_LABEL[e.gender]].filter(Boolean).join(' · ') || missing() },
+        { label: 'เลขบัตรประชาชน', value: e.nationalId ? html`<span class="num">${formatThaiId(e.nationalId)}</span>` : missing() },
+        { label: 'โทร / อีเมล', value: [e.phone, e.email].filter(Boolean).join(' · ') || '–' },
         ...(e.status === 'INACTIVE'
           ? [
               { label: 'เหตุผลพ้นสภาพ', value: e.endReason ? END_REASON_LABEL[e.endReason] : '–' },

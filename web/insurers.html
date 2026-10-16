@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>แบบฟอร์มประกัน · HL Welfare</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <script>
+      // ธีม + ตรวจการเข้าสู่ระบบก่อนแสดงหน้า (ยังไม่ login → ไปหน้า login.html)
+      try {
+        if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+        var s = JSON.parse(sessionStorage.getItem('hl-session') || localStorage.getItem('hl-session') || 'null');
+        if (!s || s.expiresAt < Date.now()) location.replace('login.html?next=' + encodeURIComponent((location.pathname.split('/').pop() || 'index.html') + location.search));
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <!-- insurers.html?id=<แบบฟอร์ม>|new — ตั้งค่าแบบฟอร์ม Excel แจ้งเข้า-ออกของบริษัทประกัน (CRUD) -->
+    <main id="page" class="page">
+      <div class="page-head">
+        <div>
+          <h1>แบบฟอร์มประกัน</h1>
+          <p>หน้าตาไฟล์ Excel ที่ส่งออกให้บริษัทประกันแต่ละราย — บริษัทในเครือที่ใช้ เลขกรมธรรม์ คอลัมน์ หัว/ท้ายเอกสาร</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary" id="add"><i data-icon="plus"></i> เพิ่มแบบฟอร์ม</button>
+        </div>
+      </div>
+
+      <div class="ins-layout">
+        <!-- รายการแบบฟอร์ม -->
+        <aside class="ins-list" id="list" aria-label="แบบฟอร์มทั้งหมด"></aside>
+        <!-- ตัวแก้ไข (สร้างจาก JS) -->
+        <form class="ins-editor" id="editor" novalidate></form>
+      </div>
+    </main>
+    <script type="module" src="assets/js/pages/insurers.js"></script>
+  </body>
+</html>

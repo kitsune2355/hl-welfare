@@ -3288,3 +3288,580 @@ input[type='radio'] {
     z-index: 36;
   }
 }
+
+/* =====================================================================
+   ส่งออกไฟล์แจ้งประกัน (insurance.html → openExport)
+   ===================================================================== */
+.export-record {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  cursor: pointer;
+}
+.export-record input {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}
+.export-record span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--fg);
+}
+.export-record small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.export-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+}
+.export-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+.export-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.export-head h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+.export-head p {
+  font-size: 12px;
+}
+.export-n {
+  display: flex;
+  gap: 6px;
+}
+.chip-n {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.chip-n.n-in {
+  background: var(--info-soft, var(--primary-soft));
+  color: var(--info, var(--primary));
+}
+.chip-n.n-out {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.export-co {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.export-co-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 12px;
+}
+.export-co-row + .export-co-row {
+  border-top: 1px solid var(--border);
+}
+.export-missing {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 13px;
+}
+.export-missing summary {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+}
+.export-missing ul {
+  max-height: 180px;
+  overflow-y: auto;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--fg);
+}
+.export-missing li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 4px 0;
+}
+.export-note {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--muted);
+}
+.export-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+.export-actions .btn-primary {
+  flex: 1;
+}
+.export-head .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* =====================================================================
+   หน้าแบบฟอร์มประกัน (insurers.html)
+   ===================================================================== */
+.check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  cursor: pointer;
+}
+.check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}
+.field .label {
+  font-size: 13px;
+  font-weight: 500;
+}
+.switch-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 38px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.ins-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  padding-bottom: 88px; /* เว้นที่ให้แถบปุ่มบันทึก */
+}
+.ins-list {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ins-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.ins-item:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+}
+.ins-item.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.ins-item.new {
+  flex-direction: row;
+  align-items: center;
+  border-style: dashed;
+  color: var(--primary);
+}
+.ins-item-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+.ins-item-cos {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--fg);
+}
+.ins-card .card-head .row-actions {
+  flex-shrink: 0;
+}
+/* section ในตัวแก้ไข: หัวข้ออยู่บน เนื้อหาเต็มความกว้าง (ตารางคอลัมน์ต้องการพื้นที่) */
+.ins-card .form-section {
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+.ins-card .form-section > div:first-child p code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-size: 12px;
+}
+.ins-card .form-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.ins-card .form-grid .span-2 {
+  grid-column: span 2;
+}
+.ins-card .field .check + .check {
+  margin-top: 6px;
+}
+.ph-bar {
+  position: sticky;
+  top: -1px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: -4px 0 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.ph-bar .chip {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11.5px;
+}
+.ins-table {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.ins-th,
+.ins-tr {
+  display: grid;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+}
+.ins-th {
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ins-tr + .ins-tr,
+.ins-th + .ins-tr {
+  border-top: 1px solid var(--border);
+}
+.ins-tr.off {
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+.ins-tr.off .input {
+  opacity: 0.55;
+}
+.co-table .ins-th,
+.co-table .ins-tr {
+  grid-template-columns: 28px 90px minmax(0, 2fr) minmax(0, 1fr) 80px;
+}
+.co-code {
+  display: flex;
+  flex-direction: column;
+}
+.co-code .warn {
+  font-size: 11px;
+  color: var(--warning);
+}
+.col-table .ins-th,
+.col-table .ins-tr {
+  grid-template-columns: 40px minmax(0, 1.5fr) minmax(0, 1.3fr) minmax(0, 1.2fr) 118px 64px 104px;
+}
+.col-table .ins-tr {
+  align-items: start;
+}
+.col-table textarea.input {
+  min-height: 38px;
+  resize: vertical;
+  line-height: 1.35;
+}
+.col-letter {
+  display: grid;
+  place-items: center;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-weight: 700;
+  color: var(--muted);
+}
+.col-src {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.add-row {
+  margin-top: 10px;
+}
+.ins-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ins-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ins-line .grow {
+  flex: 1;
+  min-width: 0;
+}
+.ins-line .combo-btn,
+.ins-line .combo {
+  width: 120px;
+}
+.ins-line .size {
+  width: 64px;
+}
+/* ตัวอย่างแบบ Excel */
+.xl-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
+}
+.xl-tabs {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.xl-tab {
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.xl-tab.active {
+  border-color: var(--border);
+  background: var(--surface);
+  color: #107c41; /* สีเขียว Excel */
+  margin-bottom: -1px;
+}
+.xl-file {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.xl-scroll {
+  max-height: 520px;
+  overflow: auto;
+}
+.xl-preview {
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: Tahoma, var(--font);
+  font-size: 11px;
+  color: #111;
+  background: #fff;
+}
+.xl-preview td {
+  height: 20px;
+  padding: 2px 4px;
+  border: 1px solid #e5e7eb;
+  vertical-align: middle;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.xl-preview .xl-rn,
+.xl-preview .xl-cl {
+  position: sticky;
+  z-index: 1;
+  border: 1px solid #d4d4d8;
+  background: #f4f4f5;
+  color: #71717a;
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+}
+.xl-preview .xl-rn {
+  left: 0;
+}
+.xl-preview thead .xl-cl,
+.xl-preview thead .xl-rn {
+  top: 0;
+  z-index: 2;
+}
+.xl-preview td.th,
+.xl-preview td.sumTh {
+  border-color: #7f7f7f;
+  background: #edeff3;
+  font-weight: 700;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.25;
+}
+.xl-preview td.td,
+.xl-preview td.tdCenter,
+.xl-preview td.tdNum,
+.xl-preview td.sumTd {
+  border-color: #7f7f7f;
+}
+.xl-preview td.tdCenter {
+  text-align: center;
+}
+.xl-preview td.tdNum {
+  text-align: right;
+}
+.xl-preview td.title,
+.xl-preview td.subtitle {
+  font-weight: 700;
+  text-align: center;
+}
+.xl-preview td.title {
+  font-size: 13px;
+}
+.xl-preview td.total,
+.xl-preview td.b {
+  font-weight: 700;
+}
+.xl-preview td.center {
+  text-align: center;
+}
+@media (max-width: 1279px) {
+  .ins-layout {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .col-table .ins-th {
+    display: none;
+  }
+  .col-table .ins-tr {
+    grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .col-table .ins-tr > span:nth-child(n + 4) {
+    grid-column: auto;
+  }
+}
+@media (max-width: 1023px) {
+  .ins-layout {
+    grid-template-columns: 1fr;
+  }
+  .ins-list {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .ins-item {
+    min-width: 220px;
+  }
+  .ins-card .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 639px) {
+  .ins-card .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .ins-card .form-grid .span-2 {
+    grid-column: auto;
+  }
+  .co-table .ins-th {
+    display: none;
+  }
+  .co-table .ins-tr {
+    grid-template-columns: 28px 1fr 1fr;
+  }
+  .co-table .ins-tr > span:nth-child(n + 3) {
+    grid-column: 2 / -1;
+  }
+  .col-table .ins-tr {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+  .col-table .ins-tr > span:nth-child(n + 3) {
+    grid-column: 2;
+  }
+  .ins-line {
+    flex-wrap: wrap;
+  }
+  .ins-line .grow {
+    flex-basis: 100%;
+  }
+}
+
+/* หน้าที่มีแถบปุ่มบันทึกด้านล่าง: Toast ขึ้นไปอยู่เหนือแถบ (ไม่บังปุ่ม "บันทึก") */
+body:has(.form-footer) .toasts {
+  bottom: 76px;
+}
+@media (max-width: 767px) {
+  body:has(.form-footer) .toasts {
+    bottom: calc(140px + env(safe-area-inset-bottom));
+  }
+  body.bn-hide:has(.form-footer) .toasts {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+}
+/* ตัวอย่างแบบ Excel: เว้นวรรคหลายช่องตามจริง */
+.xl-preview td.text,
+.xl-preview td.note,
+.xl-preview td.total,
+.xl-preview td.td {
+  white-space: pre;
+}
+.ins-card textarea.input {
+  height: auto;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.ins-card #f-foot {
+  min-height: 132px;
+  line-height: 1.5;
+}
+@media (max-width: 1279px) {
+  /* ตารางคอลัมน์แบบการ์ด: ป้ายกำกับเหนือแต่ละช่อง */
+  .col-table .ins-tr > span[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+}
+
+/* หน้าที่มีแถบปุ่มบันทึกติดล่าง: เลื่อนหา/โฟกัสช่องแล้วต้องไม่ไปอยู่ใต้แถบ */
+html:has(.form-footer),
+.page:has(.form-footer) {
+  scroll-padding-bottom: 96px;
+}
+@media (max-width: 767px) {
+  html:has(.form-footer),
+  .page:has(.form-footer) {
+    scroll-padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  }
+}

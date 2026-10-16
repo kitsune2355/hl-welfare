@@ -98,7 +98,7 @@ function drawSummary(d) {
         tone: 'danger',
         title: `มีพนักงาน ${d.urgentPending} รายที่ต้องแจ้งออกจากประกันกลุ่มทันที`,
         body: 'กรณีเลิกจ้าง / กระทำผิด ต้องแจ้งบริษัทประกันโดยไม่รอรอบวันที่ 5',
-        action: html`<a class="btn btn-danger btn-sm" href="insurance.html?tab=urgent">ไปส่งแจ้ง</a>`,
+        action: html`<a class="btn btn-danger btn-sm" href="insurance.html?tab=urgent">ไปส่งออกไฟล์</a>`,
       }),
     );
   }
@@ -141,9 +141,9 @@ function drawSummary(d) {
 // ===================== คิวงาน =====================
 /** ลิงก์ไปหน้าที่ใช้แก้งานนั้น */
 function taskLink(t) {
-  if (t.kind === 'INSURANCE_URGENT') return { href: 'insurance.html?tab=urgent', label: 'ไปส่งแจ้ง' };
-  if (t.kind === 'INSURANCE_IN') return { href: 'insurance.html?tab=in', label: 'ไปส่งแจ้ง' };
-  if (t.kind === 'INSURANCE_OUT') return { href: 'insurance.html?tab=out', label: 'ไปส่งแจ้ง' };
+  if (t.kind === 'INSURANCE_URGENT') return { href: 'insurance.html?tab=urgent', label: 'ไปส่งออกไฟล์' };
+  if (t.kind === 'INSURANCE_IN') return { href: 'insurance.html?tab=in', label: 'ไปส่งออกไฟล์' };
+  if (t.kind === 'INSURANCE_OUT') return { href: 'insurance.html?tab=out', label: 'ไปส่งออกไฟล์' };
   if (t.kind === 'UNIFORM_ISSUE') return { href: 'uniform.html', label: 'ไปแจกชุด' };
   if (t.kind === 'PROBATION_MISSING') return { href: `employee-form.html?id=${t.employee.id}`, label: 'บันทึกข้อมูล' };
   return { href: `employee.html?id=${t.employee.id}`, label: 'ดูพนักงาน' };

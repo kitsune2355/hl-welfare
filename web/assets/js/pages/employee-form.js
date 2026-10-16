@@ -3,6 +3,7 @@ import { api } from '../app/api.js';
 import { initPage } from '../app/shell.js';
 import { validateEmployee } from '../application/employeeRules.js';
 import { addDays, todayISO } from '../domain/date.js';
+import { digitsOnly, formatThaiId } from '../domain/thaiId.js';
 import { $, $$, esc, getParam, html, render } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import { alertBox, errorState } from '../ui/components.js';
@@ -68,6 +69,11 @@ function readForm() {
     empCode: v('empCode'),
     firstName: v('firstName'),
     lastName: v('lastName'),
+    title: v('title') || null,
+    gender: v('gender') || null,
+    nationalId: digitsOnly(v('nationalId')) || null,
+    phone: digitsOnly(v('phone')) || null,
+    email: v('email') || null,
     companyCode: v('companyCode'),
     siteId: Number(v('siteId')) || 0,
     employeeType: type,
@@ -105,9 +111,12 @@ function showErrors(errors) {
 }
 
 function fill(e) {
-  for (const k of ['empCode', 'firstName', 'lastName', 'birthDate', 'startDate', 'probationPassDate', 'lastWorkingDate', 'endDate', 'salary', 'level']) {
+  for (const k of ['empCode', 'firstName', 'lastName', 'birthDate', 'startDate', 'probationPassDate', 'lastWorkingDate', 'endDate', 'salary', 'level', 'phone', 'email']) {
     form[k].value = e[k] ?? '';
   }
+  form.nationalId.value = e.nationalId ? formatThaiId(e.nationalId) : '';
+  setSelect('title', e.title);
+  setSelect('gender', e.gender);
   setSelect('companyCode', e.companyCode);
   fillSites();
   setSelect('siteId', String(e.siteId));
@@ -125,6 +134,10 @@ function fill(e) {
 // ----- events -----
 form.addEventListener('change', (e) => {
   if (e.target.name === 'companyCode') fillSites();
+  // คำนำหน้า → เพศ (เปลี่ยนเองทีหลังได้)
+  if (e.target.name === 'title' && e.target.value) setSelect('gender', e.target.value === 'นาย' ? 'M' : 'F');
+  // เลขบัตร: จัดรูปแบบ 1-2345-67890-12-3 เมื่อครบ 13 หลัก
+  if (e.target.name === 'nationalId') form.nationalId.value = formatThaiId(form.nationalId.value);
   syncVisibility();
   if (touched) showErrors(validateEmployee(readForm()));
 });

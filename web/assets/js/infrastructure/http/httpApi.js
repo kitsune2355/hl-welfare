@@ -18,7 +18,7 @@ export class HttpApi {
       throw new ApiError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้', 0);
     }
     const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    if (!res.ok || body.error !== undefined) throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status);
+    if (!res.ok || body.error !== undefined) throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status, body.errors);
     return body.data;
   }
   send(method, path, data) {
@@ -84,6 +84,19 @@ export class HttpApi {
   }
   getInsuranceBatch(id) {
     return this.req(`/insurance/batches/${id}`);
+  }
+  // ---------- แบบฟอร์มบริษัทประกัน + ส่งออกไฟล์ ----------
+  listInsurers() {
+    return this.req('/insurers');
+  }
+  saveInsurer(input) {
+    return input.id ? this.send('PUT', `/insurers/${input.id}`, input) : this.send('POST', '/insurers', input);
+  }
+  deleteInsurer(id) {
+    return this.del(`/insurers/${id}`);
+  }
+  exportInsurance(input) {
+    return this.send('POST', '/insurance/exports', input);
   }
   submitInsuranceBatch(input) {
     return this.send('POST', '/insurance/batches', input);

@@ -1,6 +1,12 @@
+import { digitsOnly, isValidThaiId } from '../domain/thaiId.js';
+
 /** กฎตรวจข้อมูลพนักงาน — ใช้ร่วมกันทั้งฟอร์มและตาราง Excel */
 export function validateEmployee(e) {
   const x = {};
+  // ข้อมูลส่วนตัวสำหรับไฟล์แจ้งประกัน: ไม่บังคับ แต่ถ้ากรอกต้องถูกรูปแบบ
+  if (e.nationalId && !isValidThaiId(e.nationalId)) x.nationalId = 'เลขบัตรประชาชนไม่ถูกต้อง (13 หลัก / ตรวจหลักสุดท้ายไม่ผ่าน)';
+  if (e.phone && !/^0\d{8,9}$/.test(digitsOnly(e.phone))) x.phone = 'เบอร์โทรต้องขึ้นต้นด้วย 0 และมี 9–10 หลัก';
+  if (e.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.email)) x.email = 'รูปแบบอีเมลไม่ถูกต้อง';
   if (!e.empCode.trim()) x.empCode = 'กรุณากรอกรหัสพนักงาน';
   if (!e.firstName.trim()) x.firstName = 'กรุณากรอกชื่อ';
   if (!e.lastName.trim()) x.lastName = 'กรุณากรอกนามสกุล';

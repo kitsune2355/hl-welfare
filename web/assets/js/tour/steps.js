@@ -94,10 +94,9 @@ export const TOUR_STEPS = {
     ready: '#sections .card:not(.hidden) .table, #sections .card:not(.hidden) .empty',
     steps: [
       { element: '#cycle__combo', title: 'เลือกรอบ', text: 'แจ้งบริษัทประกันทุก <b>วันที่ 5</b> ของเดือน · ดูย้อนหลังได้ 6 เดือน ล่วงหน้า 3 เดือน', side: 'bottom' },
-      { element: '#tabs', title: 'แท็บตามประเภทการแจ้ง', text: 'ตัวเลขบนแท็บ = <b>จำนวนรอส่ง</b> · สีแดง = แจ้งออกทันที (เลิกจ้าง/กระทำผิด) ต้องส่งก่อน', side: 'bottom', align: 'start' },
-      { element: '#sections .card:not(.hidden) [data-submit]', title: 'ส่งแจ้ง', text: 'ติ๊กเลือกรายชื่อ (หรือเลือกทั้งหมดที่หัวตาราง) แล้วกดปุ่มนี้ — ระบบจะให้ยืนยันก่อนเสมอ', side: 'left' },
-      { element: '#export', title: 'ส่งออก CSV', text: 'ไฟล์เปิดด้วย Excel ได้ ภาษาไทยไม่เพี้ยน — ใช้ส่งให้บริษัทประกัน', side: 'bottom', align: 'end' },
-      { element: '.tab[data-tab="history"]', title: 'ประวัติการส่ง', text: 'ดูทุกครั้งที่ส่งแจ้ง · <b>คลิกแถว</b> เพื่อดูรายชื่อพนักงานใน batch นั้น (ค้นหาได้ ส่งออก CSV ได้) · ส่งผิด? กด <b>ยกเลิก</b> รายชื่อจะกลับไปรอส่ง (อย่าลืมแจ้งบริษัทประกันด้วย)', side: 'bottom' },
+      { element: '#tabs', title: 'แท็บตามประเภทการแจ้ง', text: 'ตัวเลขบนแท็บ = <b>จำนวนที่ยังไม่ส่งออก</b> · สีแดง = แจ้งออกทันที (เลิกจ้าง/กระทำผิด) · คอลัมน์ “บริษัทประกัน” บอกว่ารายชื่อจะอยู่ในไฟล์ของใคร', side: 'bottom', align: 'start' },
+      { element: '#export', title: 'ส่งออกไฟล์แจ้งประกัน', text: 'ได้ไฟล์ Excel ตาม<b>แบบฟอร์มของแต่ละบริษัทประกัน</b> (ชีตสรุป + ชีตละบริษัท) · ติ๊ก “บันทึกว่าแจ้งรอบนี้แล้ว” เพื่อไม่ให้รายชื่อตกค้างไปรอบถัดไป · ตั้งค่าแบบฟอร์มที่เมนู “แบบฟอร์มประกัน”', side: 'bottom', align: 'end' },
+      { element: '.tab[data-tab="history"]', title: 'ประวัติการส่งออก', text: 'ทุกครั้งที่ส่งออกแบบบันทึก · <b>คลิกแถว</b> เพื่อดูรายชื่อ (ค้นหาได้ ส่งออก CSV ได้) · ส่งออกผิด? กด <b>ยกเลิก</b> รายชื่อจะกลับไปรอส่งออก (ถ้าส่งไฟล์ไปแล้วต้องแจ้งบริษัทประกันด้วย)', side: 'bottom' },
     ],
   },
 
@@ -137,6 +136,18 @@ export const TOUR_STEPS = {
       { element: '.xgrid tbody tr:first-child td[data-col="hasGroupInsurance"]', title: 'ได้รับประกันกลุ่ม', text: 'คลิกสวิตช์เพื่อเปลี่ยนและบันทึกทันที — มีผลกับ <b>แม่บ้าน CNS</b> ในหน่วยงานนั้น', side: 'bottom' },
       { element: '.xgrid tbody tr:first-child td[data-col="poloColor"]', title: 'สีโปโล', text: 'สีโปโลของ <b>Pro Site</b> ในหน่วยงานนี้ — ระบบใช้กำหนดชุดฟอร์มที่จะแจก', side: 'bottom' },
       { element: '.xgrid tbody tr:first-child [data-grid-act="delete"]', title: 'ลบหน่วยงาน', text: 'ลบได้เฉพาะหน่วยงานที่ไม่มีพนักงานอยู่', side: 'left' },
+    ],
+  },
+
+  insurers: {
+    ready: '#sec-columns',
+    steps: [
+      { element: '#list', title: 'แบบฟอร์มของบริษัทประกัน', text: '1 แบบฟอร์ม = บริษัทประกัน 1 ราย · <b>เปิดใช้</b> = แสดงในหน้าส่งออกของประกันกลุ่ม', side: 'right' },
+      { element: '#sec-companies', title: 'บริษัทในเครือ & กรมธรรม์', text: 'ติ๊กบริษัทที่แจ้งกับบริษัทประกันนี้ และใส่เลขกรมธรรม์ — 1 บริษัทผูกกับแบบฟอร์มที่เปิดใช้ได้ 1 แบบ', side: 'top' },
+      { element: '#sec-columns', title: 'คอลัมน์', text: 'เลือก <b>ข้อมูล</b> ของแต่ละคอลัมน์ เรียงด้วยปุ่ม ↑ ↓ · ใส่ <b>กลุ่ม</b> เช่น <code>ประกันชีวิตกลุ่ม &gt; เข้าใหม่</code> เพื่อทำหัวตาราง 2 ชั้น', side: 'top' },
+      { element: '.ph-bar', title: 'ตัวแปร', text: 'คลิกเพื่อแทรกลงช่องที่เลือกล่าสุด เช่น {policyNo} {month} — ระบบแทนค่าให้ตอนส่งออก', side: 'bottom' },
+      { element: '#sec-preview', title: 'ตัวอย่าง', text: 'หน้าตาไฟล์จริงด้วยข้อมูลสมมติ อัปเดตทันทีที่แก้ · ดาวน์โหลดไฟล์ตัวอย่างไปเปิดใน Excel ได้', side: 'top' },
+      { element: '#save', title: 'บันทึก', text: 'ไฟล์ที่ส่งออกหลังจากนี้ใช้แบบใหม่ทันที', side: 'top', align: 'end' },
     ],
   },
 };

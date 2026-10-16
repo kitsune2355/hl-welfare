@@ -2,6 +2,8 @@ import { insuranceStatus } from '../../domain/insurance.js';
 import { BATCH_TYPE_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
 import { addDays, nextCycleDate } from '../../domain/date.js';
 import { uniformStatus } from '../../domain/uniform.js';
+import { thaiIdCheckDigit } from '../../domain/thaiId.js';
+import { defaultInsurers } from './insurers.js';
 import { defaultRules } from './rules.js';
 
 const SYSTEM_USER = 'ระบบ (ข้อมูลตั้งต้น)';
@@ -23,12 +25,13 @@ function prng(seed) {
   return { next, int, pick };
 }
 
+// legalName = ชื่อตามทะเบียน (ใช้ในชีตสรุปของไฟล์แจ้งประกัน)
 const COMPANIES = [
-  { code: 'HL', name: 'แฮปปี้แลนด์ (HL)' },
-  { code: 'PRO', name: 'PRO' },
-  { code: 'CNS', name: 'CNS' },
-  { code: 'CIC', name: 'CIC' },
-  { code: 'AS', name: 'AS' },
+  { code: 'HL', name: 'แฮปปี้แลนด์ (HL)', legalName: 'บ.แฮปปี้แลนด์ จำกัด' },
+  { code: 'PRO', name: 'PRO', legalName: 'บ.โปรแอ็คทีฟ แมเนจเม้นท์ จำกัด' },
+  { code: 'CNS', name: 'CNS', legalName: 'บ.คลีนนิ่ง โซลูชั่น จำกัด' },
+  { code: 'CIC', name: 'CIC', legalName: 'บ.คอน.อิน.คอน จำกัด' },
+  { code: 'AS', name: 'AS', legalName: 'บ.อาเชี่ยน คอนสตรั๊คชั่น จำกัด' },
 ];
 
 const SITES = [
@@ -110,6 +113,28 @@ const LAST = [
   'อินทร์แก้ว',
   'ชัยมงคล',
 ];
+
+/** ชื่อผู้หญิงใน FIRST + edge case (ใช้กำหนดเพศ/คำนำหน้าของข้อมูลจำลอง) */
+const FEMALE = new Set(['สมหญิง', 'มาลี', 'สุดา', 'กาญจนา', 'พิมพ์ชนก', 'อรอุมา', 'ศิริพร', 'จันทร์เพ็ญ', 'รัตนา', 'นภัสสร', 'สุภาพร', 'ลำดวน', 'กมลชนก', 'จิราพร', 'บัวผัน', 'ปวีณา', 'สมศรี', 'ทองใบ']);
+
+/**
+ * ข้อมูลส่วนตัวสำหรับไฟล์แจ้งประกัน (เพศ คำนำหน้า เลขบัตร โทร อีเมล) — ข้อมูลสมมติทั้งหมด
+ * ใช้ PRNG แยกต่อคน จึงไม่กระทบค่าสุ่มอื่นของ seed · ทุกคนที่ 23 เว้นว่างไว้ทดสอบคำเตือน "ข้อมูลไม่ครบ"
+ */
+function personalInfo(id, firstName) {
+  const r = prng(90000 + id);
+  const gender = FEMALE.has(firstName) ? 'F' : 'M';
+  const title = gender === 'M' ? 'นาย' : r.next() < 0.5 ? 'นาง' : 'นางสาว';
+  if (id % 23 === 0) return { title, gender, nationalId: null, phone: null, email: null };
+  const first12 = `${r.pick(['1', '3'])}${Array.from({ length: 11 }, () => r.int(0, 9)).join('')}`;
+  return {
+    title,
+    gender,
+    nationalId: first12 + thaiIdCheckDigit(first12),
+    phone: `0${r.pick(['6', '8', '9'])}${String(r.int(0, 99999999)).padStart(8, '0')}`,
+    email: id % 3 === 0 ? `emp${id}@example.com` : null,
+  };
+}
 
 export function buildSeed(today) {
   const rnd = prng(20261015);
@@ -331,10 +356,11 @@ export function buildSeed(today) {
     const pass = addDays(startDate, 119);
     const status = d.status ?? 'ACTIVE';
     const level = d.employeeType === 'CENTRAL' ? (d.level ?? 1) : null;
+    const firstName = d.firstName ?? rnd.pick(FIRST);
     return {
       id,
       empCode: `${prefix[d.companyCode]}${String(6000 + counters[d.companyCode] * 7).padStart(5, '0')}`,
-      firstName: d.firstName ?? rnd.pick(FIRST),
+      firstName,
       lastName: d.lastName ?? rnd.pick(LAST),
       companyCode: d.companyCode,
       siteId: d.siteId ?? OFFICE_SITE[d.companyCode],
@@ -351,6 +377,7 @@ export function buildSeed(today) {
       lastWorkingDate: d.lastWorkingDate ?? null,
       endDate: d.endDate ?? null,
       endReason: d.endReason ?? null,
+      ...personalInfo(id, firstName),
     };
   });
   const siteById = new Map(SITES.map((s) => [s.id, s]));
@@ -372,6 +399,7 @@ export function buildSeed(today) {
       add(st.exitCycleDate, 'OUT', e.id);
     }
   }
+  const insurers = defaultInsurers();
   const batches = [...grouped.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, ids], i) => {
@@ -383,6 +411,8 @@ export function buildSeed(today) {
         employeeIds: ids,
         submittedAt: `${addDays(cycleDate, -1)}T10:00:00`,
         submittedBy: SYSTEM_USER,
+        insurerId: insurers[0].id,
+        insurerName: insurers[0].shortName,
       };
     });
   // ----- ประวัติแจกชุด: ครบกำหนดเกิน 14 วัน → แจกแล้ว (เว้นบางส่วนให้ค้าง) -----
@@ -438,5 +468,5 @@ export function buildSeed(today) {
       }),
   ];
   const activities = raw.sort((a, b) => a.at.localeCompare(b.at)).map((a, i) => ({ ...a, id: i + 1 }));
-  return { companies: COMPANIES, sites: SITES, employees, batches, issues, rules, activities };
+  return { companies: COMPANIES, sites: SITES, employees, batches, issues, rules, activities, insurers };
 }

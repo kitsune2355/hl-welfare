@@ -21,6 +21,7 @@ const MENU = [
 const SETTINGS = [
   { id: 'rules', href: 'rules.html', label: 'เงื่อนไขสวัสดิการ', icon: 'book-open-text' },
   { id: 'sites', href: 'sites.html', label: 'หน่วยงาน', icon: 'building-2' },
+  { id: 'insurers', href: 'insurers.html', label: 'แบบฟอร์มประกัน', icon: 'file-spreadsheet' },
 ];
 
 /** เมนูด้านล่าง (มือถือ <768px) — 4 หน้าหลัก + "เพิ่มเติม" (เปิดเมนูเต็ม: PVD, เงื่อนไข, หน่วยงาน, ผู้ใช้) */

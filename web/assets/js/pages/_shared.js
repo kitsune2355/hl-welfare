@@ -64,7 +64,7 @@ const ACTION = {
   DELETE: { icon: 'trash-2', tone: 'danger', label: 'ลบ' },
   CANCEL: { icon: 'ban', tone: 'warning', label: 'ยกเลิก' },
 };
-const ENTITY_ICON = { EMPLOYEE: 'user', SITE: 'building-2', INSURANCE_BATCH: 'shield-plus', UNIFORM_ISSUE: 'shirt' };
+const ENTITY_ICON = { EMPLOYEE: 'user', SITE: 'building-2', INSURANCE_BATCH: 'shield-plus', INSURER_FORM: 'file-spreadsheet', UNIFORM_ISSUE: 'shirt' };
 
 export function activityFeed(items, { linkEmployee = true } = {}) {
   if (!items.length) return emptyState({ title: 'ยังไม่มีกิจกรรม', description: 'การเพิ่ม/แก้ไข/ลบข้อมูลทุกครั้งจะแสดงที่นี่' });

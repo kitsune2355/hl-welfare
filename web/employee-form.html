@@ -59,6 +59,47 @@
               </div>
             </div>
 
+            <!-- ===== ข้อมูลสำหรับแจ้งบริษัทประกัน ===== -->
+            <div class="form-section">
+              <div>
+                <h3>ข้อมูลแจ้งประกัน</h3>
+                <p>ใช้ในไฟล์แจ้งเข้าบริษัทประกัน — ไม่บังคับ แต่ถ้าว่างระบบจะเตือนตอนส่งออก</p>
+              </div>
+              <div class="form-grid">
+                <div class="field">
+                  <label for="title">คำนำหน้า</label>
+                  <select id="title" name="title" data-combobox>
+                    <option value="">– ไม่ระบุ –</option>
+                    <option>นาย</option>
+                    <option>นาง</option>
+                    <option>นางสาว</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="gender">เพศ</label>
+                  <select id="gender" name="gender" data-combobox>
+                    <option value="">– ไม่ระบุ –</option>
+                    <option value="M">ชาย</option>
+                    <option value="F">หญิง</option>
+                  </select>
+                  <span class="hint">เลือกคำนำหน้าแล้วระบบเลือกเพศให้</span>
+                </div>
+                <div class="field">
+                  <label for="nationalId">เลขบัตรประชาชน</label>
+                  <input class="input num" id="nationalId" name="nationalId" inputmode="numeric" maxlength="17" autocomplete="off" placeholder="13 หลัก" />
+                  <span class="hint">ตรวจหลักสุดท้ายให้อัตโนมัติ</span>
+                </div>
+                <div class="field">
+                  <label for="phone">โทรศัพท์มือถือ</label>
+                  <input class="input num" id="phone" name="phone" type="tel" inputmode="tel" maxlength="12" placeholder="เช่น 0812345678" />
+                </div>
+                <div class="field">
+                  <label for="email">อีเมล</label>
+                  <input class="input" id="email" name="email" type="email" inputmode="email" autocomplete="off" />
+                </div>
+              </div>
+            </div>
+
             <!-- ===== การจ้างงาน ===== -->
             <div class="form-section">
               <div>

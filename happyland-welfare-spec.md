@@ -106,7 +106,7 @@
 | `domain/` | กฎคำนวณสิทธิ (ประกัน / PVD / ชุดฟอร์ม), วันที่, คำศัพท์ภาษาไทยของ enum, `types.js` (JSDoc) | `domain` เท่านั้น | DOM, `fetch`, `localStorage`, ชั้นอื่นทั้งหมด |
 | `application/` | `ports.js` (สัญญา API), `errors.js` (`ApiError`), `usecases/` (dashboard, รอบประกัน, ชุดค้างแจก, คิวงาน), `employeeRules.js` (validate) | `domain` | `infrastructure`, `ui`, `pages` |
 | `infrastructure/` | adapter ที่ทำตามสัญญา: `mock/` (ข้อมูลจำลอง) และ `http/` (เรียก PHP) | `application`, `domain` | `ui`, `pages` |
-| `shared/` | `dom.js` (html, render, on), `format.js`, `labels.js`, `csv.js`, `icons.js` | `domain` | `infrastructure`, `pages` |
+| `shared/` | `dom.js` (html, render, on), `format.js`, `labels.js`, `csv.js`, `excel.js` (เขียน .xlsx ด้วย ExcelJS), `icons.js` | `domain` | `infrastructure`, `pages` |
 | `ui/` | ชิ้นส่วน UI: components, table, datagrid (Excel), combobox, overlay (modal/toast) — **ไม่รู้จักกฎสวัสดิการ** | `shared` | `domain`, `application`, `infrastructure` |
 | `app/` | `api.js` (เลือก Mock/Http จาก `config.js`), `shell.js` (sidebar/topbar/ธีม) | ทุกชั้น | – |
 | `pages/` | โค้ดของแต่ละหน้า ใช้ข้อมูลผ่าน `api` เท่านั้น | `app`, `application`, `domain`, `ui`, `shared` | `infrastructure` (ต้องผ่าน `app/api.js`) |
@@ -160,16 +160,19 @@ hl-welfare/
 │   ├── employees.html                 ← พนักงาน (ตาราง Excel)
 │   ├── employee.html                  ← รายละเอียดพนักงาน (?id=)
 │   ├── employee-form.html             ← ฟอร์มเพิ่ม/แก้ไข/พ้นสภาพ (?id=)
-│   ├── insurance.html                 ← ประกันกลุ่ม (?cycle=&tab=urgent|in|out|history)
+│   ├── insurance.html                 ← ประกันกลุ่ม (?cycle=&tab=urgent|in|out|history&batch=) + ส่งออกไฟล์แจ้งประกัน
 │   ├── pvd.html                       ← กองทุนสำรองเลี้ยงชีพ (?tab=)
 │   ├── uniform.html                   ← ชุดฟอร์ม (?tab=history)
 │   ├── rules.html                     ← เงื่อนไขสวัสดิการ (?tab=)
 │   ├── sites.html                     ← หน่วยงาน (ตาราง Excel)
+│   ├── insurers.html                  ← แบบฟอร์มประกัน: ตั้งค่าไฟล์ Excel ของแต่ละบริษัทประกัน (?id=)
+│   ├── .htaccess                      ← Cache-Control: no-cache (เบราว์เซอร์ตรวจไฟล์ใหม่หลังอัปเดต)
 │   ├── favicon.svg
 │   └── assets/
 │       ├── css/app.css                ← design tokens (gradient น้ำเงิน→เขียว) + ทุก component + ธีม tour
 │       ├── css/login.css              ← หน้าเข้าสู่ระบบ + อนิเมชัน
 │       ├── vendor/driver.js/          ← driver.js 1.8.0 (MIT) เก็บในโปรเจกต์ ไม่ต้องพึ่ง CDN
+│       ├── vendor/exceljs/            ← ExcelJS 4.4.0 (MIT) สร้างไฟล์ .xlsx — โหลดเมื่อกดส่งออกครั้งแรกเท่านั้น
 │       └── js/
 │           ├── config.js              ← ★ ตั้งค่า: apiMode 'mock' | 'http', apiBaseUrl, auth (เปิด/ปิด login, อายุ session)
 │           ├── domain/                ← ① กฎสวัสดิการ (pure)
@@ -177,6 +180,8 @@ hl-welfare/
 │           │   ├── date.js            ← addDays, ageAt, nextCycleDate, diffDays (UTC)
 │           │   ├── labels.js          ← คำภาษาไทยของ enum
 │           │   ├── insurance.js       ← insuranceStatus, insuranceExit
+│           │   ├── insurerForm.js     ← แหล่งข้อมูลคอลัมน์, รูปแบบวันที่, ตัวแปร {…} ของแบบฟอร์มประกัน
+│           │   ├── thaiId.js          ← ตรวจ/จัดรูปแบบเลขบัตรประชาชน 13 หลัก
 │           │   ├── pvd.js             ← pvdStatus
 │           │   ├── uniform.js         ← matchUniformRule, resolveItems, uniformStatus
 │           │   └── eligibility.js     ← benefitsOf() + re-export
@@ -184,11 +189,12 @@ hl-welfare/
 │           │   ├── ports.js           ← WelfareApi (JSDoc)
 │           │   ├── errors.js          ← ApiError(message, status)
 │           │   ├── employeeRules.js   ← validateEmployee, normalizeEmployee
-│           │   └── usecases/          ← dashboard, insuranceCycle, uniformPending, workQueue
+│           │   ├── insurerFormRules.js ← validateInsurerForm, blankInsurerForm
+│           │   └── usecases/          ← dashboard, insuranceCycle, insurerExport (ไฟล์แจ้งประกัน), uniformPending, workQueue
 │           ├── infrastructure/        ← ③ adapter
-│           │   ├── mock/              ← rules.js (กฎตั้งต้น), seed.js (ข้อมูลจำลอง), users.js (ผู้ใช้ทดลอง), mockApi.js
+│           │   ├── mock/              ← rules.js (กฎตั้งต้น), insurers.js (แบบฟอร์มตั้งต้น 2 บริษัทประกัน), seed.js (ข้อมูลจำลอง), users.js (ผู้ใช้ทดลอง), mockApi.js
 │           │   └── http/httpApi.js    ← fetch → PHP (เฟส 2)
-│           ├── shared/                ← ④ dom.js, format.js, labels.js, csv.js, icons.js
+│           ├── shared/                ← ④ dom.js, format.js, labels.js, csv.js, excel.js, icons.js
 │           ├── ui/                    ← ⑤ ชิ้นส่วน UI
 │           │   ├── components.js      ← badge, card, statCard, emptyState, alertBox, avatar, tabs …
 │           │   ├── table.js           ← DataTable (อ่านอย่างเดียว) + pager
@@ -257,6 +263,7 @@ export const CONFIG = {
 | `uniform.html` | ชุดฟอร์ม | `?tab=history` |
 | `rules.html` | เงื่อนไขสวัสดิการ | `?tab=insurance\|pvd\|uniform\|settings\|open` |
 | `sites.html` | หน่วยงาน | – |
+| `insurers.html` | แบบฟอร์มประกัน (ตั้งค่า) | `?id=<id>` หรือ `?id=new` |
 
 ### 5.4 เพิ่มหน้าใหม่ (ตัวอย่าง `reports.html`)
 1. คัดลอก `sites.html` → `reports.html` แก้ `<title>`, `<h1>`, เนื้อหาใน `<main id="page">` และเปลี่ยน `<script src="assets/js/pages/reports.js">` (สคริปต์ใน `<head>` ที่ตรวจการเข้าสู่ระบบติดมาด้วย — อย่าลบ)
@@ -299,7 +306,7 @@ export type EmployeeStatus = 'ACTIVE' | 'INACTIVE';
 export type EndReason = 'RESIGN' | 'ABSENT_3D' | 'TERMINATED' | 'MISCONDUCT';
 export type ISODate = string; // YYYY-MM-DD
 
-export interface Company { code: CompanyCode; name: string; }
+export interface Company { code: CompanyCode; name: string; legalName: string; } // legalName ใช้ในชีตสรุปของไฟล์แจ้งประกัน
 
 export interface Site {
   id: number;
@@ -329,6 +336,12 @@ export interface Employee {
   lastWorkingDate: ISODate | null;
   endDate: ISODate | null;
   endReason: EndReason | null;
+  // ข้อมูลสำหรับไฟล์แจ้งบริษัทประกัน (ไม่บังคับ — ว่างแล้วหน้าส่งออกจะเตือน)
+  title: 'นาย' | 'นาง' | 'นางสาว' | null;
+  gender: 'M' | 'F' | null;
+  nationalId: string | null;       // 13 หลัก ตรวจ check digit (domain/thaiId.js)
+  phone: string | null;            // 0 + 8–9 หลัก
+  email: string | null;
 }
 
 // ----- Rules -----
@@ -461,7 +474,40 @@ export interface InsuranceBatch {
   employeeIds: number[];
   submittedAt: string;
   submittedBy: string;
+  insurerId?: number;              // ส่งออกให้แบบฟอร์ม/บริษัทประกันไหน
+  insurerName?: string;            // เก็บชื่อไว้ในตัว — ลบแบบฟอร์มแล้วประวัติไม่หาย
   employees?: EmployeeLite[];      // แนบมาใน GET /insurance/batches — แสดงตัวอย่างชื่อ + ค้นหา
+}
+
+/** แบบฟอร์ม Excel ของบริษัทประกัน 1 ราย (หน้า insurers.html) — ดูข้อ 7.4 */
+export interface InsurerForm {
+  id: number;
+  name: string;                    // บริษัท ไทยประกันชีวิต จำกัด (มหาชน)
+  shortName: string;               // ใช้ในชื่อไฟล์/หน้าส่งออก
+  active: boolean;                 // ปิด = ไม่แสดงในหน้าส่งออก
+  companies: { companyCode: CompanyCode; policyNo: string; holderName: string; plan: string }[];
+  dateFormat: 'DD/MM/YYYY' | 'D/M/YYYY' | 'D/M/YY';
+  dateEra: 'BE' | 'CE';
+  inMark: string; outMark: string; // เครื่องหมายในช่องเข้าใหม่/ลาออก เช่น "P"
+  sheetName: string;               // ชื่อชีตต่อบริษัท เช่น "{companyCode}"
+  fileName: string;                // เช่น "แจ้งเข้า-ออก {insurer} {cycleDate}"
+  headerLines: { text: string; align: 'left' | 'center'; bold: boolean; size: number }[];
+  columns: { source: ColumnSource; header: string; group: string; width: number; only: '' | 'IN' | 'OUT'; text?: string }[];
+  totalsLine: string;              // บรรทัดสรุปจำนวนใต้ตาราง (ว่าง = ไม่แสดง)
+  footerLines: string[];
+  summarySheet: boolean; summaryTitle: string;
+  includeEmptySheets: boolean;
+  signer: { name: string; department: string; phone: string };
+}
+
+/** POST /insurance/exports — ข้อมูลสำหรับสร้างไฟล์ (usecase: buildInsurerExport) */
+export interface InsurerExport {
+  cycleDate: ISODate;
+  insurer: InsurerForm;
+  companies: (InsurerForm['companies'][number] & { companyName: string; in: InsuranceCycleRow[]; out: InsuranceCycleRow[] })[];
+  missing: { employee: Employee; fields: ('title' | 'gender' | 'nationalId')[] }[]; // แถวเข้าใหม่ที่ข้อมูลไม่ครบ
+  alreadyExported: number;
+  batches: InsuranceBatch[];       // batch ที่สร้าง (record = true)
 }
 
 /** ข้อมูลพนักงานแบบย่อ (ไม่มีเงินเดือน/วันเกิด) */
@@ -562,6 +608,7 @@ export interface EmployeeFilter {
 - `OUT`: `exitCycleDate <= cycleDate` ที่ยังไม่ส่ง + ที่ส่งแล้วในรอบนี้
 - `URGENT`: แจ้งออกทันทีที่ยังไม่ส่ง แสดงทุกรอบจนกว่าจะส่ง
 - พนักงานถูกแจ้งเข้าได้ครั้งเดียว และแจ้งออกได้ครั้งเดียว (ส่งซ้ำ → error)
+- "ส่งแล้ว" = อยู่ในไฟล์ที่**ส่งออกแบบบันทึกว่าแจ้งแล้ว** (ข้อ 7.4) — ไม่มีปุ่ม "ส่งแจ้ง" แยกอีกต่อไป
 
 ### 7.2 กองทุนสำรองเลี้ยงชีพ
 
@@ -635,6 +682,46 @@ entitlements (limit = min(endDate, today)):
 
 ---
 
+### 7.4 ส่งออกไฟล์แจ้งบริษัทประกัน (แทนปุ่ม "ส่งแจ้ง")
+HR ใช้บริษัทประกันหลัก 2 ราย และส่ง**ไฟล์ Excel ตามแบบฟอร์มของแต่ละราย**ทุกรอบ (วันที่ 5) — ระบบจึงไม่มีปุ่มส่งแจ้ง แต่สร้างไฟล์ให้ตรงแบบฟอร์มแทน
+
+| บริษัทประกัน | ไฟล์ต้นแบบที่ HR ใช้ | โครงสร้าง |
+|---|---|---|
+| ไทยประกันชีวิต (เปิดใช้ · ทุกบริษัท) | `1. แจ้งเข้า-ออก 5-2-2569.xls` | ชีตสรุป + ชีตละบริษัท · หัว: ชื่อบริษัทประกัน / "รายการแจ้งปรับปรุงข้อมูลพนักงานระหว่างปีกรมธรรม์" / เลขกรมธรรม์ + ผู้ถือกรมธรรม์ + เดือน · ตาราง 20 คอลัมน์ (ลำดับ, รหัส, ชื่อ, เพศ, …, เลขบัตร, …, แผน, เข้าใหม่ **P**, ลาออก **P**, …, วันที่มีผล) · หมายเหตุ 3 ข้อ + ผู้แจ้ง |
+| เมืองไทยประกันชีวิต (ปิดไว้ · ใช้แบบเดิม ก.พ. 68) | `1 PMAV-แจ้งเข้า ยกเลิก ก.พ. 68.xlsx` | ชีตสรุป + ชีตละบริษัท · หัวตาราง **2 ชั้น**: ประกันชีวิตกลุ่มฯ › เข้าใหม่ (แผน, วันมีผล, วันเกิด, เงินเดือน, เลขบัตร) / ยกเลิก (วันมีผล) / เปลี่ยนแปลง · บรรทัดสรุปจำนวน + ช่องลงนาม |
+
+**ใครอยู่ในไฟล์ (`buildInsurerExport`)**
+- ใช้รายการรอบเดียวกับข้อ 7.1 กรองเฉพาะบริษัทในเครือที่ผูกกับแบบฟอร์มนั้น
+- = ยังไม่ส่งออก (รวมตกค้างจากรอบก่อน + แจ้งออกทันที) + ที่ส่งออกให้บริษัทประกันนี้ในรอบนี้แล้ว → **ส่งออกซ้ำได้รายชื่อเดิม**
+- เรียงต่อชีต: แจ้งเข้า → แจ้งออก (แจ้งออกทันทีรวมในแจ้งออก) ตามรหัสพนักงาน
+- `missing`: แถวเข้าใหม่ที่ขาดข้อมูลที่แบบฟอร์มใช้ (คำนำหน้า / เพศ / เลขบัตร) → เตือนพร้อมลิงก์ไปแก้ (โทร/อีเมลไม่เตือน)
+
+**บันทึกว่าแจ้งแล้ว** (ติ๊กเป็นค่าเริ่มต้นในหน้าส่งออก)
+- สร้าง `InsuranceBatch` ต่อประเภท (IN / OUT / URGENT) พร้อม `insurerId`, `insurerName` → รายชื่อไม่ตกค้างไปรอบถัดไป
+- ส่งออกรอบเดิม + บริษัทประกันเดิมอีกครั้ง = **แทนที่** batch เดิมของรอบนั้น (ไม่ซ้ำ)
+- ยกเลิกได้ที่แท็บประวัติการส่งออก (รายชื่อกลับไป "ยังไม่ส่งออก")
+- ไม่ติ๊ก = ดาวน์โหลดดูอย่างเดียว ไม่บันทึก
+
+**แบบฟอร์ม (`InsurerForm`) — ตั้งค่าที่ `insurers.html`**
+- บริษัทในเครือ 1 บริษัทผูกกับแบบฟอร์มที่**เปิดใช้**ได้ 1 แบบ (`validateInsurerForm` ตรวจซ้ำ) · แต่ละบริษัทมีชื่อผู้ถือกรมธรรม์ เลขกรมธรรม์ แผนประกัน
+- คอลัมน์: เลือก**ข้อมูล**จาก `COLUMN_SOURCES` (`domain/insurerForm.js`)
+
+| ข้อมูล | ค่า |
+|---|---|
+| `seq` `empCode` `title` `fullName` `titleFullName` `firstName` `lastName` | ลำดับ / รหัส / คำนำหน้า / ชื่อ (คำนำหน้าติดชื่อ เช่น "นายสุพจน์ …") |
+| `gender` `birthDate` `nationalId` `position` `phone` `email` `salary` `startDate` | ข้อมูลพนักงาน (position = ตำแหน่ง หรือ ฝ่าย) |
+| `companyCode` `siteName` `plan` | บริษัท / หน่วยงาน / แผนประกันของบริษัทนั้น (เฉพาะแถวเข้า) |
+| `inMark` `outMark` | เครื่องหมาย เช่น P ในแถวเข้า / ออก |
+| `effectiveDate` `inEffectiveDate` `outEffectiveDate` `cycleDate` | วันมีผล (เข้า = วันครบสิทธิ, ออก = วันออก) / เฉพาะแถวเข้า / เฉพาะแถวออก / วันที่รอบ |
+| `reason` `text` `blank` | เหตุผล / ข้อความคงที่ / ว่างให้กรอกเอง |
+
+- `group` = "ชั้น 1 > ชั้น 2" → คอลัมน์ติดกันที่กลุ่มเดียวกัน merge แนวนอน, หัวที่ไม่มีกลุ่ม merge แนวตั้ง (`headerLayout`)
+- `only` = แสดงค่าเฉพาะแถวเข้า/ออก (เช่น วันเกิด เลขบัตร เฉพาะแถวเข้า ตามไฟล์จริง)
+- ตัวแปรในหัว/ท้ายเอกสาร/ชื่อไฟล์: `{insurer} {companyCode} {companyName} {policyNo} {month} {cycleDate} {exportDate} {in} {out} {total} {signerName} {signerDept} {signerPhone}`
+- วันที่เขียนเป็น**ข้อความ**ตามรูปแบบที่เลือก (พ.ศ./ค.ศ.) — เปิดเครื่องไหนก็ไม่เพี้ยน · เลขบัตรเป็นข้อความ (ไม่กลายเป็น 1.1E+12)
+
+**สร้างไฟล์**: `buildSheetModel` (เซลล์ + merge + ความกว้าง, ทดสอบได้ใน Node) → `shared/excel.js` แปลงเป็น .xlsx ด้วย ExcelJS (เส้นขอบ, หัวตารางพื้นเทา ตัวหนา ตัดบรรทัด, ตรึงหัวตาราง, พิมพ์แนวนอนพอดี 1 หน้ากว้าง) · CSV = ตารางเดียวทุกบริษัท (`exportCsvRows`)
+
 ## 8. API Contract
 
 สัญญา API (port) — **MockApi และ HttpApi ต้องมีเมธอดครบตามนี้** · ในโค้ดจริงอยู่ที่ `web/assets/js/application/ports.js` (JSDoc)
@@ -656,7 +743,11 @@ export interface WelfareApi {
   getInsuranceCycle(cycleDate: ISODate): Promise<InsuranceCycle>;
   listInsuranceBatches(): Promise<InsuranceBatch[]>;
   getInsuranceBatch(id: number): Promise<InsuranceBatchDetail>;
-  submitInsuranceBatch(input: { cycleDate: ISODate; type: BatchType; employeeIds: number[] }): Promise<InsuranceBatch>;
+  submitInsuranceBatch(input: { cycleDate: ISODate; type: BatchType; employeeIds: number[] }): Promise<InsuranceBatch>; // ใช้ภายใน/ทดสอบ — หน้าจอใช้ exportInsurance แทน
+  exportInsurance(input: { cycleDate: ISODate; insurerId: number; record?: boolean }): Promise<InsurerExport>;
+  listInsurers(): Promise<InsurerForm[]>;
+  saveInsurer(form: InsurerForm): Promise<InsurerForm>;   // id = 0 → สร้างใหม่ · 422 + errors เมื่อไม่ผ่าน validateInsurerForm
+  deleteInsurer(id: number): Promise<void>;
 
   listPvdMembers(): Promise<PvdRow[]>;
 
@@ -710,7 +801,12 @@ export interface WelfareApi {
 | GET | `/api/insurance/cycles/{YYYY-MM-DD}` | – | `InsuranceCycle` |
 | GET | `/api/insurance/batches` | – | `InsuranceBatch[]` (ใหม่ก่อน · แนบ `employees` แบบย่อ) |
 | GET | `/api/insurance/batches/{id}` | – | `InsuranceBatchDetail` / 404 |
-| POST | `/api/insurance/batches` | `{cycleDate, type, employeeIds}` | `InsuranceBatch` (201) |
+| POST | `/api/insurance/batches` | `{cycleDate, type, employeeIds}` | `InsuranceBatch` (201) — ใช้ภายใน |
+| POST | `/api/insurance/exports` | `{cycleDate, insurerId, record}` | `InsurerExport` · record = แทนที่ batch ของรอบ + บริษัทประกันนั้น (transaction) |
+| GET | `/api/insurers` | – | `InsurerForm[]` |
+| POST | `/api/insurers` | `InsurerForm` | `InsurerForm` (201) / 422 `{error, errors}` |
+| PUT | `/api/insurers/{id}` | `InsurerForm` | `InsurerForm` / 422 |
+| DELETE | `/api/insurers/{id}` | – | 204 |
 | GET | `/api/pvd/members` | – | `PvdRow[]` |
 | GET | `/api/uniform/issues` | `?employeeId=` | `UniformIssue[]` |
 | POST | `/api/uniform/issues` | `{employeeId, entitlementKey, event, qty, size, issuedAt}` | `UniformIssue` (201) |
@@ -1085,8 +1181,9 @@ employees: {
 | **ภาพรวม & ติดตามงาน — แท็บคิวงาน / บันทึกกิจกรรม** (เดิม: ศูนย์ติดตามงาน) | Stat ด่วน/ต้องทำ/ติดตาม/กิจกรรมวันนี้ (คลิกกรอง) · คิวงาน (ระดับ, งาน, พนักงาน, กำหนด/เลยมา N วัน, ปุ่มไปดำเนินการ) กรองตามประเภท + ค้นหา · บันทึกกิจกรรม (ไทม์ไลน์ กรองตามประเภท, โหลดเพิ่ม) | รีเฟรชอัตโนมัติทุก 60 วิ (ปิดได้) + เมื่อกลับมาที่แท็บ · แสดงเวลาอัปเดตล่าสุด |
 | **พนักงาน** | **ช่องค้นหา** รหัส/ชื่อ + **แท็กกรองเร็ว** สถานะ / ประเภท / บริษัท (กลุ่มละ 1 ค่า แตะซ้ำ = ยกเลิก · ตัวเลขบนแท็ก = จำนวนที่จะได้ นับตามคำค้นและแท็กกลุ่มอื่น · "ล้างแท็ก" · เก็บใน URL `?q=&status=&type=&company=` · มือถือแท็กเป็นแถวเดียวปัดซ้าย-ขวา · กำหนดกลุ่มที่ `TAG_GROUPS` ใน `pages/employees.js`) · **ตาราง Excel** แก้ทุกช่องในตาราง (**ไม่แสดงเงินเดือน** — แก้ที่ฟอร์มพนักงาน · เพิ่มแถวจากตารางได้โดยไม่ต้องกรอกเงินเดือน) · "+ เพิ่มแถว" · ปุ่มเปิดรายละเอียด / ลบ ท้ายแถว · ปุ่ม "เพิ่มด้วยฟอร์มเต็ม" | ค้นหาแบบ debounce 250ms · ล้างตัวกรอง · บันทึกอัตโนมัติรายแถว · ลบต้องยืนยัน |
 | **รายละเอียดพนักงาน** | Header: Avatar, ชื่อ, รหัส, Badge สถานะ, ปุ่มแก้ไข · แถบข้อมูลย่อ (บริษัท, หน่วยงาน, ประเภท, สัญญา, อายุงาน) · การ์ดประกันกลุ่ม · การ์ด PVD · การ์ดชุดฟอร์ม (ตารางแต่ละรอบ + เลือกไซซ์ + "บันทึกแจก" + ยกเลิกการแจก) · **ประวัติการเปลี่ยนแปลง** | การ์ดสิทธิ = Badge ใหญ่ + timeline (เริ่มงาน → ครบสิทธิ → รอบแจ้งเข้า → แจ้งออก) · ไม่มีสิทธิ = แสดงเหตุผลเป็นข้อๆ |
-| **ฟอร์มพนักงาน** | แบ่ง section: ข้อมูลส่วนตัว / การจ้างงาน / การพ้นสภาพ · บริษัท→หน่วยงาน (กรองตามบริษัท), ประเภท (ส่วนกลางแสดงฝ่าย+ระดับ / Pro Site แสดงตำแหน่ง), สัญญา, เงินเดือน, วันเริ่มงาน, ผ่านทดลองงาน | ช่องที่ไม่เกี่ยวซ่อนอัตโนมัติ · validation ใต้ช่อง · ปุ่มบันทึก sticky ด้านล่าง · บันทึกสำเร็จ → Toast + กลับหน้ารายละเอียด |
-| **ประกันกลุ่ม** | เลือกรอบ (วันที่ 5, ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · **แท็บ**: แจ้งออกทันที / แจ้งเข้า / แจ้งออก / ประวัติการส่ง — ตัวเลขบนแท็บ = จำนวนรอส่ง (แดง/ฟ้า/เหลือง) · checkbox เลือก → "ส่งแจ้ง" · ส่งออก CSV · **แท็บประวัติการส่ง**: คอลัมน์ "รายชื่อ" (2 ชื่อแรก + "+N" · ค้นหาชื่อที่หัวคอลัมน์ได้) · **คลิกแถว / "ดูรายชื่อ" → modal รายชื่อใน batch** (รหัส-ชื่อ ลิงก์ไปหน้าพนักงาน, บริษัท·ประเภท, หน่วยงาน, วันครบสิทธิ/วันมีผล, เหตุผล · ค้นหาในรายชื่อเมื่อ > 5 ราย · ส่งออก CSV เฉพาะ batch · ยกเลิกการส่ง) · ลิงก์ตรง `?batch=<id>` · **ยกเลิก batch** | ตัวนับในหัว section · เลือกทั้งหมด · Modal ยืนยัน "ส่งแจ้งเข้า 5 ราย รอบ 5 พ.ย. 69?" · แถวที่ส่งแล้วแสดง Badge เขียว checkbox ปิด |
+| **ฟอร์มพนักงาน** | แบ่ง section: ข้อมูลส่วนตัว / **ข้อมูลแจ้งประกัน** (คำนำหน้า → เลือกเพศให้, เพศ, เลขบัตรประชาชน ตรวจหลักสุดท้าย + จัดรูปแบบ 1-2345-67890-12-3, โทร, อีเมล — ไม่บังคับ) / การจ้างงาน / การพ้นสภาพ · บริษัท→หน่วยงาน (กรองตามบริษัท), ประเภท (ส่วนกลางแสดงฝ่าย+ระดับ / Pro Site แสดงตำแหน่ง), สัญญา, เงินเดือน, วันเริ่มงาน, ผ่านทดลองงาน | ช่องที่ไม่เกี่ยวซ่อนอัตโนมัติ · validation ใต้ช่อง · ปุ่มบันทึก sticky ด้านล่าง · บันทึกสำเร็จ → Toast + กลับหน้ารายละเอียด |
+| **ประกันกลุ่ม** | เลือกรอบ (วันที่ 5, ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · **แท็บ**: แจ้งออกทันที / แจ้งเข้า / แจ้งออก / ประวัติการส่งออก — ตัวเลขบนแท็บ = จำนวนยังไม่ส่งออก (แดง/ฟ้า/เหลือง) · คอลัมน์ "บริษัทประกัน" · **ไม่มีปุ่มส่งแจ้ง/checkbox** · ปุ่ม **"ส่งออกไฟล์แจ้งประกัน"** → modal: การ์ดต่อบริษัทประกัน (จำนวนเข้า/ออกต่อบริษัท, เลขกรมธรรม์, เตือนข้อมูลไม่ครบพร้อมลิงก์แก้, ดาวน์โหลด Excel / CSV) + ติ๊ก "บันทึกว่าแจ้งรอบนี้แล้ว" + เตือนบริษัทที่ยังไม่ผูกแบบฟอร์ม (ข้อ 7.4) · **แท็บประวัติการส่ง**: คอลัมน์ "รายชื่อ" (2 ชื่อแรก + "+N" · ค้นหาชื่อที่หัวคอลัมน์ได้) · **คลิกแถว / "ดูรายชื่อ" → modal รายชื่อใน batch** (รหัส-ชื่อ ลิงก์ไปหน้าพนักงาน, บริษัท·ประเภท, หน่วยงาน, วันครบสิทธิ/วันมีผล, เหตุผล · ค้นหาในรายชื่อเมื่อ > 5 ราย · ส่งออก CSV เฉพาะ batch · ยกเลิกการส่ง) · ลิงก์ตรง `?batch=<id>` · **ยกเลิก batch** | ตัวนับในหัว section · เลือกทั้งหมด · Modal ยืนยัน "ส่งแจ้งเข้า 5 ราย รอบ 5 พ.ย. 69?" · แถวที่ส่งแล้วแสดง Badge เขียว checkbox ปิด |
+| **แบบฟอร์มประกัน** (`insurers.html`, เมนูตั้งค่า) | ซ้าย: รายการแบบฟอร์ม (เปิดใช้/ปิดอยู่, บริษัทที่ผูก) · ขวา: ตัวแก้ไข — ข้อมูลทั่วไป (ชื่อ, ชื่อย่อ, เปิดใช้, รูปแบบวันที่ พ.ศ./ค.ศ., เครื่องหมาย P, ชื่อไฟล์/ชีต, ชีตสรุป) · บริษัทในเครือ & กรมธรรม์ (ติ๊ก + ผู้ถือกรมธรรม์ + เลขกรมธรรม์ + แผน) · คอลัมน์ (หัวคอลัมน์หลายบรรทัด, ข้อมูล, กลุ่ม, แสดงในแถว, ความกว้าง, ↑ ↓ ลบ, เพิ่ม) · หัวเอกสาร (บรรทัด + จัดตำแหน่ง + ตัวหนา + ขนาด) · ท้ายเอกสาร & ผู้แจ้ง · ปุ่มแทรกตัวแปร {…} · **ตัวอย่างแบบ Excel สด** (แท็บชีต, merge จริง) + ดาวน์โหลดไฟล์ตัวอย่าง · เพิ่ม / ทำสำเนา / ลบ / ยกเลิกการแก้ไข | ตรวจบริษัทซ้ำกับแบบฟอร์มที่เปิดใช้อื่น (ป้าย "ใช้กับ …") · มีแก้ไขค้างแล้วสลับแบบฟอร์ม/ออกจากหน้า → ถามก่อน · ติ๊กบริษัทออกแล้วติ๊กกลับได้ค่าเดิม · มือถือ: คอลัมน์เป็นการ์ดมีป้ายกำกับ |
 | **PVD** | Stat: สมาชิก, หักสะสมรวม/เดือน, สมทบรวม/เดือน · ตารางสมาชิก (วันเป็นสมาชิก, เงินเดือน, หัก, สมทบ, อายุสมาชิก, vesting) · ส่งออก CSV | Alert เหลืองถ้า vesting เป็นค่าตัวอย่าง · vesting แสดงเป็น progress bar |
 | **ชุดฟอร์ม** | แท็บ "ค้างแจก" (เลือกไซซ์ + บันทึกแจกในแถว) / "ประวัติการแจก" · สรุปจำนวนตามแบบเสื้อ (วางแผนสั่งผลิต) | แถวเกินกำหนด > 30 วัน Badge แดง · บันทึกแล้วแถวหายพร้อม Toast |
 | **เงื่อนไขสวัสดิการ** | แท็บ: ประกันกลุ่ม / PVD / ชุดฟอร์ม / ค่าตั้งค่า (read-only ในเฟส 1) + รายการประเด็นที่รอยืนยันกับ HR | |
@@ -1181,6 +1278,11 @@ $r->get('/api/insurance/cycles/{date}',       [InsuranceController::class, 'cycl
 $r->get('/api/insurance/batches',             [InsuranceController::class, 'batches']);
 $r->get('/api/insurance/batches/{id}',        [InsuranceController::class, 'batch']);   // รายชื่อใน batch
 $r->post('/api/insurance/batches',            [InsuranceController::class, 'submit']);
+$r->post('/api/insurance/exports',            [InsuranceController::class, 'export']);   // ไฟล์แจ้งประกัน
+$r->get('/api/insurers',                       [InsurerController::class, 'index']);
+$r->post('/api/insurers',                      [InsurerController::class, 'create']);
+$r->put('/api/insurers/{id}',                  [InsurerController::class, 'update']);
+$r->delete('/api/insurers/{id}',               [InsurerController::class, 'delete']);
 $r->get('/api/pvd/members',                   [PvdController::class, 'index']);
 $r->get('/api/uniform/issues',                [UniformController::class, 'issues']);
 $r->post('/api/uniform/issues',               [UniformController::class, 'issue']);
@@ -1264,7 +1366,8 @@ final class Database
 - **Prepared statements ทุก query** (ห้ามต่อ string SQL)
 - Repository แปลงแถว DB (`snake_case`) → array `camelCase` ตาม TypeScript type, `boolean` ต้องเป็น `true/false` ไม่ใช่ `0/1`, field JSON (`companies`, `items`, `deptGroups`) ต้อง `json_decode`
 - `Domain/Eligibility.php` แปลงจาก `web/assets/js/domain/insurance.js`, `pvd.js`, `uniform.js` แบบบรรทัดต่อบรรทัด · use-case ใน `Application/Service` แปลงจาก `application/usecases/*.js` ใช้ `DateTimeImmutable` + timezone UTC สำหรับคำนวณวัน
-- `submitInsuranceBatch` และ `createUniformIssue` ทำใน **transaction** และพึ่ง unique key กันซ้ำ
+- `submitInsuranceBatch`, `exportInsurance(record)` และ `createUniformIssue` ทำใน **transaction** และพึ่ง unique key กันซ้ำ
+- ตอบ 422 พร้อม `errors: {field: message}` เมื่อ validation ไม่ผ่าน (HttpApi ส่งต่อเป็น `ApiError.details`)
 - เขียน `audit_log` ทุกครั้งที่ create/update พนักงาน, ส่ง batch, แจกชุด
 - เฟสถัดไป: login + role (HR Admin / HR บริษัท / Payroll / ผู้ดูแลสต็อก / ผู้บริหาร)
 
@@ -1312,6 +1415,11 @@ CREATE TABLE employees (
   last_working_date    DATE NULL,
   end_date             DATE NULL,
   end_reason           ENUM('RESIGN','ABSENT_3D','TERMINATED','MISCONDUCT') NULL,
+  title                ENUM('นาย','นาง','นางสาว') NULL,
+  gender               ENUM('M','F') NULL,
+  national_id          CHAR(13) NULL,
+  phone                VARCHAR(10) NULL,
+  email                VARCHAR(150) NULL,
   created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (company_code) REFERENCES companies(code),
@@ -1383,7 +1491,20 @@ CREATE TABLE insurance_batches (
   type          ENUM('IN','OUT','URGENT') NOT NULL,
   submitted_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   submitted_by  VARCHAR(100) NOT NULL,
-  INDEX idx_batch_cycle (cycle_date)
+  insurer_id    INT UNSIGNED NULL,                -- แบบฟอร์มที่ส่งออก (ลบแบบฟอร์มได้ → ไม่ทำ FK)
+  insurer_name  VARCHAR(100) NULL,
+  INDEX idx_batch_cycle (cycle_date),
+  INDEX idx_batch_cycle_insurer (cycle_date, insurer_id)
+) ENGINE=InnoDB;
+
+-- แบบฟอร์ม Excel ของบริษัทประกัน: ค่าที่ซ้อนกัน (คอลัมน์, หัว/ท้ายเอกสาร) เก็บเป็น JSON
+CREATE TABLE insurer_forms (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name         VARCHAR(150) NOT NULL,
+  short_name   VARCHAR(60)  NOT NULL,
+  active       TINYINT(1)   NOT NULL DEFAULT 1,
+  config_json  LONGTEXT     NOT NULL,             -- InsurerForm ส่วนที่เหลือ (companies, columns, headerLines, …)
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 CREATE TABLE insurance_batch_items (
@@ -1582,7 +1703,7 @@ describe('ประกันกลุ่ม', () => {
 
 ### เฟส 1 — หน้าเว็บ (HTML + JS) + Mock ✅
 - [x] กฎสวัสดิการ `domain/*.js` + use-case `application/usecases/*.js` + validation `employeeRules.js`
-- [x] `npm test` ผ่าน 34/34 (node:test ไม่ต้องติดตั้งแพ็กเกจ)
+- [x] `npm test` ผ่าน 46/46 (รวม `tests/insurerExport.test.js`: เลขบัตร, ตรวจแบบฟอร์ม, หัวตาราง 2 ชั้น, รูปแบบวันที่, ใครอยู่ในไฟล์, โมเดลชีต, CSV, บันทึก/ส่งออกซ้ำ/ยกเลิก, CRUD) (node:test ไม่ต้องติดตั้งแพ็กเกจ)
 - [x] MockApi (localStorage, seed + edge cases, บันทึกกิจกรรม) + HttpApi (พร้อมใช้เฟส 2) + `config.js`
 - [x] `app.css` design tokens (โทนสว่าง + โหมดมืด) + responsive (มือถือ/แท็บเล็ต)
 - [x] UI: DataTable (แบ่งหน้า + การ์ดมือถือ), ExcelGrid, Combobox (`<select data-combobox>`), Modal/Toast/confirm, ไอคอน SVG ในตัว
@@ -1597,6 +1718,9 @@ describe('ประกันกลุ่ม', () => {
 - [x] มือถือ: เมนูด้านล่าง (bottom navigation) ซ่อนเมื่อปัดขึ้น / แสดงเมื่อปัดลง + topbar ช่องค้นหาชิดโลโก้
 - [x] หน้าพนักงาน: ช่องค้นหา + แท็กกรองเร็ว (แทน select 3 ช่อง)
 - [x] ประวัติการส่งแจ้ง: ดูรายชื่อพนักงานในแต่ละ batch (modal + ค้นหา + CSV) · `GET /api/insurance/batches/{id}`
+- [x] ประกันกลุ่ม: เลิกใช้ปุ่มส่งแจ้ง → **ส่งออกไฟล์ Excel ตามแบบฟอร์มของบริษัทประกัน** (ชีตสรุป + ชีตละบริษัท) + บันทึกว่าแจ้งแล้ว / ส่งออกซ้ำ / ยกเลิก
+- [x] หน้า "แบบฟอร์มประกัน" (CRUD) + แบบฟอร์มตั้งต้น ไทยประกันชีวิต / เมืองไทยประกันชีวิต ตามไฟล์จริง
+- [x] พนักงาน: คำนำหน้า เพศ เลขบัตรประชาชน (ตรวจ check digit) โทร อีเมล
 - [x] แถบแบ่งหน้าใหม่ทั้งระบบ: หน้าแรก/สุดท้าย, แถวต่อหน้าแบบ segmented, ช่องไปหน้า, มือถือพิมพ์เลขหน้าได้
 - [x] หน้า login + อนิเมชันเมื่อสำเร็จ + ป้องกันทุกหน้า (mock) · ธีม gradient น้ำเงิน → เขียวทั้งระบบ
 - [x] Responsive ใหม่: breakpoints 1024/900/768/640, การ์ดบนมือถือ, พื้นที่กดบนจอสัมผัส, scrollbar ชิดขอบจอ, tour ไฮไลต์ตรงตำแหน่ง
@@ -1610,6 +1734,7 @@ describe('ประกันกลุ่ม', () => {
 - [ ] `Domain/Eligibility.php` + PHPUnit ผ่าน (case เดียวกับ JS)
 - [ ] Service + Controller ครบทุก endpoint ในข้อ 8 (รวม DELETE, `/monitor/tasks`, `/activity`)
 - [ ] `Application/Service/WorkQueueService` คู่แฝดของ `usecases/workQueue.js`
+- [ ] `InsurerExportService` คู่แฝดของ `usecases/insurerExport.js` (`buildInsurerExport`) + `InsurerController` (CRUD + `validateInsurerForm`) + ตาราง `insurer_forms` · ไฟล์ .xlsx ยังสร้างในเบราว์เซอร์ (PHP ส่งแค่ข้อมูล)
 - [ ] `InsuranceCycleService::batchDetail()` คู่แฝดของ `buildBatchDetail` (`usecases/insuranceCycle.js`) + `GET /api/insurance/batches/{id}`
 - [ ] Validation + transaction + unique key กันซ้ำ
 - [ ] audit_log (user_name จาก session)
@@ -1626,6 +1751,10 @@ describe('ประกันกลุ่ม', () => {
 ---
 
 ## 17. ประเด็นที่ต้องยืนยันกับ HR
+- [ ] **บริษัทประกัน 2 ราย แบ่งกันอย่างไร?** ไฟล์ ก.พ. 68 = เมืองไทย (AS, CNS, HL, PRO) · ไฟล์ ก.พ. 69 = ไทยประกัน (ทุกบริษัท) — ระบบตั้งต้นให้ไทยประกันเปิดใช้ทุกบริษัท และเมืองไทยปิดไว้ · ถ้าใช้พร้อมกัน แบ่งตามบริษัทในเครือใช่ไหม (1 บริษัท = 1 บริษัทประกัน) หรือแบ่งตามประเภทพนักงาน/ความคุ้มครอง?
+- [ ] เลขกรมธรรม์ของ AS และ HL (ไฟล์ไทยประกันเว้นไว้ "จี…") และเลขกรมธรรม์เมืองไทยทุกบริษัท
+- [ ] "วันที่มีผลบังคับ" ในไฟล์ไทยประกัน = วันที่รอบ (5) ทุกแถวตามไฟล์ตัวอย่าง ใช่ไหม หรือควรเป็นวันครบสิทธิ/วันออกจริง (เปลี่ยนได้ในแบบฟอร์ม)
+- [ ] "สถานะพนักงาน (E)" และ "แผนประกัน" ในไฟล์ไทยประกัน ต้องกรอกค่าอะไร
 - [ ] "ทำงานครบ 30/120 วัน" นับวันปฏิทินหรือวันทำงาน? นับวันเริ่มงานเป็นวันที่ 1 ไหม? (ระบบตอนนี้: `startDate + N วันปฏิทิน`)
 - [ ] ครบสิทธิหลังวันที่ 5 → เข้ารอบเดือนถัดไปใช่ไหม?
 - [ ] อายุ 65 ตรวจเฉพาะตอนแจ้งเข้า หรือต้องแจ้งออกเมื่ออายุครบ 65 ระหว่างเป็นสมาชิกด้วย?

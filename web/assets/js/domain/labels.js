@@ -25,6 +25,29 @@ export const END_REASON_LABEL = {
   MISCONDUCT: 'กระทำผิด',
 };
 
+/** คำนำหน้าชื่อ (ใช้ในไฟล์แจ้งบริษัทประกัน) */
+export const TITLES = ['นาย', 'นาง', 'นางสาว'];
+
+export const GENDER_LABEL = {
+  M: 'ชาย',
+  F: 'หญิง',
+};
+
+export const THAI_MONTHS_FULL = [
+  'มกราคม',
+  'กุมภาพันธ์',
+  'มีนาคม',
+  'เมษายน',
+  'พฤษภาคม',
+  'มิถุนายน',
+  'กรกฎาคม',
+  'สิงหาคม',
+  'กันยายน',
+  'ตุลาคม',
+  'พฤศจิกายน',
+  'ธันวาคม',
+];
+
 export const BATCH_TYPE_LABEL = {
   IN: 'แจ้งเข้า',
   OUT: 'แจ้งออก',
