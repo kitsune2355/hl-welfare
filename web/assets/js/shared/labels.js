@@ -47,4 +47,7 @@ export const ACTIVITY_ENTITY_LABEL = {
   INSURANCE_BATCH: 'ประกันกลุ่ม',
   INSURER_FORM: 'แบบฟอร์มประกัน',
   UNIFORM_ISSUE: 'ชุดฟอร์ม',
+  STOCK_REQUEST: 'ใบเบิกสต็อก',
+  USER: 'ผู้ใช้',
+  SYSTEM: 'ระบบ',
 };

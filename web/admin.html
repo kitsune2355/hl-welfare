@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ผู้ดูแลระบบ · HL Welfare</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <script>
+      // ธีม + ตรวจการเข้าสู่ระบบก่อนแสดงหน้า (ยังไม่ login → ไปหน้า login.html)
+      try {
+        if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+        var s = JSON.parse(sessionStorage.getItem('hl-session') || localStorage.getItem('hl-session') || 'null');
+        if (!s || s.expiresAt < Date.now()) location.replace('login.html?next=' + encodeURIComponent((location.pathname.split('/').pop() || 'index.html') + location.search));
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <!-- admin.html?tab=users|access|health|settings|audit — SUPER_ADMIN เท่านั้น (เซิร์ฟเวอร์ตรวจทุก endpoint: backend/api/admin.php) -->
+    <main id="page" class="page">
+      <div class="page-head">
+        <div>
+          <h1>ผู้ดูแลระบบ</h1>
+          <p>ผู้ใช้ · การเข้าสู่ระบบ · สถานะระบบ · ตั้งค่าระบบ · บันทึกการใช้งาน</p>
+        </div>
+        <div class="page-actions">
+          <span id="updated" class="small muted hide-sm"></span>
+          <button class="btn btn-sm" id="refresh" title="รีเฟรช" aria-label="รีเฟรช"><i data-icon="refresh-cw"></i><span class="hide-sm">รีเฟรช</span></button>
+        </div>
+      </div>
+
+      <div id="blocked" class="hidden"></div>
+      <div id="tabs"></div>
+
+      <!-- ===== ผู้ใช้ ===== -->
+      <div class="panel" id="tab-users">
+        <section class="card">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="users"></i></span>
+              <div>
+                <h2>ผู้ใช้ระบบ</h2>
+                <p>ชื่อผู้ใช้ควรตรงกับบัญชีใน stock_hr — สต็อกใช้ส่งลิงก์เซ็นรับชุดฟอร์มให้ผู้ขอเบิก</p>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" id="add-user"><i data-icon="user-plus"></i> เพิ่มผู้ใช้</button>
+          </header>
+          <div id="users"></div>
+        </section>
+      </div>
+
+      <!-- ===== การเข้าสู่ระบบ ===== -->
+      <div class="panel hidden" id="tab-access">
+        <div id="lockouts" class="mb"></div>
+        <section class="card mb">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="log-in"></i></span>
+              <div>
+                <h2>Session ที่ใช้งานอยู่</h2>
+                <p id="sessions-note">จบ session แล้ว ถ้าเครื่องนั้นเลือก “จดจำฉัน” ไว้จะเข้าใหม่ได้เอง — ใช้ “ออกจากระบบทุกอุปกรณ์” ในแท็บผู้ใช้เพื่อบังคับ</p>
+              </div>
+            </div>
+          </header>
+          <div id="sessions"></div>
+        </section>
+        <section class="card mb">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="lock"></i></span>
+              <div>
+                <h2>อุปกรณ์ที่ “จดจำฉัน”</h2>
+                <p>refresh token ที่ยังใช้ได้ (หมุนทุกครั้งที่ใช้) — เลิกจดจำแล้วเครื่องนั้นต้องกรอกรหัสผ่านใหม่</p>
+              </div>
+            </div>
+          </header>
+          <div id="devices"></div>
+        </section>
+        <section class="card">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="history"></i></span>
+              <div>
+                <h2>ประวัติการเข้าสู่ระบบ</h2>
+                <p id="policy"></p>
+              </div>
+            </div>
+            <select class="input" id="attempt-result" aria-label="ผลการเข้าสู่ระบบ" style="width:auto">
+              <option value="">ทั้งหมด</option>
+              <option value="failed">ไม่สำเร็จ</option>
+              <option value="ok">สำเร็จ</option>
+            </select>
+          </header>
+          <div id="attempts"></div>
+        </section>
+      </div>
+
+      <!-- ===== สถานะระบบ ===== -->
+      <div class="panel hidden" id="tab-health">
+        <div id="checks" class="grid grid-3 mb"></div>
+        <section class="card mb">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="package-check"></i></span>
+              <div>
+                <h2>ใบเบิกชุดฟอร์มในสต็อก Uniform</h2>
+                <p id="stock-note"></p>
+              </div>
+            </div>
+            <a class="btn btn-sm" href="uniform.html">ไปหน้าชุดฟอร์ม <i data-icon="arrow-right"></i></a>
+          </header>
+          <div class="card-body" id="stages"></div>
+          <div id="stuck"></div>
+        </section>
+        <div class="grid grid-2">
+          <section class="card">
+            <header class="card-head">
+              <div class="card-title">
+                <span class="card-icon"><i data-icon="trash-2"></i></span>
+                <div>
+                  <h2>ล้างข้อมูลเก่า</h2>
+                  <p>session · refresh token · ประวัติเข้าสู่ระบบ (ไม่ลบบันทึกการใช้งาน) — ตั้งเวลาด้วย backend/bin/cleanup.php</p>
+                </div>
+              </div>
+            </header>
+            <div class="card-body" id="cleanup"></div>
+          </section>
+          <section class="card">
+            <header class="card-head">
+              <div class="card-title">
+                <span class="card-icon"><i data-icon="info"></i></span>
+                <div>
+                  <h2>ข้อมูลระบบ</h2>
+                  <p>เวอร์ชัน · ค่าตั้งการเข้าสู่ระบบ · จำนวนแถวในตาราง</p>
+                </div>
+              </div>
+            </header>
+            <div class="card-body" id="info"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ===== ตั้งค่าระบบ (system_settings ทับ backend/config.php) ===== -->
+      <div class="panel hidden" id="tab-settings">
+        <div id="settings-alert"></div>
+        <section class="card mb">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="package-check"></i></span>
+              <div>
+                <h2>การเชื่อมต่อสต็อก Uniform</h2>
+                <p>API ของ stock_hr (api/welfare.php) — เซ็นทุกคำขอด้วยกุญแจ HMAC ที่ต้องตรงกับ stock_hr/config_ctrl/welfare_key.php</p>
+              </div>
+            </div>
+          </header>
+          <div class="card-body" id="stock-settings"></div>
+        </section>
+        <div class="grid grid-2 mb">
+          <section class="card">
+            <header class="card-head">
+              <div class="card-title">
+                <span class="card-icon"><i data-icon="log-in"></i></span>
+                <div>
+                  <h2>การเข้าสู่ระบบ</h2>
+                  <p>มีผลกับคำขอถัดไปทันที (session ที่เปิดอยู่ใช้ค่าใหม่ด้วย)</p>
+                </div>
+              </div>
+            </header>
+            <div class="card-body" id="auth-settings"></div>
+          </section>
+          <section class="card">
+            <header class="card-head">
+              <div class="card-title">
+                <span class="card-icon"><i data-icon="activity"></i></span>
+                <div>
+                  <h2>การติดตามระบบ</h2>
+                  <p>เกณฑ์เตือนในแท็บสถานะระบบ และการล้างข้อมูลเก่า</p>
+                </div>
+              </div>
+            </header>
+            <div class="card-body" id="monitor-settings"></div>
+          </section>
+        </div>
+        <section class="card">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="lock"></i></span>
+              <div>
+                <h2>แก้ได้เฉพาะใน backend/config.php</h2>
+                <p>ค่าที่ตั้งผิดแล้วอาจเข้าระบบไม่ได้ — ต้องแก้ที่เครื่องเซิร์ฟเวอร์</p>
+              </div>
+            </div>
+          </header>
+          <div class="card-body" id="fixed-settings"></div>
+        </section>
+      </div>
+
+      <!-- ===== บันทึกการใช้งาน ===== -->
+      <div class="panel hidden" id="tab-audit">
+        <section class="card">
+          <form class="filters" id="audit-filters">
+            <div class="input-icon grow">
+              <i data-icon="search"></i>
+              <input class="input" type="search" name="q" placeholder="ค้นข้อความ / รหัสอ้างอิง / ผู้ทำรายการ" aria-label="ค้นหา" autocomplete="off" />
+            </div>
+            <select class="input" name="entity" aria-label="ประเภท" style="width:auto"></select>
+            <select class="input" name="action" aria-label="การกระทำ" style="width:auto"></select>
+            <select class="input" name="user" aria-label="ผู้ทำรายการ" style="width:auto"></select>
+            <label class="row small">ตั้งแต่ <input class="input" type="date" name="from" style="width:auto" /></label>
+            <label class="row small">ถึง <input class="input" type="date" name="to" style="width:auto" /></label>
+            <span class="small muted" id="audit-count"></span>
+          </form>
+          <div id="audit"></div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="assets/js/pages/admin.js"></script>
+  </body>
+</html>

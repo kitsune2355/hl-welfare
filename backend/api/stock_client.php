@@ -28,13 +28,17 @@ function stock_call($payload)
 /** @return array(status, body|null) */
 function stock_raw($payload)
 {
+    return stock_raw_to($payload, sys_setting('stock_api_url'), sys_setting('stock_api_secret'));
+}
+
+/** เรียกสต็อกด้วย URL/กุญแจที่ระบุ — หน้า admin ใช้ทดสอบค่าใหม่ก่อนบันทึก */
+function stock_raw_to($payload, $url, $secret)
+{
     if (!empty($GLOBALS['hlw_stock_fake'])) {
-        return call_user_func($GLOBALS['hlw_stock_fake'], $payload);
+        return call_user_func($GLOBALS['hlw_stock_fake'], $payload, $url, $secret);
     }
-    $url = $GLOBALS['hlw_config']['stock_api_url'];
-    $secret = $GLOBALS['hlw_config']['stock_api_secret'];
     if ($url === '' || $secret === '') {
-        throw new ApiError('ยังไม่ได้ตั้งค่าการเชื่อมต่อระบบสต็อก (stock_api_url / stock_api_secret ใน backend/config.php)', 503);
+        throw new ApiError('ยังไม่ได้ตั้งค่าการเชื่อมต่อระบบสต็อก (stock_api_url / stock_api_secret — หน้าผู้ดูแลระบบ แท็บตั้งค่าระบบ หรือ backend/config.php)', 503);
     }
     $body = json_encode($payload);
     $ts = (string)time();
@@ -42,8 +46,8 @@ function stock_raw($payload)
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, (int)sys_setting('stock_connect_timeout'));
+    curl_setopt($ch, CURLOPT_TIMEOUT, (int)sys_setting('stock_timeout'));
     curl_setopt($ch, CURLOPT_HTTPHEADER, array(
         'Content-Type: application/json',
         'X-Welfare-Timestamp: ' . $ts,

@@ -31,7 +31,7 @@ $admin = mysqli_connect($c['db_host'], $c['db_user'], $c['db_pass'], '', (int)$c
 mysqli_query($admin, 'DROP DATABASE IF EXISTS `' . $c['db_name'] . '`');
 mysqli_query($admin, 'CREATE DATABASE `' . $c['db_name'] . '` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci');
 mysqli_select_db($admin, $c['db_name']);
-foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin') as $f) {
+foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings') as $f) {
     $sql = file_get_contents($root . '/backend/sql/' . $f . '.sql');
     if (!mysqli_multi_query($admin, $sql)) { die("$f: " . mysqli_error($admin) . "\n"); }
     do {
@@ -148,9 +148,10 @@ function make_user($username, $password, $name, $role, $empCode = null)
 /* ---------- สต็อกตัวปลอม (แทน stock_hr/api/welfare.php) ---------- */
 $GLOBALS['stock_log'] = array();
 $GLOBALS['stock_status'] = array();
-function fake_stock($p)
+function fake_stock($p, $url = null, $secret = null)
 {
     $GLOBALS['stock_log'][] = $p;
+    $GLOBALS['stock_target'] = array($url, $secret);
     if ($p['action'] === 'catalog') {
         return array(200, array('ok' => true, 'department' => array('department_id' => 9, 'department_name' => 'คลัง', 'company_name' => 'PRO'),
             'items' => array(array('item_code' => 'POLO_BLACK', 'variants' => array(
@@ -456,6 +457,222 @@ $r = $e->req('POST', '/auth/login', array('username' => 'payroll', 'password' =>
 check('ผิด 5 ครั้ง → 429 แม้รหัสถูก + Retry-After', $r['status'] === 429 && isset($r['headers']['Retry-After']), json_encode($r['json']));
 check('ผู้ใช้อื่นยัง login ได้', (new_browser_login('hr', 'Secret-1234')) === 200);
 function new_browser_login($u, $p) { $b = new Browser('10.1.1.1'); $r = $b->req('POST', '/auth/login', array('username' => $u, 'password' => $p)); return $r['status']; }
+
+section('ผู้ดูแลระบบ (SUPER_ADMIN — api/admin.php)');
+make_user('boss', 'Boss-12345', 'ผู้ดูแล ระบบ', 'SUPER_ADMIN');
+$boss = new Browser('10.5.5.5');
+$boss->req('POST', '/auth/login', array('username' => 'boss', 'password' => 'Boss-12345'));
+$bossId = (int)db_value("SELECT id FROM users WHERE username = 'boss'");
+check('ไม่ login → 401', S($anon->req('GET', '/admin/users')) === 401);
+check('HR Admin → 403 ทุก endpoint', S($hr->req('GET', '/admin/users')) === 403 && S($hr->req('GET', '/admin/health')) === 403
+    && S($hr->req('GET', '/admin/audit')) === 403 && S($hr->req('POST', '/admin/cleanup', array())) === 403
+    && S($hr->req('POST', '/admin/users', array('username' => 'x'))) === 403);
+$r = $boss->req('GET', '/admin/users');
+$byName = array();
+foreach ($r['json']['data']['users'] as $row) { $byName[$row['username']] = $row; }
+check('รายชื่อผู้ใช้ + บทบาท + ไม่มี hash', $r['status'] === 200 && isset($byName['hr']) && $byName['hr']['roleLabel'] === 'HR Admin'
+    && !isset($byName['hr']['passwordHash']) && count($r['json']['data']['roles']) === 6, json_encode($r['json']));
+check('payroll ถูกล็อกอยู่ (จากเทสต์ก่อนหน้า)', $byName['payroll']['locked'] === true);
+
+$r = $boss->req('GET', '/admin/login-attempts?result=failed');
+$lock = null;
+foreach ($r['json']['data']['lockouts'] as $l) { if ($l['kind'] === 'USER' && $l['key'] === 'payroll') { $lock = $l; } }
+check('ประวัติ login + รายการล็อก', $r['status'] === 200 && $lock !== null && $lock['fails'] >= 5 && $r['json']['data']['policy']['maxFailsPerUser'] === 5
+    && !$r['json']['data']['attempts'][0]['succeeded'], json_encode($r['json']['data']['lockouts']));
+$r = $boss->req('POST', '/admin/lockouts/clear', array('kind' => 'USER', 'key' => 'payroll'));
+check('ปลดล็อก → ครั้งที่ผิดถูกทำเครื่องหมาย (ไม่ลบ)', $r['status'] === 200 && $r['json']['data']['cleared'] >= 5
+    && (int)db_value("SELECT COUNT(*) FROM auth_login_attempts WHERE username = 'payroll' AND cleared_at IS NOT NULL") >= 5);
+check('ปลดล็อกแล้ว login ได้ทันที', new_browser_login('payroll', 'Payroll-1234') === 200);
+check('audit UNLOCK', (int)db_value("SELECT COUNT(*) FROM audit_log WHERE entity = 'USER' AND action = 'UNLOCK' AND user_id = ?", array($bossId)) === 1);
+
+$r = $boss->req('POST', '/admin/users', array('username' => 'Bad Name', 'name' => 'x', 'role' => 'HR_ADMIN', 'password' => 'Good-12345'));
+check('สร้าง: ชื่อผู้ใช้ผิดรูปแบบ → 422 errors.username', $r['status'] === 422 && isset($r['json']['errors']['username']));
+$r = $boss->req('POST', '/admin/users', array('username' => 'newbie', 'name' => '', 'role' => 'NOPE', 'password' => 'short'));
+check('สร้าง: ชื่อว่าง / บทบาทผิด → 422 ทุกช่อง', $r['status'] === 422 && isset($r['json']['errors']['name']) && isset($r['json']['errors']['role']));
+$r = $boss->req('POST', '/admin/users', array('username' => 'newbie', 'name' => 'น้องใหม่ ทดสอบ', 'role' => 'HR_ADMIN', 'password' => 'short'));
+check('สร้าง: รหัสผ่านสั้น → 422 errors.password', $r['status'] === 422 && isset($r['json']['errors']['password']));
+$r = $boss->req('POST', '/admin/users', array('username' => 'Newbie', 'name' => 'น้องใหม่ ทดสอบ', 'role' => 'HR_COMPANY', 'empCode' => 'HL-0099',
+    'password' => 'Newbie-12345'));
+$newId = $r['json']['data']['id'];
+check('สร้างผู้ใช้ → 201 (ชื่อผู้ใช้ตัวเล็ก)', $r['status'] === 201 && $r['json']['data']['username'] === 'newbie' && $r['json']['data']['role'] === 'HR_COMPANY'
+    && $r['json']['data']['empCode'] === 'HL-0099' && $r['json']['data']['createdBy'] === 'boss', json_encode($r['json']));
+check('ชื่อผู้ใช้ซ้ำ → 409', S($boss->req('POST', '/admin/users', array('username' => 'newbie', 'name' => 'ซ้ำ', 'role' => 'HR_ADMIN',
+    'password' => 'Newbie-12345'))) === 409);
+$nb = new Browser('10.6.6.6');
+check('ผู้ใช้ใหม่ login ได้', S($nb->req('POST', '/auth/login', array('username' => 'newbie', 'password' => 'Newbie-12345', 'remember' => true))) === 200);
+
+check('เปลี่ยนบทบาทตัวเองไม่ได้', S($boss->req('PATCH', '/admin/users/' . $bossId, array('role' => 'HR_ADMIN'))) === 422);
+check('ปิดบัญชีตัวเองไม่ได้', S($boss->req('PATCH', '/admin/users/' . $bossId, array('isActive' => false))) === 422);
+check('ตั้งรหัสผ่าน / ออกจากระบบทุกอุปกรณ์ ของตัวเองไม่ได้', S($boss->req('POST', '/admin/users/' . $bossId . '/password', array('password' => 'Boss-99999'))) === 422
+    && S($boss->req('POST', '/admin/users/' . $bossId . '/signout', array())) === 422);
+$r = $boss->req('PATCH', '/admin/users/' . $bossId, array('name' => 'ผู้ดูแล ใหญ่'));
+check('แก้ชื่อตัวเองได้', $r['status'] === 200 && $r['json']['data']['name'] === 'ผู้ดูแล ใหญ่');
+check('ผู้ใช้ไม่มี → 404', S($boss->req('PATCH', '/admin/users/99999', array('name' => 'x'))) === 404);
+
+$r = $boss->req('PATCH', '/admin/users/' . $newId, array('role' => 'PAYROLL', 'empCode' => ''));
+check('เปลี่ยนบทบาท + ล้างรหัสพนักงาน → มีผลทันที', $r['status'] === 200 && $r['json']['data']['role'] === 'PAYROLL' && $r['json']['data']['empCode'] === null
+    && S($nb->req('POST', '/uniform/stock-requests', array())) === 403);
+$r = $boss->req('GET', '/admin/sessions');
+$fam = null;
+$mine = null;
+foreach ($r['json']['data']['devices'] as $dv) { if ($dv['username'] === 'newbie') { $fam = $dv['familyId']; } }
+foreach ($r['json']['data']['sessions'] as $sv) { if ($sv['current']) { $mine = $sv; } }
+check('session ที่ใช้อยู่ + อุปกรณ์ที่จดจำ', $r['status'] === 200 && $mine !== null && $mine['username'] === 'boss' && $fam !== null, json_encode($r['json']));
+check('จบ session ของตัวเองไม่ได้', S($boss->req('DELETE', '/admin/sessions/' . $mine['id'])) === 422);
+$r = $boss->req('PATCH', '/admin/users/' . $newId, array('isActive' => false));
+check('ปิดบัญชี → session + จดจำฉัน หลุดทันที', $r['status'] === 200 && $r['json']['data']['isActive'] === false
+    && S($nb->req('GET', '/auth/me')) === 401 && S($nb->req('POST', '/auth/refresh')) === 401);
+check('audit USER UPDATE บอกสิ่งที่เปลี่ยน', strpos((string)db_value("SELECT summary FROM audit_log WHERE entity = 'USER' AND entity_id = ? AND action = 'UPDATE'
+    ORDER BY id DESC LIMIT 1", array((string)$newId)), 'ปิดบัญชี') !== false);
+$boss->req('PATCH', '/admin/users/' . $newId, array('isActive' => true));
+$r = $boss->req('POST', '/admin/users/' . $newId . '/password', array('password' => 'abc'));
+check('ตั้งรหัสผ่านใหม่สั้นเกิน → 422', $r['status'] === 422 && isset($r['json']['errors']['password']));
+check('ตั้งรหัสผ่านใหม่ → รหัสเดิมใช้ไม่ได้', S($boss->req('POST', '/admin/users/' . $newId . '/password', array('password' => 'Fresh-12345'))) === 200
+    && new_browser_login('newbie', 'Newbie-12345') === 401 && new_browser_login('newbie', 'Fresh-12345') === 200);
+
+$nb = new Browser('10.6.6.7');
+$nb->req('POST', '/auth/login', array('username' => 'newbie', 'password' => 'Fresh-12345', 'remember' => true));
+$r = $boss->req('GET', '/admin/sessions');
+$sid = null;
+foreach ($r['json']['data']['sessions'] as $sv) { if ($sv['username'] === 'newbie' && $sv['ip'] === '10.6.6.7') { $sid = $sv['id']; } }
+check('จบ session ของคนอื่น → 204 (จดจำฉันต่ออายุเองได้)', S($boss->req('DELETE', '/admin/sessions/' . $sid)) === 204
+    && S($nb->req('GET', '/auth/me')) === 401 && S($nb->req('POST', '/auth/refresh')) === 200 && S($nb->req('GET', '/auth/me')) === 200);
+$fam = db_value("SELECT t.family_id FROM auth_refresh_tokens t JOIN users u ON u.id = t.user_id WHERE u.username = 'newbie' AND t.revoked_at IS NULL");
+check('เลิกจดจำอุปกรณ์ → 204 + refresh ไม่ได้', S($boss->req('DELETE', '/admin/devices/' . $fam)) === 204
+    && db_value('SELECT revoked_reason FROM auth_refresh_tokens WHERE family_id = ? ORDER BY id DESC LIMIT 1', array($fam)) === 'ADMIN');
+check('อุปกรณ์ id ผิดรูปแบบ → 404', S($boss->req('DELETE', '/admin/devices/zzz')) === 404);
+$nb->req('POST', '/auth/login', array('username' => 'newbie', 'password' => 'Fresh-12345', 'remember' => true));
+check('ออกจากระบบทุกอุปกรณ์ → 200 + หลุดทั้ง session และ refresh', S($boss->req('POST', '/admin/users/' . $newId . '/signout', array())) === 200
+    && S($nb->req('GET', '/auth/me')) === 401 && S($nb->req('POST', '/auth/refresh')) === 401);
+
+$r = $boss->req('GET', '/admin/audit?entity=USER');
+check('บันทึกการใช้งาน: กรอง entity + facets', $r['status'] === 200 && count($r['json']['data']['rows']) > 0
+    && $r['json']['data']['total'] >= count($r['json']['data']['rows']) && in_array('USER', $r['json']['data']['facets']['entities'])
+    && $r['json']['data']['rows'][0]['entity'] === 'USER', json_encode($r['json']['data']['facets']));
+$r = $boss->req('GET', '/admin/audit?q=' . urlencode('newbie') . '&action=PASSWORD_RESET');
+check('บันทึกการใช้งาน: ค้นข้อความ + action', $r['status'] === 200 && $r['json']['data']['total'] === 1);
+check('บันทึกการใช้งาน: q ที่มี % ไม่ใช่ wildcard', $boss->req('GET', '/admin/audit?q=' . urlencode('%')) !== null
+    && (int)arr_get(arr_get(arr_get($boss->req('GET', '/admin/audit?q=' . urlencode('%')), 'json'), 'data'), 'total') === 0);
+check('วันที่ผิดรูปแบบ → 422', S($boss->req('GET', '/admin/audit?from=yesterday')) === 422);
+$hrAct = $hr->req('GET', '/activity?limit=1000');
+$bossAct = $boss->req('GET', '/activity?limit=1000');
+$hrUser = 0; $bossUser = 0;
+foreach ($hrAct['json']['data'] as $a) { if ($a['entity'] === 'USER') { $hrUser++; } }
+foreach ($bossAct['json']['data'] as $a) { if ($a['entity'] === 'USER') { $bossUser++; } }
+check('/activity: ผู้ใช้ทั่วไปไม่เห็น USER · ผู้ดูแลเห็น', $hrUser === 0 && $bossUser > 0
+    && count($hr->req('GET', '/activity?entity=USER')) && arr_get(arr_get($hr->req('GET', '/activity?entity=USER'), 'json'), 'data') === array());
+
+/* ใบเบิกค้าง: ส่งเบิกเมื่อ 10 วันก่อน ยังไม่จ่าย */
+$empId = (int)db_value('SELECT id FROM employees ORDER BY id LIMIT 1');
+$old = gmdate('Y-m-d', strtotime($golden['today'] . ' 00:00:00 UTC') - 10 * 86400);
+db_exec("INSERT INTO uniform_issues (employee_id, entitlement_key, event, qty, size, issued_at, issued_by_name, source, stock_ref, stock_doc_id,
+         stock_doc_no, stock_stage, created_at, created_by, updated_by) VALUES (?, 'ANNUAL-2001', 'ANNUAL', 1, 'L', ?, 'สมใจ ใจดี', 'STOCK', ?, 88,
+         'WRQ-0088', 'REQUESTED', ?, 'test', 'test')", array($empId, $old, $empId . ':ANNUAL-2001', db_now()));
+$GLOBALS['stock_log'] = array();
+$r = $boss->req('GET', '/admin/health');
+$checks = array();
+foreach ($r['json']['data']['checks'] as $c) { $checks[$c['key']] = $c; }
+$ping = end($GLOBALS['stock_log']);
+check('สถานะระบบ: DB + migration ครบ + ping สต็อก (status ไม่มี ref)', $r['status'] === 200 && $checks['db']['status'] === 'ok'
+    && $checks['migrations']['status'] === 'ok' && $checks['stock']['status'] === 'ok' && $ping['action'] === 'status' && $ping['refs'] === array(),
+    json_encode($r['json']));
+check('สถานะระบบ: today_override ของเทสต์ = ค่าตั้งผิด', $checks['config']['status'] === 'error');
+$stuck = $r['json']['data']['stock']['stuck'];
+check('ใบเบิกค้างเกิน 7 วัน', count($stuck) === 1 && $stuck[0]['docNo'] === 'WRQ-0088' && $stuck[0]['days'] === 10
+    && $r['json']['data']['stock']['byStage']['REQUESTED'] === 1 && $checks['stock_stuck']['status'] === 'warn', json_encode($r['json']['data']['stock']));
+check('ping=0 ไม่เรียกสต็อก', S($boss->req('GET', '/admin/health?ping=0')) === 200 && count($GLOBALS['stock_log']) === 1);
+
+/* ล้างข้อมูลเก่า: session หมดอายุ 200 วันก่อน · family ที่หมุน 2 ตัว (replaced_by) · ประวัติ login เก่า */
+$longAgo = date('Y-m-d H:i:s', time() - 200 * 86400);
+db_exec("INSERT INTO auth_sessions (user_id, token_hash, session_version, last_seen_at, expires_at, ip, user_agent, created_at, created_by, updated_by)
+         VALUES (?, ?, 1, ?, ?, '1.1.1.1', 'old', ?, 'test', 'test')", array($bossId, hash('sha256', 'old-session'), $longAgo, $longAgo, $longAgo));
+$b2 = db_exec("INSERT INTO auth_refresh_tokens (user_id, token_hash, family_id, expires_at, created_ip, revoked_at, revoked_reason, created_at, created_by, updated_by)
+         VALUES (?, ?, ?, ?, '1.1.1.1', ?, 'LOGOUT', ?, 'test', 'test')", array($bossId, hash('sha256', 'old-b'), str_repeat('e', 32), $longAgo, $longAgo, $longAgo));
+db_exec("INSERT INTO auth_refresh_tokens (user_id, token_hash, family_id, expires_at, created_ip, revoked_at, revoked_reason, replaced_by, created_at, created_by, updated_by)
+         VALUES (?, ?, ?, ?, '1.1.1.1', ?, 'ROTATED', ?, ?, 'test', 'test')", array($bossId, hash('sha256', 'old-a'), str_repeat('e', 32), $longAgo, $longAgo, $b2['id'], $longAgo));
+db_exec("INSERT INTO auth_login_attempts (username, ip, succeeded, created_at, created_by, updated_by) VALUES ('old', '1.1.1.1', 0, ?, 'system', 'system')", array($longAgo));
+$liveTokens = (int)db_value('SELECT COUNT(*) FROM auth_refresh_tokens WHERE revoked_at IS NULL');
+$liveSessions = (int)db_value('SELECT COUNT(*) FROM auth_sessions WHERE revoked_at IS NULL AND expires_at > ?', array(db_now()));
+$r = $boss->req('GET', '/admin/health?ping=0');
+$el = $r['json']['data']['cleanup']['eligible'];
+check('สถานะระบบ: นับข้อมูลที่ล้างได้', $el['sessions'] >= 1 && $el['tokens'] >= 2 && $el['attempts'] >= 1, json_encode($el));
+check('ล้าง: จำนวนวันผิด → 422', S($boss->req('POST', '/admin/cleanup', array('days' => 0))) === 422);
+$r = $boss->req('POST', '/admin/cleanup', array('days' => 90));
+check('ล้างข้อมูลเก่า → ลบ family ที่มี replaced_by ได้ (ไม่ติด FK)', $r['status'] === 200 && $r['json']['data']['tokens'] >= 2
+    && $r['json']['data']['sessions'] >= 1 && $r['json']['data']['attempts'] >= 1
+    && db_value('SELECT id FROM auth_refresh_tokens WHERE family_id = ?', array(str_repeat('e', 32))) === null, json_encode($r['json']));
+check('ล้างแล้ว: ของที่ยังใช้อยู่ไม่ถูกลบ + บันทึก SYSTEM/CLEANUP', (int)db_value('SELECT COUNT(*) FROM auth_refresh_tokens WHERE revoked_at IS NULL') === $liveTokens
+    && (int)db_value('SELECT COUNT(*) FROM auth_sessions WHERE revoked_at IS NULL AND expires_at > ?', array(db_now())) === $liveSessions
+    && S($boss->req('GET', '/auth/me')) === 200
+    && (int)db_value("SELECT COUNT(*) FROM audit_log WHERE entity = 'SYSTEM' AND action = 'CLEANUP'") === 1);
+$r = $boss->req('POST', '/admin/cleanup', array('days' => 1));
+check('ล้าง: น้อยกว่าอายุ refresh token → ใช้ refresh_days', $r['status'] === 200 && $r['json']['data']['days'] === 30);
+$r = $boss->req('GET', '/admin/health?ping=0');
+check('สถานะระบบ: แสดงการล้างครั้งล่าสุด', $r['json']['data']['cleanup']['lastRunBy'] === 'ผู้ดูแล ใหญ่');
+
+section('ตั้งค่าระบบ + การเชื่อมต่อสต็อก (system_settings ทับ config.php)');
+check('HR Admin → 403', S($hr->req('GET', '/admin/settings')) === 403 && S($hr->req('PUT', '/admin/settings', array())) === 403
+    && S($hr->req('POST', '/admin/stock/test', array())) === 403);
+$r = $boss->req('GET', '/admin/settings');
+$items = array();
+foreach ($r['json']['data']['groups'] as $g) { foreach ($g['items'] as $it) { $items[$it['key']] = $it; } }
+$cfgSecret = $hlw_config['stock_api_secret'];
+check('อ่านค่าตั้ง: 3 กลุ่ม · ทุกค่ามาจาก config · ไม่ส่งกุญแจจริง', $r['status'] === 200 && count($r['json']['data']['groups']) === 3
+    && $r['json']['data']['ready'] === true && $items['session_idle_minutes']['source'] === 'config' && $items['session_idle_minutes']['value'] === 30
+    && !isset($items['stock_api_secret']['value']) && ($cfgSecret === '' || strpos(json_encode($r['json']), $cfgSecret) === false)
+    && $items['stock_api_secret']['secret']['set'] === ($cfgSecret !== ''), json_encode($items['stock_api_secret']));
+$r = $boss->req('PUT', '/admin/settings', array('values' => array('session_idle_minutes' => 1, 'stock_api_url' => 'ftp://x',
+    'stock_api_secret' => 'short', 'db_pass' => 'x', 'login_window_minutes' => 'abc')));
+$e = $r['json']['errors'];
+check('ค่าผิด → 422 ทุกช่อง (ช่วง, URL, กุญแจสั้น, key ที่แก้ไม่ได้, ไม่ใช่ตัวเลข)', $r['status'] === 422 && isset($e['session_idle_minutes'])
+    && isset($e['stock_api_url']) && isset($e['stock_api_secret']) && isset($e['db_pass']) && isset($e['login_window_minutes']), json_encode($r['json']));
+check('ค่าผิดไม่ถูกบันทึกบางส่วน', (int)db_value('SELECT COUNT(*) FROM system_settings') === 0);
+
+make_user('lim', 'Limit-12345', 'ทดสอบ ล็อก', 'HR_ADMIN');
+$r = $boss->req('PUT', '/admin/settings', array('values' => array('login_max_fails_per_user' => '3')));
+check('บันทึกค่า → มาจาก DB', $r['status'] === 200 && $r['json']['data']['changed'] === 1
+    && (int)db_value("SELECT value FROM system_settings WHERE `key` = 'login_max_fails_per_user'") === 3);
+$lb = new Browser('10.7.7.7');
+for ($i = 0; $i < 3; $i++) { $lb->req('POST', '/auth/login', array('username' => 'lim', 'password' => 'bad' . $i)); }
+check('ค่าใหม่มีผลทันที: ผิด 3 ครั้งก็ล็อก', S($lb->req('POST', '/auth/login', array('username' => 'lim', 'password' => 'Limit-12345'))) === 429);
+$r = $boss->req('PUT', '/admin/settings', array('reset' => array('login_max_fails_per_user')));
+check('คืนค่า → กลับไปใช้ config.php (5) และ login ได้', $r['status'] === 200
+    && db_value("SELECT value FROM system_settings WHERE `key` = 'login_max_fails_per_user'") === null
+    && S($lb->req('POST', '/auth/login', array('username' => 'lim', 'password' => 'Limit-12345'))) === 200);
+check('ส่งค่าเดิมซ้ำ (ยังเป็น config) → ไม่บันทึก audit ซ้ำเมื่อไม่มีอะไรเปลี่ยน', S($boss->req('PUT', '/admin/settings', array('values' => array()))) === 200);
+
+$newSecret = str_repeat('k', 40) . 'WXYZ';
+$GLOBALS['stock_target'] = null;
+$r = $boss->req('POST', '/admin/stock/test', array('url' => 'https://stock.example/api/welfare.php', 'secret' => $newSecret));
+check('ทดสอบค่าใหม่ก่อนบันทึก → เรียกด้วย URL/กุญแจที่ส่งมา', $r['status'] === 200 && $r['json']['data']['ok'] === true
+    && $GLOBALS['stock_target'][0] === 'https://stock.example/api/welfare.php' && $GLOBALS['stock_target'][1] === $newSecret
+    && $r['json']['data']['usedSavedSecret'] === false, json_encode($r['json']));
+check('ทดสอบ: URL ผิด → 422', S($boss->req('POST', '/admin/stock/test', array('url' => 'not a url'))) === 422);
+check('ทดสอบแล้วยังไม่บันทึก', (int)db_value('SELECT COUNT(*) FROM system_settings') === 0);
+$r = $boss->req('PUT', '/admin/settings', array('values' => array('stock_api_url' => 'https://stock.example/api/welfare.php',
+    'stock_api_secret' => $newSecret, 'stock_timeout' => 30)));
+$items = array();
+foreach ($r['json']['data']['groups'] as $g) { foreach ($g['items'] as $it) { $items[$it['key']] = $it; } }
+check('บันทึก URL + กุญแจ: ตอบเฉพาะ 4 ตัวท้าย', $r['status'] === 200 && $items['stock_api_secret']['source'] === 'db'
+    && $items['stock_api_secret']['secret']['last4'] === 'WXYZ' && $items['stock_api_secret']['secret']['length'] === 44
+    && strpos(json_encode($r['json']), $newSecret) === false && $items['stock_api_url']['value'] === 'https://stock.example/api/welfare.php');
+$GLOBALS['stock_target'] = null;
+$boss->req('GET', '/admin/health');
+check('ทุกคำขอไปสต็อกใช้ค่าจาก DB', $GLOBALS['stock_target'][0] === 'https://stock.example/api/welfare.php' && $GLOBALS['stock_target'][1] === $newSecret);
+$r = $boss->req('PUT', '/admin/settings', array('values' => array('stock_api_secret' => '')));
+check('กุญแจว่าง = ไม่เปลี่ยน', $r['status'] === 200 && $r['json']['data']['changed'] === 0
+    && db_value("SELECT value FROM system_settings WHERE `key` = 'stock_api_secret'") === $newSecret);
+$sum = (string)db_value("SELECT summary FROM audit_log WHERE action = 'SETTINGS' ORDER BY id DESC LIMIT 1");
+check('audit SETTINGS ไม่มีกุญแจเต็ม', strpos($sum, '…WXYZ') !== false && strpos($sum, $newSecret) === false
+    && strpos($sum, 'รอคำตอบทั้งหมด 20 วินาที → 30 วินาที') !== false, $sum);
+$hrAct = $hr->req('GET', '/activity?limit=1000');
+$sys = 0;
+foreach ($hrAct['json']['data'] as $a) { if ($a['entity'] === 'SYSTEM') { $sys++; } }
+check('/activity ของผู้ใช้ทั่วไปไม่เห็น SYSTEM', $sys === 0);
+$r = $boss->req('PUT', '/admin/settings', array('values' => array('stock_timeout' => 25), 'reset' => array('stock_timeout')));
+check('ค่าใหม่ + คืนค่า key เดียวกัน → 422', $r['status'] === 422);
+$boss->req('PUT', '/admin/settings', array('reset' => array('stock_api_url', 'stock_api_secret', 'stock_timeout')));
+check('คืนค่าทั้งหมด → ตารางว่าง', (int)db_value('SELECT COUNT(*) FROM system_settings') === 0);
 
 echo "\nผ่าน " . $GLOBALS['pass'] . ' · ไม่ผ่าน ' . $GLOBALS['fail'] . "\n";
 exit($GLOBALS['fail'] ? 1 : 0);

@@ -1,6 +1,7 @@
 // จุดเดียวที่เลือกแหล่งข้อมูล — ทุกหน้า import { api } จากไฟล์นี้
 // (หน้าจอห้าม import MockApi/HttpApi ตรง ๆ เพื่อให้สลับ mock ↔ PHP ได้โดยไม่แก้หน้าจอ)
 import { CONFIG } from '../config.js';
+import { AdminApi } from '../infrastructure/http/adminApi.js';
 import { HttpApi } from '../infrastructure/http/httpApi.js';
 import { ServerAuth } from '../infrastructure/http/serverAuth.js';
 import { StockGateway } from '../infrastructure/http/stockGateway.js';
@@ -50,3 +51,6 @@ export const api = withProgress(raw);
  * โหมด mock ใช้ MockApi (ผู้ใช้จำลอง) · โหมด server ใช้ ServerAuth (cookie HttpOnly)
  */
 export const authApi = serverAuth ? withProgress(serverAuth) : api;
+
+/** หน้าผู้ดูแลระบบ (admin.html) — null ในโหมด mock (ไม่มีผู้ใช้/session จริง) */
+export const adminApi = serverAuth ? withProgress(new AdminApi(serverAuth)) : null;

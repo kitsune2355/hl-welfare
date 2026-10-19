@@ -57,5 +57,23 @@ function api_routes()
     router_add($r, 'POST', '/uniform/stock-sync', 'api_stock_sync');
 
     router_add($r, 'POST', '/stock/bridge', 'api_stock_bridge');
+
+    /* ผู้ดูแลระบบ (SUPER_ADMIN — ตรวจใน handler) · api/admin.php */
+    router_add($r, 'GET', '/admin/users', 'api_admin_users');
+    router_add($r, 'POST', '/admin/users', 'api_admin_user_create');
+    router_add($r, 'PATCH', '/admin/users/{id}', 'api_admin_user_update');
+    router_add($r, 'POST', '/admin/users/{id}/password', 'api_admin_user_password');
+    router_add($r, 'POST', '/admin/users/{id}/signout', 'api_admin_user_signout');
+    router_add($r, 'GET', '/admin/sessions', 'api_admin_sessions');
+    router_add($r, 'DELETE', '/admin/sessions/{id}', 'api_admin_session_revoke');
+    router_add($r, 'DELETE', '/admin/devices/{familyId}', 'api_admin_device_revoke');
+    router_add($r, 'GET', '/admin/login-attempts', 'api_admin_login_attempts');
+    router_add($r, 'POST', '/admin/lockouts/clear', 'api_admin_lockout_clear');
+    router_add($r, 'GET', '/admin/audit', 'api_admin_audit');
+    router_add($r, 'GET', '/admin/health', 'api_admin_health');
+    router_add($r, 'POST', '/admin/cleanup', 'api_admin_cleanup');
+    router_add($r, 'GET', '/admin/settings', 'api_admin_settings');
+    router_add($r, 'PUT', '/admin/settings', 'api_admin_settings_save');
+    router_add($r, 'POST', '/admin/stock/test', 'api_admin_stock_test');
     return $r;
 }

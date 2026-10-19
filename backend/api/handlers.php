@@ -47,7 +47,9 @@ function api_work_queue($req, $params)
 
 function api_activity($req, $params)
 {
-    $where = array();
+    $u = auth_require($req);
+    /* การเข้าสู่ระบบ / งานระบบ ดูได้เฉพาะผู้ดูแล (หน้า admin.html) */
+    $where = $u['role'] === 'SUPER_ADMIN' ? array() : array("entity NOT IN ('USER', 'SYSTEM')");
     $args = array();
     if (req_query($req, 'entity') !== null) { $where[] = 'entity = ?'; $args[] = req_query($req, 'entity'); }
     if (req_query($req, 'employeeId') !== null) { $where[] = 'employee_id = ?'; $args[] = (int)req_query($req, 'employeeId'); }

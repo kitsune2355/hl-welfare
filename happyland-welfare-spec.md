@@ -264,6 +264,7 @@ export const CONFIG = {
 | `uniform.html` | ชุดฟอร์ม | `?tab=history` |
 | `rules.html` | เงื่อนไขสวัสดิการ | `?tab=insurance\|uniform\|settings\|open` |
 | `sites.html` | หน่วยงาน | – |
+| `admin.html` | ผู้ดูแลระบบ (เฉพาะ SUPER_ADMIN) | `?tab=users\|access\|health\|settings\|audit` · แท็บบันทึกการใช้งานรับ `&entity=&action=&user=&q=&from=&to=` |
 | `insurers.html` | แบบฟอร์มประกัน (ตั้งค่า) | `?id=<id>` หรือ `?id=new` |
 
 ### 5.4 เพิ่มหน้าใหม่ (ตัวอย่าง `reports.html`)
@@ -1173,7 +1174,7 @@ Desktop  76–100 จาก 258 รายการ      ( « ‹ 1 … 3 [4] 5 �
 | ค่าสุ่ม | `/dev/urandom` (Linux) · Windows ใช้ `com_create_guid()` 3 ตัว (CoCreateGuid = CSPRNG ของ Windows, สุ่มจริง 122 บิต/ตัว) รวมกับค่าอื่นแล้วกลั่นด้วย SHA-256 · หาแหล่งสุ่มไม่ได้ = error (ไม่ถอยไปใช้ `mt_rand`) |
 | จำกัดการเดา | ตาราง `auth_login_attempts` · ผิด ≥ 5 ครั้งต่อชื่อผู้ใช้ (นับหลังเข้าสำเร็จครั้งล่าสุด) หรือ ≥ 20 ครั้งต่อ IP ภายใน 15 นาที → 429 + `Retry-After` (รหัสถูกก็ไม่ให้เข้าจนพ้นช่วง) |
 | CSRF | cookie `SameSite=Lax` + คำขอที่เปลี่ยนข้อมูลต้องเป็น `Content-Type: application/json` (415) + ตรวจ `Origin`/`Sec-Fetch-Site` (403) — `csrf_check()` |
-| ผู้ใช้ | ยังไม่มีหน้าจัดการผู้ใช้ — `backend/bin/user.php create|password|disable|list` · username ควรตรงกับ `tb_user.username` ของ stock_hr (สต็อกใช้ส่งลิงก์เซ็นรับให้ผู้ขอเบิก) |
+| ผู้ใช้ | หน้า `admin.html` (SUPER_ADMIN — ข้อ 12.4) หรือ CLI `backend/bin/user.php create|password|disable|list` · username ควรตรงกับ `tb_user.username` ของ stock_hr (สต็อกใช้ส่งลิงก์เซ็นรับให้ผู้ขอเบิก) |
 
 **ลำดับในหน้าเว็บ** (`apiMode = 'http'` → `auth.provider` = `'server'` อัตโนมัติ)
 1. login.html → `POST api/index.php/auth/login {username, password, remember}` → เก็บ `AuthUser` ใน **sessionStorage** (ไว้แสดงชื่อ/นำทาง) → ไปหน้าที่ต้องการ
@@ -1260,6 +1261,7 @@ backend/                     ← โค้ดทั้งหมด (มี .htac
 ├── api/  routes.php (ตาราง endpoint) · handlers.php (คู่กับเมธอดของ MockApi ทีละตัว) · stock_client.php (HMAC → stock_hr)
 ├── sql/  001_schema.sql · 002_seed_master.sql · 003_seed_demo.sql  (+ _rollback)
 ├── bin/user.php             ← จัดการผู้ใช้ (CLI)
+├── bin/cleanup.php          ← ล้าง session / refresh token / ประวัติ login เก่า (ตั้งเวลาด้วย Task Scheduler)
 └── tests/run.php + fixtures/golden.json
 scripts/export-seed.mjs      ← สร้าง sql/002, 003 และ golden.json จาก seed ของ mock (วันเดียวกัน)
 ```
@@ -1286,6 +1288,25 @@ scripts/export-seed.mjs      ← สร้าง sql/002, 003 และ golden.j
 | cookie | `setcookie()` ใส่ `SameSite` ไม่ได้ → `http_set_cookie()` เขียน `Set-Cookie` เอง |
 | argv ภาษาไทย | PHP 5.2 บน Windows อ่านภาษาไทยจาก argument ไม่ได้ → `bin/user.php` รับชื่อทาง stdin |
 | SQL ภาษาไทย | ส่งเป็นไฟล์เสมอ (`mysql --default-character-set=utf8 hl_welfare < ไฟล์.sql`) ไม่ใช่ `mysql -e "…"` |
+
+### 12.4 หน้าผู้ดูแลระบบ (`admin.html` → `backend/api/admin.php`) — SUPER_ADMIN เท่านั้น
+ทุก endpoint `/admin/*` เรียก `admin_require()` (บทบาทอื่น 403) · เมนู “ผู้ดูแลระบบ” ซ่อนจากบทบาทอื่น (`roles` ใน `app/shell.js`) · หน้าเว็บใช้ `adminApi` (`infrastructure/http/adminApi.js`, เฉพาะโหมด server)
+
+| แท็บ | ทำอะไรได้ | endpoint |
+|---|---|---|
+| ผู้ใช้ | รายชื่อ + ออนไลน์/จดจำ/ถูกล็อก · เพิ่ม · แก้ชื่อ/บทบาท/รหัสพนักงาน · ปิด-เปิดบัญชี (ปิด = หลุดทุกอุปกรณ์) · ตั้งรหัสผ่านใหม่ · ออกจากระบบทุกอุปกรณ์ | `GET/POST /admin/users` · `PATCH /admin/users/{id}` · `POST …/{id}/password` · `POST …/{id}/signout` |
+| การเข้าสู่ระบบ | ชื่อผู้ใช้/IP ที่ถูกล็อก + ปลดล็อก (ใส่ `cleared_at` ไม่ลบประวัติ) · session ที่ใช้อยู่ (จบได้) · อุปกรณ์ที่จดจำ (เลิกจดจำ = เพิกถอน family) · ประวัติ login | `GET /admin/sessions` · `DELETE /admin/sessions/{id}` · `DELETE /admin/devices/{familyId}` · `GET /admin/login-attempts` · `POST /admin/lockouts/clear` |
+| สถานะระบบ | ฐานข้อมูล · PHP (เตือน 5.2 หมดอายุ) · ส่วนขยาย · migration ถึง 006 · ค่าตั้ง (`today_override`, `cookie_secure`, กุญแจสต็อก) · ping stock_hr (`status` ไม่มี ref) · ใบเบิกค้างในขั้นเดิมเกิน 7 วัน · ล็อก · TOKEN_REUSE 7 วัน · จำนวนผู้ดูแล · จำนวนแถว · ล้างข้อมูลเก่า | `GET /admin/health[?ping=0]` · `POST /admin/cleanup {days}` |
+| ตั้งค่าระบบ | **สต็อก Uniform**: URL, กุญแจ HMAC (แสดงแค่ความยาว + 4 ตัวท้าย · สุ่ม 64 hex + คัดลอกไปใส่ stock_hr), เวลารอเชื่อมต่อ/คำตอบ · ปุ่มทดสอบด้วยค่าที่ยังไม่บันทึก (เตือนถ้าบันทึกโดยยังไม่ทดสอบผ่าน) · **การเข้าสู่ระบบ**: idle / อายุ session, จดจำฉัน, เกณฑ์ล็อก · **ติดตาม**: วันเตือนใบค้าง, วันล้างข้อมูล · ทุกค่ามีป้าย config.php / ตั้งจากหน้านี้ + “ใช้ค่าใน config.php” · ค่าที่แก้ได้เฉพาะ config.php แสดงอ่านอย่างเดียว | `GET/PUT /admin/settings` · `POST /admin/stock/test {url?, secret?}` |
+| บันทึกการใช้งาน | audit_log ทุก entity (รวม `USER`, `STOCK_REQUEST`, `SYSTEM`) กรองประเภท/การกระทำ/ผู้ทำ/ข้อความ/ช่วงวันที่ · 1,000 รายการล่าสุด + จำนวนทั้งหมด | `GET /admin/audit` |
+
+- **กันล็อกตัวเอง**: เปลี่ยนบทบาท / ปิดบัญชี / ตั้งรหัสผ่าน / ออกทุกอุปกรณ์ / จบ session ของตัวเองไม่ได้ (422) → มี SUPER_ADMIN ที่ใช้งานได้อย่างน้อย 1 คนเสมอ
+- ทุกการกระทำเขียน audit_log (`USER`: CREATE, UPDATE, PASSWORD_RESET, SIGNOUT_ALL, SESSION_REVOKE, DEVICE_REVOKE, UNLOCK · `SYSTEM`: UNLOCK (IP), CLEANUP, SETTINGS — กุญแจบันทึกแค่ 4 ตัวท้าย)
+- `GET /activity` (แท็บบันทึกกิจกรรมหน้าภาพรวม) ซ่อน `USER` / `SYSTEM` จากทุกบทบาทยกเว้น SUPER_ADMIN
+- **ล้างข้อมูลเก่า**: session ที่หมด/ถูกเพิกถอน · refresh token ทั้ง family ที่ใช้ไม่ได้แล้ว (ตัด `replaced_by` ก่อนลบ) · `auth_login_attempts` — เก่ากว่า N วัน (ค่าเริ่มต้น 90, น้อยสุด = `refresh_days`) · ไม่ลบ audit_log · ดูจำนวนก่อนด้วย `--dry` · ตั้งเวลา:
+  `schtasks /Create /TN "hl-welfare cleanup" /SC WEEKLY /D SUN /ST 03:00 /TR "C:\AppServ\php5\php.exe C:\AppServ\www\hl-welfare\backend\bin\cleanup.php"`
+- **migration 005** (`backend/sql/005_admin_monitor.sql`) ต้องรันก่อนขึ้นโค้ดนี้ — `auth.php` นับครั้งที่ผิดเฉพาะ `cleared_at IS NULL`
+- **ค่าตั้งระบบ** (`backend/lib/settings.php`, migration 006 `system_settings`): `sys_setting(key)` = แถวในตาราง → ไม่มีก็ `config.php` → ไม่มีก็ค่าเริ่มต้นใน `sys_setting_defs()` (key ที่แก้จากเว็บได้มีเท่านี้) · อ่าน DB ครั้งเดียวต่อคำขอ · ยังไม่รัน 006 = ใช้ config.php ทั้งหมด (ไม่ error) · `auth_cfg()` และ `stock_raw()` อ่านผ่าน `sys_setting` แล้ว · ฐานข้อมูล / `cookie_secure` / `timezone` / `today_override` / `refresh_grace_seconds` แก้ได้ที่ config.php เท่านั้น · กุญแจสต็อกเก็บเป็นข้อความในตาราง (ต้องใช้เซ็น HMAC) — สำรองฐานข้อมูลเท่ากับสำรองกุญแจ
 
 ---
 
@@ -1396,13 +1417,14 @@ describe('ประกันกลุ่ม', () => {
 ```bash
 C:\AppServ\php5\php.exe backend\tests\run.php          # ใช้ค่าเชื่อมต่อใน backend/config.php
 ```
-สร้างฐานข้อมูล `hl_welfare_test` ใหม่จาก `backend/sql/001–003` ทุกครั้ง (ชื่อต้องมีคำว่า test) แล้วเรียก `api_handle()` ตรง ๆ พร้อม cookie jar แยกต่อ "เบราว์เซอร์" — **109 ข้อ ผ่านทั้งหมด** (19 ต.ค. 2569)
+สร้างฐานข้อมูล `hl_welfare_test` ใหม่จาก `backend/sql/001–006` ทุกครั้ง (ชื่อต้องมีคำว่า test) แล้วเรียก `api_handle()` ตรง ๆ พร้อม cookie jar แยกต่อ "เบราว์เซอร์" — **172 ข้อ** (19 ต.ค. 2569 — ผู้ดูแล + ตั้งค่า 63 ข้อผ่านทั้งหมด · golden ประกัน 16 ข้อรอสร้าง golden.json ใหม่หลังแก้กฎประกัน)
 - **golden**: ทุก endpoint อ่านข้อมูลตอบเหมือน `MockApi` ทุกตัว ณ วันเดียวกับ seed — dashboard, คิวงาน, พนักงาน (+ ตัวกรอง), กฎ, **สิทธิของพนักงานทั้ง 258 คน**, รอบประกัน 7 รอบ (รวมรอบรายวันวันที่ 6), ประวัติ/รายละเอียด batch, ไฟล์ส่งออกซ้ำ, แบบฟอร์มประกัน, ข้อมูลไฟล์แจ้งประกัน 2 รอบ, ประวัติแจกชุด, ค้างแจก, กิจกรรม · `fixtures/golden.json` สร้างโดย `node scripts/export-seed.mjs` (แก้กฎใน JS แล้วต้องสร้างใหม่ + แก้ PHP ให้ผ่าน)
 - ไลบรารี: PBKDF2 ตรง test vector RFC 7914 · hash รหัสผ่านภาษาไทย · ค่าสุ่ม 256 บิต · `stable_usort`
 - การเข้าสู่ระบบ: 401 ข้อความเดียวกัน · cookie HttpOnly/SameSite/path · session เก็บ SHA-256 · หมดเมื่อไม่ใช้งาน 31 นาที / ครบ 12 ชม. · refresh หมุนโทเคน · race 409 · reuse เพิกถอนทั้ง family + audit · โทเคนปลอม · logout · เปลี่ยนรหัสผ่าน (เครื่องอื่นหลุด) · ปิดบัญชี · CSRF 415/403 · จำกัดการเดา 429
 - เขียนข้อมูล: พนักงาน (201/409/422/พ้นสภาพ/ลบ) · หน่วยงาน · ส่งออก+บันทึก (ผู้ส่งจาก session, ส่งซ้ำแทนที่) · ส่งแจ้งซ้ำ 409 · ยกเลิก batch · แจกชุด (`issuedBy` จาก session แม้ body ปลอมมา) · ส่งเบิกสต็อก (403 Payroll, `requested_by_*` จาก session, `start_date`) · sync ISSUED/CANCELLED · ตัวกลาง `/stock/bridge`
+- ผู้ดูแลระบบ (`/admin/*`): 401/403 ทุก endpoint · ปลดล็อกแล้ว login ได้ · สร้างผู้ใช้ (422 รายช่อง / 409 ซ้ำ) · กันแก้ตัวเอง · เปลี่ยนบทบาทมีผลทันที · ปิดบัญชี/ตั้งรหัสผ่าน/ออกทุกอุปกรณ์/เลิกจดจำ → หลุดจริง · audit กรอง + `%` ไม่เป็น wildcard · `/activity` ซ่อน USER · health (ping สต็อก, ใบค้าง, ค่าตั้งผิด) · cleanup ลบ family ที่มี `replaced_by` ได้ ของที่ยังใช้อยู่ไม่หาย · ตั้งค่า: 422 รายช่อง ไม่บันทึกบางส่วน · ค่าใหม่มีผลทันที (เกณฑ์ล็อก) · คืนค่า config.php · ทดสอบสต็อกด้วยค่าที่ยังไม่บันทึก · ทุกคำขอไปสต็อกใช้ URL/กุญแจจาก DB · ไม่ส่ง/ไม่ log กุญแจเต็ม
 
-**หน้าเว็บ** — `tests/serverAuth.test.js` (อยู่ใน `npm test`, 70 ข้อผ่าน): 401 → refresh → ลองใหม่ · refresh ไม่ได้ → onUnauthorized ครั้งเดียว · 401 พร้อมกัน → refresh ครั้งเดียว · 409 REFRESH_RACE · restore()
+**หน้าเว็บ** — `tests/serverAuth.test.js` (อยู่ใน `npm test`, 79 ข้อผ่าน รวม `tests/adminApi.test.js`): 401 → refresh → ลองใหม่ · refresh ไม่ได้ → onUnauthorized ครั้งเดียว · 401 พร้อมกัน → refresh ครั้งเดียว · 409 REFRESH_RACE · restore()
 
 **ทดสอบบน AppServ จริง (19 ต.ค. 2569)**: `GET api/index.php/auth/me` = 401 JSON · login ได้ cookie `HLW_SESSION` path `/hl-welfare/web/` และ `HLW_REFRESH` path `/hl-welfare/web/api/index.php/auth` (HttpOnly, SameSite=Lax) · dashboard/พนักงาน/คิวงาน ~0.25 วิ · `backend/config.php` ผ่านเว็บ = 403 · catalog จาก stock_hr จริงผ่าน HMAC ได้ (อ่านอย่างเดียว) · เบราว์เซอร์: login (ไม่แสดงบัญชีทดลอง) → ทุกหน้าแสดงข้อมูลจาก MySQL ไม่มี error · `document.cookie` ว่าง · ลบ session ในฐานข้อมูลแล้วเปิดหน้าใหม่ → ต่ออายุเองด้วย refresh (โทเคนหมุนใน family เดิม)
 
@@ -1482,7 +1504,7 @@ C:\AppServ\php5\php.exe backend\tests\run.php          # ใช้ค่าเ�
 - [ ] **บัญชีผู้ใช้จริง**: ใครบ้าง บทบาทอะไร · `username` ควรตรงกับ `tb_user.username` ใน stock_hr (สต็อกใช้ส่งลิงก์เซ็นรับ) — ตอนนี้ stock_hr มีแค่ `admin` · `emp_code` ของผู้ใช้ใครกรอก
 - [ ] **ข้อมูลพนักงานจริง**: นำเข้าจากไหน (ไฟล์ HR / ระบบเงินเดือน) — ตอนนี้เครื่องพัฒนาใช้ข้อมูลจำลอง (`003_seed_demo.sql`) ห้ามรันบนระบบจริง
 - [ ] **PHP 5.2 / MySQL 5.0 หมดอายุซัพพอร์ตแล้ว** (ไม่มีแพตช์ความปลอดภัย) — ทำตามที่ตัดสินใจไว้เพื่อให้อยู่เครื่องเดียวกับ stock_hr · โค้ดเลี่ยงฟีเจอร์ใหม่ ย้ายขึ้น PHP 7/8 + MySQL 8 ได้โดยไม่ต้องแก้มาก (`password_hash` แทน PBKDF2, `random_bytes` แทน GUID) — ควรวางแผนพร้อม stock_hr
-- [ ] **ล้างข้อมูลเก่า**: งานตั้งเวลาลบ `auth_sessions` / `auth_refresh_tokens` ที่หมดอายุ/ถูกเพิกถอนเกิน 90 วัน และ `auth_login_attempts` เกิน 90 วัน (ทำแบบ `stock_hr/cron/`)
-- [ ] **audit_log entity ใหม่** `USER`, `STOCK_REQUEST`, `INSURER_FORM`: แท็บบันทึกกิจกรรมต้องเพิ่มป้าย/ตัวกรอง (`ActivityEntity` ใน `domain/types.js`) หรือซ่อน `USER` จากผู้ใช้ทั่วไป
+- [x] **ล้างข้อมูลเก่า** (ทำแล้ว — `bin/cleanup.php` + ปุ่มในหน้า admin, ข้อ 12.4 · เหลือตั้ง Task Scheduler บนเซิร์ฟเวอร์จริง): งานตั้งเวลาลบ `auth_sessions` / `auth_refresh_tokens` ที่หมดอายุ/ถูกเพิกถอนเกิน 90 วัน และ `auth_login_attempts` เกิน 90 วัน (ทำแบบ `stock_hr/cron/`)
+- [x] **audit_log entity ใหม่** (ทำแล้ว — ป้าย/ไอคอนครบ, `/activity` ซ่อน USER/SYSTEM จากบทบาทอื่น, ดูทั้งหมดที่ admin.html) `USER`, `STOCK_REQUEST`, `INSURER_FORM`: แท็บบันทึกกิจกรรมต้องเพิ่มป้าย/ตัวกรอง (`ActivityEntity` ใน `domain/types.js`) หรือซ่อน `USER` จากผู้ใช้ทั่วไป
 - [ ] **ไฟล์แบบฟอร์มประกันขนาดใหญ่**: เก็บ base64 ใน `insurer_forms.form_json` — MySQL 5.0 `max_allowed_packet` ค่าเริ่มต้น 1 MB · ไฟล์ > ~700 KB บันทึกไม่ได้ ต้องเพิ่มค่าหรือย้ายไปเก็บเป็นไฟล์
 - [ ] **โหมด mock**: ยังเก็บไว้สำหรับ `npm test` และทดลอง (ตั้ง `apiMode: 'mock'`) — ใช้ส่งเบิกจริงได้เฉพาะเมื่อ login กับ backend (`auth.provider: 'server'`) · จะลบโหมดนี้ออกทั้งหมดไหม

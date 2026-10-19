@@ -207,25 +207,48 @@ export async function syncStockQuietly() {
 
 // ===================== ไทม์ไลน์บันทึกกิจกรรม =====================
 
-const ACTION = {
+/** action ของ audit_log — ตัวที่ไม่รู้จัก (backend เพิ่มใหม่) ใช้ OTHER_ACTION */
+export const ACTIVITY_ACTION = {
   CREATE: { icon: 'plus', tone: 'success', label: 'สร้าง' },
   UPDATE: { icon: 'pencil', tone: 'info', label: 'แก้ไข' },
   DELETE: { icon: 'trash-2', tone: 'danger', label: 'ลบ' },
   CANCEL: { icon: 'ban', tone: 'warning', label: 'ยกเลิก' },
+  LOGIN: { icon: 'log-in', tone: 'neutral', label: 'เข้าสู่ระบบ' },
+  LOGOUT: { icon: 'log-out', tone: 'neutral', label: 'ออกจากระบบ' },
+  PASSWORD_CHANGE: { icon: 'lock', tone: 'info', label: 'เปลี่ยนรหัสผ่าน' },
+  PASSWORD_RESET: { icon: 'lock', tone: 'warning', label: 'ตั้งรหัสผ่านใหม่' },
+  TOKEN_REUSE: { icon: 'shield-alert', tone: 'danger', label: 'ใช้โทเคนซ้ำ' },
+  SIGNOUT_ALL: { icon: 'user-x', tone: 'warning', label: 'ออกทุกอุปกรณ์' },
+  SESSION_REVOKE: { icon: 'user-minus', tone: 'warning', label: 'จบ session' },
+  DEVICE_REVOKE: { icon: 'user-minus', tone: 'warning', label: 'เลิกจดจำอุปกรณ์' },
+  UNLOCK: { icon: 'shield-check', tone: 'info', label: 'ปลดล็อก' },
+  CLEANUP: { icon: 'trash-2', tone: 'neutral', label: 'ล้างข้อมูลเก่า' },
+  SETTINGS: { icon: 'pencil', tone: 'info', label: 'ตั้งค่าระบบ' },
 };
-const ENTITY_ICON = { EMPLOYEE: 'user', SITE: 'building-2', INSURANCE_BATCH: 'shield-plus', INSURER_FORM: 'file-spreadsheet', UNIFORM_ISSUE: 'shirt' };
+const OTHER_ACTION = { icon: 'activity', tone: 'neutral', label: '' };
+export const activityAction = (code) => ACTIVITY_ACTION[code] ?? { ...OTHER_ACTION, label: code };
+export const ENTITY_ICON = {
+  EMPLOYEE: 'user',
+  SITE: 'building-2',
+  INSURANCE_BATCH: 'shield-plus',
+  INSURER_FORM: 'file-spreadsheet',
+  UNIFORM_ISSUE: 'shirt',
+  STOCK_REQUEST: 'package-check',
+  USER: 'users',
+  SYSTEM: 'activity',
+};
 
 export function activityFeed(items, { linkEmployee = true } = {}) {
   if (!items.length) return emptyState({ title: 'ยังไม่มีกิจกรรม', description: 'การเพิ่ม/แก้ไข/ลบข้อมูลทุกครั้งจะแสดงที่นี่' });
   return html`<ol class="feed">
     ${items.map((a) => {
-      const act = ACTION[a.action];
+      const act = activityAction(a.action);
       return html`<li>
         <span class="dot tone-${act.tone}" title="${act.label}">${raw(icon(act.icon))}</span>
         <div class="body">
           <p>${linkEmployee && a.employeeId ? html`<a href="employee.html?id=${a.employeeId}">${a.summary}</a>` : a.summary}</p>
           <p class="meta">
-            <span class="row" style="gap:4px">${raw(icon(ENTITY_ICON[a.entity]))} ${ACTIVITY_ENTITY_LABEL[a.entity]}</span> · <span>${a.user}</span> ·
+            <span class="row" style="gap:4px">${raw(icon(ENTITY_ICON[a.entity] ?? 'activity'))} ${ACTIVITY_ENTITY_LABEL[a.entity] ?? a.entity}</span> · <span>${a.user}</span> ·
             <time datetime="${a.at}" title="${a.at.replace('T', ' ')}">${timeAgo(a.at)}</time>
           </p>
         </div>

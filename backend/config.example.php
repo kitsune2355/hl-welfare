@@ -6,6 +6,9 @@
  *      copy backend\config.example.php backend\config.php
  *
  *  ไฟล์เดียวใช้ได้ทั้งเครื่องพัฒนาและเซิร์ฟเวอร์จริง (แบบเดียวกับ stock_hr/config_ctrl/connect.php)
+ *
+ *  ค่าการเข้าสู่ระบบ + การเชื่อมต่อสต็อก ผู้ดูแลระบบแก้ทับได้จาก admin.html แท็บ "ตั้งค่าระบบ" (ตาราง system_settings,
+ *  migration 006) — ค่าในไฟล์นี้คือค่าเริ่มต้นเมื่อยังไม่ได้ตั้งจากหน้าเว็บ (ดู backend/lib/settings.php)
  * ============================================================ */
 
 $cfg_http_host = isset($_SERVER['HTTP_HOST']) ? strtolower($_SERVER['HTTP_HOST']) : '';

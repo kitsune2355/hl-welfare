@@ -22,7 +22,12 @@ const SETTINGS = [
   { id: 'rules', href: 'rules.html', label: 'เงื่อนไขสวัสดิการ', icon: 'book-open-text' },
   { id: 'sites', href: 'sites.html', label: 'หน่วยงาน', icon: 'building-2' },
   { id: 'insurers', href: 'insurers.html', label: 'แบบฟอร์มประกัน', icon: 'file-spreadsheet' },
+  // roles = เห็นเฉพาะบทบาทเหล่านี้ (roleCode จาก /auth/login) — เซิร์ฟเวอร์ตรวจสิทธิ์ซ้ำทุกคำขอ
+  { id: 'admin', href: 'admin.html', label: 'ผู้ดูแลระบบ', icon: 'shield-check', roles: ['SUPER_ADMIN'] },
 ];
+
+/** เมนูที่บทบาทนี้เห็น */
+const allowedFor = (user) => (m) => !m.roles || m.roles.includes(user.roleCode);
 
 /** เมนูด้านล่าง (มือถือ <768px) — 4 หน้าหลัก + "เพิ่มเติม" (เปิดเมนูเต็ม: เงื่อนไข, หน่วยงาน, แบบฟอร์มประกัน, ผู้ใช้) */
 const BOTTOM_NAV = ['dashboard', 'employees', 'insurance', 'uniform'];
@@ -106,7 +111,7 @@ export function initPage(active, { tour = active } = {}) {
     <nav class="nav" aria-label="เมนูหลัก">
       ${MENU.map((m) => navLink(m, active))}
       <div class="nav-section">ตั้งค่า</div>
-      ${SETTINGS.map((m) => navLink(m, active))}
+      ${SETTINGS.filter(allowedFor(user)).map((m) => navLink(m, active))}
     </nav>
     <div class="sidebar-foot">
       ${API_MODE === 'mock' ? html`<button class="reset-btn" id="reset-btn">${raw(icon('rotate-ccw'))} รีเซ็ตข้อมูลจำลอง</button>` : ''}

@@ -18,9 +18,10 @@ define('REFRESH_COOKIE', 'HLW_REFRESH');
 $GLOBALS['hlw_role_labels'] = array('SUPER_ADMIN' => 'ผู้ดูแลระบบ', 'HR_ADMIN' => 'HR Admin', 'HR_COMPANY' => 'HR บริษัท', 'PAYROLL' => 'Payroll',
     'STOCK' => 'ผู้ดูแลสต็อก', 'EXECUTIVE' => 'ผู้บริหาร');
 
+/** ค่าตั้งการเข้าสู่ระบบ — ผู้ดูแลแก้ได้จาก admin.html (lib/settings.php) ไม่งั้นใช้ config.php */
 function auth_cfg($key)
 {
-    return $GLOBALS['hlw_config'][$key];
+    return sys_setting($key);
 }
 
 function map_user($r)
@@ -105,6 +106,7 @@ function auth_user($req)
 {
     if (array_key_exists('hlw_auth_user', $GLOBALS)) { return $GLOBALS['hlw_auth_user']; }
     $GLOBALS['hlw_auth_user'] = null;
+    $GLOBALS['hlw_auth_session_id'] = 0;
     $raw = req_cookie($req, SESSION_COOKIE);
     if (!looks_like_token($raw)) { return null; }
     $s = db_one('SELECT * FROM auth_sessions WHERE token_hash = ?', array(token_hash($raw)));
@@ -236,9 +238,10 @@ function api_auth_login($req, $params)
     $window = auth_cfg('login_window_minutes');
     $since = date('Y-m-d H:i:s', clock_time() - $window * 60);
     $lastOk = (int)db_value('SELECT COALESCE(MAX(id), 0) FROM auth_login_attempts WHERE username = ? AND succeeded = 1', array($username));
-    $userFails = (int)db_value('SELECT COUNT(*) FROM auth_login_attempts WHERE username = ? AND succeeded = 0 AND created_at >= ? AND id > ?',
-        array($username, $since, $lastOk));
-    $ipFails = (int)db_value('SELECT COUNT(*) FROM auth_login_attempts WHERE ip = ? AND succeeded = 0 AND created_at >= ?',
+    /* cleared_at = ผู้ดูแลปลดล็อกแล้ว (หน้า admin.html) — ไม่นับ */
+    $userFails = (int)db_value('SELECT COUNT(*) FROM auth_login_attempts WHERE username = ? AND succeeded = 0 AND cleared_at IS NULL
+        AND created_at >= ? AND id > ?', array($username, $since, $lastOk));
+    $ipFails = (int)db_value('SELECT COUNT(*) FROM auth_login_attempts WHERE ip = ? AND succeeded = 0 AND cleared_at IS NULL AND created_at >= ?',
         array($req['ip'], $since));
     if ($userFails >= auth_cfg('login_max_fails_per_user') || $ipFails >= auth_cfg('login_max_fails_per_ip')) {
         throw new ApiError('ลองเข้าสู่ระบบผิดหลายครั้ง กรุณารอ ' . $window . ' นาทีแล้วลองใหม่', 429, null, 'RATE_LIMITED',
