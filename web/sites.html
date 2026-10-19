@@ -15,6 +15,9 @@
       try {
         if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark';
         var s = JSON.parse(sessionStorage.getItem('hl-session') || localStorage.getItem('hl-session') || 'null');
+        // ขนาดตัวอักษรของระบบ (app/fontSize.js) — ต่อผู้ใช้ ต่อเบราว์เซอร์
+        var f = Number(localStorage.getItem('hl-font:' + (s && s.username)) || localStorage.getItem('hl-font') || 100);
+        if (f !== 100 && f >= 80 && f <= 150) document.documentElement.style.setProperty('--ui-zoom', f / 100);
         if (!s || s.expiresAt < Date.now()) location.replace('login.html?next=' + encodeURIComponent((location.pathname.split('/').pop() || 'index.html') + location.search));
       } catch (e) {}
     </script>
