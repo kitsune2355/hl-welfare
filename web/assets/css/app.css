@@ -4129,77 +4129,6 @@ html:has(.form-footer),
   align-items: center;
   font-size: 13px;
 }
-.ed-steps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  padding: 8px 12px;
-  border-block: 1px solid var(--border);
-  background: var(--surface-2);
-}
-.ed-step {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  min-width: 0;
-  padding: 8px 12px;
-  border-radius: 10px;
-  text-align: left;
-  color: var(--muted);
-}
-.ed-step:hover:not(:disabled) {
-  background: var(--surface);
-  color: var(--fg);
-}
-.ed-step.active {
-  background: var(--surface);
-  color: var(--primary);
-  box-shadow: 0 1px 3px rgb(15 23 42 / 0.1);
-}
-.ed-step:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.ed-step-no {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border: 1.5px solid currentColor;
-  border-radius: 50%;
-  font-size: 13px;
-  font-weight: 700;
-}
-.ed-step.done .ed-step-no {
-  border-color: var(--success);
-  background: var(--success);
-  color: #fff;
-}
-.ed-step.active .ed-step-no {
-  border-color: transparent;
-  background: var(--grad);
-  color: #fff;
-}
-.ed-step.error .ed-step-no {
-  border-color: var(--danger);
-  background: var(--danger);
-  color: #fff;
-}
-.ed-step-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.ed-step-text b {
-  overflow: hidden;
-  font-size: 13.5px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.ed-step-text small {
-  font-size: 11.5px;
-}
 .ed-body {
   display: flex;
   flex-direction: column;
@@ -4596,10 +4525,6 @@ html:has(#ed),
   .ic-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .ed-steps {
-    grid-template-columns: repeat(3, minmax(120px, 1fr));
-    overflow-x: auto;
-  }
   .ed-body {
     padding: 14px;
   }
@@ -4667,6 +4592,99 @@ html:has(#ed),
   .how li + li::before {
     display: none;
   }
+}
+/* แก้แบบฟอร์ม: ซ้าย = ไฟล์ + การตั้งค่า · ขวา = ตัวอย่างไฟล์ที่เติมข้อมูลสมมติ (จอเล็ก: ต่อกันลงมา) */
+.ed-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border-top: 1px solid var(--border);
+}
+.ed-left .ed-body {
+  gap: 12px;
+}
+.ed-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 45%, var(--surface));
+}
+.pv-head {
+  display: flex;
+  flex: none;
+  gap: 12px;
+  align-items: center;
+}
+.pv-head .grow {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.pv-head h3 {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+.pv-head small {
+  font-size: 12px;
+}
+.pv-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.pv-body > * {
+  flex: none;
+}
+.pv-loading {
+  justify-content: center;
+  min-height: 240px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.pv-empty {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px;
+  border: 1.5px dashed var(--border);
+  border-radius: 14px;
+  text-align: center;
+}
+.pv-empty-ic {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--success-soft);
+  color: var(--success);
+}
+.pv-empty-ic .icon {
+  width: 26px;
+  height: 26px;
+}
+.pv-empty > b {
+  font-size: 14px;
+}
+.pv-empty .how {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: 440px;
+  text-align: left;
+}
+.pv-empty .how li + li::before {
+  display: none;
 }
 /* มีไฟล์แล้ว → ช่องอัปโหลดเหลือแถวเดียว (เปลี่ยนไฟล์) */
 .drop.sm {
@@ -4853,31 +4871,28 @@ html:has(#ed),
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  .ed-top .ed-steps {
-    flex: 1 1 560px;
-    margin: 8px 16px 8px 0; /* ระยะขอบขวาเท่าระยะซ้ายของหัวการ์ด */
-    padding: 4px;
-    border: 0;
-    border-radius: 12px;
-  }
-  .ed-top .ed-step {
-    padding: 6px 10px;
-  }
-  .ed-pane {
-    display: flex;
+  .ed-split {
     flex: 1 1 auto;
-    flex-direction: column;
+    grid-template-columns: minmax(360px, 34%) minmax(0, 1fr);
+    min-height: 0;
+  }
+  .ed-left {
     min-height: 0;
     overflow-y: auto;
+    border-right: 1px solid var(--border);
   }
-  .ed-pane > * {
-    flex: none;
+  .ed-right {
+    min-height: 0;
+    border-top: 0;
   }
-  .ed-pane > .lay {
+  .pv-body {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .pv-body > .lay-sheet.test {
     flex: 1 1 0;
-    min-height: 460px; /* จอเตี้ยมาก → เลื่อนทั้งขั้นแทนการบีบตัวอย่างไฟล์ */
-    gap: 12px;
-    padding: 16px 20px;
+    min-height: 240px;
+    max-height: none;
   }
 }
 .sp-td.spill {
@@ -5034,8 +5049,7 @@ html:has(#ed),
   .ov.card .ov-head {
     padding: 16px 16px 12px;
   }
-  .ed-body,
-  .ed-pane > .lay {
+  .ed-body {
     padding: 16px;
   }
   /* ช่องค้นหาด้านบนเริ่มตรงกับเนื้อหา (ส่วนเมนู/โลโก้ซ่อนบนจอคอม) */

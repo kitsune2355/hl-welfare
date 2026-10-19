@@ -1,8 +1,8 @@
 // หน้า: แบบฟอร์มประกัน (insurers.html)
 //
 //   ภาพรวม (ไม่มี ?id)     ① บริษัทประกัน + ไฟล์แบบฟอร์ม Excel   ② ผูกบริษัทในเครือ ↔ บริษัทประกัน (บันทึกทีเดียวทั้งตาราง)
-//   แก้แบบฟอร์ม (?id=)    ขั้น 1 ไฟล์ Excel ของบริษัทประกัน (อัปโหลด .xlsx/.xls — ระบบหาจุดเติมข้อมูลให้อัตโนมัติ)
-//                          → ขั้น 2 ทดลองเติมข้อมูล (ตั้งค่า + ดาวน์โหลดไฟล์ทดลองไปเปิดใน Excel)
+//   แก้แบบฟอร์ม (?id=)    หน้าเดียว 2 กล่อง: ซ้าย = อัปโหลดไฟล์ Excel ของบริษัทประกัน (.xlsx/.xls — ระบบหาจุดเติมให้อัตโนมัติ) + การตั้งค่า
+//                          ขวา = ตัวอย่างไฟล์ที่เติมข้อมูลสมมติแล้ว (อัปเดตเองเมื่อแก้การตั้งค่า · เปิดใน Excel ได้)
 //   ระบบไม่สร้างแบบฟอร์มใหม่ — ตอนส่งออกเปิดไฟล์ที่อัปโหลดแล้วเติมรายชื่อลงไป (app/xlsxDirect.js)
 //
 // ไฟล์ที่อัปโหลดอยู่ในเบราว์เซอร์จนกด "บันทึก" — ตอนบันทึกจะล้างรายชื่อพนักงานในไฟล์ (ข้อมูลบุคคล) ก่อนเก็บ (app/excelTemplate.js)
@@ -34,10 +34,6 @@ const cycle = nextCycleDate(today);
 const view = $('#view');
 const page = $('#page');
 const CODES = [...COMPANY_CODES].sort(); // ลำดับชีต/ตาราง = ตามตัวอักษร (เหมือนไฟล์ของ HR)
-const STEPS = [
-  { id: 'file', label: 'ไฟล์ Excel ของบริษัทประกัน', hint: 'อัปโหลดไฟล์ที่ใช้ส่งจริง' },
-  { id: 'export', label: 'ทดลองเติมข้อมูล', hint: 'ตั้งค่า · เปิดไฟล์ใน Excel' },
-];
 /** ตัวแปรที่แทรกได้ จัดหมวด (ปุ่มแทรกข้อมูล) */
 const VAR_GROUPS = [
   { label: 'บริษัทในเครือ', tokens: ['{companyName}', '{companyCode}', '{policyNo}'] },
@@ -54,7 +50,6 @@ let bindings = []; // [{companyCode, insurerId, policyNo, holderName, plan}]
 let draft = null; // แบบฟอร์มที่กำลังแก้
 let original = '';
 let errors = {};
-let step = 'file';
 /** ไฟล์ที่เพิ่งอัปโหลด (ยังไม่บันทึก): { buffer, converted, sheets:[{name, grid}], fromUpload, fileName } */
 let src = null;
 let testResult = null; // { buffer, sheets, active }
@@ -312,11 +307,7 @@ on(view, 'click', '[data-dl-template]', (_e, btn) => {
 // ===================================================================
 // แก้แบบฟอร์ม
 // ===================================================================
-function stepState(id) {
-  const t = draft.template;
-  if (id === 'file') return t ? 'done' : '';
-  return errors.name || errors.shortName ? 'error' : t ? '' : 'locked';
-}
+const activeBadge = () => (draft.active ? badge('เปิดใช้', 'success') : badge('ปิดอยู่', 'neutral'));
 
 function drawEditor() {
   page.classList.add('editing');
@@ -336,19 +327,13 @@ function drawEditor() {
               <h2 id="ed-title">${draft.shortName || draft.name || 'บริษัทประกันใหม่'} ${draft.id ? '' : badge('ยังไม่บันทึก', 'warning')}</h2>
               <p class="muted">${draft.template ? html`${raw(icon('file-spreadsheet'))} ${draft.template.fileName}${src?.fromUpload ? ' (ไฟล์ใหม่ — ยังไม่บันทึก)' : ''}` : 'ยังไม่มีไฟล์แบบฟอร์ม'}</p>
             </div>
-            ${draft.active ? badge('เปิดใช้', 'success') : badge('ปิดอยู่', 'neutral')}
+            <span id="ed-state">${activeBadge()}</span>
           </header>
-          <nav class="ed-steps" role="tablist" aria-label="ขั้นตอน">
-            ${STEPS.map((s, i) => {
-              const st = stepState(s.id);
-              return html`<button type="button" class="ed-step ${s.id === step ? 'active' : ''} ${st}" role="tab" aria-selected="${s.id === step}" data-step="${s.id}" ${st === 'locked' ? 'disabled' : ''}>
-                <span class="ed-step-no">${st === 'done' && s.id !== step ? raw(icon('check')) : i + 1}</span>
-                <span class="ed-step-text"><b>${s.label}</b><small>${st === 'locked' ? 'อัปโหลดไฟล์ก่อน' : st === 'error' ? 'มีข้อมูลต้องแก้' : s.hint}</small></span>
-              </button>`;
-            })}
-          </nav>
           </div>
-          <div class="ed-pane" id="pane"></div>
+          <div class="ed-split">
+            <div class="ed-left" id="ed-left"></div>
+            <aside class="ed-right" id="ed-right" aria-label="ตัวอย่างไฟล์พร้อมข้อมูลสมมติ"></aside>
+          </div>
         </section>
         <div class="form-footer">
           <span class="dirty-note" id="dirty-note"></span>
@@ -357,18 +342,20 @@ function drawEditor() {
         </div>
       </form>`,
   );
-  drawPane();
+  drawLeft();
+  drawPreview();
 }
 
 function refreshDirty() {
   render($('#dirty-note'), dirty() ? html`<span class="dot"></span> มีการแก้ไขที่ยังไม่บันทึก` : '');
 }
 
-async function drawPane() {
-  const pane = $('#pane');
-  if (step === 'file') render(pane, filePane());
-  else render(pane, exportPane());
-  enhanceSelects(pane);
+/** กล่องซ้าย: ไฟล์ + การตั้งค่า (render ใหม่เฉพาะตอนกดปุ่ม — ระหว่างพิมพ์ไม่ render เพื่อไม่ให้เคอร์เซอร์หลุด) */
+function drawLeft() {
+  const left = $('#ed-left');
+  if (!left) return;
+  render(left, leftPane());
+  enhanceSelects(left);
   refreshDirty();
 }
 
@@ -400,10 +387,15 @@ function xlsNotice() {
   });
 }
 
-// ---------- ขั้น 1: ไฟล์แบบฟอร์ม ----------
-function filePane() {
+// ---------- กล่องซ้าย: ไฟล์แบบฟอร์ม + การตั้งค่า ----------
+function leftPane() {
+  return html`<div class="ed-body">${fileBlock()}${settingsBlocks()}</div>`;
+}
+
+function fileBlock() {
   const t = draft.template;
-  return html`<div class="ed-body">
+  return html`<section class="pane-block" id="file-block">
+    <h3>${raw(icon('file-spreadsheet'))} ไฟล์ Excel ของบริษัทประกัน</h3>
     <div class="form-grid g2">
       <div class="field">
         <label for="f-name">ชื่อบริษัทประกัน<span class="req">*</span></label>
@@ -425,12 +417,6 @@ function filePane() {
       <small>ใช้ไฟล์ที่เคยส่งจริงได้เลย (มีรายชื่ออยู่ก็ได้) — ระบบหาให้ว่าควรเติมข้อมูลตรงไหน</small>
     </label>
 
-    <ol class="how" aria-label="ระบบทำงานอย่างไร">
-      <li><span class="how-no">1</span><b>ไฟล์ของบริษัทประกันตัวจริง</b><small>ระบบเก็บไฟล์นี้ไว้ (ล้างรายชื่อเดิมออก)</small></li>
-      <li><span class="how-no">2</span><b>ระบบหาจุดที่ต้องเติมเอง</b><small>คอลัมน์รายชื่อ · ช่องเลขกรมธรรม์ / เดือน / ผู้แจ้ง — ไม่ต้องตั้งค่า</small></li>
-      <li><span class="how-no">3</span><b>ส่งออก = เติมรายชื่อลงไฟล์นี้</b><small>ไม่สร้างแบบฟอร์มใหม่ — โลโก้ สี สูตร หน้ากระดาษ เหมือนเดิมทุกอย่าง</small></li>
-    </ol>
-
     ${t
       ? html`<div class="file-card${src?.fromUpload ? ' new' : ''}">
           <span class="ic-xl">${raw(icon('file-spreadsheet'))}</span>
@@ -439,14 +425,13 @@ function filePane() {
             <span class="muted small">${src?.fromUpload ? 'ไฟล์ใหม่ — ยังไม่บันทึก' : t.uploadedAt ? `อัปโหลด ${thaiDateTime(t.uploadedAt)} · ${t.uploadedBy}` : t.uploadedBy} · ชีต ${t.sheet}${t.summary ? ` + ${t.summary.sheet}` : ''}</span>
           </div>
           ${src?.fromUpload ? '' : html`<button type="button" class="btn btn-sm" id="dl-current">${raw(icon('download'))} ดาวน์โหลดไฟล์ที่เก็บไว้</button>`}
-          <button type="button" class="btn btn-sm" data-goto="export">ทดลองเติมข้อมูล ${raw(icon('chevron-right'))}</button>
         </div>
         ${fillSummary(t)}`
       : ''}
     ${errors.template ? alertBox({ tone: 'danger', title: errors.template }) : ''}
     ${xlsNotice()}
     <p class="privacy">${raw(icon('lock'))} รายชื่อพนักงานที่อยู่ในไฟล์ (ข้อมูลบุคคล) จะถูกล้างออกก่อนเก็บ — เก็บไว้เฉพาะแบบฟอร์มเปล่า · ชีตอื่นที่ไม่ใช้ไม่ถูกเก็บ</p>
-  </div>`;
+  </section>`;
 }
 
 /** สิ่งที่ระบบจะเติมลงไฟล์ (หาให้อัตโนมัติจากไฟล์) */
@@ -473,15 +458,14 @@ async function handleFile(file) {
     const layout = a.layout;
     src = { ...r, fromUpload: true, fileName: file.name };
     draft.template = { fileName: file.name, converted: r.converted, lost: r.lost, uploadedAt: null, uploadedBy: '', sheet: a.sheet, ...layout, summary: a.summary };
-    testResult = null;
     errors = {};
-    step = 'file';
     const nCols = layout.columns.filter((c) => c.source !== 'blank').length;
     toast.success(`อ่านไฟล์แล้ว — ระบบจะเติมรายชื่อ ${nCols} คอลัมน์ · ${Object.keys(layout.cells).length} ช่อง`);
     drawEditor();
+    buildPreview();
   } catch (e) {
     toast.error(errorMessage(e));
-    drawPane();
+    drawLeft();
   }
 }
 
@@ -509,17 +493,15 @@ view.addEventListener('keydown', (e) => {
   }
 });
 
-// ---------- ขั้น 2: ทดลองเติมข้อมูล (ตั้งค่า + ไฟล์ทดลอง) ----------
+// ---------- การตั้งค่า (ใต้ไฟล์ในกล่องซ้าย) ----------
 const switchRow = (k, checked, title, desc) => html`<div class="sw-row">
   <button type="button" class="switch" role="switch" aria-checked="${!!checked}" data-switch="${k}" aria-label="${title}"></button>
   <span><b>${title}</b><small>${desc}</small></span>
 </div>`;
 
-function exportPane() {
+function settingsBlocks() {
   const fileVars = { insurer: draft.shortName || draft.name, cycleDate: cycle, month: thaiMonthYear(cycle) };
-  return html`<div class="ed-body">
-    <div class="pane-grid">
-      <section class="pane-block">
+  return html`<section class="pane-block">
         <h3>การใช้งาน</h3>
         ${switchRow('active', draft.active, draft.active ? 'เปิดใช้' : 'ปิดอยู่', draft.active ? 'แสดงในหน้าส่งออกของประกันกลุ่ม' : 'ยังไม่แสดงในหน้าส่งออก — เปิดเมื่อพร้อม')}
         ${switchRow('includeEmptySheets', draft.includeEmptySheets, 'สร้างชีตแม้ไม่มีรายการ', 'บริษัทที่รอบนั้นไม่มีคนเข้า/ออก ก็ยังมีชีต')}
@@ -568,27 +550,88 @@ function exportPane() {
           <div class="field"><label for="s-phone">โทรศัพท์</label><input class="input" id="s-phone" data-k="signer.phone" value="${draft.signer.phone}" /></div>
         </div>
       </section>
-      <section class="pane-block span-all" id="test-block">
-        <h3>ทดลองเติมข้อมูลลงไฟล์ <span class="muted small">ข้อมูลสมมติ 3 คน (เข้า 2 · ออก 1) เติมลงไฟล์ Excel ของคุณ แล้วเปิดดูใน Excel ได้เลย</span></h3>
-        ${testResult
-          ? html`<div class="test-done">
-                <span class="ic-xl">${raw(icon('file-spreadsheet'))}</span>
-                <div class="grow">
-                  <b>เติมข้อมูลลงไฟล์แล้ว · ${testResult.sheets.length} ชีต</b>
-                  <span class="muted small">${testResult.sheets.map((s) => s.name).join(' · ')} — ส่วนอื่นของไฟล์เหมือนต้นฉบับทุกอย่าง</span>
-                </div>
-                <button type="button" class="btn btn-primary" id="test-download">${raw(icon('download'))} ดาวน์โหลดไปเปิดใน Excel</button>
-                <button type="button" class="btn" id="test-build">${raw(icon('refresh-cw'))} เติมใหม่</button>
-              </div>
-              <p class="test-note">${raw(icon('eye'))}<span>ตัวอย่างด้านล่างแสดง<b>โดยประมาณ</b> — หน้าตาจริงดูจากไฟล์ที่ดาวน์โหลด</span></p>
-              <div class="xl-tabs">${testResult.sheets.map((s, i) => html`<button type="button" class="xl-tab${i === testResult.active ? ' active' : ''}" data-test-sheet="${i}">${s.name}</button>`)}</div>
-              <div class="lay-sheet test">${sheetPreviewHtml(testResult.sheets[testResult.active].grid, { maxRows: 80 })}</div>`
-          : html`<div class="row wrap">
-              <button type="button" class="btn btn-primary" id="test-build">${raw(icon('file-spreadsheet'))} เติมข้อมูลทดลอง</button>
-            </div>`}
-      </section>
+`;
+}
+
+// ---------- กล่องขวา: ตัวอย่างไฟล์ที่เติมข้อมูลสมมติแล้ว (อัปเดตเองเมื่อเปลี่ยนไฟล์/การตั้งค่า) ----------
+let previewGen = 0; // กันผลของรอบเก่าที่เสร็จทีหลังมาทับรอบใหม่
+let previewTimer = null;
+let previewError = '';
+
+/** เปลี่ยนการตั้งค่า → เติมตัวอย่างใหม่ (หน่วงไว้ระหว่างพิมพ์) */
+function schedulePreview(delay = 500) {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => buildPreview(), delay);
+}
+
+async function buildPreview() {
+  clearTimeout(previewTimer);
+  if (!draft?.template) return drawPreview();
+  const gen = ++previewGen;
+  const keep = testResult?.active;
+  testResult = null;
+  previewError = '';
+  drawPreview();
+  try {
+    const buffer = src?.buffer ?? (await templateBuffer(draft.template));
+    const data = { cycleDate: cycle, insurer: draft, companies: sampleCompanies(), missing: [] };
+    const out = await fillTemplate(buffer, data, { exportDate: today });
+    const sheets = await gridsOf(out);
+    if (gen !== previewGen) return;
+    // เปิดชีตบริษัทแรก (ถัดจากชีตสรุป) · เติมใหม่แล้วอยู่ชีตเดิม
+    testResult = { buffer: out, sheets, active: keep != null && keep < sheets.length ? keep : sheets.length > 1 ? 1 : 0 };
+  } catch (err) {
+    if (gen !== previewGen) return;
+    previewError = errorMessage(err);
+  }
+  drawPreview();
+}
+
+function drawPreview() {
+  const box = $('#ed-right');
+  if (!box) return;
+  const sheetBox = box.querySelector('.lay-sheet');
+  const scroll = sheetBox ? [sheetBox.scrollTop, sheetBox.scrollLeft] : null;
+  render(box, previewPane());
+  // เติมใหม่ (เช่นเปลี่ยนรูปแบบวันที่) → คงตำแหน่งที่เลื่อนดูอยู่
+  const next = box.querySelector('.lay-sheet');
+  if (scroll && next) [next.scrollTop, next.scrollLeft] = scroll;
+}
+
+function previewPane() {
+  const t = draft.template;
+  const head = html`<header class="pv-head">
+    <div class="grow">
+      <h3>${raw(icon('eye'))} ตัวอย่างไฟล์ที่ส่งออก</h3>
+      <small class="muted">ข้อมูลสมมติ 3 คน (เข้า 2 · ออก 1) เติมลงไฟล์ของคุณ · อัปเดตเองเมื่อแก้การตั้งค่า</small>
     </div>
-  </div>`;
+    ${testResult ? html`<button type="button" class="btn btn-sm btn-primary" id="test-download" title="ไฟล์ตัวอย่างนี้ — เปิดใน Excel ดูหน้าตาจริง">${raw(icon('download'))} เปิดใน Excel</button>` : ''}
+  </header>`;
+  if (!t)
+    return html`${head}
+      <div class="pv-empty">
+        <span class="pv-empty-ic">${raw(icon('file-spreadsheet'))}</span>
+        <b>อัปโหลดไฟล์ Excel ทางซ้าย แล้วตัวอย่างจะแสดงที่นี่</b>
+        <ol class="how" aria-label="ระบบทำงานอย่างไร">
+          <li><span class="how-no">1</span><b>ไฟล์ของบริษัทประกันตัวจริง</b><small>ระบบเก็บไฟล์นี้ไว้ (ล้างรายชื่อเดิมออก)</small></li>
+          <li><span class="how-no">2</span><b>ระบบหาจุดที่ต้องเติมเอง</b><small>คอลัมน์รายชื่อ · ช่องเลขกรมธรรม์ / เดือน / ผู้แจ้ง</small></li>
+          <li><span class="how-no">3</span><b>ส่งออก = เติมรายชื่อลงไฟล์นี้</b><small>โลโก้ สี สูตร หน้ากระดาษ เหมือนเดิมทุกอย่าง</small></li>
+        </ol>
+      </div>`;
+  if (previewError)
+    return html`${head}
+      <div class="pv-body">
+        ${alertBox({ tone: 'danger', title: 'เติมข้อมูลตัวอย่างไม่สำเร็จ', body: previewError })}
+        <div><button type="button" class="btn btn-sm" id="test-build">${raw(icon('refresh-cw'))} ลองใหม่</button></div>
+      </div>`;
+  if (!testResult) return html`${head}<div class="pv-body pv-loading">${loader({ text: 'กำลังเติมข้อมูลตัวอย่างลงไฟล์' })}</div>`;
+  const s = testResult.sheets[testResult.active];
+  return html`${head}
+    <div class="pv-body">
+      <div class="xl-tabs">${testResult.sheets.map((x, i) => html`<button type="button" class="xl-tab${i === testResult.active ? ' active' : ''}" data-test-sheet="${i}">${x.name}</button>`)}</div>
+      <div class="lay-sheet test">${sheetPreviewHtml(s.grid, { maxRows: 80 })}</div>
+      <p class="test-note">${raw(icon('info'))}<span>แสดง<b>โดยประมาณ</b> — หน้าตาจริงดูได้จากปุ่ม “เปิดใน Excel” · ส่วนอื่นของไฟล์เหมือนต้นฉบับทุกอย่าง</span></p>
+    </div>`;
 }
 
 function setDraftValue(k, v) {
@@ -604,7 +647,7 @@ view.addEventListener('input', (e) => {
   setDraftValue(k, e.target.value);
   if (k === 'fileName') render($('#out-fileName'), html`<span class="vf-out-label">ผลลัพธ์</span><span>${raw(richText(draft.fileName, 'value', { insurer: draft.shortName || draft.name, cycleDate: cycle, month: thaiMonthYear(cycle) }))}.xlsx</span>`);
   if (k === 'name' || k === 'shortName') render($('#ed-title'), html`${draft.shortName || draft.name || 'บริษัทประกันใหม่'} ${draft.id ? '' : badge('ยังไม่บันทึก', 'warning')}`);
-  testResult = null;
+  if (k !== 'fileName') schedulePreview(); // ชื่อไฟล์ไม่อยู่ในเนื้อไฟล์
   refreshDirty();
 });
 view.addEventListener('change', (e) => {
@@ -612,54 +655,40 @@ view.addEventListener('change', (e) => {
   if (!k || !draft || e.target.tagName !== 'SELECT') return;
   setDraftValue(k, e.target.value);
   if (k === 'dateFormat') $('#date-example').textContent = formatFormDate(cycle, draft.dateFormat, draft.dateEra);
-  testResult = null;
+  schedulePreview(0);
   refreshDirty();
 });
 on(view, 'click', '[data-switch]', (_e, b) => {
   const k = b.dataset.switch;
   draft[k] = !draft[k];
-  drawEditor();
+  render($('#ed-state'), activeBadge());
+  drawLeft();
+  if (k !== 'active') schedulePreview(0);
 });
 on(view, 'click', '[data-set]', (_e, b) => {
   draft[b.dataset.set] = b.dataset.value;
-  testResult = null;
-  drawPane();
+  drawLeft();
+  schedulePreview(0);
 });
 on(view, 'click', '[data-insert]', (_e, b) => insertToken(document.getElementById(b.dataset.target), b.dataset.insert));
-on(view, 'click', '#test-build', (_e, btn) =>
-  busy(btn, async () => {
-    const buffer = src?.buffer ?? (await templateBuffer(draft.template));
-    const data = { cycleDate: cycle, insurer: draft, companies: sampleCompanies(), missing: [] };
-    const out = await fillTemplate(buffer, data, { exportDate: today });
-    const sheets = await gridsOf(out);
-    testResult = { buffer: out, sheets, active: sheets.length > 1 ? 1 : 0 }; // เปิดชีตบริษัทแรก (ถัดจากสรุป)
-    drawPane();
-    $('#test-block').scrollIntoView({ block: 'start', behavior: 'smooth' });
-  }, { label: 'กำลังเติมข้อมูลลงไฟล์' }).catch((err) => toast.error(errorMessage(err))),
-);
+on(view, 'click', '#test-build', () => buildPreview());
 on(view, 'click', '#dl-current', (_e, btn) =>
   busy(btn, async () => downloadBlob(new Blob([await templateBuffer(draft.template)], { type: XLSX_MIME }), draft.template.fileName.replace(/\.xlsx?$/i, '') + '.xlsx')).catch((err) => toast.error(errorMessage(err))),
 );
 on(view, 'click', '#test-download', () => downloadBlob(new Blob([testResult.buffer], { type: XLSX_MIME }), `ตัวอย่าง-${exportFileName(draft, cycle)}.xlsx`));
 on(view, 'click', '[data-test-sheet]', (_e, b) => {
   testResult.active = Number(b.dataset.testSheet);
-  drawPane();
+  render($('#ed-right'), previewPane()); // ชีตอื่น → เริ่มจากมุมบนซ้าย
 });
 
-// ---------- ขั้นตอน / บันทึก / ลบ ----------
-on(view, 'click', '[data-step], [data-goto]', (_e, b) => {
-  step = b.dataset.step ?? b.dataset.goto;
-  setParams({ step: step === 'file' ? '' : step });
-  drawEditor();
-});
+// ---------- บันทึก / ลบ ----------
 
 view.addEventListener('submit', async (e) => {
   e.preventDefault();
   const payload = clone(draft);
   errors = validateInsurerForm(payload, forms);
   if (Object.keys(errors).length) {
-    step = errors.name || errors.shortName || errors.template ? 'file' : step;
-    drawEditor();
+    drawLeft();
     toast.error(Object.values(errors)[0]);
     return;
   }
@@ -684,7 +713,7 @@ view.addEventListener('submit', async (e) => {
       const saved = await api.saveInsurer(payload);
       toast.success(`บันทึกแบบฟอร์ม ${saved.shortName} แล้ว${src?.fromUpload ? ' — ล้างรายชื่อในไฟล์แล้ว' : ''}`);
       forms = await api.listInsurers();
-      openEditor(saved.id, { keepStep: true });
+      openEditor(saved.id);
     }, { label: 'กำลังบันทึก' });
   } catch (err) {
     errors = err.details ?? {};
@@ -727,7 +756,7 @@ window.addEventListener('beforeunload', (e) => {
   if (dirty()) e.preventDefault(); // ตารางผูกบริษัทถามเองเมื่อมีงานค้าง (ExcelGrid)
 });
 
-function openEditor(id, { keepStep = false } = {}) {
+function openEditor(id) {
   const f = id === 'new' ? null : forms.find((x) => x.id === Number(id));
   if (id !== 'new' && !f) {
     toast.error('ไม่พบแบบฟอร์มนี้');
@@ -739,10 +768,9 @@ function openEditor(id, { keepStep = false } = {}) {
   errors = {};
   src = null;
   testResult = null;
-  if (!keepStep) step = STEPS.some((s) => s.id === getParam('step')) && draft.template ? getParam('step') : 'file';
-  if (!draft.template && step !== 'file') step = 'file';
-  setParams({ id: f ? f.id : 'new', step: step === 'file' ? '' : step });
+  setParams({ id: f ? f.id : 'new', step: '' }); // ?step= ของหน้าแบบขั้นตอนเดิม — ล้างทิ้ง
   drawEditor();
+  if (draft.template) buildPreview();
 }
 
 // ---------- เริ่ม ----------
