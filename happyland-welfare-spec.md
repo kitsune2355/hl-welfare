@@ -1,8 +1,8 @@
 # ระบบจัดการสวัสดิการพนักงาน — กลุ่มบริษัทแฮปปี้แลนด์
 
 > เอกสารสเปกสำหรับพัฒนาและนำขึ้น host ของหน่วยงาน
-> Stack: **HTML + CSS + JavaScript (ES Modules) ไม่ใช้ framework ไม่ต้อง build** · **PHP 8.2+** · **MySQL 8**
-> แนวทาง: **เฟส 1 หน้าเว็บ + ข้อมูลจำลอง (mock) ✅ เสร็จแล้ว → เฟส 2 ต่อ PHP + MySQL จริง**
+> Stack: **HTML + CSS + JavaScript (ES Modules) ไม่ใช้ framework ไม่ต้อง build** · **PHP 5.2.6 + MySQL 5.0** (AppServ เครื่องเดียวกับ stock_hr — ฐานข้อมูลแยก `hl_welfare`)
+> แนวทาง: **เฟส 1 หน้าเว็บ + ข้อมูลจำลอง (mock) ✅ → เฟส 2 PHP + MySQL จริง ✅ (ใช้งานด้วย `apiMode: 'http'`)**
 > สถาปัตยกรรม: **Clean Architecture** (กฎสวัสดิการเป็นแกน ไม่ขึ้นกับหน้าจอ/ฐานข้อมูล) · UI: **Modern, clean, user-friendly** — ธีม **gradient น้ำเงิน → เขียว**, โทนสว่าง + โหมดมืด, หน้า login พร้อมอนิเมชัน
 > อ้างอิงเงื่อนไขจากไฟล์ "เงื่อนไขสวัสดิการ 15.10.69"
 >
@@ -23,13 +23,13 @@
 9. [Mock API](#9-mock-api)
 10. [Design System & UX](#10-design-system--ux)
 11. [หน้าจอ (Pages)](#11-หน้าจอ-pages)
-12. [เฟส 2 — PHP Backend](#12-เฟส-2--php-backend)
+12. [เฟส 2 — PHP Backend (PHP 5.2)](#12-เฟส-2--php-backend-php-526-บน-appserv--ทำแล้ว)
 13. [MySQL Schema](#13-mysql-schema)
 14. [นำขึ้น host / สลับจาก mock → MySQL](#14-นำขึ้น-host--สลับจาก-mock--mysql)
 15. [การทดสอบ](#15-การทดสอบ)
 16. [Checklist](#16-checklist)
 17. [ประเด็นที่ต้องยืนยันกับ HR](#17-ประเด็นที่ต้องยืนยันกับ-hr)
-18. [ประเด็นเปิด — การเข้าสู่ระบบ](#18-ประเด็นเปิด--การเข้าสู่ระบบ-ต้องตัดสินใจ)
+18. [ประเด็นเปิด — backend / การเข้าสู่ระบบ](#18-ประเด็นเปิด--backend--การเข้าสู่ระบบ-ต้องตัดสินใจ)
 
 ---
 
@@ -54,7 +54,7 @@
 - **1 หน้า = 1 ไฟล์ HTML** (`employees.html`) + **1 ไฟล์ JS** (`assets/js/pages/employees.js`) — โครงหน้าอยู่ใน HTML, JS เติมข้อมูล
 - **Clean Architecture** — กฎสวัสดิการอยู่ใน `domain/` (ฟังก์ชันล้วน ไม่แตะ DOM/fetch/localStorage) ชั้นนอกพึ่งชั้นในเท่านั้น (ข้อ 3)
 - หน้าจอเรียกข้อมูลผ่าน `api` ตัวเดียว (`assets/js/app/api.js`) → สลับ **mock ↔ PHP** ได้ด้วย `config.js` บรรทัดเดียว
-- ตรรกะคำนวณสิทธิฝั่ง PHP ต้องมีตัวคู่แฝดที่ให้ผลเหมือนกัน (`Domain/Eligibility.php`) โดยใช้ชุด test case เดียวกัน
+- ตรรกะคำนวณสิทธิฝั่ง PHP ต้องมีตัวคู่แฝดที่ให้ผลเหมือนกัน (`backend/domain/`, `backend/usecases/`) — ตรวจด้วย golden test (ข้อ 15.3)
 - กฎเก็บเป็น **ข้อมูล** (rule table) ไม่ hard-code ในหน้าจอ
 - วันที่ใช้รูปแบบ ISO `YYYY-MM-DD` ทุกที่ คำนวณแบบ UTC เพื่อไม่ให้วันเลื่อน แสดงผลเป็น พ.ศ.
 - UI ใช้ **design token** (CSS variables) ชุดเดียวใน `app.css` → โทนสว่าง/โหมดมืดสลับได้โดยไม่ต้องแก้หน้า (ข้อ 10)
@@ -73,11 +73,10 @@
 | Web server ใดก็ได้ | Apache / Nginx / IIS / `npx http-server` | เปิดหน้าเว็บ (ES modules ต้องเปิดผ่าน `http://` ไม่ใช่ดับเบิลคลิกไฟล์) | ✅ |
 | เบราว์เซอร์ | Chrome / Edge / Firefox / Safari รุ่นปี 2023 ขึ้นไป | ใช้งาน | ✅ |
 | Node.js | 20+ | **รันชุดทดสอบเท่านั้น** (`npm test`) — ไม่ต้องใช้บน host | ไม่บังคับ |
-| PHP | 8.2+ (`pdo_mysql`, `mbstring`) | เฟส 2 | เฟส 2 |
-| Composer | 2.x | เฟส 2 (autoload PSR-4) | เฟส 2 |
-| MySQL | 8.0+ (หรือ MariaDB 10.6+) | เฟส 2 | เฟส 2 |
+| PHP | 5.2.6+ (`mysqli`, `curl`, `hash`, `json`) — AppServ ตัวเดียวกับ stock_hr | backend | ✅ |
+| MySQL | 5.0+ — เครื่องเดียวกับ stock_hr (ฐานข้อมูลแยก `hl_welfare`) | backend | ✅ |
 
-> ⚠️ เครื่องพัฒนาปัจจุบัน (AppServ) มี **PHP 5.2.6 / MySQL 5.0** — ใช้เปิดหน้าเว็บเฟส 1 ได้ (ทดสอบแล้ว) แต่ใช้กับ backend เฟส 2 ไม่ได้ ต้องติดตั้ง PHP 8.2+ และ MySQL 8 / MariaDB 10.6+ (เช่น Laragon) ก่อนเริ่มเฟส 2 และตรวจเวอร์ชัน PHP ของ host หน่วยงานด้วย
+> โค้ด backend เขียนให้รันบน **PHP 5.2.6 / MySQL 5.0 ของ AppServ** (ตัดสินใจ 19 ต.ค. 2569 ให้อยู่เครื่องเดียวกับ stock_hr) และใช้ได้กับ PHP/MySQL รุ่นใหม่กว่า — ข้อจำกัดดูข้อ 12.3
 
 ---
 
@@ -133,12 +132,12 @@ pages/employee.js ──import { api }──▶ app/api.js ── config.apiMode
 
 ### 3.3 ฝั่ง PHP ใช้ชั้นเดียวกัน
 
-| ชั้น | Namespace | ตัวอย่าง |
+| ชั้น | โฟลเดอร์ (PHP 5.2 — ฟังก์ชันล้วน แบบ stock_hr) | ตัวอย่าง |
 |---|---|---|
-| Domain | `App\Domain` | `Dates`, `Eligibility` (คู่แฝดของ JS — pure, ไม่มี PDO) |
-| Application | `App\Application` | `Port\EmployeeRepository` (interface), `Service\InsuranceCycleService`, `Service\WorkQueueService` |
-| Infrastructure | `App\Infrastructure` | `Config`, `Database`, `Persistence\PdoEmployeeRepository` |
-| Interface (HTTP) | `App\Http` | `Router`, `Request`, `Response`, `Controller\*` (บาง — แค่แปลง request → service → JSON) |
+| Domain | `backend/domain/` | `insurance_status()`, `uniform_status()` (คู่แฝดของ JS — pure, ไม่แตะ DB) |
+| Application | `backend/usecases/` | `build_insurance_cycle()`, `build_work_queue()`, `build_insurer_export()` |
+| Infrastructure | `backend/lib/`, `backend/repo/`, `backend/api/stock_client.php` | `db_all()`, `repo_world()`, `stock_call()` |
+| Interface (HTTP) | `web/api/index.php`, `backend/api/`, `backend/auth.php` | `api_routes()`, `api_*()` (บาง — อ่านคำขอ → เรียกชั้นล่าง → JSON) |
 
 ---
 
@@ -192,7 +191,7 @@ hl-welfare/
 │           │   └── usecases/          ← dashboard, insuranceCycle, insurerExport (ใครอยู่ในไฟล์ + ค่าในเซลล์), templateDetect (อ่านตำแหน่งในไฟล์แบบฟอร์ม), uniformPending, workQueue
 │           ├── infrastructure/        ← ③ adapter
 │           │   ├── mock/              ← rules.js (กฎตั้งต้น), insurers.js (แบบฟอร์มตั้งต้น 2 บริษัทประกัน), seed.js (ข้อมูลจำลอง), users.js (ผู้ใช้ทดลอง), mockApi.js
-│           │   └── http/httpApi.js    ← fetch → PHP (เฟส 2)
+│           │   └── http/              ← httpApi.js (fetch → PHP), serverAuth.js (login/refresh/401), stockGateway.js (โหมด mock)
 │           ├── shared/                ← ④ dom.js, format.js, labels.js, csv.js, excel.js, icons.js
 │           ├── ui/                    ← ⑤ ชิ้นส่วน UI
 │           │   ├── components.js      ← badge, card, statCard, emptyState, alertBox, avatar, tabs …
@@ -212,13 +211,15 @@ hl-welfare/
 │               └── login.js  dashboard.js  employees.js  employee.js
 │                   insurance.js  uniform.js  rules.js  sites.js
 │
-├── backend/                           ← PHP 8.2+ (เฟส 2 — ยังไม่สร้าง)
-│   ├── composer.json
-│   ├── .env.example
-│   ├── public/  index.php  .htaccess
-│   ├── src/  Domain/  Application/{Port,Service}/  Infrastructure/{Persistence}/  Http/{Controller}/
-│   ├── database/  schema.sql  seed.sql
-│   └── tests/EligibilityTest.php
+│       └── api/index.php              ← ทางเข้าเดียวของ API (ส่งต่อให้ backend/)
+│
+├── backend/                           ← PHP 5.2 + MySQL 5.0 (ข้อ 12)
+│   ├── bootstrap.php  config.example.php  .htaccess (Deny from all)
+│   ├── lib/  domain/  usecases/  repo/  api/  auth.php
+│   ├── sql/  001_schema.sql  002_seed_master.sql  003_seed_demo.sql
+│   ├── bin/user.php
+│   └── tests/run.php  fixtures/golden.json
+├── scripts/export-seed.mjs            ← seed + golden จาก mock
 │
 └── .gitignore
 ```
@@ -239,8 +240,8 @@ hl-welfare/
 ### 5.2 ตั้งค่า (`web/assets/js/config.js`)
 ```js
 export const CONFIG = {
-  apiMode: 'mock',        // 'mock' = ข้อมูลจำลองในเบราว์เซอร์ · 'http' = เรียก PHP (เฟส 2)
-  apiBaseUrl: 'api',      // URL ของ PHP API (relative จากหน้าเว็บ)
+  apiMode: 'http',        // 'http' = PHP + MySQL (ใช้งานจริง) · 'mock' = ข้อมูลจำลองในเบราว์เซอร์ (ทดลอง/เทสต์)
+  apiBaseUrl: 'api/index.php', // URL ของ PHP API (relative จากหน้าเว็บ · ไม่ต้องเปิด mod_rewrite)
   auth: {
     enabled: true,         // false = ไม่ต้อง login (เข้าเป็น "ผู้ใช้ทั่วไป")
     sessionHours: 12,      // อายุการเข้าสู่ระบบ
@@ -768,6 +769,8 @@ export interface WelfareApi {
 
 ### REST Endpoints (PHP)
 
+ทุก path ต่อจาก `api/index.php` เช่น `GET api/index.php/employees/5/benefits` (ในตารางเขียนแบบ `/api/...` ตามเดิม = `api/index.php/...`) · ตารางเส้นทางจริงอยู่ที่ `backend/api/routes.php`
+
 รูปแบบ response: สำเร็จ `{ "data": ... }` · ผิดพลาด `{ "error": "ข้อความ" }` + HTTP 4xx/5xx
 
 | Method | Path | Body / Query | คืนค่า |
@@ -796,7 +799,7 @@ export interface WelfareApi {
 | POST | `/api/uniform/issues` | `{employeeId, entitlementKey, event, qty, size, issuedAt}` | `UniformIssue` (201) |
 | GET | `/api/uniform/pending` | – | `UniformPendingRow[]` |
 | GET | `/api/uniform/stock-options` | `?employeeId=&entitlementKey=` | แบบ/ไซซ์/ยอดคงเหลือจากระบบสต็อก Uniform (409 ถ้าแจกหรือส่งเบิกแล้ว) |
-| POST | `/api/uniform/stock-requests` | `{employeeId, entitlementKey, lines: [{itemCode, productId, qty}]}` | `UniformIssue` (201, `source: STOCK`) — ออกใบเบิก WRQ ที่อนุมัติแล้วใน stock_hr |
+| POST | `/api/uniform/stock-requests` | `{employeeId, entitlementKey, lines: [{itemCode, productId, qty}]}` | `UniformIssue` (201, `source: STOCK`) — ออกใบเบิก WRQ (รอบเริ่มงาน = NRQ) ที่อนุมัติแล้วใน stock_hr · HR_ADMIN/HR_COMPANY · `requested_by_*` จาก session |
 | POST | `/api/uniform/stock-sync` | – | `{changed}` — ดึงสถานะใบเบิกจาก stock_hr (คลังยกเลิก → สิทธิ์กลับเป็นค้างแจก) |
 | POST | `/api/sites` | `{companyCode, name, hasGroupInsurance, poloColor}` | `Site` (201) |
 | DELETE | `/api/sites/{id}` | – | 204 / 409 |
@@ -808,7 +811,7 @@ export interface WelfareApi {
 | POST | `/api/auth/logout` | – | 204 (เพิกถอนโทเคน ลบ cookie) |
 | GET | `/api/auth/me` | – | `AuthUser` หรือ 401 |
 | POST | `/api/auth/password` | `{currentPassword, newPassword}` | `AuthUser` · เพิกถอนทุกโทเคน + session เครื่องอื่น · 422 |
-| POST | `/api/stock/bridge` | `{action: catalog\|submit\|status\|cancel, …}` | ตอบ `{ok, message, …}` ตาม stock_hr (ไม่ห่อ `data`) · submit/cancel ต้องเป็น HR_ADMIN/HR_COMPANY (403) · ผู้ขอเบิกจาก session |
+| POST | `/api/stock/bridge` | `{action: catalog\|submit\|status\|cancel, …}` | ตัวกลางสำหรับหน้าเว็บโหมด mock (StockGateway) · ตอบ `{ok, message, …}` ตาม stock_hr (ไม่ห่อ `data`) · submit/cancel ต้องเป็น HR_ADMIN/HR_COMPANY (403) · ผู้ขอเบิกจาก session |
 | GET | `/api/monitor/tasks` | – | `MonitorTask[]` (เรียงด่วนก่อน) |
 | GET | `/api/activity` | `?entity=&employeeId=&limit=` | `ActivityLog[]` (ใหม่ก่อน) |
 
@@ -1152,38 +1155,38 @@ Desktop  76–100 จาก 258 รายการ      ( « ‹ 1 … 3 [4] 5 �
 | ใครตรวจรหัสผ่าน | `config.js` → `auth.provider`: `'auto'` (mock ↔ apiMode) · `'mock'` · `'server'` = PHP backend แม้ข้อมูลยังเป็น mock (ใช้เมื่อส่งเบิกคลังจริงและต้องรู้ว่าใครขอ) |
 | PHP (`backend/`) | ข้อ 10.9.1 · **การตรวจในเบราว์เซอร์ใช้เพื่อการนำทางเท่านั้น ความปลอดภัยจริงอยู่ที่ PHP** |
 
-### 10.9.1 การยืนยันตัวตนฝั่ง PHP (session + refresh token) — ✅ ทำแล้วใน `backend/`
+### 10.9.1 การยืนยันตัวตนฝั่ง PHP (session + refresh token) — ✅ ทำแล้วใน `backend/auth.php`
 
 **หลักการ**: เบราว์เซอร์ไม่เคยถือกุญแจที่ JS อ่านได้ · session ฝั่งเซิร์ฟเวอร์อายุสั้น · "จดจำฉัน" = refresh token ที่หมุนทุกครั้งที่ใช้ · ผู้ทำรายการทุกครั้งมาจาก session
+**ข้อจำกัด PHP 5.2.6** (AppServ เหมือน stock_hr): ไม่มี `password_hash`/`random_bytes`/`openssl_random_pseudo_bytes` และ `setcookie()` ใส่ `SameSite` ไม่ได้ → ทำเองตามตารางด้านล่าง (`backend/lib/security.php`, `backend/lib/http.php`)
 
 | ส่วน | รายละเอียด |
 |---|---|
-| Session | PHP session ปกติ (cookie `HLW_SESSION`) · `HttpOnly` + `Secure` + `SameSite=Lax` · path = `APP_BASE_PATH/` · ไม่มีวันหมดอายุบน cookie (ปิดเบราว์เซอร์ = หมด) · ฝั่งเซิร์ฟเวอร์หมดเมื่อไม่ใช้งาน `SESSION_IDLE_MINUTES` (30) หรือครบ `SESSION_ABSOLUTE_HOURS` (12) · `session_regenerate_id(true)` ทุกครั้งที่ login/refresh/เปลี่ยนรหัสผ่าน (กัน session fixation) · `use_strict_mode` |
-| ตรวจทุกคำขอ | `SessionGuard` อ่านผู้ใช้จากตาราง `users` ใหม่ทุกครั้ง: `is_active = 0` หรือ `session_version` ไม่ตรง (เปลี่ยนรหัสผ่าน) → 401 ทันทีทุกเครื่อง |
-| Refresh token | สุ่ม 256 บิต (`random_bytes(32)` → hex 64 ตัว) · ฐานข้อมูลเก็บเฉพาะ `SHA-256` ใน `auth_refresh_tokens.token_hash` · cookie `HLW_REFRESH`: `HttpOnly` + `Secure` + `SameSite=Lax` · **path = `APP_BASE_PATH/api/auth`** (ส่งไปเฉพาะ endpoint ของ auth) · อายุ `REFRESH_TOKEN_DAYS` (30) นับใหม่ทุกครั้งที่หมุน · **ห้ามเก็บโทเคนใน localStorage/sessionStorage** |
-| หมุนโทเคน | `POST /api/auth/refresh` ใน transaction (`SELECT … FOR UPDATE`): ตัวเดิม `revoked_reason = ROTATED`, `replaced_by = ตัวใหม่` (family เดิม) แล้วเริ่ม session ใหม่ |
-| ตรวจจับโทเคนรั่ว | ใช้ตัวที่ `ROTATED` ไปแล้วซ้ำ → เพิกถอน**ทั้ง family** (`REUSE`) + `audit_log` `USER/TOKEN_REUSE` + 401 → เจ้าของตัวจริงต้อง login ใหม่ · ยกเว้นภายใน `REFRESH_GRACE_SECONDS` (10) หลังหมุน = สองแท็บต่ออายุพร้อมกัน → 409 `REFRESH_RACE` (ไม่เพิกถอน หน้าเว็บถาม `/auth/me` แล้วลองใหม่) · ตัวที่ถูกเพิกถอนด้วยเหตุอื่นหรือหมดอายุ → 401 เฉย ๆ |
-| ออกจากระบบ | เพิกถอน family ของโทเคนในเบราว์เซอร์นี้ (`LOGOUT`) · ทำลาย session · ลบทั้ง 2 cookie · login ใหม่โดยไม่เลือกจดจำฉัน ก็เพิกถอนโทเคนเดิมในเบราว์เซอร์นั้นด้วย |
-| เปลี่ยนรหัสผ่าน | `POST /api/auth/password` (หรือ `php bin/user.php password <user>`) → `session_version + 1` + เพิกถอนทุกโทเคนของผู้ใช้ (`PASSWORD_CHANGE`) · เครื่องที่เปลี่ยนยังอยู่ในระบบ (session ใหม่) แต่ต้องเลือกจดจำฉันใหม่ · รหัสผ่านใหม่ ≥ 8 ตัว ไม่เหมือนชื่อผู้ใช้ |
-| รหัสผ่าน | `password_hash(PASSWORD_DEFAULT)` / `password_verify` · rehash อัตโนมัติเมื่อ algorithm เปลี่ยน · ไม่พบผู้ใช้ก็ยัง verify กับ hash หลอก (เวลาเท่ากัน) · ข้อความผิดเหมือนกันทุกกรณี "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" · ชื่อผู้ใช้ไม่สนตัวพิมพ์ (เก็บตัวเล็ก) |
-| จำกัดการเดา | ตาราง `auth_login_attempts` · ผิด ≥ `LOGIN_MAX_FAILS_PER_USER` (5) ต่อชื่อผู้ใช้ (นับหลังเข้าสำเร็จครั้งล่าสุด) หรือ ≥ `LOGIN_MAX_FAILS_PER_IP` (20) ต่อ IP ภายใน `LOGIN_WINDOW_MINUTES` (15) → 429 + `Retry-After` (รหัสถูกก็ไม่ให้เข้าจนพ้นช่วง) |
-| CSRF | cookie `SameSite=Lax` + คำขอเปลี่ยนข้อมูลต้องเป็น JSON (415) + ตรวจ `Origin`/`Sec-Fetch-Site` (403) — `Http/CsrfGuard.php` |
-| ผู้ใช้ | ยังไม่มีหน้าจัดการผู้ใช้ — `php backend/bin/user.php create <user> "<ชื่อ>" [ROLE] [EMP_CODE]` · `password <user>` · `disable <user>` (รหัสผ่านอ่านจาก stdin) |
+| Session | ไม่ใช้ PHP session ในตัว — cookie `HLW_SESSION` = ค่าสุ่ม 256 บิต (hex 64) · ตาราง `auth_sessions` เก็บเฉพาะ `SHA-256` · cookie `HttpOnly` + `SameSite=Lax` + `Secure` (config `cookie_secure`) · path = โฟลเดอร์หน้าเว็บ (เช่น `/hl-welfare/web/`) · ไม่มีวันหมดอายุบน cookie (ปิดเบราว์เซอร์ = หมด) · ฝั่งเซิร์ฟเวอร์หมดเมื่อไม่ใช้งาน `session_idle_minutes` (30) หรือครบ `session_absolute_hours` (12) · ค่าใหม่ทุกครั้งที่ login/refresh/เปลี่ยนรหัสผ่าน (ค่าเก่าถูกเพิกถอน — กัน session fixation) · เก็บใน DB จึงใช้หลายเครื่องเซิร์ฟเวอร์ได้ และเพิกถอนทุกเครื่องของผู้ใช้ได้ |
+| ตรวจทุกคำขอ | อ่านผู้ใช้จากตาราง `users` ใหม่ทุกครั้ง: `is_active = 0` หรือ `session_version` ไม่ตรง (เปลี่ยนรหัสผ่าน/ปิดบัญชี) → 401 ทันทีทุกเครื่อง · `last_seen_at` เขียนไม่เกินนาทีละครั้ง |
+| Refresh token | ค่าสุ่ม 256 บิต · `auth_refresh_tokens.token_hash` = `SHA-256` เท่านั้น (+ `user_id`, `family_id`, `expires_at` 30 วัน, `created_ip`, `user_agent`, `revoked_at`, `revoked_reason`, `replaced_by` + คอลัมน์ audit 4 ตัว) · cookie `HLW_REFRESH`: `HttpOnly` + `SameSite=Lax` + `Secure` · **path = `<api>/auth`** เช่น `/hl-welfare/web/api/index.php/auth` (ส่งไปเฉพาะ endpoint ของ auth) · **ห้ามเก็บโทเคนใน localStorage/sessionStorage** |
+| หมุนโทเคน | `POST /auth/refresh` ใน transaction (`SELECT … FOR UPDATE`): ตัวเดิม `revoked_reason = ROTATED`, `replaced_by` = ตัวใหม่ (family เดิม) แล้วเริ่ม session ใหม่ |
+| ตรวจจับโทเคนรั่ว | ใช้ตัวที่ `ROTATED` แล้วซ้ำ → เพิกถอน**ทั้ง family** (`REUSE`) + `audit_log` `USER/TOKEN_REUSE` + 401 → เจ้าของตัวจริงต้อง login ใหม่ · ภายใน `refresh_grace_seconds` (10) หลังหมุน = สองแท็บต่ออายุพร้อมกัน → 409 `REFRESH_RACE` (ไม่เพิกถอน หน้าเว็บถาม `/auth/me` แล้วลองใหม่) · ตัวที่ถูกเพิกถอนด้วยเหตุอื่น/หมดอายุ → 401 เฉย ๆ |
+| ออกจากระบบ | เพิกถอน family ของโทเคนในเบราว์เซอร์นี้ (`LOGOUT`) + เพิกถอน session + ลบทั้ง 2 cookie · login ใหม่โดยไม่เลือกจดจำฉัน ก็เพิกถอนโทเคนเดิมของเบราว์เซอร์นั้นด้วย |
+| เปลี่ยนรหัสผ่าน | `POST /auth/password` (หรือ `bin/user.php password`) → `session_version + 1` + เพิกถอนทุก refresh token และทุก session ของผู้ใช้ (`PASSWORD_CHANGE`) · เครื่องที่เปลี่ยนได้ session ใหม่ แต่ต้องเลือกจดจำฉันใหม่ · รหัสผ่านใหม่ ≥ 8 ตัว ไม่เหมือนชื่อผู้ใช้ |
+| รหัสผ่าน | **PBKDF2-HMAC-SHA256** (RFC 8018 — ตรวจกับ test vector ของ RFC 7914 แล้ว) salt สุ่ม 16 byte · 60,000 รอบ (~120 ms) · เก็บ `pbkdf2_sha256$รอบ$salt$hash` · เทียบแบบเวลาคงที่ · เปลี่ยนจำนวนรอบ → hash ใหม่ตอน login · ไม่พบผู้ใช้ก็ยังคำนวณกับ hash หลอก (เวลาเท่ากัน) · ข้อความผิดเหมือนกันทุกกรณี · ชื่อผู้ใช้เก็บตัวเล็ก · ขึ้น PHP ≥ 5.5 แล้วเปลี่ยนเป็น `password_hash` ได้โดยให้ `pw_verify` รับรูปแบบเดิมต่อ |
+| ค่าสุ่ม | `/dev/urandom` (Linux) · Windows ใช้ `com_create_guid()` 3 ตัว (CoCreateGuid = CSPRNG ของ Windows, สุ่มจริง 122 บิต/ตัว) รวมกับค่าอื่นแล้วกลั่นด้วย SHA-256 · หาแหล่งสุ่มไม่ได้ = error (ไม่ถอยไปใช้ `mt_rand`) |
+| จำกัดการเดา | ตาราง `auth_login_attempts` · ผิด ≥ 5 ครั้งต่อชื่อผู้ใช้ (นับหลังเข้าสำเร็จครั้งล่าสุด) หรือ ≥ 20 ครั้งต่อ IP ภายใน 15 นาที → 429 + `Retry-After` (รหัสถูกก็ไม่ให้เข้าจนพ้นช่วง) |
+| CSRF | cookie `SameSite=Lax` + คำขอที่เปลี่ยนข้อมูลต้องเป็น `Content-Type: application/json` (415) + ตรวจ `Origin`/`Sec-Fetch-Site` (403) — `csrf_check()` |
+| ผู้ใช้ | ยังไม่มีหน้าจัดการผู้ใช้ — `backend/bin/user.php create|password|disable|list` · username ควรตรงกับ `tb_user.username` ของ stock_hr (สต็อกใช้ส่งลิงก์เซ็นรับให้ผู้ขอเบิก) |
 
-**ลำดับในหน้าเว็บ** (`auth.provider = 'server'` หรือ `apiMode = 'http'`)
-1. login.html → `POST api/auth/login {username, password, remember}` → เก็บ `AuthUser` ใน **sessionStorage** (ไว้แสดงชื่อ/นำทาง) → ไปหน้าที่ต้องการ
-2. ทุกคำขอส่ง cookie เอง (`credentials: 'include'`) · ได้ 401 → `POST api/auth/refresh` ครั้งเดียวแล้วลองคำขอเดิมใหม่ · ไม่ได้ → ล้าง sessionStorage → `login.html?next=หน้าเดิม`
-3. เปิดเบราว์เซอร์ใหม่ (sessionStorage ว่าง) → สคริปต์ใน `<head>` พาไป login.html → `restore()` = `GET api/auth/me` (session ยังอยู่) หรือ `POST api/auth/refresh` (เลือกจดจำฉันไว้) → สำเร็จ = เข้าหน้าเดิมทันทีโดยไม่ต้องกรอกรหัส
-4. ออกจากระบบ → `POST api/auth/logout` → `login.html?bye=1` (หน้านี้ไม่ restore)
+**ลำดับในหน้าเว็บ** (`apiMode = 'http'` → `auth.provider` = `'server'` อัตโนมัติ)
+1. login.html → `POST api/index.php/auth/login {username, password, remember}` → เก็บ `AuthUser` ใน **sessionStorage** (ไว้แสดงชื่อ/นำทาง) → ไปหน้าที่ต้องการ
+2. ทุกคำขอส่ง cookie เอง (`credentials: 'include'`) · ได้ 401 → `POST …/auth/refresh` ครั้งเดียวแล้วลองคำขอเดิมใหม่ (คำขอพร้อมกันใช้ refresh ร่วมกัน) · ไม่ได้ → ล้าง sessionStorage → `login.html?next=หน้าเดิม`
+3. เปิดเบราว์เซอร์ใหม่ (sessionStorage ว่าง) → สคริปต์ใน `<head>` พาไป login.html → `restore()` = `GET /auth/me` (session ยังอยู่) หรือ `POST /auth/refresh` (เลือกจดจำฉันไว้) → สำเร็จ = เข้าหน้าเดิมทันทีโดยไม่ต้องกรอกรหัส
+4. ออกจากระบบ → `POST /auth/logout` → `login.html?bye=1` (หน้านี้ไม่ restore)
 
 **ผู้ทำรายการ (actor attribution)**
-- ทุกการเขียนรับผู้ใช้จาก `SessionGuard::require()` ไม่ใช่จาก body · `uniform_issues.issued_by_user_id + issued_by_name`, `insurance_batches.submitted_by_user_id + submitted_by_name`, `audit_log.user_id + user_name` (ชื่อ ณ ตอนนั้น — เปลี่ยนชื่อผู้ใช้ภายหลังประวัติไม่เปลี่ยน)
-- ส่งเบิกชุดฟอร์มไป stock_hr: `POST api/stock/bridge` (`StockRequestService`) **ทิ้ง** `requested_by_*` ที่เบราว์เซอร์ส่งมา แล้วใส่ `requested_by_name` (ชื่อ), `requested_by_user` (username), `requested_by_user_id`, `requested_by_emp_code` (`users.emp_code`) จาก session · ทุกใบที่ออก/ยกเลิกสำเร็จเขียน `audit_log` (`STOCK_REQUEST`, entity_id = `<employee_id>:<entitlement_key>`, summary มีเลขใบ WRQ)
-- ออก/ยกเลิกใบเบิกได้เฉพาะ `HR_ADMIN`, `HR_COMPANY` (403) · ดูแคตตาล็อก/สถานะได้ทุกบทบาทที่เข้าสู่ระบบ
-- `web/api/stock_bridge.php` (PHP 5.2 บน AppServ): ตั้ง `$stock_bridge_auth_url` = `<backend>/api/auth/me` → ไฟล์นี้ส่ง cookie ของผู้ใช้ไปถาม backend ก่อน (ไม่มี session = 401) และใส่ `requested_by_*` จากผู้ใช้ที่ได้ · ไม่ตั้ง = โหมดสาธิตเฟส 1 (รับเฉพาะเครื่องนี้ เชื่อชื่อจากเบราว์เซอร์) · เมื่อ backend ขึ้น host แล้ว ให้ตั้ง `stock.bridgeUrl: 'api/stock/bridge'` และลบไฟล์นี้
+- ทุกการเขียนใช้ผู้ใช้จาก `auth_require()` ไม่ใช่จาก body: `uniform_issues.issued_by_user_id + issued_by_name`, `insurance_batches.submitted_by_user_id + submitted_by_name`, `audit_log.user_id + user_name` (ชื่อ ณ ตอนนั้น — เปลี่ยนชื่อผู้ใช้ภายหลังประวัติไม่เปลี่ยน) · `issuedBy` ที่หน้าเว็บส่งมาถูกทิ้ง · `template.uploadedBy` ของแบบฟอร์มประกันใส่จาก session เมื่ออัปโหลดไฟล์ใหม่
+- ส่งเบิกชุดฟอร์มไป stock_hr (`/uniform/stock-requests`, ยกเลิก `DELETE /uniform/issues/{id}`, ตัวกลาง `/stock/bridge`): backend ใส่ `requested_by_name`, `requested_by_user` (username), `requested_by_user_id`, `requested_by_emp_code` (`users.emp_code`) จาก session เสมอ — stock_hr เก็บใน `tb_doc_welfare` (migration 079 ฝั่ง stock_hr) และใช้ `requested_by_user` ส่งลิงก์เซ็นรับ
+- ออก/ยกเลิกใบเบิกได้เฉพาะ `HR_ADMIN`, `HR_COMPANY` (403) · ดูตัวเลือก/สถานะได้ทุกบทบาทที่เข้าสู่ระบบ
 
-**ไฟล์**: `backend/src/Application/Service/AuthService.php` (login/refresh/logout/เปลี่ยนรหัสผ่าน) · `Http/Auth/SessionGuard.php` (session + cookie) · `Http/Controller/AuthController.php` · `Application/Service/StockRequestService.php` + `Http/Controller/StockBridgeController.php` · `Infrastructure/Persistence/Pdo*.php` · หน้าเว็บ `infrastructure/http/serverAuth.js`, `app/api.js` (`authApi`, `AUTH_PROVIDER`), `app/auth.js`, `pages/login.js`
-
+**ไฟล์**: `backend/auth.php` · `backend/lib/security.php` · `backend/lib/http.php` (cookie/CSRF) · หน้าเว็บ `infrastructure/http/serverAuth.js`, `app/api.js` (`authApi`, `AUTH_PROVIDER`), `app/auth.js`, `pages/login.js`
 
 ### 10.10 แนะนำการใช้งาน (driver.js)
 - ทุกหน้ามี "ทัวร์" สั้น ๆ 2–9 ขั้น ไฮไลต์ส่วนสำคัญพร้อมคำอธิบายภาษาไทย
@@ -1238,457 +1241,81 @@ employees: {
 
 ---
 
-## 12. เฟส 2 — PHP Backend
+## 12. เฟส 2 — PHP Backend (PHP 5.2.6 บน AppServ — ✅ ทำแล้ว)
 
-### 12.1 สร้างโครง
-```bash
-cd hl-welfare
-mkdir -p backend/{public,src/{Domain,Application/{Port,Service},Infrastructure/Persistence,Http/Controller},database,tests}
-cd backend
-composer init --name=happyland/welfare --type=project -n
-composer require vlucas/phpdotenv
-composer require --dev phpunit/phpunit
+> ตัดสินใจ 19 ต.ค. 2569: ใช้ **PHP 5.2.6 / MySQL 5.0 ของ AppServ เครื่องเดียวกับ stock_hr** (ไม่ใช่ PHP 8.2 ตามแผนเดิม) · ฐานข้อมูลแยกชื่อ `hl_welfare` · สองระบบคุยกันทาง `stock_hr/api/welfare.php` (HMAC) เท่านั้น · เลิกใช้ข้อมูลจำลองในการใช้งานจริง (`apiMode: 'http'`)
+> โครงโค้ดตามแบบ stock_hr: ฟังก์ชันล้วน (ไม่มี namespace/closure), `array()`, mysqli + prepared statement, migration เป็นไฟล์ SQL เรียงเลข
+
+### 12.1 โครงไฟล์
+```
+web/api/index.php            ← ทางเข้าเดียวของ API: api/index.php/<path> (PATH_INFO — ไม่ต้องเปิด mod_rewrite)
+backend/                     ← โค้ดทั้งหมด (มี .htaccess Deny from all — เปิดผ่านเว็บไม่ได้)
+├── bootstrap.php            ← โหลดทุกไฟล์ + api_handle($req) → คำตอบ (ไม่ exit — เทสต์เรียกตรงได้)
+├── config.example.php       ← คัดลอกเป็น config.php (gitignored): DB, cookie_secure, อายุ session, กุญแจสต็อก
+├── lib/      util.php (วันนี้, stable_usort, ApiError) · db.php (mysqli prepared, transaction) · http.php (คำขอ/คำตอบ/router/cookie/CSRF) · security.php (สุ่ม, PBKDF2)
+├── domain/   date.php · insurance.php · uniform.php · labels.php · rules_check.php      ← คู่แฝดของ web/assets/js/domain (+ employeeRules / insurerFormRules)
+├── usecases/ insurance_cycle.php · overview.php (dashboard, workQueue, uniformPending) · insurer_export.php · uniform_stock.php   ← คู่แฝดของ application/usecases
+├── repo/repo.php            ← ตาราง → JSON camelCase (ชนิดเดียวกับ MockApi) + audit_write()
+├── auth.php                 ← ข้อ 10.9.1
+├── api/  routes.php (ตาราง endpoint) · handlers.php (คู่กับเมธอดของ MockApi ทีละตัว) · stock_client.php (HMAC → stock_hr)
+├── sql/  001_schema.sql · 002_seed_master.sql · 003_seed_demo.sql  (+ _rollback)
+├── bin/user.php             ← จัดการผู้ใช้ (CLI)
+└── tests/run.php + fixtures/golden.json
+scripts/export-seed.mjs      ← สร้าง sql/002, 003 และ golden.json จาก seed ของ mock (วันเดียวกัน)
 ```
 
-`composer.json`
-```json
-{
-  "name": "happyland/welfare",
-  "type": "project",
-  "require": {
-    "php": ">=8.2",
-    "ext-pdo": "*",
-    "vlucas/phpdotenv": "^5.6"
-  },
-  "require-dev": { "phpunit/phpunit": "^11" },
-  "autoload": { "psr-4": { "App\\": "src/" } },
-  "autoload-dev": { "psr-4": { "Tests\\": "tests/" } },
-  "scripts": {
-    "serve": "php -S localhost:8000 -t public",
-    "test": "phpunit tests"
-  }
-}
-```
-```bash
-composer dump-autoload
-```
+### 12.2 ข้อกำหนด Backend
+- **ชั้น**: `domain/` และ `usecases/` ห้ามแตะ DB/HTTP · `repo/` เท่านั้นที่เขียน SQL อ่านข้อมูล · `api/handlers.php` อ่านคำขอ → เรียกชั้นล่าง → คืนค่า · ข้อความ error/ลำดับ/audit เหมือน `MockApi` ทุกเมธอด
+- **แปลงจาก JS บรรทัดต่อบรรทัด** และพิสูจน์ด้วย golden test (ข้อ 15.3) · `Array.sort` ของ JS stable แต่ `usort` ของ PHP 5.2 ไม่ → ใช้ `stable_usort()` เสมอ · วันที่คำนวณบน UTC (`gmmktime`/`gmdate`) · "วันนี้" = `today_iso()` ตามเขตเวลา `Asia/Bangkok`
+- **ข้อมูลหลักร้อยแถว** จึงโหลดทั้งตาราง (`repo_world()`) แล้วคำนวณในหน่วยความจำแบบเดียวกับ mock (~0.25 วินาที/คำขอบน AppServ) · เกิน ~2,000 คนค่อยทำแบ่งหน้าฝั่ง PHP (ข้อ 10.7)
+- **Prepared statement ทุก query** (`db_all/db_one/db_exec` ผูกค่าด้วย `?`) · ตัวเลขจาก DB แปลงเป็น number, boolean เป็น `true/false`, ฟิลด์ JSON (`companies`, `items`, `form_json`, `stock_items`) `json_decode`
+- **transaction** ทุกการเขียนหลายแถว (ส่งออก+บันทึก batch, ผูกบริษัทประกัน, ส่งเบิก, sync) · unique key กันซ้ำ (`uq_emp_direction`, `uq_emp_ent`, `uq_emp_code`)
+- **422** ตอบพร้อม `errors: {field: message}` (`validate_employee`, `validate_insurer_form`, `validate_bindings`) — PHP ตรวจซ้ำแม้หน้าเว็บตรวจแล้ว
+- **ผู้ทำรายการจาก session เท่านั้น** (ข้อ 10.9.1) · ทุก create/update/delete/cancel เขียน `audit_log`
+- **ระบบสต็อก**: `api/stock_client.php` เซ็นคำขอ (`X-Welfare-Timestamp`, `X-Welfare-Signature` = HMAC-SHA256) ด้วย `stock_api_secret` ใน `backend/config.php` (ตัวเดียวกับ `stock_hr/config_ctrl/welfare_key.php`) · หน้าเว็บไม่เห็นกุญแจ · เทสต์แทนด้วยตัวปลอม (`$GLOBALS['hlw_stock_fake']`)
+- `web/api/stock_bridge.php` (ตัวกลางเดิมของโหมด mock) **ลบแล้ว** — โหมด http ให้ backend คุยกับสต็อกเอง · โหมด mock (ทดลอง) ใช้ `POST api/index.php/stock/bridge` ที่ต้องเข้าสู่ระบบ
+- role: ตอนนี้ตรวจเฉพาะการออก/ยกเลิกใบเบิก (`HR_ADMIN`, `HR_COMPANY`) — สิทธิ์รายหน้า/รายบริษัทเป็นเฟส 3
 
-`backend/.env.example`
-```ini
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_NAME=happyland_welfare
-DB_USER=root
-DB_PASS=
-APP_TZ=Asia/Bangkok
-APP_BASE_PATH=/hl-welfare   # path ที่วางระบบบน host (ใช้ตัด prefix ใน Router)
-CORS_ORIGIN=                 # ว่าง = ไม่เปิด CORS (หน้าเว็บกับ API อยู่ origin เดียวกัน)
-```
-
-### 12.2 `public/index.php` (front controller)
-> ✅ สร้างแล้ว (เฉพาะ auth + `/api/stock/bridge`): ไม่ต้องใช้ composer — `src/bootstrap.php` มี autoload `App\` + อ่าน `.env` เอง · Controller คืน `Response` แล้ว index.php เป็นคน `send()` · ตัวอย่างด้านล่างคือรูปที่ต้องเติมให้ครบทุก endpoint (ต่อ route ที่ `$r` ใน `backend/public/index.php`)
->
-> รันบนเครื่อง (PHP 8.2+ เช่น `C:\php83`): `copy backend\.env.example backend\.env` → `php -S localhost:8000 -t web backend/dev-router.php` → เปิด `http://localhost:8000/login.html` (หน้าเว็บ + API origin เดียวกันเหมือน host จริง)
-
-```php
-<?php
-declare(strict_types=1);
-
-use App\Http\{Router, Request, Response};
-use App\Controller\{DashboardController, CompanyController, SiteController, EmployeeController,
-    RuleController, InsuranceController, UniformController};
-
-require __DIR__ . '/../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(dirname(__DIR__))->safeLoad();
-date_default_timezone_set($_ENV['APP_TZ'] ?? 'Asia/Bangkok');
-
-// CORS (เฉพาะกรณีหน้าเว็บกับ API อยู่คนละ origin)
-if (!empty($_ENV['CORS_ORIGIN'])) {
-    header('Access-Control-Allow-Origin: ' . $_ENV['CORS_ORIGIN']);
-    header('Access-Control-Allow-Credentials: true');
-    header('Access-Control-Allow-Headers: Content-Type, Accept');
-    header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
-}
-
-$r = new Router();
-$r->get('/api/dashboard',                     [DashboardController::class, 'show']);
-$r->get('/api/companies',                     [CompanyController::class, 'index']);
-$r->get('/api/sites',                         [SiteController::class, 'index']);
-$r->patch('/api/sites/{id}',                  [SiteController::class, 'update']);
-$r->get('/api/employees',                     [EmployeeController::class, 'index']);
-$r->post('/api/employees',                    [EmployeeController::class, 'store']);
-$r->put('/api/employees/{id}',                [EmployeeController::class, 'update']);
-$r->get('/api/employees/{id}/benefits',       [EmployeeController::class, 'benefits']);
-$r->get('/api/rules',                         [RuleController::class, 'index']);
-$r->get('/api/insurance/cycles/{date}',       [InsuranceController::class, 'cycle']);
-$r->get('/api/insurance/batches',             [InsuranceController::class, 'batches']);
-$r->get('/api/insurance/batches/{id}',        [InsuranceController::class, 'batch']);   // รายชื่อใน batch
-$r->post('/api/insurance/batches',            [InsuranceController::class, 'submit']);
-$r->post('/api/insurance/exports',            [InsuranceController::class, 'export']);   // ไฟล์แจ้งประกัน
-$r->get('/api/insurers',                       [InsurerController::class, 'index']);
-$r->post('/api/insurers',                      [InsurerController::class, 'create']);
-$r->put('/api/insurers/{id}',                  [InsurerController::class, 'update']);
-$r->delete('/api/insurers/{id}',               [InsurerController::class, 'delete']);
-$r->put('/api/insurers/bindings',              [InsurerController::class, 'bindings']);
-$r->get('/api/uniform/issues',                [UniformController::class, 'issues']);
-$r->post('/api/uniform/issues',               [UniformController::class, 'issue']);
-$r->get('/api/uniform/pending',               [UniformController::class, 'pending']);
-$r->get('/api/uniform/stock-options',         [UniformController::class, 'stockOptions']);
-$r->post('/api/uniform/stock-requests',       [UniformController::class, 'stockRequest']);
-$r->post('/api/uniform/stock-sync',           [UniformController::class, 'stockSync']);
-
-try {
-    $r->dispatch(Request::fromGlobals());
-} catch (\App\Http\HttpError $e) {
-    Response::error($e->getMessage(), $e->status);
-} catch (\Throwable $e) {
-    error_log((string) $e);
-    Response::error('เกิดข้อผิดพลาดภายในระบบ', 500);
-}
-```
-
-### 12.3 `Http/Response.php`
-```php
-<?php
-namespace App\Http;
-
-final class Response
-{
-    public static function json(mixed $data, int $status = 200): never
-    {
-        http_response_code($status);
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['data' => $data], JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
-        exit;
-    }
-
-    public static function error(string $message, int $status = 400): never
-    {
-        http_response_code($status);
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['error' => $message], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-}
-```
-
-`Http/HttpError.php`
-```php
-<?php
-namespace App\Http;
-final class HttpError extends \RuntimeException
-{
-    public function __construct(string $message, public readonly int $status = 400) { parent::__construct($message); }
-}
-```
-
-### 12.4 `Infrastructure/Database.php`
-```php
-<?php
-namespace AppInfrastructure;
-
-use PDO;
-
-final class Database
-{
-    private static ?PDO $pdo = null;
-
-    public static function pdo(): PDO
-    {
-        return self::$pdo ??= new PDO(
-            sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
-                $_ENV['DB_HOST'], $_ENV['DB_PORT'] ?? 3306, $_ENV['DB_NAME']),
-            $_ENV['DB_USER'], $_ENV['DB_PASS'] ?? '',
-            [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ],
-        );
-    }
-}
-```
-
-### 12.5 ข้อกำหนด Backend
-- **ชั้นตามข้อ 3.3**: Controller บาง (อ่าน request → เรียก Service → `Response::json`) · Service รับ Port (interface) ผ่าน constructor · `Domain` ห้ามแตะ PDO/`$_ENV`
-- ประกอบ dependency ที่ `public/index.php` (หรือ `Infrastructure/Container.php` แบบง่าย) ไม่ใช้ `new` ใน Controller/Service
-- **Prepared statements ทุก query** (ห้ามต่อ string SQL)
-- Repository แปลงแถว DB (`snake_case`) → array `camelCase` ตาม TypeScript type, `boolean` ต้องเป็น `true/false` ไม่ใช่ `0/1`, field JSON (`companies`, `items`, `deptGroups`) ต้อง `json_decode`
-- `Domain/Eligibility.php` แปลงจาก `web/assets/js/domain/insurance.js`, `uniform.js` แบบบรรทัดต่อบรรทัด · use-case ใน `Application/Service` แปลงจาก `application/usecases/*.js` ใช้ `DateTimeImmutable` + timezone UTC สำหรับคำนวณวัน
-- `submitInsuranceBatch`, `exportInsurance(record)` และ `createUniformIssue` ทำใน **transaction** และพึ่ง unique key กันซ้ำ
-- ตอบ 422 พร้อม `errors: {field: message}` เมื่อ validation ไม่ผ่าน (HttpApi ส่งต่อเป็น `ApiError.details`)
-- เขียน `audit_log` ทุกครั้งที่ create/update พนักงาน, ส่ง batch, แจกชุด
-- **ผู้ทำรายการมาจาก session เท่านั้น**: Controller เรียก `$guard->require($req)` แล้วส่ง `User` เข้า Service (`issued_by_user_id/name`, `submitted_by_user_id/name`, `AuditLog::write(…, $actor)`) · ห้ามอ่าน `issuedBy`/`submittedBy`/`uploadedBy`/`requested_by_*` จาก body · `UniformController::stockRequest/stockSync/cancel` ใช้ `StockRequestService` (ใส่ `requested_by_*` จาก session ให้เอง)
-- role (HR Admin / HR บริษัท / Payroll / ผู้ดูแลสต็อก / ผู้บริหาร): ตอนนี้ตรวจเฉพาะการออก/ยกเลิกใบเบิก (`SessionGuard::requireRole`) — สิทธิ์รายหน้า/รายบริษัทเป็นเฟส 3
+### 12.3 ข้อจำกัด PHP 5.2 / MySQL 5.0 ที่ต้องรู้เมื่อแก้โค้ด
+| เรื่อง | ทำแบบนี้ |
+|---|---|
+| ไวยากรณ์ | ไม่มี namespace, closure, `[]`, `?:`, `??`, `__DIR__`, `f()['x']` → ใช้ `array()`, `dirname(__FILE__)`, ชื่อฟังก์ชันเป็น string (`stable_usort($rows, '__cmp_due')`) |
+| JSON | `json_encode` ไม่มี `JSON_UNESCAPED_UNICODE` (ภาษาไทยออกเป็น `\uXXXX` — เบราว์เซอร์อ่านได้ปกติ) · array ว่างออกเป็น `[]` |
+| mysqli | ไม่มี `mysqli_stmt_get_result` → `db_all()` ผูก `bind_result` แบบไดนามิก · ต้อง `SET NAMES utf8` |
+| MySQL 5.0 | utf8 (ไม่มี utf8mb4) · ไม่มีชนิด JSON (เก็บเป็น TEXT) · DATETIME ไม่มี DEFAULT → แอปส่ง `db_now()` · TIMESTAMP อัตโนมัติตารางละตัว (ให้ `updated_at`) · ไม่มี generated column · index ใส่ COMMENT ไม่ได้ |
+| cookie | `setcookie()` ใส่ `SameSite` ไม่ได้ → `http_set_cookie()` เขียน `Set-Cookie` เอง |
+| argv ภาษาไทย | PHP 5.2 บน Windows อ่านภาษาไทยจาก argument ไม่ได้ → `bin/user.php` รับชื่อทาง stdin |
+| SQL ภาษาไทย | ส่งเป็นไฟล์เสมอ (`mysql --default-character-set=utf8 hl_welfare < ไฟล์.sql`) ไม่ใช่ `mysql -e "…"` |
 
 ---
 
-## 13. MySQL Schema
+## 13. MySQL Schema (ฐานข้อมูล `hl_welfare` — MySQL 5.0)
 
-`backend/database/schema.sql`
-```sql
-CREATE DATABASE IF NOT EXISTS happyland_welfare
-  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE happyland_welfare;
+ไฟล์จริงคือ **`backend/sql/001_schema.sql`** (แหล่งความจริงแหล่งเดียว — แก้ที่นั่นแล้วเพิ่ม migration ใหม่ `004_…sql` + `_rollback`) · ทุกตารางมีคอลัมน์ audit 4 ตัว `created_at` (DATETIME, แอปส่งค่า), `created_by`, `updated_at` (TIMESTAMP อัตโนมัติ), `updated_by` · InnoDB · utf8
 
-CREATE TABLE companies (
-  code        VARCHAR(10)  PRIMARY KEY,
-  name        VARCHAR(150) NOT NULL
-) ENGINE=InnoDB;
+| ตาราง | เก็บอะไร | หมายเหตุ |
+|---|---|---|
+| `companies` | บริษัทในเครือ (`code`, `name`, `legal_name`) | `legal_name` ใช้ในชีตสรุปไฟล์แจ้งประกัน |
+| `sites` | หน่วยงาน (`has_group_insurance`, `polo_color`) | **id ตรงกับ `stock_hr.tb_welfare_site_map`** — ห้ามเปลี่ยน id ของหน่วยงานเดิม |
+| `employees` | พนักงาน + ข้อมูลส่วนตัวสำหรับไฟล์แจ้งประกัน (`title`, `gender`, `national_id`, `phone`, `email`) | `uq_emp_code` |
+| `insurance_rules`, `uniform_rules`, `uniform_items`, `settings` | กฎข้อ 7 | อาร์เรย์เก็บเป็น JSON ใน TEXT |
+| `insurer_forms` | แบบฟอร์มบริษัทประกัน (`name`, `short_name`, `active` + `form_json` LONGTEXT = ส่วนที่เหลือรวมไฟล์ .xlsx base64) | MySQL 5.0 `max_allowed_packet` ค่าเริ่มต้น 1 MB — ไฟล์แบบฟอร์มใหญ่ต้องเพิ่มค่า |
+| `insurance_batches` + `insurance_batch_items` | การส่งออกไฟล์แจ้งประกัน 1 ครั้ง = 1 batch · items มี `seq`, `type`, `direction` (แอปคำนวณ: URGENT = OUT) | `uq_emp_direction` กันแจ้งซ้ำ · ลบ batch → items ลบตาม (CASCADE) · `submitted_by_user_id` + `submitted_by_name` |
+| `uniform_issues` | แจกชุด: `MANUAL` (บันทึกเอง) หรือ `STOCK` (ส่งเบิกคลัง — `stock_ref`, `stock_doc_id/no`, `stock_stage`, `stock_items` JSON …) | `uq_emp_ent` · `issued_by_user_id` + `issued_by_name` |
+| `users` | ผู้ใช้ (`password_hash` PBKDF2, `emp_code`, `role`, `is_active`, `session_version`) | ข้อ 10.9.1 |
+| `auth_sessions`, `auth_refresh_tokens`, `auth_login_attempts` | session / จดจำฉัน / จำกัดการเดา | เก็บเฉพาะ SHA-256 ของค่าลับ |
+| `audit_log` | = ActivityLog (ห้ามแก้/ลบ) · `entity` เพิ่ม `INSURER_FORM`, `STOCK_REQUEST`, `USER` · `action` เพิ่ม `LOGIN`, `LOGOUT`, `PASSWORD_CHANGE`, `TOKEN_REUSE` | `user_id` + `user_name` (ชื่อ ณ ตอนนั้น) |
 
--- ===== ผู้ใช้ + การเข้าสู่ระบบ (ข้อ 10.9.1) =====
--- รหัสผ่านเก็บด้วย password_hash() เท่านั้น · ชื่อผู้ใช้เก็บตัวพิมพ์เล็ก
-CREATE TABLE users (
-  id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  username             VARCHAR(50)  NOT NULL UNIQUE,
-  password_hash        VARCHAR(255) NOT NULL,
-  name                 VARCHAR(150) NOT NULL,
-  emp_code             VARCHAR(20)  NULL,              -- รหัสพนักงานของผู้ใช้ (ส่งให้ stock_hr เป็น requested_by_emp_code)
-  role                 ENUM('HR_ADMIN','HR_COMPANY','PAYROLL','STOCK','EXECUTIVE') NOT NULL DEFAULT 'HR_ADMIN',
-  company_code         VARCHAR(10) NULL,               -- null = ทุกบริษัท (เฟส 3: จำกัดสิทธิ์ตามบริษัท)
-  is_active            TINYINT(1) NOT NULL DEFAULT 1,
-  session_version      INT UNSIGNED NOT NULL DEFAULT 1, -- +1 เมื่อเปลี่ยนรหัสผ่าน → session ทุกเครื่องหลุด
-  password_changed_at  DATETIME NULL,
-  last_login_at        DATETIME NULL,
-  created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  created_by           VARCHAR(50) NOT NULL DEFAULT 'system',
-  updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  updated_by           VARCHAR(50) NOT NULL DEFAULT 'system'
-) ENGINE=InnoDB;
+**ข้อมูลตั้งต้น** (สร้างจาก seed ของ mock ด้วย `node scripts/export-seed.mjs` — ห้ามแก้มือ)
+- `002_seed_master.sql` — บริษัท หน่วยงาน กฎ ตั้งค่า แบบฟอร์มประกัน 2 ราย → **ใช้กับระบบจริงด้วย** (HR ปรับต่อในหน้าจอ)
+- `003_seed_demo.sql` — พนักงาน 258 คน + ประวัติแจ้งประกัน/แจกชุด/กิจกรรมจำลอง → **เครื่องพัฒนา/เทสต์เท่านั้น ห้ามรันบนระบบจริง**
 
--- refresh token ของ "จดจำฉัน" — เก็บเฉพาะ SHA-256 (hex) ของโทเคน ไม่เคยเก็บค่าจริง
--- หมุนทุกครั้งที่ใช้ (แถวเก่า revoked_reason = ROTATED, replaced_by = แถวใหม่) · family = สายโทเคนของการ login 1 ครั้งบน 1 อุปกรณ์
-CREATE TABLE auth_refresh_tokens (
-  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  user_id         INT UNSIGNED NOT NULL,
-  token_hash      CHAR(64) CHARACTER SET ascii NOT NULL,
-  family_id       CHAR(32) CHARACTER SET ascii NOT NULL,
-  expires_at      DATETIME NOT NULL,
-  created_ip      VARCHAR(45) NOT NULL,
-  user_agent      VARCHAR(255) NOT NULL DEFAULT '',
-  revoked_at      DATETIME NULL,
-  revoked_reason  ENUM('ROTATED','LOGOUT','REUSE','PASSWORD_CHANGE','ADMIN') NULL,
-  replaced_by     BIGINT UNSIGNED NULL,
-  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  created_by      VARCHAR(50) NOT NULL,
-  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  updated_by      VARCHAR(50) NOT NULL,
-  UNIQUE KEY uq_refresh_hash (token_hash),
-  INDEX idx_refresh_family (family_id),
-  INDEX idx_refresh_user (user_id, revoked_at),
-  INDEX idx_refresh_expires (expires_at),
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (replaced_by) REFERENCES auth_refresh_tokens(id)
-) ENGINE=InnoDB;
-
--- ใช้จำกัดการเดารหัสผ่าน (ผิด 5 ครั้ง/ชื่อผู้ใช้ หรือ 20 ครั้ง/IP ใน 15 นาที → 429)
-CREATE TABLE auth_login_attempts (
-  id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  username    VARCHAR(50) NOT NULL,
-  ip          VARCHAR(45) NOT NULL,
-  succeeded   TINYINT(1) NOT NULL,
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,   -- = เวลาที่ลอง
-  created_by  VARCHAR(50) NOT NULL DEFAULT 'system',
-  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  updated_by  VARCHAR(50) NOT NULL DEFAULT 'system',
-  INDEX idx_attempt_user (username, created_at),
-  INDEX idx_attempt_ip (ip, created_at)
-) ENGINE=InnoDB;
-
-CREATE TABLE sites (
-  id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  company_code         VARCHAR(10)  NOT NULL,
-  name                 VARCHAR(200) NOT NULL,
-  has_group_insurance  TINYINT(1)   NOT NULL DEFAULT 1,
-  polo_color           ENUM('BLACK','NAVY') NOT NULL DEFAULT 'BLACK',
-  FOREIGN KEY (company_code) REFERENCES companies(code)
-) ENGINE=InnoDB;
-
-CREATE TABLE employees (
-  id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  emp_code             VARCHAR(20)  NOT NULL UNIQUE,
-  first_name           VARCHAR(100) NOT NULL,
-  last_name            VARCHAR(100) NOT NULL,
-  company_code         VARCHAR(10)  NOT NULL,
-  site_id              INT UNSIGNED NOT NULL,
-  employee_type        ENUM('CENTRAL','PRO_SITE','DAILY','MAID_CNS') NOT NULL,
-  contract_type        ENUM('REGULAR','SHORT_3PCT') NOT NULL DEFAULT 'REGULAR',
-  dept_group           VARCHAR(100) NULL,
-  position             VARCHAR(100) NULL,
-  level                TINYINT UNSIGNED NULL,
-  salary               DECIMAL(12,2) NOT NULL DEFAULT 0,
-  birth_date           DATE NOT NULL,
-  start_date           DATE NOT NULL,
-  probation_pass_date  DATE NULL,
-  status               ENUM('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
-  last_working_date    DATE NULL,
-  end_date             DATE NULL,
-  end_reason           ENUM('RESIGN','ABSENT_3D','TERMINATED','MISCONDUCT') NULL,
-  title                ENUM('นาย','นาง','นางสาว') NULL,
-  gender               ENUM('M','F') NULL,
-  national_id          CHAR(13) NULL,
-  phone                VARCHAR(10) NULL,
-  email                VARCHAR(150) NULL,
-  created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (company_code) REFERENCES companies(code),
-  FOREIGN KEY (site_id) REFERENCES sites(id),
-  INDEX idx_emp_company_status (company_code, status),
-  INDEX idx_emp_type (employee_type)
-) ENGINE=InnoDB;
-
--- ===== กฎ =====
-CREATE TABLE insurance_rules (
-  id                      INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  employee_type           ENUM('CENTRAL','PRO_SITE','DAILY','MAID_CNS') NOT NULL,
-  companies               JSON NULL,              -- null = ทุกบริษัท, ["HL","AS"]
-  wait_days               SMALLINT UNSIGNED NOT NULL,
-  exclude_contracts       JSON NOT NULL,          -- ["SHORT_3PCT"]
-  require_site_insurance  TINYINT(1) NOT NULL DEFAULT 0,
-  note                    VARCHAR(255) NOT NULL DEFAULT '',
-  effective_from          DATE NOT NULL DEFAULT '2026-01-01',
-  effective_to            DATE NULL
-) ENGINE=InnoDB;
-
-CREATE TABLE uniform_items (
-  code  VARCHAR(20) PRIMARY KEY,
-  name  VARCHAR(100) NOT NULL
-) ENGINE=InnoDB;
-
-CREATE TABLE uniform_rules (
-  id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  employee_type    ENUM('CENTRAL','PRO_SITE','DAILY','MAID_CNS') NOT NULL,
-  companies        JSON NOT NULL,
-  dept_groups      JSON NULL,
-  position         VARCHAR(100) NULL,
-  level_min        TINYINT UNSIGNED NULL,
-  level_max        TINYINT UNSIGNED NULL,
-  style            VARCHAR(200) NOT NULL,
-  items            JSON NOT NULL,
-  polo_by_site     TINYINT(1) NOT NULL DEFAULT 0,
-  qty_start        TINYINT UNSIGNED NOT NULL DEFAULT 0,
-  qty_start_label  VARCHAR(20) NULL,
-  qty_probation    TINYINT UNSIGNED NOT NULL DEFAULT 0,
-  qty_annual       TINYINT UNSIGNED NOT NULL DEFAULT 0,
-  note             VARCHAR(255) NOT NULL DEFAULT ''
-) ENGINE=InnoDB;
-
-CREATE TABLE settings (
-  `key`    VARCHAR(50) PRIMARY KEY,
-  `value`  VARCHAR(255) NOT NULL
-) ENGINE=InnoDB;
-
--- ===== ธุรกรรม =====
-CREATE TABLE insurance_batches (
-  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  cycle_date    DATE NOT NULL,                    -- ส่งออก 1 ครั้ง = 1 แถว (เข้า/ออกอยู่ใน insurance_batch_items)
-  submitted_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  submitted_by_user_id INT UNSIGNED NULL,       -- ผู้ส่งจาก session (null = ข้อมูลก่อนมีระบบผู้ใช้)
-  submitted_by_name VARCHAR(150) NOT NULL,      -- ชื่อ ณ ตอนส่ง (API ส่งเป็น submittedBy)
-  insurer_id    INT UNSIGNED NULL,                -- แบบฟอร์มที่ส่งออก (ลบแบบฟอร์มได้ → ไม่ทำ FK)
-  insurer_name  VARCHAR(100) NULL,
-  INDEX idx_batch_cycle (cycle_date),
-  INDEX idx_batch_cycle_insurer (cycle_date, insurer_id),
-  FOREIGN KEY (submitted_by_user_id) REFERENCES users(id)
-) ENGINE=InnoDB;
-
--- แบบฟอร์ม Excel ของบริษัทประกัน: ค่าที่ซ้อนกัน (คอลัมน์, หัว/ท้ายเอกสาร) เก็บเป็น JSON
-CREATE TABLE insurer_forms (
-  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  name         VARCHAR(150) NOT NULL,
-  short_name   VARCHAR(60)  NOT NULL,
-  active       TINYINT(1)   NOT NULL DEFAULT 1,
-  config_json  LONGTEXT     NOT NULL,             -- InsurerForm ส่วนที่เหลือ (companies, dateFormat, signer, template layout …)
-  template_file LONGBLOB    NULL,                 -- ไฟล์ .xlsx แบบฟอร์ม (ล้างข้อมูลบุคคลแล้ว) — API ส่งเป็น base64
-  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
-CREATE TABLE insurance_batch_items (
-  batch_id     INT UNSIGNED NOT NULL,
-  employee_id  INT UNSIGNED NOT NULL,
-  type         ENUM('IN','OUT','URGENT') NOT NULL,
-  direction    ENUM('IN','OUT') AS (IF(type = 'IN', 'IN', 'OUT')) STORED, -- URGENT นับเป็น OUT
-  PRIMARY KEY (batch_id, employee_id, direction),
-  UNIQUE KEY uq_emp_direction (employee_id, direction), -- กันแจ้งซ้ำ
-  FOREIGN KEY (batch_id) REFERENCES insurance_batches(id) ON DELETE CASCADE,
-  FOREIGN KEY (employee_id) REFERENCES employees(id)
-) ENGINE=InnoDB;
-
-CREATE TABLE uniform_issues (
-  id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  employee_id      INT UNSIGNED NOT NULL,
-  entitlement_key  VARCHAR(20) NOT NULL,     -- START | PROBATION | ANNUAL-2026
-  event            ENUM('START','PROBATION','ANNUAL') NOT NULL,
-  qty              TINYINT UNSIGNED NOT NULL,
-  size             VARCHAR(10) NOT NULL,
-  issued_at        DATE NOT NULL,
-  issued_by_user_id INT UNSIGNED NULL,      -- ผู้บันทึก/ผู้ส่งเบิกจาก session — ห้ามรับจาก body
-  issued_by_name   VARCHAR(150) NOT NULL,   -- ชื่อ ณ ตอนบันทึก (API ส่งเป็น issuedBy)
-  UNIQUE KEY uq_emp_ent (employee_id, entitlement_key),
-  FOREIGN KEY (employee_id) REFERENCES employees(id),
-  FOREIGN KEY (issued_by_user_id) REFERENCES users(id)
-) ENGINE=InnoDB;
-
--- = ActivityLog ในแท็บบันทึกกิจกรรม (ห้ามแก้/ลบ)
-CREATE TABLE audit_log (
-  id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  entity     ENUM('EMPLOYEE','SITE','INSURANCE_BATCH','UNIFORM_ISSUE','STOCK_REQUEST','USER') NOT NULL,
-  entity_id  VARCHAR(50) NOT NULL,           -- STOCK_REQUEST = "<employee_id>:<entitlement_key>" · USER = users.id
-  action     ENUM('CREATE','UPDATE','DELETE','CANCEL','LOGIN','LOGOUT','PASSWORD_CHANGE','TOKEN_REUSE') NOT NULL,
-  summary    VARCHAR(500) NOT NULL,      -- ข้อความภาษาไทยสำหรับแสดงผล
-  employee_id INT UNSIGNED NULL,         -- ลิงก์ไปหน้าพนักงาน
-  before_json JSON NULL,
-  after_json  JSON NULL,
-  user_id    INT UNSIGNED NULL,          -- ผู้กระทำจาก session (null = ระบบ เช่น พบโทเคนถูกใช้ซ้ำ)
-  user_name  VARCHAR(150) NOT NULL,      -- ชื่อ ณ ตอนนั้น (เปลี่ยนชื่อผู้ใช้ภายหลัง ประวัติไม่เปลี่ยน)
-  at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  created_by VARCHAR(50) NOT NULL,       -- username ผู้กระทำ หรือ 'system'
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,  -- ไม่มีการแก้จริง (ห้ามแก้/ลบ)
-  updated_by VARCHAR(50) NOT NULL,
-  INDEX idx_audit_entity (entity, entity_id),
-  INDEX idx_audit_employee (employee_id),
-  INDEX idx_audit_user (user_id, at),
-  INDEX idx_audit_at (at),
-  FOREIGN KEY (user_id) REFERENCES users(id)
-) ENGINE=InnoDB;
-```
-
-`backend/database/seed.sql` (ตัวอย่างส่วนกฎ — ให้ครบตามตารางข้อ 7)
-```sql
-USE happyland_welfare;
-
-INSERT INTO companies VALUES
- ('HL','แฮปปี้แลนด์ (HL)'),('PRO','PRO'),('CNS','CNS'),('CIC','CIC'),('AS','AS');
-
-INSERT INTO insurance_rules (employee_type, companies, wait_days, exclude_contracts, require_site_insurance, note) VALUES
- ('CENTRAL',  NULL,           30,  '[]',               0, 'พนักงานส่วนกลางทุกบริษัท'),
- ('PRO_SITE', '["PRO"]',      30,  '["SHORT_3PCT"]',   0, 'สัญญา 3% ระยะสั้น ไม่ได้รับประกันกลุ่ม'),
- ('DAILY',    '["HL","AS"]',  120, '[]',               0, 'พนักงานรายวัน HL, AS'),
- ('MAID_CNS', '["CNS"]',      120, '[]',               1, 'เฉพาะหน่วยงานที่ระบุว่าได้รับประกันกลุ่ม');
-
-INSERT INTO settings VALUES
- ('insuranceMaxAge','65'),('insuranceCycleDay','5'),('insuranceCycleDayDaily','6'),('absentExtraDays','7'),
- ('uniformAnnualMonth','1');
-
-INSERT INTO uniform_items VALUES
- ('POLO_BLACK','โปโลสีดำ'),('POLO_NAVY','โปโลสีน้ำเงิน'),('TECH_SHIRT','เสื้อช่าง'),
- ('TECH_PANTS','กางเกงช่าง'),('SAFETY_SHOES','รองเท้า Safety');
-
--- uniform_rules: 18 แถวตามตาราง 7.3 (ตัวอย่าง 2 แถว)
-INSERT INTO uniform_rules (employee_type, companies, dept_groups, position, level_min, level_max, style, items, polo_by_site, qty_start, qty_start_label, qty_probation, qty_annual, note) VALUES
- ('CENTRAL', '["HL","PRO","CNS","CIC"]', '["Support Line"]', NULL, 1, 5, 'โปโลสีดำ โลโก้ HL', '["POLO_BLACK"]', 0, 0, NULL, 4, 2, ''),
- ('PRO_SITE', '["PRO"]', NULL, 'ช่างทีมโมบาย', NULL, NULL, 'โปโลสีดำหรือน้ำเงิน โลโก้ PRO', '["POLO_NAVY","TECH_SHIRT","TECH_PANTS","SAFETY_SHOES"]', 1, 3, '2+1', 1, 2, '');
--- ... + sites 11 แถวตามข้อ 9 + พนักงานตัวอย่าง
-```
-
-> ทางลัด: เขียนสคริปต์ `scripts/export-seed.js` (รันด้วย node) ที่ import `buildSeed(today)` จาก `web/assets/js/infrastructure/mock/seed.js` แล้วพิมพ์เป็น `INSERT` ออกมา → ข้อมูล MySQL จะตรงกับ mock ทุกตัว
-
-ติดตั้งฐานข้อมูล:
+ติดตั้ง:
 ```bash
-mysql -u root -p < backend/database/schema.sql
-mysql -u root -p < backend/database/seed.sql
+mysql -u root -p1234 -e "CREATE DATABASE hl_welfare DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci"
+mysql -u root -p1234 --default-character-set=utf8 hl_welfare < backend/sql/001_schema.sql
+mysql -u root -p1234 --default-character-set=utf8 hl_welfare < backend/sql/002_seed_master.sql
+mysql -u root -p1234 --default-character-set=utf8 hl_welfare < backend/sql/003_seed_demo.sql    # เครื่องพัฒนาเท่านั้น
 ```
 
 ---
@@ -1707,31 +1334,14 @@ mysql -u root -p < backend/database/seed.sql
 
 > 📝 บทเรียนจากเวอร์ชัน React: เคยอัปโหลด source `.tsx` ขึ้น host ตรง ๆ ทำให้เห็นโค้ดแทนหน้าเว็บ และ URL อย่าง `/hl-welfare/monitor` ได้ 404 เพราะไม่มีไฟล์จริง — เวอร์ชัน HTML นี้ไม่มีขั้นตอน build และทุกหน้าเป็นไฟล์จริง จึงไม่เกิดปัญหาทั้งสองแบบ
 
-### 14.2 สลับไปใช้ PHP + MySQL (เฟส 2)
-1. สร้าง DB ตามข้อ 13 และ `cp backend/.env.example backend/.env` แก้รหัสผ่าน
-2. ทดสอบ backend
-   ```bash
-   cd backend
-   composer install
-   composer serve            # = php -S localhost:8000 -t public
-   curl http://localhost:8000/api/companies
-   ```
-3. วาง backend ให้หน้าเว็บเรียก `api/...` ได้ (same-origin ไม่ต้องตั้ง CORS) เช่น บน host:
-   ```text
-   hl-welfare/
-   ├── index.html, employees.html, …   ← จาก web/
-   ├── assets/
-   └── api/                            ← ชี้ไปที่ backend/public (index.php + .htaccess)
-   ```
-   `backend/public/.htaccess`
-   ```apache
-   RewriteEngine On
-   RewriteCond %{REQUEST_FILENAME} !-f
-   RewriteRule ^ index.php [QSA,L]
-   ```
-   > Router ใน `index.php` ต้องตัด prefix ของ path ให้เหลือ `/api/...` ตามตารางข้อ 8 (หรือกำหนด `APP_BASE_PATH` ใน `.env`)
-4. แก้ `web/assets/js/config.js` → `apiMode: 'http'` (และ `apiBaseUrl` ถ้า API อยู่ที่อื่น)
-5. เปิดทุกหน้าเทียบกับโหมด mock — ผลคำนวณสิทธิต้องตรงกัน · ป้ายใน sidebar เปลี่ยนเป็น "API"
+### 14.2 ใช้ PHP + MySQL (เฟส 2 — ค่าเริ่มต้นแล้ว)
+1. วางทั้งโฟลเดอร์ `hl-welfare/` (มี `web/` และ `backend/`) บน host ที่มี PHP ≥ 5.2 + MySQL ≥ 5.0 — host เดียวกับ stock_hr ได้
+   - ถ้าวางเฉพาะ `web/` ใต้ document root ให้วาง `backend/` ไว้นอก document root แล้วแก้ path ใน `web/api/index.php` · ถ้าวางทั้งโฟลเดอร์ใต้ document root `backend/.htaccess` (Deny from all) กันไว้แล้ว — ตรวจว่า host อ่าน `.htaccess` (`AllowOverride All`)
+2. สร้างฐานข้อมูลตามข้อ 13 (ระบบจริง: `001` + `002` เท่านั้น)
+3. `copy backend\config.example.php backend\config.php` แล้วกรอก: ชุดเซิร์ฟเวอร์จริง (DB, `cookie_secure` = true ต้องเป็น HTTPS), `stock_api_url`, `stock_api_secret` (ตัวเดียวกับ `stock_hr/config_ctrl/welfare_key.php`)
+4. สร้างผู้ใช้: `echo รหัสผ่าน | php backend/bin/user.php create <username> "<ชื่อ>" HR_ADMIN <รหัสพนักงาน>` (ชื่อภาษาไทยบน Windows ส่งทาง stdin — ดูหัวไฟล์)
+5. `web/assets/js/config.js`: `apiMode: 'http'`, `apiBaseUrl: 'api/index.php'` (ค่าเริ่มต้นแล้ว) · `stock.docUrl` = ลิงก์ใบเบิกของ stock_hr บน host
+6. ตรวจ: `GET api/index.php/auth/me` ต้องตอบ 401 JSON · เข้าสู่ระบบแล้วเปิดทุกหน้า · `backend/config.php` เปิดผ่านเว็บต้องได้ 403
 
 ---
 
@@ -1760,8 +1370,7 @@ describe('ประกันกลุ่ม', () => {
 });
 ```
 
-**Backend (PHPUnit)** — `tests/EligibilityTest.php` ใช้ test case ชุดเดียวกัน
-> แนะนำย้าย test case เป็น `shared/eligibility-cases.json` (input + expected) ให้ทั้ง `node --test` และ PHPUnit อ่านไฟล์เดียวกัน → รับประกันว่า JS กับ PHP ให้ผลตรงกัน
+**Backend** — `backend/tests/run.php` (ข้อ 15.3) เทียบคำตอบของ PHP กับ MockApi ทุก endpoint อ่าน (golden ที่สร้างจาก JS) → รับประกันว่า JS กับ PHP ให้ผลตรงกัน
 
 ### 15.2 ทดสอบการใช้งานจริง (ทำแล้วในเฟส 1)
 เปิดด้วย Chrome แบบ headless (puppeteer) ผ่าน Apache ในเครื่อง — ผ่าน 17/17:
@@ -1783,25 +1392,21 @@ describe('ประกันกลุ่ม', () => {
 
 ---
 
-### 15.3 Backend: การเข้าสู่ระบบ (PHP + ฐานข้อมูลจริง)
+### 15.3 Backend PHP 5.2 (ฐานข้อมูลจริง)
 ```bash
-# ต้องมี MySQL 8 / MariaDB 10.6+ — ฐานข้อมูล TEST_DB_NAME ถูกลบแล้วสร้างใหม่ทุกครั้ง (ต้องมีคำว่า test)
-TEST_DB_PORT=3306 TEST_DB_USER=root TEST_DB_PASS= php backend/tests/auth_test.php
+C:\AppServ\php5\php.exe backend\tests\run.php          # ใช้ค่าเชื่อมต่อใน backend/config.php
 ```
-เปิด built-in server จริง + stock_hr ตัวปลอม (`tests/fake_stock_hr.php` ตรวจ HMAC แบบเดียวกับของจริง) แล้วยิง HTTP พร้อม cookie jar แยกต่อ "เบราว์เซอร์" — 51 ข้อ:
-- login ผิด/ไม่มีผู้ใช้ → 401 ข้อความเดียวกัน · สำเร็จ → cookie `HttpOnly` + `SameSite=Lax` · ไม่เลือกจดจำฉัน → ไม่มี refresh cookie
-- CSRF: ไม่ใช่ JSON → 415 · Origin เว็บอื่น → 403
-- refresh cookie path `/api/auth`, 64 hex, DB เก็บเฉพาะ SHA-256, อายุ 30 วัน · refresh → session ใหม่ + โทเคนใหม่ · ตัวเก่า ROTATED → replaced_by
-- ใช้ซ้ำภายใน grace → 409 ไม่เพิกถอน · หลัง grace → 401 + เพิกถอนทั้ง family + audit TOKEN_REUSE · โทเคนปลอม → 401
-- logout เพิกถอน + ลบ cookie · เปลี่ยนรหัสผ่าน → ทุกโทเคนถูกเพิกถอน เครื่องอื่นหลุด เครื่องนี้อยู่ต่อ · ปิดบัญชี → หลุดทันที
-- `/api/stock/bridge`: ไม่ login 401 · Payroll ดูได้ส่งเบิกไม่ได้ (403) · stock_hr ได้ `requested_by_*` จาก session แม้ body ปลอมชื่อมา · audit_log มี user_id + เลขใบ
-- ผิด 5 ครั้ง → 429 + `Retry-After` · ไม่มี PHP warning ใน log
+สร้างฐานข้อมูล `hl_welfare_test` ใหม่จาก `backend/sql/001–003` ทุกครั้ง (ชื่อต้องมีคำว่า test) แล้วเรียก `api_handle()` ตรง ๆ พร้อม cookie jar แยกต่อ "เบราว์เซอร์" — **109 ข้อ ผ่านทั้งหมด** (19 ต.ค. 2569)
+- **golden**: ทุก endpoint อ่านข้อมูลตอบเหมือน `MockApi` ทุกตัว ณ วันเดียวกับ seed — dashboard, คิวงาน, พนักงาน (+ ตัวกรอง), กฎ, **สิทธิของพนักงานทั้ง 258 คน**, รอบประกัน 7 รอบ (รวมรอบรายวันวันที่ 6), ประวัติ/รายละเอียด batch, ไฟล์ส่งออกซ้ำ, แบบฟอร์มประกัน, ข้อมูลไฟล์แจ้งประกัน 2 รอบ, ประวัติแจกชุด, ค้างแจก, กิจกรรม · `fixtures/golden.json` สร้างโดย `node scripts/export-seed.mjs` (แก้กฎใน JS แล้วต้องสร้างใหม่ + แก้ PHP ให้ผ่าน)
+- ไลบรารี: PBKDF2 ตรง test vector RFC 7914 · hash รหัสผ่านภาษาไทย · ค่าสุ่ม 256 บิต · `stable_usort`
+- การเข้าสู่ระบบ: 401 ข้อความเดียวกัน · cookie HttpOnly/SameSite/path · session เก็บ SHA-256 · หมดเมื่อไม่ใช้งาน 31 นาที / ครบ 12 ชม. · refresh หมุนโทเคน · race 409 · reuse เพิกถอนทั้ง family + audit · โทเคนปลอม · logout · เปลี่ยนรหัสผ่าน (เครื่องอื่นหลุด) · ปิดบัญชี · CSRF 415/403 · จำกัดการเดา 429
+- เขียนข้อมูล: พนักงาน (201/409/422/พ้นสภาพ/ลบ) · หน่วยงาน · ส่งออก+บันทึก (ผู้ส่งจาก session, ส่งซ้ำแทนที่) · ส่งแจ้งซ้ำ 409 · ยกเลิก batch · แจกชุด (`issuedBy` จาก session แม้ body ปลอมมา) · ส่งเบิกสต็อก (403 Payroll, `requested_by_*` จาก session, `start_date`) · sync ISSUED/CANCELLED · ตัวกลาง `/stock/bridge`
 
-**หน้าเว็บ** — `tests/serverAuth.test.js` (อยู่ใน `npm test`): 401 → refresh → ลองใหม่ · refresh ไม่ได้ → onUnauthorized ครั้งเดียว · 401 พร้อมกันหลายคำขอ → refresh ครั้งเดียว · 409 REFRESH_RACE · restore()
+**หน้าเว็บ** — `tests/serverAuth.test.js` (อยู่ใน `npm test`, 70 ข้อผ่าน): 401 → refresh → ลองใหม่ · refresh ไม่ได้ → onUnauthorized ครั้งเดียว · 401 พร้อมกัน → refresh ครั้งเดียว · 409 REFRESH_RACE · restore()
 
-**ทดสอบด้วยมือ (ทำแล้ว 19 ต.ค. 2569 บน Chrome ใน Claude desktop)**: provider `server` → login + จดจำฉัน → `document.cookie` ว่าง (HttpOnly), localStorage ไม่มีอะไร · ลบไฟล์ session ฝั่งเซิร์ฟเวอร์ + ล้าง sessionStorage → เปิด uniform.html → ผ่าน login.html แล้วกลับเข้าหน้าเดิมเอง (refresh หมุนโทเคนใน family เดิม) · ลบ session อีกครั้งแล้วเรียก API → refresh แล้วได้ผล · ออกจากระบบ → me/refresh = 401 · โหมด mock: login บัญชีทดลองได้เหมือนเดิม ไม่มี error ใน console · `stock_bridge.php` ที่ตั้ง `$stock_bridge_auth_url`: ไม่มี session 401, มี session → stock_hr ได้ชื่อจาก backend
+**ทดสอบบน AppServ จริง (19 ต.ค. 2569)**: `GET api/index.php/auth/me` = 401 JSON · login ได้ cookie `HLW_SESSION` path `/hl-welfare/web/` และ `HLW_REFRESH` path `/hl-welfare/web/api/index.php/auth` (HttpOnly, SameSite=Lax) · dashboard/พนักงาน/คิวงาน ~0.25 วิ · `backend/config.php` ผ่านเว็บ = 403 · catalog จาก stock_hr จริงผ่าน HMAC ได้ (อ่านอย่างเดียว) · เบราว์เซอร์: login (ไม่แสดงบัญชีทดลอง) → ทุกหน้าแสดงข้อมูลจาก MySQL ไม่มี error · `document.cookie` ว่าง · ลบ session ในฐานข้อมูลแล้วเปิดหน้าใหม่ → ต่ออายุเองด้วย refresh (โทเคนหมุนใน family เดิม)
 
-**ยังไม่ได้ทดสอบ / ต้องทดสอบเมื่อขึ้น host**: HTTPS จริง + `COOKIE_SECURE=1` · `APP_BASE_PATH=/hl-welfare` (path ของ cookie) · session หมดเพราะไม่ใช้งาน 30 นาที / ครบ 12 ชม. (ทดสอบด้วยการตั้งค่าน้อย ๆ) · `stock_bridge.php` บน PHP 5.2 จริงของ AppServ (ทดสอบตรรกะบน PHP 8.3 + ตรวจ syntax ด้วย 5.2 แล้ว) · stock_hr จริงรับ field `requested_by_user/_user_id/_emp_code` (ตอนนี้ stock_hr เก็บแค่ `requested_by_name`)
+**ยังไม่ได้ทดสอบ**: HTTPS จริง + `cookie_secure = true` · host จริง (develophpg.net) · ส่งเบิก/ยกเลิกใบกับ stock_hr จริง (ทดสอบกับตัวปลอม — กดจริงจะออกใบ WRQ/NRQ ในสต็อก) · การบันทึกจากหน้าจอทุกปุ่ม (ทดสอบผ่าน API แล้ว) · ไฟล์แบบฟอร์มประกันขนาดใหญ่กับ `max_allowed_packet`
 
 ## 16. Checklist
 
@@ -1832,21 +1437,17 @@ TEST_DB_PORT=3306 TEST_DB_USER=root TEST_DB_PASS= php backend/tests/auth_test.ph
 - [ ] ส่งออก CSV เปิดใน Excel แล้วภาษาไทยไม่เพี้ยน (ใส่ UTF-8 BOM แล้ว — รอทดสอบเปิดใน Excel จริง)
 - [ ] อัปโหลด `web/` ขึ้น host หน่วยงานและเปิดใช้งานจริง
 
-### เฟส 2 — PHP + MySQL
-- [ ] `schema.sql`, `seed.sql` (ข้อมูลตรงกับ mock)
-- [ ] Router, Request, Response, Infrastructure/Database
-- [ ] Application/Port (interface) + Infrastructure/Persistence (PDO)
-- [ ] `Domain/Eligibility.php` + PHPUnit ผ่าน (case เดียวกับ JS)
-- [ ] Service + Controller ครบทุก endpoint ในข้อ 8 (รวม DELETE, `/monitor/tasks`, `/activity`)
-- [ ] `Application/Service/WorkQueueService` คู่แฝดของ `usecases/workQueue.js`
-- [ ] `InsurerExportService` คู่แฝดของ `usecases/insurerExport.js` (`buildInsurerExport`) + `InsurerController` (CRUD + bindings + `validateInsurerForm`) + ตาราง `insurer_forms` (เก็บไฟล์แบบฟอร์มใน `template_file`) · อ่านตำแหน่ง/ล้าง/เติมไฟล์ยังทำในเบราว์เซอร์ (PHP เก็บไฟล์ + ส่งข้อมูล)
-- [ ] `InsuranceCycleService::batchDetail()` คู่แฝดของ `buildBatchDetail` (`usecases/insuranceCycle.js`) + `GET /api/insurance/batches/{id}`
-- [ ] Validation + transaction + unique key กันซ้ำ
-- [ ] audit_log ทุก endpoint (`user_id` + `user_name` จาก session — `PdoAuditLog` พร้อมแล้ว)
-- [x] ตาราง `users`, `auth_refresh_tokens`, `auth_login_attempts` + `POST /api/auth/login|refresh|logout|password`, `GET /api/auth/me` + จำกัดการเดารหัสผ่าน + CSRF guard (ข้อ 10.9.1)
-- [x] `POST /api/stock/bridge` (ผู้ขอเบิกจาก session) · `stock_bridge.php` ตรวจผู้ใช้ผ่าน `$stock_bridge_auth_url`
-- [ ] ตรวจ session ทุก endpoint ข้อมูล (เพิ่มตอนสร้างแต่ละ Controller) · `uploadedBy` ของแบบฟอร์มประกันให้ PHP ใส่เอง
-- [ ] ตั้ง `apiMode: 'http'` ใน `config.js` แล้วทุกหน้าทำงานเหมือน mock
+### เฟส 2 — PHP 5.2 + MySQL 5.0 (AppServ เดียวกับ stock_hr) ✅
+- [x] ฐานข้อมูลแยก `hl_welfare` — `backend/sql/001_schema.sql` (+ rollback) · seed จาก mock (`002` ใช้จริง, `003` จำลอง)
+- [x] Router, คำขอ/คำตอบ, mysqli prepared, transaction (`backend/lib/`)
+- [x] domain + use-case คู่แฝดของ JS ครบ (สิทธิประกัน/ชุดฟอร์ม, รอบประกัน, ไฟล์แจ้งประกัน, ภาพรวม, คิวงาน, ค้างแจก, ส่งเบิกสต็อก) — golden test ตรงกับ MockApi ทุก endpoint อ่าน
+- [x] ทุก endpoint ในข้อ 8 (CRUD, ส่งออก+บันทึก, แบบฟอร์มประกัน + ผูกบริษัท, แจกชุด, ส่งเบิก/ซิงก์สต็อก, `/monitor/tasks`, `/activity`)
+- [x] Validation + transaction + unique key กันซ้ำ · 422 พร้อม `errors`
+- [x] การเข้าสู่ระบบ (ข้อ 10.9.1): session ใน DB, จดจำฉัน (refresh token หมุน + ตรวจจับรั่ว), จำกัดการเดา, CSRF, เปลี่ยนรหัสผ่าน, `bin/user.php`
+- [x] audit_log ทุกการเขียน — `user_id` + `user_name` จาก session · ส่งเบิกสต็อกส่ง `requested_by_*` จาก session
+- [x] `config.js` → `apiMode: 'http'` · ทุกหน้าทำงานกับ MySQL (ทดสอบบนเบราว์เซอร์แล้ว)
+- [ ] ขึ้น host จริง (HTTPS, `cookie_secure = true`) + สร้างผู้ใช้จริง
+- [ ] หน้าเปลี่ยนรหัสผ่าน / จัดการผู้ใช้ (API `/auth/password` พร้อมแล้ว)
 
 ### เฟส 3 (ภายหลัง)
 - [ ] สิทธิ์ตาม role / แยกบริษัท (login ทำแล้วในเฟส 1–2)
@@ -1874,14 +1475,14 @@ TEST_DB_PORT=3306 TEST_DB_USER=root TEST_DB_PASS= php backend/tests/auth_test.ph
 - [ ] แม่บ้าน CNS และพนักงานรายวัน ได้ชุดฟอร์มไหม?
 - [ ] ระดับพนักงาน "6 ขึ้นไป" สูงสุดถึงระดับเท่าไร?
 
-## 18. ประเด็นเปิด — การเข้าสู่ระบบ (ต้องตัดสินใจ)
+## 18. ประเด็นเปิด — backend / การเข้าสู่ระบบ (ต้องตัดสินใจ)
 - [ ] **อายุ session / จดจำฉัน**: idle 30 นาที, สูงสุด 12 ชม., refresh 30 วัน (นับใหม่ทุกครั้งที่หมุน → ใช้ทุกวันจะไม่หมด) — ต้องมีอายุสูงสุดของ family (เช่น 90 วันแล้วต้องกรอกรหัสใหม่) ไหม?
-- [ ] **ล็อกบัญชีจากการเดารหัส**: ผิด 5 ครั้ง/15 นาที ล็อกชื่อผู้ใช้นั้น → คนอื่นแกล้งล็อกบัญชีได้ (ใส่ผิดซ้ำ ๆ) · ยอมรับได้ไหม หรือให้ล็อกตาม IP + ชื่อผู้ใช้คู่กัน / ใช้ CAPTCHA
-- [ ] **สิทธิ์ส่งเบิกคลัง**: ตอนนี้ HR_ADMIN + HR_COMPANY · ผู้ดูแลสต็อก (STOCK) ควรยกเลิกใบได้ไหม · HR_COMPANY ควรส่งเบิกได้เฉพาะพนักงานบริษัทตัวเอง (เฟส 3)?
-- [ ] **stock_hr**: เพิ่มคอลัมน์ `requested_by_user`, `requested_by_user_id`, `requested_by_emp_code` ใน `tb_doc_welfare` (ตอนนี้ welfare_submit/welfare_cancel อ่านแค่ `requested_by_name` — field ใหม่ถูกส่งไปแล้วแต่ยังไม่ถูกเก็บ) · ต้องแก้ใน repo stock_hr
-- [ ] **รหัสพนักงานของผู้ใช้** (`users.emp_code`): ใครกรอก / ผูกกับตาราง employees ไหม
-- [ ] **session หลายเครื่องเซิร์ฟเวอร์**: ตอนนี้ใช้ไฟล์ session ของ PHP — ถ้า host มีหลายเครื่อง/คอนเทนเนอร์ ต้องย้าย session ไป DB/Redis
-- [ ] **ล้างข้อมูลเก่า**: งานตั้งเวลาลบ `auth_refresh_tokens` ที่หมดอายุ/ถูกเพิกถอนเกิน 90 วัน และ `auth_login_attempts` เกิน 90 วัน
-- [ ] **หน้าเปลี่ยนรหัสผ่าน / จัดการผู้ใช้**: API `/api/auth/password` พร้อมแล้ว แต่ยังไม่มีหน้าจอ (ตอนนี้ผู้ดูแลใช้ `bin/user.php`)
-- [ ] **audit_log entity ใหม่** `USER`, `STOCK_REQUEST`: แท็บบันทึกกิจกรรมต้องเพิ่มป้าย/ตัวกรอง (`ActivityEntity` ใน `domain/types.js`) หรือซ่อน `USER` จากผู้ใช้ทั่วไป
-- [ ] **สคีมาเดิม**: `insurance_batch_items` ใช้ PRIMARY KEY บน generated column (`direction`) — MariaDB 10.11 ไม่รองรับ (MySQL 8 ได้) · ถ้า host เป็น MariaDB ต้องเปลี่ยนเป็นคอลัมน์ปกติ + trigger/ตรวจใน PHP
+- [ ] **ล็อกบัญชีจากการเดารหัส**: ผิด 5 ครั้ง/15 นาที ล็อกชื่อผู้ใช้นั้น → คนอื่นแกล้งล็อกบัญชีได้ · ยอมรับได้ไหม หรือล็อกตาม IP + ชื่อผู้ใช้คู่กัน
+- [ ] **สิทธิ์ส่งเบิกคลัง**: ตอนนี้ HR_ADMIN + HR_COMPANY · ผู้ดูแลสต็อก (STOCK) ควรยกเลิกใบได้ไหม · HR_COMPANY ส่งเบิกได้เฉพาะพนักงานบริษัทตัวเอง (เฟส 3)?
+- [ ] **บัญชีผู้ใช้จริง**: ใครบ้าง บทบาทอะไร · `username` ควรตรงกับ `tb_user.username` ใน stock_hr (สต็อกใช้ส่งลิงก์เซ็นรับ) — ตอนนี้ stock_hr มีแค่ `admin` · `emp_code` ของผู้ใช้ใครกรอก
+- [ ] **ข้อมูลพนักงานจริง**: นำเข้าจากไหน (ไฟล์ HR / ระบบเงินเดือน) — ตอนนี้เครื่องพัฒนาใช้ข้อมูลจำลอง (`003_seed_demo.sql`) ห้ามรันบนระบบจริง
+- [ ] **PHP 5.2 / MySQL 5.0 หมดอายุซัพพอร์ตแล้ว** (ไม่มีแพตช์ความปลอดภัย) — ทำตามที่ตัดสินใจไว้เพื่อให้อยู่เครื่องเดียวกับ stock_hr · โค้ดเลี่ยงฟีเจอร์ใหม่ ย้ายขึ้น PHP 7/8 + MySQL 8 ได้โดยไม่ต้องแก้มาก (`password_hash` แทน PBKDF2, `random_bytes` แทน GUID) — ควรวางแผนพร้อม stock_hr
+- [ ] **ล้างข้อมูลเก่า**: งานตั้งเวลาลบ `auth_sessions` / `auth_refresh_tokens` ที่หมดอายุ/ถูกเพิกถอนเกิน 90 วัน และ `auth_login_attempts` เกิน 90 วัน (ทำแบบ `stock_hr/cron/`)
+- [ ] **audit_log entity ใหม่** `USER`, `STOCK_REQUEST`, `INSURER_FORM`: แท็บบันทึกกิจกรรมต้องเพิ่มป้าย/ตัวกรอง (`ActivityEntity` ใน `domain/types.js`) หรือซ่อน `USER` จากผู้ใช้ทั่วไป
+- [ ] **ไฟล์แบบฟอร์มประกันขนาดใหญ่**: เก็บ base64 ใน `insurer_forms.form_json` — MySQL 5.0 `max_allowed_packet` ค่าเริ่มต้น 1 MB · ไฟล์ > ~700 KB บันทึกไม่ได้ ต้องเพิ่มค่าหรือย้ายไปเก็บเป็นไฟล์
+- [ ] **โหมด mock**: ยังเก็บไว้สำหรับ `npm test` และทดลอง (ตั้ง `apiMode: 'mock'`) — ใช้ส่งเบิกจริงได้เฉพาะเมื่อ login กับ backend (`auth.provider: 'server'`) · จะลบโหมดนี้ออกทั้งหมดไหม

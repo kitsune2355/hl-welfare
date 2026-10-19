@@ -2,26 +2,24 @@
 export const CONFIG = {
   /**
    * แหล่งข้อมูล
-   *  'mock' = ข้อมูลจำลองในเบราว์เซอร์ (เก็บใน localStorage ของแต่ละเครื่อง) — ใช้ทดลอง/เดโม
-   *  'http' = เรียก PHP backend (เฟส 2)
+   *  'http' = PHP backend + ฐานข้อมูล hl_welfare (ใช้งานจริง)
+   *  'mock' = ข้อมูลจำลองในเบราว์เซอร์ (localStorage ของแต่ละเครื่อง) — ใช้ทดลอง/เทสต์เท่านั้น
    */
-  apiMode: 'mock',
+  apiMode: 'http',
 
-  /** URL ของ PHP API (ใช้เมื่อ apiMode = 'http') — path แบบ relative จากหน้าเว็บ */
-  apiBaseUrl: 'api',
+  /**
+   * URL ของ PHP API — relative จากหน้าเว็บ · ไม่ต้องเปิด mod_rewrite
+   * (api/index.php/employees = GET /employees)
+   */
+  apiBaseUrl: 'api/index.php',
 
   /**
    * ระบบสต็อก Uniform (stock_hr) — ส่งเบิกชุดฟอร์มให้คลังจ่าย
-   * ต้องเปิดผ่าน AppServ (http://localhost/hl-welfare/web/) เพราะตัวกลางเป็น PHP
-   * ค่ากุญแจอยู่ใน web/api/stock_bridge.config.php
+   * โหมด http: PHP backend คุยกับสต็อกเอง (กุญแจอยู่ใน backend/config.php)
    */
   stock: {
-    /**
-     * ตัวกลางที่เซ็นคำขอแล้วส่งต่อ — path แบบ relative จากหน้าเว็บ
-     *  'api/stock_bridge.php' = ไฟล์ PHP 5.2 บน AppServ (โหมดสาธิต / ตรวจผู้ใช้เมื่อตั้ง $stock_bridge_auth_url)
-     *  'api/stock/bridge'     = PHP backend (ต้องเข้าสู่ระบบ — ใช้คู่กับ auth.provider 'server')
-     */
-    bridgeUrl: 'api/stock_bridge.php',
+    /** ตัวกลางสำหรับโหมด mock (ต้องเข้าสู่ระบบกับ backend — auth.provider 'server') */
+    bridgeUrl: 'api/index.php/stock/bridge',
     /** ลิงก์ใบเบิกในระบบสต็อก ต่อท้ายด้วย doc_id */
     docUrl: 'http://localhost/stock_hr/print_doc.php?doc_id=',
   },

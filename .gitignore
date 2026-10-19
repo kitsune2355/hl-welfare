@@ -8,3 +8,7 @@ web/api/stock_bridge.config.php
 # backend: ค่าตั้ง/ความลับ + composer
 backend/.env
 backend/vendor/
+
+# backend PHP 5.2: ค่าเชื่อมต่อฐานข้อมูล + กุญแจสต็อก
+backend/config.php
+backend/LOCAL_ACCOUNTS.txt

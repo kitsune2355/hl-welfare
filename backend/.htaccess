@@ -1,0 +1,4 @@
+# backend/ อยู่ใต้ DocumentRoot ของ AppServ — ห้ามเปิดไฟล์ในนี้ผ่านเว็บ (config.php มีรหัสผ่าน)
+# ทางเข้าเดียวคือ web/api/index.php
+Order deny,allow
+Deny from all
