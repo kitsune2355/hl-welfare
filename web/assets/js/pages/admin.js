@@ -10,6 +10,7 @@
 import { adminApi } from '../app/api.js';
 import { can, getSession } from '../app/auth.js';
 import { initPage } from '../app/shell.js';
+import { startTourIfNew } from '../app/tour.js';
 import { $, debounce, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { clock, int, thaiDate, thaiDateTime, timeAgo } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
@@ -56,7 +57,7 @@ const groupKeyOf = (t) => Object.keys(GROUPS).find((k) => GROUPS[k].tabs.include
 const asked = getParam('tab') || 'users';
 const group = GROUPS[groupKeyOf(asked) ?? (GROUPS[asked] ? asked : 'users')];
 let tab = TAB_CAN[asked]?.() ? asked : (group.tabs.find((t) => TAB_CAN[t]()) ?? group.tabs[0]);
-initPage(group.nav); // ไม่มีสิทธิ์เมนูนี้เลย → shell พาไปหน้าที่เปิดได้
+initPage(group.nav, { tour: () => `admin-${tab}` }); // ไม่มีสิทธิ์เมนูนี้เลย → shell พาไปหน้าที่เปิดได้ · แนะนำการใช้งานต่อแท็บ (tour/steps.js)
 
 render($('#title'), group.title);
 render($('#subtitle'), group.subtitle);
@@ -102,6 +103,7 @@ on($('#tabs'), 'click', '[data-tab]', (_e, b) => {
   setParams({ tab });
   drawTabs();
   load(tab);
+  startTourIfNew(`admin-${tab}`);
 });
 
 const LOADERS = { users: loadUsers, permissions: loadPermissions, access: loadAccess, health: loadHealth, settings: loadSettings, audit: loadAudit };

@@ -11,10 +11,10 @@ import { alertBox } from '../ui/components.js';
 import { busy } from '../ui/loading.js';
 import { errorMessage, toast } from '../ui/overlay.js';
 
-initPage(location.hash === '#font' ? 'account-font' : 'account-password');
-
 const me = getSession();
 const forced = !!me?.mustChangePassword || getParam('force') === '1';
+// ถูกบังคับตั้งรหัสใหม่ → ไม่เปิดแนะนำทับ (กด ? ดูได้หลังตั้งรหัสแล้ว)
+initPage(location.hash === '#font' ? 'account-font' : 'account-password', { tour: () => (forced ? '' : 'account') });
 render($('#who'), `${me?.name ?? ''} · ${me?.username ?? ''} · ${me?.role ?? ''}`);
 
 // ===================== เปลี่ยนรหัสผ่าน =====================

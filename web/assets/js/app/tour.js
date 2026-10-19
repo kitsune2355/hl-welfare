@@ -25,10 +25,12 @@ function loadDriver() {
 }
 
 const seenKey = (page) => `${C.storageKey}:${page}`;
+/** version ของเนื้อหาหน้านี้ (steps.js) — ไม่ใส่ = version กลาง (tour.config.js) */
+const versionOf = (page) => String(TOUR_STEPS[page]?.version ?? C.version);
 
 function hasSeen(page) {
   try {
-    return localStorage.getItem(seenKey(page)) === String(C.version) || localStorage.getItem('hl-tour-disabled') === '1';
+    return localStorage.getItem(seenKey(page)) === versionOf(page) || localStorage.getItem('hl-tour-disabled') === '1';
   } catch {
     return true; // อ่าน localStorage ไม่ได้ → ไม่เปิดอัตโนมัติ (กันเปิดซ้ำทุกครั้ง)
   }
@@ -36,7 +38,7 @@ function hasSeen(page) {
 
 function markSeen(page) {
   try {
-    localStorage.setItem(seenKey(page), String(C.version));
+    localStorage.setItem(seenKey(page), versionOf(page));
   } catch {
     /* ignore */
   }

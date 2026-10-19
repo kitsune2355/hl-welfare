@@ -8,19 +8,24 @@
 //     title, text : หัวข้อ / คำอธิบาย (ใส่ <b>, <kbd>, <br> ได้)
 //     side  : 'top' | 'right' | 'bottom' | 'left' (ไม่ใส่ = driver.js เลือกให้)
 //     align : 'start' | 'center' | 'end'
+//   version : (ไม่ใส่ก็ได้) แก้เนื้อหาของหน้านี้แล้วอยากให้ผู้ใช้เห็นใหม่ → ใส่/เพิ่มเลขนี้ (เฉพาะหน้านี้)
+//             ไม่ใส่ = ใช้ version กลางใน tour.config.js (เพิ่มเลขนั้น = ทุกหน้าเด้งใหม่)
 //
-// แก้เนื้อหาแล้วอยากให้ผู้ใช้เห็นใหม่ → เพิ่ม version ใน tour.config.js
+// หน้าที่มีหลายแท็บ: คีย์ "<หน้า>-<แท็บ>" + initPage('…', { tour: () => … }) และ startTourIfNew() ตอนเปลี่ยนแท็บ
 
 export const TOUR_STEPS = {
   dashboard: {
+    version: 2,
     ready: '#upcoming .table, #upcoming .empty',
     steps: [
       {
         title: 'ยินดีต้อนรับสู่ HL Welfare 👋',
         text: 'ระบบจัดการสวัสดิการพนักงานของทุกบริษัทในเครือ — ประกันกลุ่ม และชุดฟอร์ม<br><br>ใช้เวลาประมาณ 1 นาทีพาดูส่วนสำคัญ (กด <kbd>→</kbd> เพื่อไปต่อ หรือ <kbd>Esc</kbd> เพื่อข้าม)',
       },
-      { element: '.bottom-nav', title: 'เมนูด้านล่าง', text: 'แตะเพื่อไปหน้าหลัก · ตัวเลขแดง/เหลือง = <b>งานค้าง</b> · “เพิ่มเติม” = เงื่อนไข, หน่วยงาน, แบบฟอร์มประกัน และออกจากระบบ', side: 'top' },
-      { element: '.nav', title: 'เมนูหลัก', text: 'ตัวเลขสีแดง/เหลืองหลังเมนู = <b>งานค้าง</b> เช่น แจ้งออกประกันทันที หรือชุดฟอร์มที่ยังไม่แจก', side: 'right' },
+      { element: '.bottom-nav', title: 'เมนูด้านล่าง', text: 'แตะเพื่อไปหน้าหลัก · ตัวเลขแดง/เหลือง = <b>งานค้าง</b> · “เพิ่มเติม” = เมนูตั้งค่า บัญชีของฉัน ผู้ดูแลระบบ และออกจากระบบ', side: 'top' },
+      { element: '.nav', title: 'เมนูหลัก', text: 'ตัวเลขสีแดง/เหลืองหลังเมนู = <b>งานค้าง</b> เช่น แจ้งออกประกันทันที หรือชุดฟอร์มที่ยังไม่แจก<br>เมนูที่เห็นขึ้นกับสิทธิ์ของบัญชี — ไม่เห็นเมนูที่ต้องใช้ ติดต่อผู้ดูแลระบบ', side: 'right' },
+      { element: '.nav a[data-nav="account-password"]', title: 'บัญชีของฉัน', text: '<b>เปลี่ยนรหัสผ่าน</b> ด้วยตัวเอง และปรับ <b>ขนาดตัวอักษร</b> ของทั้งระบบให้อ่านสบาย', side: 'right' },
+      { element: '.sidebar-user', title: 'ผู้ใช้ที่เข้าสู่ระบบ', text: 'ทุกรายการที่ทำถูกบันทึกในชื่อนี้ · ปุ่มด้านขวา = <b>ออกจากระบบ</b> (ใช้เครื่องร่วมกับคนอื่นควรกดทุกครั้ง)', side: 'right', align: 'end' },
       { element: '#urgent-alert', title: 'แจ้งเตือนด่วน', text: 'พนักงานที่เลิกจ้าง/กระทำผิด ต้อง <b>แจ้งออกจากประกันทันที</b> ไม่รอรอบวันที่ 5', side: 'bottom' },
       { element: '#tabs', title: 'สรุป · คิวงาน · บันทึกกิจกรรม', text: '<b>คิวงาน</b> รวมทุกเรื่องที่ต้องทำ (ตัวเลขแดง = มีงานด่วน) — แนะนำให้เปิดดูทุกเช้า · <b>บันทึกกิจกรรม</b> = ใครทำอะไรเมื่อไร', side: 'bottom', align: 'start' },
       { element: '#auto', title: 'รีเฟรชอัตโนมัติ', text: 'หน้านี้อัปเดตเองทุก 60 วินาที เหมาะเปิดค้างไว้ · ปิดได้ที่สวิตช์นี้', side: 'bottom', align: 'end' },
@@ -68,59 +73,126 @@ export const TOUR_STEPS = {
   },
 
   employee: {
+    version: 2,
     ready: '#insurance .card',
     steps: [
-      { element: '#head', title: 'ข้อมูลพนักงาน', text: 'ปุ่ม <b>แก้ไข / บันทึกพ้นสภาพ</b> อยู่ด้านขวา — ใช้เมื่อพนักงานลาออก ขาดงาน หรือถูกเลิกจ้าง', side: 'bottom' },
-      { element: '#insurance', title: 'สิทธิประกันกลุ่ม', text: 'เส้นเวลาแสดง เริ่มงาน → ครบอายุงาน → รอบแจ้งเข้า → แจ้งออก · ถ้าไม่มีสิทธิจะบอกเหตุผล', side: 'right' },
-      { element: '#uniform', title: 'ชุดฟอร์ม', text: 'สิทธิแต่ละรอบ — กด <b>ส่งเบิกคลัง</b> ได้ที่นี่ · ยังไม่จ่ายกดย้อนกลับ ↶ ได้', side: 'top' },
-      { element: '#activity', title: 'ประวัติการเปลี่ยนแปลง', text: 'ทุกการแก้ไขของพนักงานคนนี้ เรียงจากล่าสุด', side: 'top' },
+      { element: '#head', title: 'ข้อมูลพนักงาน', text: 'ปุ่ม <b>แก้ไข / บันทึกพ้นสภาพ</b> พาไปแถวของคนนี้ในตารางพนักงาน — ใช้เมื่อพนักงานลาออก ขาดงาน หรือถูกเลิกจ้าง', side: 'bottom' },
+      { element: '#info', title: 'ข้อมูลย่อ', text: 'บริษัท หน่วยงาน ประเภท สัญญา และอายุงาน — ค่าที่ระบบใช้คำนวณสิทธิทั้งหมด ถ้าผิดให้แก้ที่ตารางพนักงาน', side: 'bottom' },
+      { element: '#insurance', title: 'สิทธิประกันกลุ่ม', text: 'เส้นเวลาแสดง เริ่มงาน → ครบอายุงาน → รอบแจ้งเข้า → แจ้งออก · ถ้าไม่มีสิทธิจะบอกเหตุผลเป็นข้อ ๆ', side: 'right' },
+      { element: '#uniform', title: 'ชุดฟอร์ม', text: 'สิทธิแต่ละรอบ (เริ่มงาน / ผ่านทดลองงาน / ประจำปี) จำนวนตามกฎหรือตามที่หน่วยงานตั้งไว้', side: 'top' },
+      { element: '#uniform [data-stock-request]', title: 'ส่งเบิกคลัง', text: 'เลือกแบบและไซซ์จากสต็อก Uniform ใบเบิก<b>อนุมัติอัตโนมัติ</b> คลังได้แจ้งเตือนทันที · รอบเริ่มงานออกเป็นใบเบิกพนักงานใหม่', side: 'left' },
+      { element: '#uniform [data-issue-manual]', title: 'บันทึกแจกเอง', text: 'ใช้เมื่อแจกนอกระบบไปแล้ว หรือระบบสต็อกใช้ไม่ได้ (ไม่ตัดสต็อก)', side: 'left' },
+      { element: '#activity', title: 'ประวัติการเปลี่ยนแปลง', text: 'ทุกการแก้ไขของพนักงานคนนี้ ใครทำ เมื่อไร เรียงจากล่าสุด', side: 'top' },
     ],
   },
 
   insurance: {
+    version: 2,
     ready: '#sections .card:not(.hidden) .table, #sections .card:not(.hidden) .empty',
     steps: [
-      { element: '#cycle__combo', title: 'เลือกรอบ', text: 'แจ้งบริษัทประกันทุก <b>วันที่ 5</b> ของเดือน · ดูย้อนหลังได้ 6 เดือน ล่วงหน้า 3 เดือน', side: 'bottom' },
+      { element: '#cycle__combo', title: 'เลือกรอบ', text: 'เดือนละ 2 รอบ: <b>วันที่ 5</b> พนักงานทั่วไป · <b>วันที่ 6</b> พนักงานรายวัน · ดูย้อนหลังได้ 6 เดือน ล่วงหน้า 3 เดือน', side: 'bottom' },
       { element: '#tabs', title: 'แท็บตามประเภทการแจ้ง', text: 'ตัวเลขบนแท็บ = <b>จำนวนที่ยังไม่ส่งออก</b> · สีแดง = แจ้งออกทันที (เลิกจ้าง/กระทำผิด) · คอลัมน์ “บริษัทประกัน” บอกว่ารายชื่อจะอยู่ในไฟล์ของใคร', side: 'bottom', align: 'start' },
+      { element: '#sections .card:not(.hidden) .table thead', title: 'กรองที่หัวคอลัมน์', text: 'คลิกไอคอนกรวยเพื่อเรียง หรือเลือกเฉพาะบริษัท / หน่วยงานที่ต้องการดู', side: 'bottom' },
       { element: '#export', title: 'ส่งออกไฟล์แจ้งประกัน', text: 'ได้ไฟล์ Excel ตาม<b>แบบฟอร์มของแต่ละบริษัทประกัน</b> (ชีตสรุป + ชีตละบริษัท) · ติ๊ก “บันทึกว่าแจ้งรอบนี้แล้ว” เพื่อไม่ให้รายชื่อตกค้างไปรอบถัดไป · ตั้งค่าแบบฟอร์มที่เมนู “แบบฟอร์มประกัน”', side: 'bottom', align: 'end' },
-      { element: '.tab[data-tab="history"]', title: 'ประวัติการส่งออก', text: 'ทุกครั้งที่ส่งออกแบบบันทึก · <b>คลิกแถว</b> เพื่อดูรายชื่อ (ค้นหาได้ ส่งออก CSV ได้) · ไฟล์หาย? กด<b>ไอคอนดาวน์โหลด</b>รับไฟล์เดิมอีกครั้ง · ส่งออกผิด? กด<b>ไอคอนยกเลิก</b> รายชื่อจะกลับไปรอส่งออก (ถ้าส่งไฟล์ไปแล้วต้องแจ้งบริษัทประกันด้วย)', side: 'bottom' },
+      { element: '.tab[data-tab="history"]', title: 'ประวัติการส่งออก', text: 'ทุกครั้งที่ส่งออกแบบบันทึก — เปิดแท็บนี้แล้วมีคำแนะนำของแท็บเอง', side: 'bottom' },
+    ],
+  },
+
+  // แท็บ "ประวัติการส่งออก" ของหน้าประกันกลุ่ม (insurance.html?tab=history)
+  'insurance-history': {
+    ready: '#sections .card:not(.hidden) .table, #sections .card:not(.hidden) .empty',
+    steps: [
+      { element: '#sections .card:not(.hidden)', title: 'ประวัติการส่งออก', text: '1 แถว = ส่งออก 1 ครั้ง · <b>คลิกแถว</b> เพื่อดูรายชื่อ (ค้นหาได้ ส่งออก CSV ได้)', side: 'top' },
+      { element: '#sections .card:not(.hidden) tbody tr:first-child .row-actions', title: 'ดาวน์โหลดซ้ำ / ยกเลิก', text: 'ไฟล์หาย? กด<b>ไอคอนดาวน์โหลด</b> รับไฟล์เดิมอีกครั้ง (ไม่บันทึกประวัติซ้ำ) · ส่งออกผิด? กด<b>ไอคอนยกเลิก</b> รายชื่อจะกลับไปรอส่งออก — ถ้าส่งไฟล์ไปแล้วต้องแจ้งบริษัทประกันด้วย', side: 'left' },
     ],
   },
 
   uniform: {
+    version: 2,
     ready: '#pending .table, #pending .empty',
     steps: [
-      { element: '#tabs', title: 'ค้างแจก / รอคลังจ่าย / ประวัติ', text: 'รายการที่ต้องแจก · ใบเบิกที่ส่งคลังแล้ว · ประวัติที่แจกไปแล้ว', side: 'bottom' },
-      { element: '#pending [data-issue]', title: 'ส่งเบิกคลัง', text: 'กด <b>ส่งเบิกคลัง</b> เลือกแบบและไซซ์จากสต็อก ใบเบิกอนุมัติอัตโนมัติ — แจกนอกระบบไปแล้วใช้ปุ่มดินสอบันทึกเอง', side: 'left' },
-      { element: '#sync', title: 'ดึงสถานะจากคลัง', text: 'เปิดหน้านี้ระบบดึงให้เอง — คลังจ่ายแล้วรายการย้ายไปประวัติการแจก', side: 'bottom', align: 'end' },
+      { element: '#tabs', title: 'ค้างแจก / รอคลังจ่าย / ประวัติ', text: 'รายการที่ต้องแจก · ใบเบิกที่ส่งคลังแล้วรอจ่าย · ที่แจกไปแล้ว — แต่ละแท็บมีคำแนะนำของตัวเอง', side: 'bottom' },
+      { element: '#pending .table thead', title: 'กรองที่หัวคอลัมน์', text: 'เลือกเฉพาะบริษัท / หน่วยงาน / รอบ · แถวที่ <b>เลยกำหนดเกิน 30 วัน</b> มีป้ายแดง', side: 'bottom' },
+      { element: '#pending [data-stock-request]', title: 'ส่งเบิกคลัง', text: 'เลือกแบบและไซซ์จากสต็อก Uniform ใบเบิก<b>อนุมัติอัตโนมัติ</b> ค่าใช้จ่ายลงหน่วยงานของพนักงาน · รอบเริ่มงานออกเป็นใบเบิกพนักงานใหม่', side: 'left' },
+      { element: '#pending [data-issue-manual]', title: 'บันทึกแจกเอง', text: 'แจกนอกระบบไปแล้ว หรือระบบสต็อกใช้ไม่ได้ — บันทึกที่นี่ (ไม่ตัดสต็อก)', side: 'left' },
       { element: '#summary', title: 'สรุปตามแบบเสื้อ', text: 'จำนวนตัวที่ต้องแจกแยกตามแบบ — ใช้วางแผนสั่งผลิต', side: 'left' },
+      { element: '#sync', title: 'ดึงสถานะจากคลัง', text: 'เปิดหน้านี้ระบบดึงให้เอง — กดเมื่ออยากรู้สถานะล่าสุด คลังจ่ายแล้วรายการย้ายไปประวัติ', side: 'bottom', align: 'end' },
       { element: '#export', title: 'ส่งออกรายการค้าง', text: 'ดาวน์โหลดเป็น CSV สำหรับเตรียมของ', side: 'bottom', align: 'end' },
     ],
   },
 
-  rules: {
-    ready: '#content .card',
+  // แท็บ "รอคลังจ่าย" (uniform.html?tab=waiting)
+  'uniform-waiting': {
+    ready: '#waiting .table, #waiting .empty',
     steps: [
-      { element: '#tabs', title: 'เงื่อนไขสวัสดิการ', text: 'กฎทั้งหมดที่ระบบใช้คำนวณสิทธิ แยกตามประเภท (ดูอย่างเดียว)', side: 'bottom' },
-      { element: '.tab[data-tab="open"]', title: 'รอ HR ยืนยัน', text: 'ประเด็นที่ยังไม่ชัดเจนในเงื่อนไข — ถ้าตอบได้แล้วแจ้งทีม dev เพื่อปรับระบบ', side: 'bottom' },
+      { element: '#waiting', title: 'ใบเบิกที่รอคลังจ่าย', text: 'ทุกใบที่ส่งไปสต็อก Uniform แล้ว พร้อม<b>สถานะในคลัง</b> · คลิกเลขที่ใบเบิกเพื่อเปิดใบในระบบสต็อก', side: 'top' },
+      { element: '#waiting [data-cancel-issue]', title: 'ยกเลิกการส่งเบิก', text: 'ยกเลิกได้เฉพาะใบที่คลังยังไม่จ่าย — รายการกลับไปค้างแจก', side: 'left' },
+      { element: '#sync', title: 'ดึงสถานะจากคลัง', text: 'ระบบยังไม่ดึงเองตามเวลา — คลังจ่ายหรือยกเลิกแล้ว กดปุ่มนี้เพื่ออัปเดต', side: 'bottom', align: 'end' },
+    ],
+  },
+
+  // แท็บ "ประวัติการแจก" (uniform.html?tab=history)
+  'uniform-history': {
+    ready: '#history .table, #history .empty',
+    steps: [
+      { element: '#history', title: 'ประวัติการแจก', text: 'ที่คลังจ่ายแล้วและที่บันทึกแจกเอง พร้อมแบบ ไซซ์ และผู้ทำรายการ', side: 'top' },
+      { element: '#history [data-cancel-issue]', title: 'ยกเลิกการแจก', text: 'บันทึกผิด → ยกเลิก รายการกลับไปค้างแจก (ใบที่คลังจ่ายแล้วต้องคืนของที่คลังด้วย)', side: 'left' },
+    ],
+  },
+
+  // แท็บ ประกันกลุ่ม / ชุดฟอร์ม ของหน้าเงื่อนไขสวัสดิการ
+  rules: {
+    version: 2,
+    ready: '#content .table, #content .empty, #content .rules-toolbar',
+    steps: [
+      { element: '#tabs', title: 'เงื่อนไขสวัสดิการ', text: 'กฎที่ระบบใช้คำนวณสิทธิ · <b>ประกันกลุ่ม</b> / <b>ชุดฟอร์ม</b> / <b>ค่าตั้งค่า</b> (วันรอบแจ้ง เดือนแจกประจำปี ฯลฯ) / <b>รอมีผล</b> = การเปลี่ยนที่ตั้งล่วงหน้าไว้', side: 'bottom', align: 'start' },
+      { element: '#add', title: 'เพิ่มกฎ', text: 'กำหนดว่าใครได้ (ประเภท บริษัท ระดับ ตำแหน่ง) ได้อะไร และ<b>วันที่มีผล</b> — วันนี้ = ใช้ทันที · วันข้างหน้า = ไปรอที่แท็บ “รอมีผล”', side: 'bottom', align: 'end' },
+      { element: '.rules-toolbar .input-icon', title: 'ค้นหากฎ', text: 'พิมพ์บริษัท ตำแหน่ง แบบเสื้อ หรือเลขกฎ (#12)', side: 'bottom', align: 'start' },
+      { element: '#rules-table tbody tr:first-child td:nth-last-child(2)', title: 'มีผลตั้งแต่', text: 'วันที่กฎฉบับนี้เริ่มใช้ · ป้ายเหลือง = มีการเปลี่ยนตั้งไว้ล่วงหน้า', side: 'left' },
+      { element: '#rules-table [data-history]', title: 'ประวัติของกฎ', text: 'ทุกฉบับที่เคยใช้ ใครแก้ เมื่อไร และฉบับที่รอมีผล', side: 'left' },
+      { element: '#rules-table [data-edit]', title: 'แก้กฎ', text: 'แก้แล้วเลือก<b>วันที่มีผล</b> · การแจ้งประกันและการแจกชุดที่ทำไปแล้ว<b>ไม่เปลี่ยนตาม</b> · กฎชุดฟอร์มเปลี่ยน ระบบส่งชุดรอบเริ่มงานไปสต็อก Uniform ให้เอง', side: 'left' },
+      { element: '#rules-table [data-retire]', title: 'เลิกใช้กฎ', text: 'กฎไม่ถูกลบ เลิกใช้ตามวันที่เลือก ดูย้อนหลังได้ที่ “กฎที่เลิกใช้”', side: 'left' },
+      { element: '#notice .alert', title: 'ดูได้อย่างเดียว', text: 'บัญชีนี้ไม่มีสิทธิ์แก้เงื่อนไข — ผู้ดูแลระบบให้สิทธิ์ได้ที่ “กำหนดสิทธิ์การใช้งาน”', side: 'bottom' },
+    ],
+  },
+
+  'rules-settings': {
+    ready: '#content .settings-form',
+    steps: [
+      { element: '#content .settings-form', title: 'ค่าตั้งค่า', text: 'ตัวเลขที่ใช้ทั้งระบบ เช่น วันรอบแจ้งประกัน (5 / 6) และเดือนแจกชุดประจำปี', side: 'bottom' },
+      { element: '#content .effective-bar', title: 'วันที่มีผล + บันทึก', text: 'ค่าใหม่ใช้ตั้งแต่วันที่เลือก ก่อนหน้านั้นยังใช้ค่าเดิม — ตั้งของปีหน้าไว้ล่วงหน้าได้', side: 'top' },
+      { element: '#content .rev-list', title: 'ค่าที่ตั้งไว้ล่วงหน้า', text: 'ยังไม่ถึงวัน กด <b>ยกเลิก</b> ได้', side: 'top' },
+    ],
+  },
+
+  'rules-pending': {
+    ready: '#content .rev-list, #content .empty',
+    steps: [
+      { element: '#content .rev-list, #content .empty', title: 'รอมีผล', text: 'ทุกการเปลี่ยนที่ตั้งวันที่มีผลไว้ล่วงหน้า (กฎใหม่ แก้ เลิกใช้ ค่าตั้งค่า) เรียงตามวัน · ถึงวันแล้วระบบใช้เอง', side: 'top' },
+      { element: '#content .rev-item [data-cancel-rev], #content .rev-item [data-cancel-setting]', title: 'แก้ / ยกเลิก', text: 'ยังไม่ถึงวัน แก้หรือยกเลิกได้ — ยกเลิกแล้วกฎกลับไปใช้ฉบับปัจจุบัน', side: 'left' },
     ],
   },
 
   sites: {
-    ready: '.xgrid td[data-r]',
+    version: 2,
+    ready: '.xgrid td[data-r], .xgrid-wrap .empty',
     steps: [
-      { element: '[data-grid-act="add"]', title: 'เพิ่มหน่วยงาน', text: 'เลือกบริษัทและพิมพ์ชื่อ ระบบบันทึกให้อัตโนมัติ', side: 'bottom', align: 'start' },
-      { element: '.xgrid tbody tr:first-child td[data-col="hasGroupInsurance"]', title: 'ได้รับประกันกลุ่ม', text: 'คลิกสวิตช์เพื่อเปลี่ยนและบันทึกทันที — มีผลกับ <b>แม่บ้าน CNS</b> ในหน่วยงานนั้น', side: 'bottom' },
+      { element: '[data-grid-act="add"]', title: 'เพิ่มหน่วยงาน', text: 'เลือกบริษัทและพิมพ์ชื่อ แล้วกด <b>บันทึก</b>', side: 'bottom', align: 'start' },
+      { element: '.xgrid tbody tr:first-child td[data-col="hasGroupInsurance"]', title: 'ได้รับประกันกลุ่ม', text: 'ติ๊ก = หน่วยงานนี้ได้ประกันกลุ่ม — มีผลกับ <b>แม่บ้าน CNS</b> ในหน่วยงานนั้น', side: 'bottom' },
       { element: '.xgrid tbody tr:first-child td[data-col="poloColor"]', title: 'สีโปโล', text: 'สีโปโลของ <b>Pro Site</b> ในหน่วยงานนี้ — ระบบใช้กำหนดชุดฟอร์มที่จะแจก', side: 'bottom' },
-      { element: '.xgrid tbody tr:first-child [data-grid-act="delete"]', title: 'ลบหน่วยงาน', text: 'ลบได้เฉพาะหน่วยงานที่ไม่มีพนักงานอยู่', side: 'left' },
+      { element: '.xgrid tbody tr:first-child [data-site-uniform]', title: 'ชุดฟอร์มของหน่วยงาน', text: 'หน่วยงานที่ได้จำนวนต่างจากกฎกลาง (เช่น เสื้อช่าง 2 + โปโล 1) ตั้งจำนวนรายแบบต่อรอบได้ที่นี่ · <b>บันทึกทันที</b> แยกจากปุ่มบันทึกของตาราง', side: 'left' },
+      { element: '.grid-toolbar', title: 'กดบันทึก', text: 'ที่แก้ในตารางยังไม่บันทึกจนกว่าจะกด <b>บันทึก</b> (หรือ <kbd>Ctrl</kbd>+<kbd>S</kbd>) · แถวสีเหลือง = แก้แล้วยังไม่บันทึก', side: 'bottom' },
+      { element: '#sync-stock', title: 'ส่งข้อมูลไปสต็อก', text: 'บริษัท หน่วยงาน และชุดฟอร์มรอบเริ่มงาน ส่งให้สต็อก Uniform <b>อัตโนมัติ</b>ทุกครั้งที่บันทึก · กดปุ่มนี้เมื่อเห็นคำเตือนว่าส่งไม่สำเร็จ', side: 'bottom', align: 'end' },
+      { element: '.xgrid tbody tr:first-child [data-grid-act="delete"]', title: 'ลบหน่วยงาน', text: 'ลบได้เฉพาะหน่วยงานที่ไม่มีพนักงาน · ในสต็อกจะถูกปิดใช้งาน (ไม่ลบ)', side: 'left' },
     ],
   },
 
   insurers: {
+    version: 2,
     ready: '.ic',
     steps: [
       { element: '.ic-grid', title: 'แบบฟอร์มของบริษัทประกัน', text: 'แต่ละบริษัทประกันมีไฟล์ Excel แบบฟอร์มของตัวเอง — ระบบเติมรายชื่อลงไฟล์นี้ตอนส่งออก โดย<b>คงหน้าตาเดิมทุกอย่าง</b>', side: 'bottom', align: 'start' },
-      { element: '.ic-add', title: 'เพิ่มบริษัทประกัน', text: 'อัปโหลดไฟล์ที่เคยส่งบริษัทประกัน (.xlsx/.xls) — ระบบอ่านหัวตาราง คอลัมน์ และช่องเลขกรมธรรม์ให้อัตโนมัติ', side: 'left' },
+      { element: '#head-actions .btn, .ic-add', title: 'เพิ่มบริษัทประกัน', text: 'อัปโหลดไฟล์ที่เคยส่งบริษัทประกัน (.xlsx/.xls) — ระบบอ่านหัวตาราง คอลัมน์ และช่องเลขกรมธรรม์ให้อัตโนมัติ', side: 'left' },
       { element: '#bindings', title: 'ผูกบริษัทในเครือ', text: 'เลือกว่าแต่ละบริษัทในเครือส่งแจ้งกับบริษัทประกันไหน พร้อมเลขกรมธรรม์ — แล้วกด <b>บันทึกการผูกบริษัท</b>', side: 'top' },
     ],
   },
@@ -134,5 +206,73 @@ export const TOUR_STEPS = {
     ],
   },
 
+  // บัญชีของฉัน (account.html) — ไม่เปิดเองตอนถูกบังคับเปลี่ยนรหัส (pages/account.js)
+  account: {
+    ready: '#pw-form',
+    steps: [
+      { element: '#password', title: 'เปลี่ยนรหัสผ่าน', text: 'กรอกรหัสปัจจุบันและรหัสใหม่ 2 ครั้ง · เปลี่ยนแล้ว<b>อุปกรณ์อื่นออกจากระบบทั้งหมด</b> เครื่องนี้ใช้ต่อได้', side: 'right' },
+      { element: '#pw-rules', title: 'เงื่อนไขรหัสผ่าน', text: 'ข้อที่ผ่านแล้วจะเป็นสีเขียว — ห้ามใช้รหัสตั้งต้น 4123 หรือรหัสเดิม', side: 'right' },
+      { element: 'label:has(#pw-show)', title: 'แสดงรหัสผ่าน', text: 'ติ๊กเพื่อดูสิ่งที่พิมพ์ (ระวังคนมองจอ)', side: 'top', align: 'start' },
+      { element: '#font', title: 'ขนาดตัวอักษร', text: 'ปรับขนาดตัวอักษรของทั้งระบบ มีผลทันที · จำแยกต่อผู้ใช้ ต่อเบราว์เซอร์', side: 'left' },
+    ],
+  },
 
+  // ===================== ผู้ดูแลระบบ (admin.html?tab=…) — คีย์ = admin-<แท็บ> =====================
+  'admin-users': {
+    ready: '#users .table, #users .empty',
+    steps: [
+      { element: '#add-user', title: 'เพิ่มผู้ใช้', text: 'ตั้งชื่อผู้ใช้ ชื่อ บทบาท และรหัสพนักงาน · รหัสผ่านเริ่มต้นคือ <b>4123</b> ผู้ใช้ต้องตั้งรหัสเองตอนเข้าสู่ระบบครั้งแรก', side: 'bottom', align: 'end' },
+      { element: '#users .table thead', title: 'ค้นหาและกรอง', text: 'คลิกไอคอนกรวยที่หัวคอลัมน์เพื่อกรองตามบทบาท / สถานะ', side: 'bottom' },
+      { element: '#users tbody tr:first-child', title: 'ดับเบิลคลิกเพื่อแก้ไข', text: 'แก้ชื่อ บทบาท ปิด-เปิดบัญชี <b>รีเซ็ตรหัสเป็น 4123</b> หรือ <b>ออกจากระบบทุกอุปกรณ์</b> · จอสัมผัส: แตะ · คีย์บอร์ด: <kbd>Enter</kbd>', side: 'bottom' },
+      { title: 'บัญชีผู้ดูแลระบบสูงสุด', text: 'บัญชี SUPER_ADMIN แก้ได้เฉพาะ SUPER_ADMIN — คนอื่นจะเห็นป้าย “ป้องกัน” แทนปุ่ม' },
+    ],
+  },
+
+  'admin-permissions': {
+    ready: '#perm .table, #perm table',
+    steps: [
+      { element: '#perm', title: 'บทบาท × สิทธิ์', text: '<b>เห็นหน้า</b> = เห็นเมนูและเปิดหน้าได้ · <b>ทำรายการ</b> = ปุ่มแก้ไข / ส่งออก / ส่งเบิก ฯลฯ · ไม่ติ๊ก = เมนูและปุ่มถูกซ่อน และเซิร์ฟเวอร์ปฏิเสธ', side: 'top' },
+      { element: '#perm-defaults', title: 'ค่าเริ่มต้น', text: 'ติ๊กตามค่าเริ่มต้นของระบบ (ยังไม่บันทึก)', side: 'bottom' },
+      { element: '#perm-save', title: 'บันทึกสิทธิ์', text: 'ผู้ใช้ที่เปิดระบบอยู่จะได้สิทธิ์ใหม่เมื่อเปิดหน้าถัดไป · SUPER_ADMIN ทำได้ทุกอย่างเสมอ (ล็อกตัวเองไม่ได้)', side: 'bottom', align: 'end' },
+    ],
+  },
+
+  'admin-access': {
+    ready: '#sessions .table, #sessions .empty',
+    steps: [
+      { element: '#tabs', title: 'ระบบ & ความปลอดภัย', text: 'แท็บที่เห็นขึ้นกับสิทธิ์ · ตัวเลขแดงบนแท็บ = เรื่องที่ต้องดู เช่น บัญชีถูกล็อก หรือระบบมีปัญหา', side: 'bottom', align: 'start' },
+      { element: '#lockouts', title: 'บัญชีที่ถูกล็อก', text: 'ใส่รหัสผิดหลายครั้งจะถูกล็อกชั่วคราว — ตรวจแล้วว่าเป็นเจ้าของบัญชีจริง กด <b>ปลดล็อก</b> ได้', side: 'bottom' },
+      { element: '#sessions', title: 'Session ที่ใช้งานอยู่', text: 'ใครเข้าระบบอยู่จากเครื่องไหน · กด <b>จบ session</b> เพื่อเตะออก', side: 'top' },
+      { element: '#devices', title: 'อุปกรณ์ที่จดจำ', text: 'เครื่องที่เลือก “จดจำฉัน” · เลิกจดจำแล้วเครื่องนั้นต้องกรอกรหัสผ่านใหม่', side: 'top' },
+      { element: '#attempts', title: 'ประวัติการเข้าสู่ระบบ', text: 'ทุกครั้งที่สำเร็จและไม่สำเร็จ พร้อม IP และเครื่อง — ใช้ตรวจการเดารหัสผ่าน', side: 'top' },
+    ],
+  },
+
+  'admin-health': {
+    ready: '#checks .check, #checks > *',
+    steps: [
+      { element: '#checks', title: 'การตรวจสถานะ', text: 'ฐานข้อมูล migration ค่าตั้ง และการเชื่อมต่อสต็อก Uniform · สีแดง = ต้องแก้ พร้อมคำแนะนำ', side: 'right' },
+      { element: '#stages', title: 'ใบเบิกในสต็อก Uniform', text: 'จำนวนใบแยกตามสถานะในคลัง', side: 'top' },
+      { element: '#stuck', title: 'ใบที่ค้างนาน', text: 'ใบที่ค้างในขั้นเดิมเกินเกณฑ์ (ตั้งที่แท็บตั้งค่าระบบ) — ตามคลัง หรือดึงสถานะ / ยกเลิกจากหน้าชุดฟอร์ม', side: 'top' },
+      { element: '#cleanup', title: 'ล้างข้อมูลเก่า', text: 'ลบ session / refresh token / ประวัติเข้าสู่ระบบ ที่หมดอายุและเก่ากว่าจำนวนวันที่ตั้ง · <b>ไม่ลบ</b>บันทึกการใช้งานและข้อมูลพนักงาน', side: 'left' },
+    ],
+  },
+
+  'admin-settings': {
+    ready: '#stock-settings > *',
+    steps: [
+      { element: '#stock-settings', title: 'การเชื่อมต่อสต็อก Uniform', text: 'URL ของ API สต็อก กุญแจเซ็นคำขอ (HMAC) และเวลารอ — กด <b>ทดสอบ</b> ก่อนบันทึก', side: 'right' },
+      { element: '#auth-settings', title: 'การเข้าสู่ระบบ', text: 'session หมดเมื่อไม่ใช้งาน / อายุสูงสุด · “จดจำฉัน” อยู่ได้กี่วัน · ล็อกเมื่อรหัสผิดกี่ครั้ง (ต่อชื่อผู้ใช้ และต่อ IP) และล็อกนานเท่าไร', side: 'left' },
+      { element: '#monitor-settings', title: 'การติดตามระบบ', text: 'เตือนใบเบิกที่ค้างในคลังเกินกี่วัน · ล้างข้อมูลการเข้าสู่ระบบที่เก่ากว่ากี่วัน', side: 'left' },
+      { element: '#fixed-settings', title: 'ค่าที่แก้ได้เฉพาะในไฟล์', text: 'ตั้งผิดแล้วอาจเข้าระบบไม่ได้ จึงต้องแก้ที่ backend/config.php บนเครื่องเซิร์ฟเวอร์', side: 'left' },
+    ],
+  },
+
+  'admin-audit': {
+    ready: '#audit .table, #audit .empty',
+    steps: [
+      { element: '#audit-filters', title: 'กรองบันทึก', text: 'ค้นข้อความหรือรหัสอ้างอิง · เลือกประเภท การกระทำ ผู้ทำรายการ และช่วงวันที่ · <b>ล้างตัวกรอง</b> เพื่อดูทั้งหมด', side: 'bottom' },
+      { element: '#audit', title: 'บันทึกการใช้งาน', text: 'ทุกการเพิ่ม แก้ ลบ ส่งเบิก ส่งออก และงานของระบบ — ใคร ทำอะไร เมื่อไร', side: 'top' },
+    ],
+  },
 };

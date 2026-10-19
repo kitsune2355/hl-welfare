@@ -5,6 +5,7 @@
 import { api } from '../app/api.js';
 import { can } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
+import { startTourIfNew } from '../app/tour.js';
 import { exportFileName, fillTemplate, templateBuffer } from '../app/excelTemplate.js';
 import { exportCsvRows, thaiMonthYear } from '../application/usecases/insurerExport.js';
 import { addMonths, nextCycleDate, todayISO } from '../domain/date.js';
@@ -22,7 +23,9 @@ import { confirmAction, errorMessage, openModal, toast } from '../ui/overlay.js'
 import { DataTable } from '../ui/table.js';
 import { busy, loader, progress } from '../ui/loading.js';
 
-initPage('insurance');
+/** แท็บประวัติการส่งออกมีคำแนะนำของตัวเอง (tour/steps.js) */
+const tourId = () => (getParam('tab') === 'history' ? 'insurance-history' : 'insurance');
+initPage('insurance', { tour: tourId });
 
 const today = todayISO();
 // รอบในแต่ละเดือน: วันที่ 5 = พนักงานทั่วไป · วันที่ 6 = พนักงานรายวัน (ตั้งค่าที่เงื่อนไขสวัสดิการ)
@@ -367,6 +370,7 @@ on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
   tab = t.dataset.tab;
   setParams({ tab });
   drawTabs();
+  startTourIfNew(tourId());
 });
 
 const sections = $('#sections');

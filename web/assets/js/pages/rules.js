@@ -3,6 +3,7 @@
 import { api } from '../app/api.js';
 import { can } from '../app/auth.js';
 import { initPage } from '../app/shell.js';
+import { startTourIfNew } from '../app/tour.js';
 import { UNIFORM_EVENTS } from '../domain/uniform.js';
 import { CONTRACT_TYPES, EMPLOYEE_TYPES, LEVEL_RANGE, QTY_MAX, SETTING_SPEC, validateInsuranceRule, validateSettings, validateUniformRule } from '../application/ruleRules.js';
 import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
@@ -13,7 +14,9 @@ import { alertBox, badge, emptyState, errorState, tabs } from '../ui/components.
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 
-initPage('rules');
+/** คำแนะนำการใช้งานตามแท็บ (tour/steps.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
+const tourId = () => ({ settings: 'rules-settings', pending: 'rules-pending' })[getParam('tab')] ?? 'rules';
+initPage('rules', { tour: tourId });
 
 const MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 const TABS = ['insurance', 'uniform', 'settings', 'pending'];
@@ -683,6 +686,7 @@ on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
   query = '';
   setParams({ tab: tab === 'insurance' ? '' : tab });
   draw();
+  startTourIfNew(tourId()); // แท็บนี้เปิดครั้งแรก → แนะนำของแท็บนี้
 });
 $('#add').onclick = () => openRuleEditor(tab);
 wireActions($('#content'));

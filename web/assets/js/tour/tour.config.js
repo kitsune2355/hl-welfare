@@ -18,6 +18,7 @@ export const TOUR_CONFIG = {
   /**
    * เวอร์ชันของเนื้อหาแนะนำ — แก้ steps.js แล้วอยากให้ผู้ใช้ทุกคนเห็นใหม่อีกครั้ง ให้เพิ่มเลขนี้
    * (ระบบจำว่า "เคยดูแล้ว" แยกต่อหน้า ใน localStorage: `${storageKey}:${หน้า}` = version)
+   * แก้เฉพาะบางหน้า → ใส่ version ที่หน้านั้นใน steps.js แทน (หน้าอื่นไม่เด้งซ้ำ)
    */
   version: 1,
   storageKey: 'hl-tour-seen',

@@ -1,6 +1,7 @@
 // หน้า: ชุดฟอร์ม (uniform.html?tab=history)
 import { api } from '../app/api.js';
 import { initPage, refreshCounts } from '../app/shell.js';
+import { startTourIfNew } from '../app/tour.js';
 import { diffDays, todayISO } from '../domain/date.js';
 import { downloadCsv } from '../shared/csv.js';
 import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
@@ -14,7 +15,9 @@ import { isHandedOut, isStockIssue } from '../domain/uniform.js';
 import { alertBox } from '../ui/components.js';
 import { STOCK_STAGE, canCancelIssue, enhanceIssueActions, issueAction, stockDocLink, syncStockQuietly, wireIssueActions } from './_shared.js';
 
-initPage('uniform');
+/** คำแนะนำการใช้งานตามแท็บ (tour/steps.js) */
+const tourId = () => ({ waiting: 'uniform-waiting', history: 'uniform-history' })[getParam('tab')] ?? 'uniform';
+initPage('uniform', { tour: tourId });
 
 const today = todayISO();
 const OVERDUE_DAYS = 30;
@@ -186,6 +189,7 @@ on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
   tab = t.dataset.tab;
   setParams({ tab: tab === 'pending' ? '' : tab });
   drawTabs();
+  startTourIfNew(tourId());
 });
 wireIssueActions($('#pending'), { today, onDone: load });
 on($('#waiting'), 'click', '[data-cancel-issue]', (_e, b) => {
