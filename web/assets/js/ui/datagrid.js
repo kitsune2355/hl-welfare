@@ -676,6 +676,10 @@ export class ExcelGrid {
     const showPager = this.size && this.rows && total > 0;
     const noMatch = !loading && this.rows.length > 0 && total === 0 && !this.newRows.length;
     const hadFocus = this.root.contains(document.activeElement);
+    // วาดใหม่ทั้งตาราง = กล่องเลื่อนใหม่ → จำตำแหน่งที่เลื่อนไว้ แล้วคืนหลังวาด (ไม่งั้นเด้งกลับซ้ายบนทุกครั้งที่แก้เซลล์)
+    const oldWrap = this.root.querySelector('.xgrid-wrap');
+    const keep = oldWrap ? { left: oldWrap.scrollLeft, top: this.scrollReset ? 0 : oldWrap.scrollTop } : null;
+    this.scrollReset = false;
     this.root.innerHTML = String(html`<div class="grid-toolbar">
         ${newRow
           ? html`<span class="add-group ${this.o.mobileCard ? 'hide-mobile' : ''}">
@@ -740,6 +744,7 @@ export class ExcelGrid {
         onPage: (p) => {
           this.page = p;
           this.active = null;
+          this.scrollReset = true; // หน้าใหม่เริ่มที่แถวบนสุด (คงตำแหน่งแนวนอนไว้)
           this.o.onPageChange?.(p);
           this.render();
         },
@@ -747,10 +752,16 @@ export class ExcelGrid {
           this.size = s;
           this.page = 1;
           this.active = null;
+          this.scrollReset = true;
           this.o.onPageChange?.(1);
           this.render();
         },
       });
+    }
+    const wrap = this.root.querySelector('.xgrid-wrap');
+    if (keep && wrap) {
+      wrap.scrollLeft = keep.left;
+      wrap.scrollTop = keep.top;
     }
     this.drawErrorBar();
     if (hadFocus && this.active) this.focusGrid();
