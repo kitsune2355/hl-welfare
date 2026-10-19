@@ -25,6 +25,8 @@
  * @property {(input: {effectiveFrom?: string, values: Object<string, number>}) => Promise<Object>} saveRuleSettings
  * @property {(key: string, date: string) => Promise<Object>} cancelSettingChange
  * @property {(siteId: number, overrides: {ruleId: number, quantities: Object}[]) => Promise<Object>} saveSiteUniform  ชุดฟอร์มของหน่วยงาน (มีผลทันที) · คืน Site
+ * @property {() => Promise<{companies: number, sites: number, createdSites: number, message: string}>} syncMasterToStock  ส่งบริษัท/หน่วยงาน/ชุดฟอร์มรอบเริ่มงานไปสต็อก
+ *   (สร้าง/แก้หน่วยงาน แก้กฎชุดฟอร์ม ตั้งชุดฟอร์มของหน่วยงาน ส่งให้เองอยู่แล้ว · ส่งไม่สำเร็จ = คำตอบมี stockWarning)
  * @property {(cycleDate: string) => Promise<import('../domain/types.js').InsuranceCycle>} getInsuranceCycle
  * @property {() => Promise<import('../domain/types.js').InsuranceBatch[]>} listInsuranceBatches
  * @property {(input: {cycleDate: string, type: string, employeeIds: number[]}) => Promise<import('../domain/types.js').InsuranceBatch>} submitInsuranceBatch

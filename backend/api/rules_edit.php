@@ -248,6 +248,21 @@ function rules_history_payload()
     );
 }
 
+/**
+ * คำตอบหลังแก้กฎ — กฎชุดฟอร์มเปลี่ยน = ชุดฟอร์มรอบเริ่มงานที่สต็อกแสดงเปลี่ยนตาม จึงส่งข้อมูลหลักไปสต็อกด้วย
+ * ส่งไม่สำเร็จไม่ทำให้การบันทึกล้ม: แนบ stockWarning ให้หน้าจอแสดง
+ * (ฉบับที่ตั้งล่วงหน้ายังไม่มีผลวันนี้ — สต็อกเห็นเมื่อถึงวันแล้วมีการส่งครั้งถัดไป)
+ */
+function rules_saved_payload($kind, $u)
+{
+    $out = rules_history_payload();
+    if ($kind === 'uniform') {
+        $w = master_sync_after_change($u);
+        if ($w !== null) { $out['stockWarning'] = $w; }
+    }
+    return $out;
+}
+
 /* ============================================================
  *  handlers
  * ============================================================ */
@@ -272,7 +287,7 @@ function api_rule_create($req, $params)
     audit_write('RULE', strtoupper(substr($kind, 0, 3)) . '-' . $key, 'CREATE',
         'เพิ่ม' . rules_kind_label($kind) . ' #' . $key . ' ' . rules_describe($kind, $cols) . ' มีผล ' . $from, null, $u);
     db_commit();
-    return http_data(rules_history_payload(), 201);
+    return http_data(rules_saved_payload($kind, $u), 201);
 }
 
 function api_rule_update($req, $params)
@@ -290,7 +305,7 @@ function api_rule_update($req, $params)
     audit_write('RULE', strtoupper(substr($kind, 0, 3)) . '-' . $key, 'UPDATE',
         'แก้' . rules_kind_label($kind) . ' #' . $key . ' ' . rules_describe($kind, $cols) . ' มีผล ' . $from, null, $u);
     db_commit();
-    return rules_history_payload();
+    return rules_saved_payload($kind, $u);
 }
 
 function api_rule_delete($req, $params)
@@ -310,7 +325,7 @@ function api_rule_delete($req, $params)
     audit_write('RULE', strtoupper(substr($kind, 0, 3)) . '-' . $key, 'DELETE',
         'เลิกใช้' . rules_kind_label($kind) . ' #' . $key . ' ตั้งแต่ ' . $from, null, $u);
     db_commit();
-    return rules_history_payload();
+    return rules_saved_payload($kind, $u);
 }
 
 function api_rule_revision_cancel($req, $params)
@@ -329,7 +344,7 @@ function api_rule_revision_cancel($req, $params)
     audit_write('RULE', strtoupper(substr($kind, 0, 3)) . '-' . $row['rule_key'], 'CANCEL',
         'ยกเลิกการเปลี่ยน' . rules_kind_label($kind) . ' #' . $row['rule_key'] . ' ที่จะมีผล ' . $row['effective_from'], null, $u);
     db_commit();
-    return rules_history_payload();
+    return rules_saved_payload($kind, $u);
 }
 
 /* ============================================================
@@ -431,5 +446,5 @@ function api_site_uniform_save($req, $params)
     audit_write('SITE', $id, 'UPDATE', 'ตั้งชุดฟอร์มของหน่วยงาน “' . $site['name'] . '”: '
         . (count($clean) ? count($clean) . ' กฎ (#' . implode(', #', array_keys($clean)) . ')' : 'ใช้ตามกฎกลางทั้งหมด'), null, $u);
     db_commit();
-    return repo_site($id);
+    return site_with_sync(repo_site($id), master_sync_after_change($u, array($id)));
 }

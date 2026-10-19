@@ -89,7 +89,10 @@ const grid = new ExcelGrid($('#grid'), {
     } else {
       saved = await api.updateSite(row.id, { name: row.name, hasGroupInsurance: row.hasGroupInsurance, poloColor: row.poloColor });
     }
-    return saved;
+    // ส่งไปสต็อกไม่สำเร็จ — บันทึกในระบบนี้แล้ว แจ้งให้กดส่งเองอีกครั้ง
+    if (saved?.stockWarning) toast.error(saved.stockWarning);
+    const { stockWarning: _w, ...clean } = saved;
+    return clean;
   },
   // ลบจริงตอนกดบันทึก — ลบได้เฉพาะหน่วยงานที่ไม่มีพนักงานอยู่ (API แจ้งเหตุผลถ้าลบไม่ได้)
   onRemove: (s) => api.deleteSite(s.id),
@@ -210,6 +213,7 @@ async function openSiteUniform(siteId) {
     try {
       const saved = await api.saveSiteUniform(site.id, overrides);
       site.uniformOverrides = saved.uniformOverrides;
+      if (saved.stockWarning) toast.error(saved.stockWarning);
       grid.render();
       m.busy(false, ok);
       m.close();
@@ -232,6 +236,21 @@ $('#grid').addEventListener(
   },
   true,
 );
+
+// ส่งทั้งหมดเอง — ใช้เมื่อสต็อกเคยล่ม หรือกฎที่ตั้งล่วงหน้าเพิ่งถึงวันมีผล
+$('#sync-stock').style.display = can('sites.edit') ? '' : 'none';
+$('#sync-stock').onclick = async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const r = await api.syncMasterToStock();
+    toast.success(r.message);
+  } catch (err) {
+    toast.error(errorMessage(err));
+  } finally {
+    btn.disabled = false;
+  }
+};
 
 try {
   grid.setRows(sortSites(await api.listSites()));

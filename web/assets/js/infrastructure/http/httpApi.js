@@ -141,6 +141,10 @@ export class HttpApi {
   saveSiteUniform(siteId, overrides) {
     return this.send('PUT', `/sites/${siteId}/uniform`, { overrides });
   }
+  /** ส่งบริษัท/หน่วยงาน/ชุดฟอร์มรอบเริ่มงานทั้งหมดไปสต็อก Uniform (backend/api/master_sync.php) */
+  syncMasterToStock() {
+    return this.send('POST', '/stock/sync-master', {});
+  }
   // ---------- ส่งเบิกผ่านระบบสต็อก Uniform (PHP เป็นคนเซ็นคำขอและคุยกับ stock_hr) ----------
   getUniformStockOptions(employeeId, entitlementKey) {
     return this.req(`/uniform/stock-options?employeeId=${employeeId}&entitlementKey=${encodeURIComponent(entitlementKey)}`);

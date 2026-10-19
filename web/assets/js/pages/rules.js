@@ -268,9 +268,12 @@ function draw() {
 
 /** หลังบันทึก: API คืนประวัติชุดใหม่ → วาดใหม่ */
 function applyHistory(h, message) {
-  hist = h;
+  const { stockWarning, ...rest } = h;
+  hist = rest;
   draw();
   if (message) toast.success(message);
+  // กฎชุดฟอร์มเปลี่ยน → ระบบส่งชุดรอบเริ่มงานไปสต็อกเอง · ส่งไม่สำเร็จ = แจ้งให้กดส่งที่หน้าหน่วยงาน
+  if (stockWarning) toast.error(stockWarning);
 }
 
 // ===================== ฟิลด์ที่ใช้ร่วมกัน =====================

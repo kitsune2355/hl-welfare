@@ -67,6 +67,8 @@ function api_routes()
     router_add($r, 'POST', '/uniform/stock-sync', 'api_stock_sync');
 
     router_add($r, 'POST', '/stock/bridge', 'api_stock_bridge');
+    /* ส่งบริษัท/หน่วยงาน/ชุดฟอร์มรอบเริ่มงานไปสต็อก · api/master_sync.php (สิทธิ์ sites.edit — ตรวจใน handler) */
+    router_add($r, 'POST', '/stock/sync-master', 'api_stock_sync_master');
 
     /* ผู้ดูแลระบบ (SUPER_ADMIN — ตรวจใน handler) · api/admin.php */
     router_add($r, 'GET', '/admin/users', 'api_admin_users');

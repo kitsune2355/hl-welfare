@@ -395,6 +395,15 @@ export class MockApi {
       return this.ruleHistoryPayload();
     });
   }
+  /** โหมด mock ไม่มีสต็อกจริงให้ส่ง — ตอบจำนวนที่จะส่งเหมือนฝั่ง PHP */
+  syncMasterToStock() {
+    return this.run(() => ({
+      companies: this.db.companies.length,
+      sites: this.db.sites.length,
+      createdSites: 0,
+      message: `โหมดทดลอง: ไม่ได้ส่งจริง (บริษัท ${this.db.companies.length} · หน่วยงาน ${this.db.sites.length})`,
+    }));
+  }
   saveSiteUniform(siteId, overrides) {
     return this.run(() => {
       const s = this.db.sites.find((x) => x.id === siteId);

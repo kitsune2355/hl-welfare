@@ -104,3 +104,37 @@ check('กฎของบริษัทอื่น → 422', S($ed->req('PUT',
 check('ล้างชุดฟอร์มของหน่วยงาน → กลับไปใช้กฎกลาง', S($ed->req('PUT', '/sites/5/uniform', array('overrides' => array()))) === 200
     && count(repo_site(5)) && count(repo_site_overrides(5)) === 0);
 check('บันทึกกิจกรรม RULE', (int)db_value("SELECT COUNT(*) FROM audit_log WHERE entity = 'RULE'") >= 8);
+
+section('ส่งบริษัท/หน่วยงาน/ชุดฟอร์มรอบเริ่มงานไปสต็อก (sync_master)');
+$p = build_master_payload(repo_companies(), repo_sites(), repo_rules());
+$site4 = null;
+foreach ($p['uniform_start'] as $us) { if ($us['site_id'] === 4) { $site4 = $us; } }
+$mobile = null;
+if ($site4) { foreach ($site4['rules'] as $ru) { if ($ru['rule_id'] === 16) { $mobile = $ru; } } }
+check('payload: บริษัทครบ + หน่วยงานครบ + ชุดรอบเริ่มงานต่อหน่วยงาน', count($p['companies']) === count(repo_companies())
+    && count($p['sites']) === count(repo_sites()) && $mobile !== null && $mobile['label'] === 'Pro Site · ช่างทีมโมบาย'
+    && count($mobile['items']) === 4, json_encode($mobile));
+$GLOBALS['stock_log'] = array();
+$r = $ed->req('POST', '/stock/sync-master', array());
+$last = end($GLOBALS['stock_log']);
+check('POST /stock/sync-master → ส่งทั้งหมด + ผู้ส่งจาก session', $r['status'] === 200 && $last['action'] === 'sync_master'
+    && $last['requested_by_user'] === 'hr', json_encode($r['json']));
+$anon2 = new Browser('10.0.9.3');
+check('ไม่ได้เข้าสู่ระบบ → 401 (ตรวจสิทธิ์ sites.edit ใน handler)', S($anon2->req('POST', '/stock/sync-master', array())) === 401);
+$GLOBALS['stock_log'] = array();
+$r = $ed->req('PATCH', '/sites/4', array('name' => 'Pro Site — พระราม 9 (ใหม่)'));
+$last = end($GLOBALS['stock_log']);
+check('แก้ชื่อหน่วยงาน → ส่งหน่วยงานนั้นไปสต็อก', $r['status'] === 200 && $last['action'] === 'sync_master'
+    && count($last['sites']) === 1 && $last['sites'][0]['name'] === 'Pro Site — พระราม 9 (ใหม่)');
+$GLOBALS['stock_sync_fail'] = true;
+$r = $ed->req('PATCH', '/sites/4', array('name' => 'Pro Site — โครงการพระราม 9'));
+check('สต็อกล่ม → บันทึกสำเร็จ + มีข้อความเตือน', $r['status'] === 200 && isset($r['json']['data']['stockWarning'])
+    && repo_site(4) && $r['json']['data']['name'] === 'Pro Site — โครงการพระราม 9');
+$GLOBALS['stock_sync_fail'] = false;
+$r = $ed->req('POST', '/sites', array('companyCode' => 'HL', 'name' => 'ทดสอบส่งสต็อก', 'hasGroupInsurance' => true));
+$newSite = $r['json']['data']['id'];
+$GLOBALS['stock_log'] = array();
+$ed->req('DELETE', '/sites/' . $newSite);
+$last = end($GLOBALS['stock_log']);
+check('ลบหน่วยงาน → สต็อกปิดใช้งาน (active = false)', $last && $last['action'] === 'sync_master' && $last['sites'][0]['id'] === $newSite
+    && $last['sites'][0]['active'] === false);

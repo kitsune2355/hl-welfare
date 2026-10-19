@@ -167,6 +167,12 @@ function fake_stock($p, $url = null, $secret = null)
     }
     if ($p['action'] === 'status') { return array(200, array('ok' => true, 'status' => $GLOBALS['stock_status'])); }
     if ($p['action'] === 'cancel') { return array(200, array('ok' => true, 'message' => 'ok', 'doc_id' => 77)); }
+    if ($p['action'] === 'sync_master') {
+        if (!empty($GLOBALS['stock_sync_fail'])) { return array(503, array('ok' => false, 'message' => 'ปิดปรับปรุง')); }
+        $sites = array();
+        foreach ($p['sites'] as $s) { $sites[] = array('id' => $s['id'], 'department_id' => 100 + $s['id'], 'created' => false); }
+        return array(200, array('ok' => true, 'companies' => array(), 'sites' => $sites, 'uniform_start' => array()));
+    }
     return array(400, array('ok' => false, 'message' => 'bad'));
 }
 $GLOBALS['hlw_stock_fake'] = 'fake_stock';

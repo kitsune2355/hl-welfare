@@ -8,11 +8,11 @@
 SET NAMES utf8;
 
 INSERT INTO `companies` (`code`, `name`, `legal_name`, `sort_order`, `created_at`, `created_by`, `updated_by`) VALUES
-  ('HL', 'แฮปปี้แลนด์ (HL)', 'บ.แฮปปี้แลนด์ จำกัด', 1, '2026-10-19 00:00:00', 'system', 'system'),
-  ('PRO', 'PRO', 'บ.โปรแอ็คทีฟ แมเนจเม้นท์ จำกัด', 2, '2026-10-19 00:00:00', 'system', 'system'),
-  ('CNS', 'CNS', 'บ.คลีนนิ่ง โซลูชั่น จำกัด', 3, '2026-10-19 00:00:00', 'system', 'system'),
-  ('CIC', 'CIC', 'บ.คอน.อิน.คอน จำกัด', 4, '2026-10-19 00:00:00', 'system', 'system'),
-  ('AS', 'AS', 'บ.อาเชี่ยน คอนสตรั๊คชั่น จำกัด', 5, '2026-10-19 00:00:00', 'system', 'system');
+  ('HL', 'แฮปปี้แลนด์ (HL)', 'บริษัท แฮปปี้แลนด์ จำกัด', 1, '2026-10-19 00:00:00', 'system', 'system'),
+  ('PRO', 'PRO', 'บริษัท โปรแอ็คทีฟ แมเนจเม้นท์ จำกัด', 2, '2026-10-19 00:00:00', 'system', 'system'),
+  ('CNS', 'CNS', 'บริษัท คลีนนิ่ง โซลูชั่น จำกัด', 3, '2026-10-19 00:00:00', 'system', 'system'),
+  ('CIC', 'CIC', 'บริษัท คอน.อิน.คอน จำกัด', 4, '2026-10-19 00:00:00', 'system', 'system'),
+  ('AS', 'AS', 'บริษัท อาเชี่ยน คอนสตรั๊คชั่น จำกัด', 5, '2026-10-19 00:00:00', 'system', 'system');
 
 INSERT INTO `sites` (`id`, `company_code`, `name`, `has_group_insurance`, `polo_color`, `created_at`, `created_by`, `updated_by`) VALUES
   (1, 'HL', 'สำนักงานใหญ่ HL', 1, 'BLACK', '2026-10-19 00:00:00', 'system', 'system'),

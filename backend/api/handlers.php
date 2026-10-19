@@ -85,7 +85,14 @@ function api_site_create($req, $params)
                     VALUES (?, ?, ?, ?, ?, ?, ?)', array($code, $name, !empty($b['hasGroupInsurance']), $polo, db_now(), $u['username'], $u['username']));
     audit_write('SITE', $res['id'], 'CREATE', 'เพิ่มหน่วยงาน “' . $name . '” (' . $code . ')', null, $u);
     db_commit();
-    return http_data(repo_site($res['id']), 201);
+    return http_data(site_with_sync(repo_site($res['id']), master_sync_after_change($u, array((int)$res['id']))), 201);
+}
+
+/** ส่งหน่วยงานไปสต็อกไม่สำเร็จ → แนบข้อความเตือนให้หน้าจอแสดง (การบันทึกในระบบนี้สำเร็จแล้ว) */
+function site_with_sync($site, $warning)
+{
+    if ($warning !== null) { $site['stockWarning'] = $warning; }
+    return $site;
 }
 
 function api_site_update($req, $params)
@@ -116,7 +123,8 @@ function api_site_update($req, $params)
         audit_write('SITE', $id, 'UPDATE', 'แก้ไขหน่วยงาน “' . $next['name'] . '”: ' . implode(', ', $changes), null, $u);
     }
     db_commit();
-    return repo_site($id);
+    // ชื่อ/สีโปโลเปลี่ยน = ชื่อหน่วยงานและชุดฟอร์มรอบเริ่มงานในสต็อกเปลี่ยนตาม
+    return site_with_sync(repo_site($id), count($changes) ? master_sync_after_change($u, array($id)) : null);
 }
 
 function api_site_delete($req, $params)
@@ -130,6 +138,8 @@ function api_site_delete($req, $params)
     db_exec('DELETE FROM sites WHERE id = ?', array($id));
     audit_write('SITE', $id, 'DELETE', 'ลบหน่วยงาน “' . $s['name'] . '”', null, $u);
     db_commit();
+    // สต็อกปิดใช้งานหน่วยงานนี้ (ไม่ลบ — ใบเบิกเก่าอ้างอยู่) · ส่งไม่สำเร็จก็ไม่เป็นไร กดส่งทั้งหมดทีหลังได้
+    master_sync_after_change($u, array(), array($s));
     return http_no_content();
 }
 
