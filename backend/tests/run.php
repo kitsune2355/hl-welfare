@@ -42,6 +42,19 @@ foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admi
 }
 mysqli_close($admin);
 
+/* ลบฐานทดสอบเมื่อรันจบ (ผ่าน / ไม่ผ่าน / หยุดกลางคัน) — ฐาน _test จึงไม่ค้างในเครื่อง
+   ต้องการเก็บไว้ดูตอนเทสต์ไม่ผ่าน: HLW_KEEP_TEST_DB=1 · รันพร้อมกันหลายคนให้ตั้ง HLW_TEST_DB คนละชื่อ (ต้องมีคำว่า test) */
+function drop_test_db()
+{
+    $c = $GLOBALS['hlw_config'];
+    if (getenv('HLW_KEEP_TEST_DB')) { echo "\nเก็บฐานทดสอบ {$c['db_name']} ไว้ (HLW_KEEP_TEST_DB)\n"; return; }
+    $link = @mysqli_connect($c['db_host'], $c['db_user'], $c['db_pass'], '', (int)$c['db_port']);
+    if (!$link) { return; }
+    mysqli_query($link, 'DROP DATABASE IF EXISTS `' . $c['db_name'] . '`');
+    mysqli_close($link);
+}
+register_shutdown_function('drop_test_db');
+
 /* ---------- ตัวช่วย ---------- */
 $GLOBALS['pass'] = 0;
 $GLOBALS['fail'] = 0;
