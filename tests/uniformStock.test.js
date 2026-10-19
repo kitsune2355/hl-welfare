@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import { expect } from './_expect.js';
 import { MockApi } from '../web/assets/js/infrastructure/mock/mockApi.js';
-import { buildStockOptions, stockChange } from '../web/assets/js/application/usecases/uniformStock.js';
+import { buildStockOptions, stockChange, stockSizes, stockSubmitPayload, toStockRequest } from '../web/assets/js/application/usecases/uniformStock.js';
 
 const TODAY = '2026-10-16';
 
@@ -121,6 +121,18 @@ describe('uniformStock use-case', () => {
     expect(o.items[0].qty).toBe(3);
     expect(o.items[1].qty).toBe(1);
     expect(o.blockers.length).toBe(2);
+  });
+  it('รอบเริ่มงาน: ใบเบิกพนักงานใหม่ + ชุดของ, ส่งวันเริ่มงาน, ไซซ์นับเฉพาะชุดฟอร์ม', () => {
+    const o = buildStockOptions(ent, { ...catalog, doc_kind: 'new_staff', kit: [{ product_id: 90, product_name: 'บัตรพนักงาน', qty: 1, must_return: true, on_hand: 4 }] }, {});
+    expect(o.docKind).toBe('new_staff');
+    expect(o.kit).toEqual([{ productId: 90, name: 'บัตรพนักงาน', qty: 1, mustReturn: true, onHand: 4 }]);
+    const emp = { id: 7, empCode: 'E7', firstName: 'ก', lastName: 'ข', position: null, deptGroup: null, companyCode: 'PRO', siteId: 4, startDate: '2026-10-20' };
+    expect(stockSubmitPayload(emp, null, ent, 'PRO', [], 'HR').start_date).toBe('2026-10-20');
+    const stock = toStockRequest('7:START', {
+      doc_id: 1, doc_no: 'NRQ-6910-0001', stage: 'REQUESTED',
+      items: [{ product_id: 31, product_name: 'เสื้อ L', size: 'L', qty: 3, uniform: true }, { product_id: 90, product_name: 'บัตรพนักงาน', size: 'บัตรพนักงาน', qty: 1, uniform: false }],
+    });
+    expect(stockSizes(stock)).toBe('L');
   });
   it('stockChange แยกการเปลี่ยนแปลง', () => {
     const prev = { stage: 'REQUESTED', items: [] };

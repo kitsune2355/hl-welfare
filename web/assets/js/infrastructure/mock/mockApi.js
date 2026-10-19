@@ -3,7 +3,7 @@ import { buildDashboard } from '../../application/usecases/dashboard.js';
 import { batchCounts, batchIds, buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex } from '../../application/usecases/insuranceCycle.js';
 import { buildBatchExport, buildInsurerExport } from '../../application/usecases/insurerExport.js';
 import { buildUniformPending } from '../../application/usecases/uniformPending.js';
-import { buildStockOptions, stockChange, stockRef, stockSizes, stockSubmitPayload, toStockRequest } from '../../application/usecases/uniformStock.js';
+import { buildStockOptions, stockChange, stockRef, stockSizes, stockSubmitPayload, toStockRequest, uniformLines } from '../../application/usecases/uniformStock.js';
 import { validateBindings, validateInsurerForm } from '../../application/insurerFormRules.js';
 import { buildWorkQueue } from '../../application/usecases/workQueue.js';
 import { todayISO } from '../../domain/date.js';
@@ -502,7 +502,7 @@ export class MockApi {
   getUniformStockOptions(employeeId, entitlementKey) {
     return this.runAsync(async () => {
       const { e, st, ent } = this.openEntitlement(employeeId, entitlementKey);
-      const catalog = await this.stock.catalog({ items: ent.items, logo: st.logo, siteId: e.siteId });
+      const catalog = await this.stock.catalog({ items: ent.items, logo: st.logo, siteId: e.siteId, event: ent.event });
       return { ...buildStockOptions(ent, catalog, e), logo: st.logo, event: ent.event, qty: ent.qty, qtyLabel: ent.qtyLabel, style: ent.style };
     });
   }
@@ -564,7 +564,7 @@ export class MockApi {
         }
         i.stock = next;
         i.size = stockSizes(next);
-        i.qty = next.items.reduce((s2, x) => s2 + x.qty, 0) || i.qty;
+        i.qty = uniformLines(next).reduce((s2, x) => s2 + x.qty, 0) || i.qty;
         if (next.issuedAt) i.issuedAt = next.issuedAt.slice(0, 10);
         if (kind === 'ISSUED') this.log('UNIFORM_ISSUE', 'UPDATE', i.id, `คลังจ่ายชุดฟอร์มตามใบ ${next.docNo} ให้ ${who} แล้ว`, i.employeeId);
         if (kind === 'RECEIVED') this.log('UNIFORM_ISSUE', 'UPDATE', i.id, `${who} เซ็นรับชุดฟอร์มตามใบ ${next.docNo} แล้ว`, i.employeeId);

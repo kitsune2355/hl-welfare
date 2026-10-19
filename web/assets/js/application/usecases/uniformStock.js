@@ -35,6 +35,9 @@ export function buildStockOptions(ent, catalog, emp) {
   return {
     department: d ? { id: d.department_id, name: d.department_name, company: d.company_name } : null,
     items,
+    /** 'new_staff' = รอบเริ่มงาน ระบบสต็อกออกเป็นใบเบิกพนักงานใหม่ (NRQ) และใส่ชุดของพนักงานใหม่ (kit) ให้เอง */
+    docKind: catalog.doc_kind ?? 'request',
+    kit: (catalog.kit ?? []).map((k) => ({ productId: k.product_id, name: k.product_name, qty: k.qty, mustReturn: k.must_return, onHand: k.on_hand })),
     /** ส่งเบิกได้เมื่อหน่วยงานจับคู่แล้ว และทุกรายการมีแบบในสต็อก */
     blockers: [
       ...(d ? [] : ['หน่วยงานของพนักงานยังไม่ได้จับคู่กับหน่วยงานในระบบสต็อก']),
@@ -57,6 +60,8 @@ export function stockSubmitPayload(emp, site, ent, logo, lines, byName) {
     site_name: site?.name ?? '',
     event: ent.event,
     entitlement_key: ent.key,
+    // รอบเริ่มงานเป็นใบเบิกพนักงานใหม่ ซึ่งต้องมีวันที่เริ่มงาน
+    start_date: emp.startDate,
     requested_by_name: byName,
     lines: lines.map((l) => ({ item_code: l.itemCode, product_id: l.productId, qty: l.qty })),
   };
@@ -72,12 +77,16 @@ export function toStockRequest(ref, s) {
     issuedAt: s.issued_at ?? null,
     receivedAt: s.received_at ?? null,
     cancelNote: s.cancel_note ?? '',
-    items: (s.items ?? []).map((i) => ({ productId: i.product_id, name: i.product_name, size: i.size, qty: i.qty })),
+    // uniform = false คือของจากชุดพนักงานใหม่ (ไม่ใช่สิทธิ์ชุดฟอร์ม)
+    items: (s.items ?? []).map((i) => ({ productId: i.product_id, name: i.product_name, size: i.size, qty: i.qty, uniform: i.uniform !== false })),
   };
 }
 
-/** ไซซ์ของทุกบรรทัดต่อกัน ใช้แสดงในคอลัมน์ "ไซซ์" ของประวัติ */
-export const stockSizes = (stock) => [...new Set(stock.items.map((i) => i.size))].join(' · ') || '–';
+/** บรรทัดที่เป็นชุดฟอร์มตามสิทธิ์ (ข้อมูลเก่าไม่มีธง uniform = นับเป็นชุดฟอร์มทั้งหมด) */
+export const uniformLines = (stock) => stock.items.filter((i) => i.uniform !== false);
+
+/** ไซซ์ของชุดฟอร์มทุกบรรทัดต่อกัน ใช้แสดงในคอลัมน์ "ไซซ์" ของประวัติ */
+export const stockSizes = (stock) => [...new Set(uniformLines(stock).map((i) => i.size))].join(' · ') || '–';
 
 /**
  * เทียบสถานะเดิมกับที่ระบบสต็อกตอบ → การเปลี่ยนแปลงที่ต้องบันทึก

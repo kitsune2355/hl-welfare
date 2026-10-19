@@ -25,8 +25,9 @@ export class StockGateway {
     if (!res.ok || !body.ok) throw new ApiError(body.message ?? `HTTP ${res.status}`, res.status >= 400 ? res.status : 422);
     return body;
   }
-  catalog({ items, logo, siteId }) {
-    return this.call('catalog', { items, logo, site_id: siteId });
+  /** event = START → ได้ชุดของพนักงานใหม่ (kit) และ doc_kind = new_staff มาด้วย */
+  catalog({ items, logo, siteId, event }) {
+    return this.call('catalog', { items, logo, site_id: siteId, event });
   }
   submit(payload) {
     return this.call('submit', payload);

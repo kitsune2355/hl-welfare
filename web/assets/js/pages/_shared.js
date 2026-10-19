@@ -137,16 +137,26 @@ async function openStockRequest({ employeeId, entitlementKey, event, name, onDon
   };
   const draw = () => {
     const d = opt.department;
+    const newStaff = opt.docKind === 'new_staff';
     render(
       body,
       html`${opt.blockers.length
           ? alertBox({ tone: 'danger', title: 'ยังส่งเบิกไม่ได้', body: html`${opt.blockers.join(' · ')} — แจ้งผู้ดูแลระบบสต็อกให้จับคู่ก่อน` })
           : alertBox({
               tone: 'info',
-              body: html`ใบเบิกลงหน่วยงาน <b>${d.name}</b>${d.company ? ` (${d.company})` : ''} และ<b>อนุมัติอัตโนมัติ</b> — เมื่อคลังจ่ายแล้ว สถานะในระบบนี้จะอัปเดตเอง`,
+              // <strong> ไม่ใช่ <b> — .alert-body b เป็นหัวข้อ (display: block)
+              body: html`${newStaff ? html`ออกเป็น<strong>ใบเบิกพนักงานใหม่</strong> ` : 'ใบเบิก'}ลงหน่วยงาน <strong>${d.name}</strong>${d.company ? ` (${d.company})` : ''} และ<strong>อนุมัติอัตโนมัติ</strong> — เมื่อคลังจ่ายแล้ว สถานะในระบบนี้จะอัปเดตเอง`,
             })}
         <p class="small muted" style="margin:12px 0 0">${opt.style} · สิทธิ์ ${opt.qtyLabel} ตัว · ของไม่พอก็ส่งเบิกได้ คลังจะจ่ายเมื่อมีของ</p>
-        <div>${opt.items.map(lineHtml)}</div>`,
+        <div>${opt.items.map(lineHtml)}</div>
+        ${newStaff && opt.kit.length
+          ? html`<div class="field" style="margin-top:16px">
+              <label>ชุดของพนักงานใหม่ (ระบบสต็อกใส่ให้ในใบเดียวกัน)</label>
+              <ul class="small muted" style="margin:0;padding-left:18px">
+                ${opt.kit.map((k) => html`<li>${k.name} × ${k.qty}${k.mustReturn ? ' · ต้องคืนเมื่อพ้นสภาพ' : ''}</li>`)}
+              </ul>
+            </div>`
+          : ''}`,
     );
     ok.disabled = opt.blockers.length > 0 || picks.some((p) => !p.productId || !(Number.isInteger(p.qty) && p.qty > 0));
   };
