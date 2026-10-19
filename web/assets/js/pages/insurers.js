@@ -360,7 +360,7 @@ function drawLeft() {
 }
 
 /** ช่องเครื่องหมายเข้าใหม่/ลาออก + ปุ่มเลือกเร็ว (พิมพ์ ✓ เองยาก) */
-const MARKS = ['✓', '✗', 'X', 'P'];
+const MARKS = ['✓', '✗'];
 function markField(id, key, label) {
   return html`<div class="field">
     <label for="${id}">${label}</label>
