@@ -110,9 +110,6 @@ export class HttpApi {
   cancelInsuranceBatch(id) {
     return this.del(`/insurance/batches/${id}`);
   }
-  listPvdMembers() {
-    return this.req('/pvd/members');
-  }
   listUniformIssues(employeeId) {
     return this.req(`/uniform/issues${employeeId ? `?employeeId=${employeeId}` : ''}`);
   }

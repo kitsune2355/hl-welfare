@@ -95,24 +95,6 @@ export function defaultRules() {
         note: 'เฉพาะหน่วยงานที่ระบุว่าได้รับประกันกลุ่ม',
       },
     ],
-    pvd: [
-      { id: 1, employeeType: 'PRO_SITE', eligible: true, waitDays: 0, note: 'เป็นสมาชิกตั้งแต่วันแรก' },
-      { id: 2, employeeType: 'CENTRAL', eligible: true, waitDays: 120, note: 'เป็นสมาชิกเมื่อครบ 120 วัน' },
-      {
-        id: 3,
-        employeeType: 'MAID_CNS',
-        eligible: false,
-        waitDays: 0,
-        note: 'แม่บ้าน CNS ไม่ได้รับกองทุนสำรองเลี้ยงชีพ',
-      },
-      {
-        id: 4,
-        employeeType: 'DAILY',
-        eligible: false,
-        waitDays: 0,
-        note: 'พนักงานรายวันทุกบริษัท ไม่ได้รับกองทุนสำรองเลี้ยงชีพ',
-      },
-    ],
     uniform: [
       ...centralRules,
       proSite(15, 'ช่างเทคนิค', 'ชุดช่าง + รองเท้า Safety', ['TECH_SHIRT', 'TECH_PANTS', 'SAFETY_SHOES'], false, 2),
@@ -140,14 +122,6 @@ export function defaultRules() {
       insuranceCycleDay: 5,
       insuranceCycleDayDaily: 6, // พนักงานรายวันส่งแจ้งแยก ทุกวันที่ 6
       absentExtraDays: 7,
-      pvdEmployeeRate: 2,
-      pvdCompanyRate: 2,
-      pvdVesting: [
-        { minYears: 0, percent: 0 },
-        { minYears: 3, percent: 50 },
-        { minYears: 5, percent: 100 },
-      ],
-      pvdVestingIsPlaceholder: true,
       uniformAnnualMonth: 1,
     },
   };

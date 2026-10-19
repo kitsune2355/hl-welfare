@@ -16,7 +16,6 @@ const MENU = [
   { id: 'dashboard', href: 'index.html', label: 'ภาพรวม & ติดตามงาน', icon: 'layout-dashboard' },
   { id: 'employees', href: 'employees.html', label: 'พนักงาน', icon: 'users' },
   { id: 'insurance', href: 'insurance.html', label: 'ประกันกลุ่ม', icon: 'shield-plus', count: (d) => d.urgentPending, tone: 'danger' },
-  { id: 'pvd', href: 'pvd.html', label: 'กองทุนสำรองฯ', icon: 'piggy-bank' },
   { id: 'uniform', href: 'uniform.html', label: 'ชุดฟอร์ม', icon: 'shirt', count: (d) => d.uniformPending, tone: 'warning' },
 ];
 const SETTINGS = [
@@ -25,7 +24,7 @@ const SETTINGS = [
   { id: 'insurers', href: 'insurers.html', label: 'แบบฟอร์มประกัน', icon: 'file-spreadsheet' },
 ];
 
-/** เมนูด้านล่าง (มือถือ <768px) — 4 หน้าหลัก + "เพิ่มเติม" (เปิดเมนูเต็ม: PVD, เงื่อนไข, หน่วยงาน, ผู้ใช้) */
+/** เมนูด้านล่าง (มือถือ <768px) — 4 หน้าหลัก + "เพิ่มเติม" (เปิดเมนูเต็ม: เงื่อนไข, หน่วยงาน, แบบฟอร์มประกัน, ผู้ใช้) */
 const BOTTOM_NAV = ['dashboard', 'employees', 'insurance', 'uniform'];
 const BOTTOM_LABEL = { dashboard: 'ภาพรวม', employees: 'พนักงาน', insurance: 'ประกัน', uniform: 'ชุดฟอร์ม' };
 

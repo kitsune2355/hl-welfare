@@ -3,7 +3,7 @@ import { expect } from './_expect.js';
 import { buildInsuranceCycle } from '../web/assets/js/application/usecases/insuranceCycle.js';
 import { defaultRules } from '../web/assets/js/infrastructure/mock/rules.js'; // fixture เท่านั้น
 import { buildSeed } from '../web/assets/js/infrastructure/mock/seed.js';
-import { insuranceStatus, matchUniformRule, pvdStatus, uniformStatus } from '../web/assets/js/domain/eligibility.js';
+import { insuranceStatus, matchUniformRule, uniformStatus } from '../web/assets/js/domain/eligibility.js';
 const rules = defaultRules();
 const TODAY = '2026-10-16';
 const site = (p = {}) => ({ id: 1, companyCode: 'HL', name: 'HQ', hasGroupInsurance: true, poloColor: 'BLACK', ...p });
@@ -91,31 +91,6 @@ describe('ประกันกลุ่ม', () => {
       rules,
     );
     expect(s.eligible).toBe(false);
-  });
-});
-describe('PVD', () => {
-  it('Pro Site เป็นสมาชิกวันแรก', () => {
-    const p = pvdStatus(emp({ companyCode: 'PRO', employeeType: 'PRO_SITE', startDate: '2026-10-13' }), rules, TODAY);
-    expect(p.joinDate).toBe('2026-10-13');
-  });
-  it('ส่วนกลาง เป็นสมาชิกเมื่อครบ 120 วัน', () => {
-    expect(pvdStatus(emp({ startDate: '2026-01-01' }), rules, TODAY).joinDate).toBe('2026-05-01');
-  });
-  it('หัก/สมทบ 2% ของเงินเดือน', () => {
-    const p = pvdStatus(emp({ salary: 25555 }), rules, TODAY);
-    expect(p.employeeMonthly).toBe(511.1);
-    expect(p.companyMonthly).toBe(511.1);
-  });
-  it('รายวัน / แม่บ้าน ไม่มีสิทธิ', () => {
-    expect(pvdStatus(emp({ employeeType: 'DAILY' }), rules, TODAY).eligible).toBe(false);
-    expect(pvdStatus(emp({ employeeType: 'MAID_CNS' }), rules, TODAY).eligible).toBe(false);
-  });
-  it('vesting ตามอายุสมาชิก และกระทำผิด → 0%', () => {
-    const base = { startDate: '2020-01-01' };
-    expect(pvdStatus(emp(base), rules, TODAY).vestingPercent).toBe(100);
-    expect(
-      pvdStatus(emp({ ...base, endReason: 'MISCONDUCT', endDate: '2026-10-01' }), rules, TODAY).vestingPercent,
-    ).toBe(0);
   });
 });
 describe('ชุดฟอร์ม', () => {

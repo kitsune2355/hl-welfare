@@ -8,7 +8,6 @@ import { buildWorkQueue } from '../../application/usecases/workQueue.js';
 import { todayISO } from '../../domain/date.js';
 import { benefitsOf } from '../../domain/eligibility.js';
 import { BATCH_TYPE_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
-import { pvdStatus } from '../../domain/pvd.js';
 import { buildSeed } from './seed.js';
 import { MOCK_USERS } from './users.js';
 
@@ -422,17 +421,6 @@ export class MockApi {
         ...buildInsurerExport({ cycleDate, insurer, employees, sites, rules, batches: this.db.batches, companies }),
         batches: created,
       };
-    });
-  }
-  listPvdMembers() {
-    return this.run(() => {
-      const today = this.today();
-      const rows = [];
-      for (const employee of this.db.employees) {
-        const pvd = pvdStatus(employee, this.db.rules, today);
-        if (pvd.eligible) rows.push({ employee, pvd });
-      }
-      return rows.sort((a, b) => (a.pvd.joinDate ?? '').localeCompare(b.pvd.joinDate ?? ''));
     });
   }
   // ---------- Uniform ----------

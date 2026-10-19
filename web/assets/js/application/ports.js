@@ -21,7 +21,6 @@
  * @property {() => Promise<import('../domain/types.js').InsuranceBatch[]>} listInsuranceBatches
  * @property {(input: {cycleDate: string, type: string, employeeIds: number[]}) => Promise<import('../domain/types.js').InsuranceBatch>} submitInsuranceBatch
  * @property {(id: number) => Promise<void>} cancelInsuranceBatch               รายการกลับเป็น "รอส่ง"
- * @property {() => Promise<import('../domain/types.js').PvdRow[]>} listPvdMembers
  * @property {(employeeId?: number) => Promise<import('../domain/types.js').UniformIssue[]>} listUniformIssues
  * @property {(input: Object) => Promise<import('../domain/types.js').UniformIssue>} createUniformIssue
  * @property {() => Promise<import('../domain/types.js').UniformPendingRow[]>} listUniformPending

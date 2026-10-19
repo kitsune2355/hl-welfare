@@ -57,17 +57,6 @@
  * @property {number|null} ruleId
  */
 
-/**
- * @typedef {Object} PvdStatus
- * @property {boolean} eligible
- * @property {string[]} reasons
- * @property {ISODate|null} joinDate
- * @property {number} employeeMonthly
- * @property {number} companyMonthly
- * @property {number|null} memberYears
- * @property {number|null} vestingPercent
- */
-
 /** @typedef {'START'|'PROBATION'|'ANNUAL'} UniformEvent */
 /** @typedef {'POLO_BLACK'|'POLO_NAVY'|'TECH_SHIRT'|'TECH_PANTS'|'SAFETY_SHOES'} UniformItemCode */
 
@@ -97,7 +86,6 @@
  * @property {Employee} employee
  * @property {Site|null} site
  * @property {InsuranceStatus} insurance
- * @property {PvdStatus} pvd
  * @property {UniformStatus} uniform
  */
 
@@ -148,7 +136,6 @@
  * @property {string} style
  */
 
-/** @typedef {{ employee: Employee, pvd: PvdStatus }} PvdRow */
 
 /**
  * @typedef {Object} DashboardData
@@ -159,7 +146,7 @@
  * @property {number} nextCycleIn
  * @property {number} nextCycleOut
  * @property {number} urgentPending
- * @property {{ employee: Employee, benefit: 'INSURANCE'|'PVD', date: ISODate }[]} upcomingEligible
+ * @property {{ employee: Employee, benefit: 'INSURANCE', date: ISODate }[]} upcomingEligible
  * @property {number} uniformPending
  */
 

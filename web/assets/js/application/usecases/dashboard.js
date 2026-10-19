@@ -1,7 +1,6 @@
 import { addDays, nextCycleDate } from '../../domain/date.js';
 import { cycleDays, insuranceStatus } from '../../domain/insurance.js';
 import { COMPANY_CODES } from '../../domain/labels.js';
-import { pvdStatus } from '../../domain/pvd.js';
 import { buildInsuranceCycle } from './insuranceCycle.js';
 import { buildUniformPending } from './uniformPending.js';
 
@@ -20,10 +19,6 @@ export function buildDashboard(today, employees, sites, rules, batches, issues) 
     const ins = insuranceStatus(emp, siteById.get(emp.siteId) ?? null, rules);
     if (ins.eligible && ins.eligibleDate && ins.eligibleDate > today && ins.eligibleDate <= horizon) {
       upcoming.push({ employee: emp, benefit: 'INSURANCE', date: ins.eligibleDate });
-    }
-    const pvd = pvdStatus(emp, rules, today);
-    if (pvd.eligible && pvd.joinDate && pvd.joinDate > today && pvd.joinDate <= horizon) {
-      upcoming.push({ employee: emp, benefit: 'PVD', date: pvd.joinDate });
     }
   }
   upcoming.sort((a, b) => a.date.localeCompare(b.date));

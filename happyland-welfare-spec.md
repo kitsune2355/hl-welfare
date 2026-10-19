@@ -42,7 +42,6 @@
 | ภาพรวม & ติดตามงาน | แท็บ **สรุป** (ตัวเลขหลัก) · **คิวงาน** (ทุกเรื่องที่ต้องทำ จัดระดับ ด่วน/ต้องทำ/ติดตาม) · **บันทึกกิจกรรม** + รีเฟรชอัตโนมัติ |
 | พนักงาน | ทะเบียนพนักงาน (ตารางแบบ Excel) + หน้า "สิทธิสวัสดิการ" รายคน |
 | ประกันกลุ่ม | แท็บ แจ้งออกทันที / แจ้งเข้า / แจ้งออก / ประวัติ (ตัวเลขรอส่งบนแท็บ) — คำนวณสิทธิ, ส่งออกไฟล์แจ้งทุกวันที่ 5 (พนักงานรายวันแยกรอบวันที่ 6), ประวัติ 1 รายการต่อการส่งออก 1 ครั้ง |
-| กองทุนสำรองเลี้ยงชีพ (PVD) | สิทธิสมาชิก, ยอดหักสะสม/สมทบ 2%, % สิทธิเงินสมทบ (vesting) |
 | ชุดฟอร์ม | สิทธิตามกลุ่ม/ระดับ/ตำแหน่ง, รายการค้างแจก, บันทึกการแจก + ไซซ์ |
 | เงื่อนไขสวัสดิการ | แสดงกฎทั้งหมด (เฟส 3: แก้ไขได้) |
 | หน่วยงาน | เพิ่ม/แก้/ลบหน่วยงาน, ได้ประกันกลุ่มไหม (แม่บ้าน CNS) และสีโปโล (Pro Site) |
@@ -103,7 +102,7 @@
 
 | ชั้น (โฟลเดอร์ใน `web/assets/js/`) | หน้าที่ | import ได้ | ห้าม import |
 |---|---|---|---|
-| `domain/` | กฎคำนวณสิทธิ (ประกัน / PVD / ชุดฟอร์ม), วันที่, คำศัพท์ภาษาไทยของ enum, `types.js` (JSDoc) | `domain` เท่านั้น | DOM, `fetch`, `localStorage`, ชั้นอื่นทั้งหมด |
+| `domain/` | กฎคำนวณสิทธิ (ประกัน / ชุดฟอร์ม), วันที่, คำศัพท์ภาษาไทยของ enum, `types.js` (JSDoc) | `domain` เท่านั้น | DOM, `fetch`, `localStorage`, ชั้นอื่นทั้งหมด |
 | `application/` | `ports.js` (สัญญา API), `errors.js` (`ApiError`), `usecases/` (dashboard, รอบประกัน, ชุดค้างแจก, คิวงาน), `employeeRules.js` (validate) | `domain` | `infrastructure`, `ui`, `pages` |
 | `infrastructure/` | adapter ที่ทำตามสัญญา: `mock/` (ข้อมูลจำลอง) และ `http/` (เรียก PHP) | `application`, `domain` | `ui`, `pages` |
 | `shared/` | `dom.js` (html, render, on), `format.js`, `labels.js`, `csv.js`, `excel.js` (เขียน .xlsx ด้วย ExcelJS), `icons.js` | `domain` | `infrastructure`, `pages` |
@@ -150,7 +149,7 @@ hl-welfare/
 ├── package.json                       ← ใช้เฉพาะ `npm test` (ไม่มี dependency)
 ├── tests/                             ← ทดสอบกฎสวัสดิการด้วย node:test
 │   ├── _expect.js                     ← ตัวช่วย expect(...).toBe(...)
-│   ├── eligibility.test.js            ← ประกัน / PVD / ชุดฟอร์ม / seed
+│   ├── eligibility.test.js            ← ประกัน / ชุดฟอร์ม / seed
 │   └── mockApi.test.js                ← validation 409/422/404, CRUD, คิวงาน, กิจกรรม
 │
 ├── web/                               ← ★ อัปโหลดทั้งโฟลเดอร์นี้ขึ้น host
@@ -160,7 +159,6 @@ hl-welfare/
 │   ├── employees.html                 ← พนักงาน (ตาราง Excel)
 │   ├── employee.html                  ← รายละเอียดพนักงาน (?id=)
 │   ├── insurance.html                 ← ประกันกลุ่ม (?cycle=&tab=urgent|in|out|history&batch=) + ส่งออกไฟล์แจ้งประกัน
-│   ├── pvd.html                       ← กองทุนสำรองเลี้ยงชีพ (?tab=)
 │   ├── uniform.html                   ← ชุดฟอร์ม (?tab=history)
 │   ├── rules.html                     ← เงื่อนไขสวัสดิการ (?tab=)
 │   ├── sites.html                     ← หน่วยงาน (ตาราง Excel)
@@ -183,7 +181,6 @@ hl-welfare/
 │           │   ├── insurance.js       ← insuranceStatus, insuranceExit
 │           │   ├── insurerForm.js     ← แหล่งข้อมูลคอลัมน์, รูปแบบวันที่, ตัวแปร {…} ของแบบฟอร์มประกัน
 │           │   ├── thaiId.js          ← ตรวจ/จัดรูปแบบเลขบัตรประชาชน 13 หลัก
-│           │   ├── pvd.js             ← pvdStatus
 │           │   ├── uniform.js         ← matchUniformRule, resolveItems, uniformStatus
 │           │   └── eligibility.js     ← benefitsOf() + re-export
 │           ├── application/           ← ② สัญญา + use-case
@@ -212,7 +209,7 @@ hl-welfare/
 │           └── pages/                 ← ⑦ โค้ดของแต่ละหน้า (ชื่อเดียวกับไฟล์ HTML)
 │               ├── _shared.js         ← บันทึกแจกชุด, ไทม์ไลน์กิจกรรม
 │               └── login.js  dashboard.js  employees.js  employee.js
-│                   insurance.js  pvd.js  uniform.js  rules.js  sites.js
+│                   insurance.js  uniform.js  rules.js  sites.js
 │
 ├── backend/                           ← PHP 8.2+ (เฟส 2 — ยังไม่สร้าง)
 │   ├── composer.json
@@ -261,9 +258,9 @@ export const CONFIG = {
 | `employees.html` | พนักงาน | `?q=&company=&type=&status=&page=` |
 | `employee.html` | รายละเอียดพนักงาน | `?id=` (จำเป็น) |
 | `insurance.html` | ประกันกลุ่ม | `?cycle=YYYY-MM-05&tab=urgent\|in\|out\|history` (ไม่ระบุ tab = แท็บแรกที่มีรายการรอส่ง) |
-| `pvd.html` | กองทุนสำรองฯ | `?tab=members\|waiting\|left` |
+| `?tab=members\|waiting\|left` |
 | `uniform.html` | ชุดฟอร์ม | `?tab=history` |
-| `rules.html` | เงื่อนไขสวัสดิการ | `?tab=insurance\|pvd\|uniform\|settings\|open` |
+| `rules.html` | เงื่อนไขสวัสดิการ | `?tab=insurance\|uniform\|settings\|open` |
 | `sites.html` | หน่วยงาน | – |
 | `insurers.html` | แบบฟอร์มประกัน (ตั้งค่า) | `?id=<id>` หรือ `?id=new` |
 
@@ -357,16 +354,6 @@ export interface InsuranceRule {
   note: string;
 }
 
-export interface PvdRule {
-  id: number;
-  employeeType: EmployeeType;
-  eligible: boolean;
-  waitDays: number;                // 0 = ตั้งแต่วันแรก
-  note: string;
-}
-
-export interface VestingStep { minYears: number; percent: number; }
-
 export type UniformItemCode = 'POLO_BLACK' | 'POLO_NAVY' | 'TECH_SHIRT' | 'TECH_PANTS' | 'SAFETY_SHOES';
 export interface UniformItem { code: UniformItemCode; name: string; }
 
@@ -393,16 +380,11 @@ export interface Settings {
   insuranceCycleDay: number;       // 5 — รอบแจ้งประกันของพนักงานทุกประเภทยกเว้นรายวัน
   insuranceCycleDayDaily?: number; // 6 — พนักงานรายวัน (DAILY) ส่งแจ้งแยกรอบ (ไม่กำหนด = ใช้ insuranceCycleDay)
   absentExtraDays: number;         // 7
-  pvdEmployeeRate: number;         // 2 (%)
-  pvdCompanyRate: number;          // 2 (%)
-  pvdVesting: VestingStep[];
-  pvdVestingIsPlaceholder: boolean;
   uniformAnnualMonth: number;      // เดือนที่แจกประจำปี (1 = ม.ค.)
 }
 
 export interface RuleSet {
   insurance: InsuranceRule[];
-  pvd: PvdRule[];
   uniform: UniformRule[];
   uniformItems: UniformItem[];
   settings: Settings;
@@ -418,16 +400,6 @@ export interface InsuranceStatus {
   exitCycleDate: ISODate | null;
   exitUrgent: boolean;             // เลิกจ้าง/ทำผิด = แจ้งทันที
   ruleId: number | null;
-}
-
-export interface PvdStatus {
-  eligible: boolean;
-  reasons: string[];
-  joinDate: ISODate | null;
-  employeeMonthly: number;
-  companyMonthly: number;
-  memberYears: number | null;
-  vestingPercent: number | null;
 }
 
 export type UniformEvent = 'START' | 'PROBATION' | 'ANNUAL';
@@ -455,7 +427,6 @@ export interface EmployeeBenefits {
   employee: Employee;
   site: Site | null;
   insurance: InsuranceStatus;
-  pvd: PvdStatus;
   uniform: UniformStatus;
 }
 
@@ -565,8 +536,6 @@ export interface UniformPendingRow {
   style: string;
 }
 
-export interface PvdRow { employee: Employee; pvd: PvdStatus; }
-
 export interface DashboardData {
   today: ISODate;
   activeByCompany: { companyCode: CompanyCode; count: number }[];
@@ -575,7 +544,7 @@ export interface DashboardData {
   nextCycleIn: number;
   nextCycleOut: number;
   urgentPending: number;
-  upcomingEligible: { employee: Employee; benefit: 'INSURANCE' | 'PVD'; date: ISODate }[];
+  upcomingEligible: { employee: Employee; benefit: 'INSURANCE'; date: ISODate }[];
   uniformPending: number;
 }
 
@@ -629,26 +598,8 @@ export interface EmployeeFilter {
 - พนักงานถูกแจ้งเข้าได้ครั้งเดียว และแจ้งออกได้ครั้งเดียว (ส่งซ้ำ → error)
 - "ส่งแล้ว" = อยู่ในไฟล์ที่**ส่งออกแบบบันทึกว่าแจ้งแล้ว** (ข้อ 7.4) — ไม่มีปุ่ม "ส่งแจ้ง" แยกอีกต่อไป
 
-### 7.2 กองทุนสำรองเลี้ยงชีพ
-
-| ประเภท | สิทธิ | รอ (วัน) |
-|---|---|---|
-| PRO_SITE | ✅ | 0 (วันแรก) |
-| CENTRAL | ✅ | 120 |
-| MAID_CNS | ❌ | – |
-| DAILY | ❌ | – |
-
-```text
-joinDate        = startDate + waitDays
-พ้นสภาพก่อน joinDate → ไม่มีสิทธิ
-employeeMonthly = salary × 2%
-companyMonthly  = salary × 2%
-asOf            = min(endDate, today)
-memberYears     = (asOf − joinDate) / 365.25 (ปัดลง 1 ตำแหน่ง)
-vestingPercent  = ขั้นสูงสุดของ pvdVesting ที่ memberYears >= minYears
-                  ยกเว้น endReason = MISCONDUCT หรือ ABSENT_3D → 0%
-```
-> ⚠️ ตาราง vesting ยังเป็นค่าตัวอย่าง `[0→0%, 3→50%, 5→100%]` รอ HR ยืนยัน
+### 7.2 กองทุนสำรองเลี้ยงชีพ — นอกขอบเขต
+ระบบนี้**ไม่จัดการ**กองทุนสำรองเลี้ยงชีพ (ตัดออกแล้ว: เมนู, หน้า `pvd.html`, กฎในหน้าเงื่อนไข, การ์ดในหน้าพนักงาน, รายการ "จะครบสิทธิ" ในภาพรวม, API `/api/pvd/members`) · คงเลขข้อไว้เพื่อให้การอ้างอิงข้อ 7.3 / 7.4 ไม่เปลี่ยน
 
 ### 7.3 ชุดฟอร์ม
 
@@ -781,7 +732,6 @@ export interface WelfareApi {
   saveInsurerBindings(b: { companyCode: CompanyCode; insurerId: number | null; policyNo: string; holderName: string; plan: string }[]): Promise<InsurerForm[]>;
   deleteInsurer(id: number): Promise<void>;
 
-  listPvdMembers(): Promise<PvdRow[]>;
 
   listUniformIssues(employeeId?: number): Promise<UniformIssue[]>;
   createUniformIssue(input: Omit<UniformIssue, 'id' | 'issuedBy'>): Promise<UniformIssue>;
@@ -841,7 +791,6 @@ export interface WelfareApi {
 | PUT | `/api/insurers/{id}` | `InsurerForm` | `InsurerForm` / 422 |
 | DELETE | `/api/insurers/{id}` | – | 204 |
 | PUT | `/api/insurers/bindings` | `{bindings: [{companyCode, insurerId, policyNo, holderName, plan}]}` | `InsurerForm[]` (ผูกทุกบริษัทในครั้งเดียว · transaction) |
-| GET | `/api/pvd/members` | – | `PvdRow[]` |
 | GET | `/api/uniform/issues` | `?employeeId=` | `UniformIssue[]` |
 | POST | `/api/uniform/issues` | `{employeeId, entitlementKey, event, qty, size, issuedAt}` | `UniformIssue` (201) |
 | GET | `/api/uniform/pending` | – | `UniformPendingRow[]` |
@@ -932,7 +881,7 @@ async req(path, init) {
 |---|---|
 | ส่วนกลาง HL เริ่มงาน 12 วันก่อน | ยังไม่ครบ 30 วัน → อยู่ใน "จะครบสิทธิใน 30 วัน" |
 | CIC บริหารห้องเช่า ระดับ 2 เริ่ม 20 วันก่อน | ได้ชุดฟอร์มวันเริ่มงาน 3 ตัว |
-| Pro Site ช่างเทคนิค เริ่ม 3 วันก่อน | PVD ตั้งแต่วันแรก, ชุดวันเริ่มงาน 2 |
+| Pro Site ช่างเทคนิค เริ่ม 3 วันก่อน | ชุดวันเริ่มงาน 2 |
 | Pro Site ช่างทีมโมบาย (site บางนา) | โปโลสีน้ำเงิน, จำนวน "2+1" |
 | Pro Site สัญญา 3% | ไม่มีประกันกลุ่ม |
 | รายวัน HL 110 วัน / AS 118 วัน | ใกล้ครบ 120 วัน |
@@ -1052,8 +1001,8 @@ async req(path, init) {
 │ ☑ ติดตามงาน │  คำอธิบายสั้น                                              │
 │ ☺ พนักงาน  │  ┌─Stat─┐ ┌─Stat─┐ ┌─Stat─┐ ┌─Stat─┐                       │
 │ ⛨ ประกัน ② │  └──────┘ └──────┘ └──────┘ └──────┘                       │
-│ ฿ PVD      │  ┌──────── card ────────┐ ┌──── card ────┐                │
-│ 👕 ชุดฟอร์ม③│  └──────────────────────┘ └──────────────┘                │
+│ 👕 ชุดฟอร์ม③│  ┌──────── card ────────┐ ┌──── card ────┐                │
+│            │  └──────────────────────┘ └──────────────┘                │
 │ ── ตั้งค่า ──│                                     max-width 1280px      │
 │ ☰ เงื่อนไข  │                                                           │
 │ ⌂ หน่วยงาน │                                                           │
@@ -1076,7 +1025,7 @@ async req(path, init) {
 ```
 - 4 หน้าหลักกำหนดที่ `BOTTOM_NAV` / `BOTTOM_LABEL` ใน `app/shell.js` · ตัวนับงานค้างแสดงบนไอคอนเหมือน sidebar
 - **ซ่อนอัตโนมัติ:** ปัดขึ้น (เลื่อนอ่านต่อลงไป) = เมนูล่างเลื่อนหายลงขอบจอ · ปัดลง / กลับบนสุด = แสดงกลับ · แถบปุ่มฟอร์มและ Toast เลื่อนตาม · ปรับความไวได้ที่ `HIDE_AFTER` / `MIN_DELTA` ใน `autoHideBottomNav()` (`app/shell.js`) · เลื่อนตารางแนวนอนหรือเมนูเต็มเปิดอยู่ ไม่มีผล
-- "เพิ่มเติม" เปิดเมนูเต็ม (drawer) — PVD, เงื่อนไข, หน่วยงาน, แหล่งข้อมูล, ผู้ใช้/ออกจากระบบ · ไฮไลต์เมื่ออยู่หน้าที่ไม่มีในเมนูล่าง · Esc / แตะพื้นหลัง = ปิด
+- "เพิ่มเติม" เปิดเมนูเต็ม (drawer) — เงื่อนไข, หน่วยงาน, แบบฟอร์มประกัน, แหล่งข้อมูล, ผู้ใช้/ออกจากระบบ · ไฮไลต์เมื่ออยู่หน้าที่ไม่มีในเมนูล่าง · Esc / แตะพื้นหลัง = ปิด
 - แถบปุ่มบันทึกของฟอร์ม (`.form-footer`) และ Toast ขยับขึ้นอยู่เหนือเมนูล่าง
 - เมนูแสดง **ตัวนับงานค้าง**: ประกันกลุ่ม = แจ้งออกทันทีค้าง (แดง), ชุดฟอร์ม = ค้างแจก (เหลือง)
 - ช่องค้นหาใน Topbar → Enter ไป `employees.html?q=…` · กด `/` เพื่อโฟกัส
@@ -1132,7 +1081,7 @@ grid.setRows(await api.listSites());
 | หน้า | ต่อหน้า | หมายเหตุ |
 |---|---|---|
 | พนักงาน | 25 | เลขหน้าเก็บใน URL (`?page=`) · เปลี่ยนตัวกรอง → กลับหน้า 1 |
-| ประกันกลุ่ม (แต่ละส่วน) / PVD / ชุดฟอร์ม | 25 | ประวัติ batch 10 · เปลี่ยนแท็บ → หน้า 1 |
+| ประกันกลุ่ม (แต่ละส่วน) / ชุดฟอร์ม | 25 | ประวัติ batch 10 · เปลี่ยนแท็บ → หน้า 1 |
 | ศูนย์ติดตามงาน: คิวงาน | 15 | |
 | ภาพรวม: จะครบสิทธิใน 30 วัน | 10 | |
 
@@ -1156,7 +1105,7 @@ Desktop  76–100 จาก 258 รายการ      ( « ‹ 1 … 3 [4] 5 �
 - เฟส 1 แบ่งหน้าฝั่งเบราว์เซอร์ (ข้อมูลหลักร้อยแถว) · ถ้าเกิน ~2,000 แถว ให้แบ่งหน้าฝั่ง PHP ในเฟส 2: `GET api/employees?page=1&pageSize=25` → `{ "data": [...], "meta": { "page": 1, "pageSize": 25, "total": 2480 } }`
 
 ### 10.8 Responsive, ความสูงพอดีจอ & Accessibility
-**Desktop (≥1024px) — สูงพอดีจอ:** หน้าต่างไม่เลื่อน · หน้ารายการ (ภาพรวม, ศูนย์ติดตามงาน, พนักงาน, PVD, ชุดฟอร์ม, หน่วยงาน) ให้ตารางยืดเต็มความสูงที่เหลือและเลื่อนภายใน (หัวตาราง/แถบแบ่งหน้าอยู่กับที่) · หน้าที่เนื้อหายาว (ประกันกลุ่ม, รายละเอียด, ฟอร์ม) เลื่อนภายในพื้นที่เนื้อหา · ทดสอบแล้วที่ 1440×900 และ 1366×768
+**Desktop (≥1024px) — สูงพอดีจอ:** หน้าต่างไม่เลื่อน · หน้ารายการ (ภาพรวม, ศูนย์ติดตามงาน, พนักงาน, ชุดฟอร์ม, หน่วยงาน) ให้ตารางยืดเต็มความสูงที่เหลือและเลื่อนภายใน (หัวตาราง/แถบแบ่งหน้าอยู่กับที่) · หน้าที่เนื้อหายาว (ประกันกลุ่ม, รายละเอียด, ฟอร์ม) เลื่อนภายในพื้นที่เนื้อหา · ทดสอบแล้วที่ 1440×900 และ 1366×768
 
 | Class | ใส่ที่ | ผล |
 |---|---|---|
@@ -1239,12 +1188,11 @@ employees: {
 | **ภาพรวม & ติดตามงาน — แท็บสรุป** | คำทักทาย + วันที่วันนี้ · Stat 4 ใบ: พนักงานปัจจุบัน, รอบแจ้งประกันถัดไป (เข้า/ออก), แจ้งออกทันทีค้าง, ชุดฟอร์มค้างแจก · กราฟแท่งพนักงานแยกบริษัท · "จะครบสิทธิใน 30 วัน" | Stat คลิกไปหน้าที่เกี่ยวข้อง · แจ้งออกทันทีค้าง > 0 → Alert แดงด้านบน + ปุ่ม "ไปส่งแจ้ง" |
 | **ภาพรวม & ติดตามงาน — แท็บคิวงาน / บันทึกกิจกรรม** (เดิม: ศูนย์ติดตามงาน) | Stat ด่วน/ต้องทำ/ติดตาม/กิจกรรมวันนี้ (คลิกกรอง) · คิวงาน (ระดับ, งาน, พนักงาน, กำหนด/เลยมา N วัน, ปุ่มไปดำเนินการ) กรองตามประเภท + ค้นหา · บันทึกกิจกรรม (ไทม์ไลน์ กรองตามประเภท, โหลดเพิ่ม) | รีเฟรชอัตโนมัติทุก 60 วิ (ปิดได้) + เมื่อกลับมาที่แท็บ · แสดงเวลาอัปเดตล่าสุด |
 | **พนักงาน** | **ช่องค้นหา** รหัส/ชื่อ + **แท็กกรองเร็ว** สถานะ / ประเภท / บริษัท (กลุ่มละ 1 ค่า แตะซ้ำ = ยกเลิก · ตัวเลขบนแท็ก = จำนวนที่จะได้ นับตามคำค้นและแท็กกลุ่มอื่น · "ล้างแท็ก" · เก็บใน URL `?q=&status=&type=&company=` · มือถือแท็กเป็นแถวเดียวปัดซ้าย-ขวา · กำหนดกลุ่มที่ `TAG_GROUPS` ใน `pages/employees.js`) · **ตาราง Excel = CRUD ทั้งหมด (ไม่มีฟอร์มเต็มแล้ว)** — คอลัมน์: รหัส ชื่อ นามสกุล บริษัท หน่วยงาน ประเภท ฝ่าย ระดับ ตำแหน่ง สัญญา วันเกิด วันเริ่มงาน ผ่านทดลองงาน · **ข้อมูลแจ้งประกัน** คำนำหน้า (เลือกแล้วเลือกเพศให้) เพศ เลขบัตร (ตรวจหลักสุดท้าย) โทร อีเมล · **สถานะ / เหตุผลพ้นสภาพ / ทำงานวันสุดท้าย / วันพ้นสภาพ** · **ไม่มีเงินเดือนในระบบ** (ไม่ต้องกรอก) · "+ เพิ่มแถว" · ปุ่มเปิดรายละเอียด / ลบ ท้ายแถว | ค้นหาแบบ debounce 250ms · ล้างตัวกรอง · บันทึกอัตโนมัติรายแถว · ลบต้องยืนยัน |
-| **รายละเอียดพนักงาน** | Header: Avatar, ชื่อ, รหัส, Badge สถานะ, ปุ่มแก้ไข · แถบข้อมูลย่อ (บริษัท, หน่วยงาน, ประเภท, สัญญา, อายุงาน) · การ์ดประกันกลุ่ม · การ์ด PVD · การ์ดชุดฟอร์ม (ตารางแต่ละรอบ + เลือกไซซ์ + "บันทึกแจก" + ยกเลิกการแจก) · **ประวัติการเปลี่ยนแปลง** | การ์ดสิทธิ = Badge ใหญ่ + timeline (เริ่มงาน → ครบสิทธิ → รอบแจ้งเข้า → แจ้งออก) · ไม่มีสิทธิ = แสดงเหตุผลเป็นข้อๆ |
+| **รายละเอียดพนักงาน** | Header: Avatar, ชื่อ, รหัส, Badge สถานะ, ปุ่มแก้ไข · แถบข้อมูลย่อ (บริษัท, หน่วยงาน, ประเภท, สัญญา, อายุงาน) · การ์ดประกันกลุ่ม · การ์ดชุดฟอร์ม (ตารางแต่ละรอบ + เลือกไซซ์ + "บันทึกแจก" + ยกเลิกการแจก) · **ประวัติการเปลี่ยนแปลง** | การ์ดสิทธิ = Badge ใหญ่ + timeline (เริ่มงาน → ครบสิทธิ → รอบแจ้งเข้า → แจ้งออก) · ไม่มีสิทธิ = แสดงเหตุผลเป็นข้อๆ |
 | **ประกันกลุ่ม** | เลือกรอบ (เดือนละ 2 รอบ: วันที่ 5 พนักงานทั่วไป · วันที่ 6 พนักงานรายวัน · ย้อนหลัง 6 / ล่วงหน้า 3 เดือน) · **แท็บ**: แจ้งออกทันที / แจ้งเข้า / แจ้งออก / ประวัติการส่งออก — ตัวเลขบนแท็บ = จำนวนยังไม่ส่งออก (แดง/ฟ้า/เหลือง) · คอลัมน์ "บริษัทประกัน" · **ไม่มีปุ่มส่งแจ้ง/checkbox** · ปุ่ม **"ส่งออกไฟล์แจ้งประกัน"** → modal: การ์ดต่อบริษัทประกัน (จำนวนเข้า/ออกต่อบริษัท, เลขกรมธรรม์, เตือนข้อมูลไม่ครบพร้อมลิงก์แก้, ดาวน์โหลด Excel / CSV) + ติ๊ก "บันทึกว่าแจ้งรอบนี้แล้ว" + เตือนบริษัทที่ยังไม่ผูกแบบฟอร์ม (ข้อ 7.4) · **แท็บประวัติการส่ง**: 1 แถว = ส่งออก 1 ครั้ง · คอลัมน์ "เข้า / ออก" (จำนวนแจ้งเข้า · แจ้งออกทันที · แจ้งออก) · คอลัมน์ "รายชื่อ" (2 ชื่อแรก + "+N" · ค้นหาชื่อที่หัวคอลัมน์ได้) · **คลิกแถว / "ดูรายชื่อ" → modal รายชื่อใน batch** (ประเภทแจ้งต่อแถว, รหัส-ชื่อ ลิงก์ไปหน้าพนักงาน, บริษัท·ประเภท, หน่วยงาน, วันครบสิทธิ/วันมีผล, เหตุผล · ค้นหาในรายชื่อเมื่อ > 5 ราย · ส่งออก CSV เฉพาะ batch · ยกเลิกการส่ง) · ลิงก์ตรง `?batch=<id>` · **ยกเลิก batch** · **คอลัมน์ "จัดการ" เป็นปุ่มไอคอน** (มี tooltip): ดูรายชื่อ · **ดาวน์โหลดไฟล์แจ้งประกันอีกครั้ง** (ไฟล์หาย — Excel ตามแบบฟอร์มปัจจุบัน รายชื่อเดิมของครั้งนั้น ไม่บันทึกประวัติซ้ำ · ไม่มีแบบฟอร์ม Excel → CSV · มีปุ่มเดียวกันใน modal รายชื่อ) · ยกเลิก | ตัวนับในหัว section · เลือกทั้งหมด · Modal ยืนยัน "ส่งแจ้งเข้า 5 ราย รอบ 5 พ.ย. 69?" · แถวที่ส่งแล้วแสดง Badge เขียว checkbox ปิด |
 | **แบบฟอร์มประกัน** (`insurers.html`, เมนูตั้งค่า) | **ภาพรวม**: ① การ์ดบริษัทประกัน (ไฟล์ Excel · ชีต · จำนวนคอลัมน์/ช่องที่เติม · ผู้อัปโหลด · บริษัทที่ผูก · แก้ไข / ดาวน์โหลดไฟล์ Excel) ② **ตาราง ExcelGrid** "บริษัทในเครือส่งแจ้งกับบริษัทประกันไหน" แบบเดียวกับหน้าอื่น (บริษัทในเครือ · ส่งแจ้งกับ [เลือก/ไม่ส่งแจ้ง + ป้ายเตือน ปิดอยู่/ยังไม่มีไฟล์] · เลขกรมธรรม์ · ผู้ถือกรมธรรม์ · แผน — แก้ในเซลล์ สีเหลือง = ยังไม่บันทึก · กดบันทึก) · **แก้แบบฟอร์ม** (`?id=`): หน้าเดียว — ซ้าย: ไฟล์ Excel ของบริษัทประกัน (ชื่อ/ชื่อย่อ + ลากวางไฟล์ · สรุปจุดที่ระบบเติม) + การตั้งค่า · ขวา: ตัวอย่างพร้อมข้อมูลสมมติ (อัปเดตเอง · เปิดใน Excel) | ยังไม่มีไฟล์ → กล่องขวาบอกให้อัปโหลดก่อน · เตือนไฟล์ .xls · แจ้งว่าล้างรายชื่อในไฟล์ก่อนเก็บ · มีงานค้างแล้วออก → ถามก่อน |
-| **PVD** | Stat: สมาชิก, หักสะสมรวม/เดือน, สมทบรวม/เดือน · ตารางสมาชิก (วันเป็นสมาชิก, เงินเดือน, หัก, สมทบ, อายุสมาชิก, vesting) · ส่งออก CSV | Alert เหลืองถ้า vesting เป็นค่าตัวอย่าง · vesting แสดงเป็น progress bar |
 | **ชุดฟอร์ม** | แท็บ "ค้างแจก" (เลือกไซซ์ + บันทึกแจกในแถว) / "ประวัติการแจก" · สรุปจำนวนตามแบบเสื้อ (วางแผนสั่งผลิต) | แถวเกินกำหนด > 30 วัน Badge แดง · บันทึกแล้วแถวหายพร้อม Toast |
-| **เงื่อนไขสวัสดิการ** | แท็บ: ประกันกลุ่ม / PVD / ชุดฟอร์ม / ค่าตั้งค่า (read-only ในเฟส 1) + รายการประเด็นที่รอยืนยันกับ HR | |
+| **เงื่อนไขสวัสดิการ** | แท็บ: ประกันกลุ่ม / ชุดฟอร์ม / ค่าตั้งค่า (read-only ในเฟส 1) + รายการประเด็นที่รอยืนยันกับ HR | |
 | **หน่วยงาน** | **ตาราง Excel**: บริษัท, ชื่อ, สวิตช์ประกันกลุ่ม, สีโปโล · "+ เพิ่มหน่วยงาน" · ลบท้ายแถว (ไม่มีคอลัมน์รหัส) | สีเพิ่ม/แก้ไข/ลบ + กดบันทึก · ลบได้เฉพาะที่ไม่มีพนักงาน |
 
 **ไฟล์ของแต่ละหน้า:** `web/<หน้า>.html` + `web/assets/js/pages/<หน้า>.js` (ภาพรวม = `index.html` + `dashboard.js`) — ดูตารางพารามิเตอร์ URL ที่ข้อ 5.3
@@ -1307,7 +1255,7 @@ declare(strict_types=1);
 
 use App\Http\{Router, Request, Response};
 use App\Controller\{DashboardController, CompanyController, SiteController, EmployeeController,
-    RuleController, InsuranceController, PvdController, UniformController};
+    RuleController, InsuranceController, UniformController};
 
 require __DIR__ . '/../vendor/autoload.php';
 Dotenv\Dotenv::createImmutable(dirname(__DIR__))->safeLoad();
@@ -1342,7 +1290,6 @@ $r->post('/api/insurers',                      [InsurerController::class, 'creat
 $r->put('/api/insurers/{id}',                  [InsurerController::class, 'update']);
 $r->delete('/api/insurers/{id}',               [InsurerController::class, 'delete']);
 $r->put('/api/insurers/bindings',              [InsurerController::class, 'bindings']);
-$r->get('/api/pvd/members',                   [PvdController::class, 'index']);
 $r->get('/api/uniform/issues',                [UniformController::class, 'issues']);
 $r->post('/api/uniform/issues',               [UniformController::class, 'issue']);
 $r->get('/api/uniform/pending',               [UniformController::class, 'pending']);
@@ -1424,7 +1371,7 @@ final class Database
 - ประกอบ dependency ที่ `public/index.php` (หรือ `Infrastructure/Container.php` แบบง่าย) ไม่ใช้ `new` ใน Controller/Service
 - **Prepared statements ทุก query** (ห้ามต่อ string SQL)
 - Repository แปลงแถว DB (`snake_case`) → array `camelCase` ตาม TypeScript type, `boolean` ต้องเป็น `true/false` ไม่ใช่ `0/1`, field JSON (`companies`, `items`, `deptGroups`) ต้อง `json_decode`
-- `Domain/Eligibility.php` แปลงจาก `web/assets/js/domain/insurance.js`, `pvd.js`, `uniform.js` แบบบรรทัดต่อบรรทัด · use-case ใน `Application/Service` แปลงจาก `application/usecases/*.js` ใช้ `DateTimeImmutable` + timezone UTC สำหรับคำนวณวัน
+- `Domain/Eligibility.php` แปลงจาก `web/assets/js/domain/insurance.js`, `uniform.js` แบบบรรทัดต่อบรรทัด · use-case ใน `Application/Service` แปลงจาก `application/usecases/*.js` ใช้ `DateTimeImmutable` + timezone UTC สำหรับคำนวณวัน
 - `submitInsuranceBatch`, `exportInsurance(record)` และ `createUniformIssue` ทำใน **transaction** และพึ่ง unique key กันซ้ำ
 - ตอบ 422 พร้อม `errors: {field: message}` เมื่อ validation ไม่ผ่าน (HttpApi ส่งต่อเป็น `ApiError.details`)
 - เขียน `audit_log` ทุกครั้งที่ create/update พนักงาน, ส่ง batch, แจกชุด
@@ -1498,21 +1445,6 @@ CREATE TABLE insurance_rules (
   note                    VARCHAR(255) NOT NULL DEFAULT '',
   effective_from          DATE NOT NULL DEFAULT '2026-01-01',
   effective_to            DATE NULL
-) ENGINE=InnoDB;
-
-CREATE TABLE pvd_rules (
-  id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  employee_type   ENUM('CENTRAL','PRO_SITE','DAILY','MAID_CNS') NOT NULL,
-  eligible        TINYINT(1) NOT NULL,
-  wait_days       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-  note            VARCHAR(255) NOT NULL DEFAULT '',
-  effective_from  DATE NOT NULL DEFAULT '2026-01-01',
-  effective_to    DATE NULL
-) ENGINE=InnoDB;
-
-CREATE TABLE pvd_vesting (
-  min_years  DECIMAL(4,1) PRIMARY KEY,
-  percent    DECIMAL(5,2) NOT NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE uniform_items (
@@ -1635,18 +1567,9 @@ INSERT INTO insurance_rules (employee_type, companies, wait_days, exclude_contra
  ('DAILY',    '["HL","AS"]',  120, '[]',               0, 'พนักงานรายวัน HL, AS'),
  ('MAID_CNS', '["CNS"]',      120, '[]',               1, 'เฉพาะหน่วยงานที่ระบุว่าได้รับประกันกลุ่ม');
 
-INSERT INTO pvd_rules (employee_type, eligible, wait_days, note) VALUES
- ('PRO_SITE', 1, 0,   'เป็นสมาชิกตั้งแต่วันแรก'),
- ('CENTRAL',  1, 120, 'เป็นสมาชิกเมื่อครบ 120 วัน'),
- ('MAID_CNS', 0, 0,   'แม่บ้าน CNS ไม่ได้รับกองทุนสำรองเลี้ยงชีพ'),
- ('DAILY',    0, 0,   'พนักงานรายวันทุกบริษัท ไม่ได้รับกองทุนสำรองเลี้ยงชีพ');
-
-INSERT INTO pvd_vesting VALUES (0,0),(3,50),(5,100);   -- ⚠️ ค่าตัวอย่าง
-
 INSERT INTO settings VALUES
  ('insuranceMaxAge','65'),('insuranceCycleDay','5'),('insuranceCycleDayDaily','6'),('absentExtraDays','7'),
- ('pvdEmployeeRate','2'),('pvdCompanyRate','2'),('uniformAnnualMonth','1'),
- ('pvdVestingIsPlaceholder','1');
+ ('uniformAnnualMonth','1');
 
 INSERT INTO uniform_items VALUES
  ('POLO_BLACK','โปโลสีดำ'),('POLO_NAVY','โปโลสีน้ำเงิน'),('TECH_SHIRT','เสื้อช่าง'),
@@ -1719,7 +1642,7 @@ npm test            # = node --test "tests/*.test.js"
 ```
 | ไฟล์ | ครอบคลุม |
 |---|---|
-| `tests/eligibility.test.js` | ประกันกลุ่ม (30/120 วัน, รอบวันที่ 5, สัญญา 3%, หน่วยงานไม่ได้ประกัน, อายุ 65/66, ขาดงาน +7, เลิกจ้าง urgent, ลาออกก่อนรอบ) · PVD (วันแรก, 120 วัน, 2%, vesting, กระทำผิด 0%) · ชุดฟอร์ม (rule 1/2/17/18, CIC ระดับ 7, โปโลสีตามหน่วยงาน, "2+1", ประจำปีย้อน 3 ปี) · seed |
+| `tests/eligibility.test.js` | ประกันกลุ่ม (30/120 วัน, รอบวันที่ 5, สัญญา 3%, หน่วยงานไม่ได้ประกัน, อายุ 65/66, ขาดงาน +7, เลิกจ้าง urgent, ลาออกก่อนรอบ) · ชุดฟอร์ม (rule 1/2/17/18, CIC ระดับ 7, โปโลสีตามหน่วยงาน, "2+1", ประจำปีย้อน 3 ปี) · seed |
 | `tests/mockApi.test.js` | 409 รหัสซ้ำ / ส่งซ้ำ / แจกซ้ำ / ลบที่มีประวัติ · 422 · 404 · CRUD หน่วยงาน · ยกเลิก batch/การแจก · บันทึกกิจกรรม · ลำดับคิวงาน |
 
 ตัวอย่าง:
@@ -1746,7 +1669,7 @@ describe('ประกันกลุ่ม', () => {
 - หน่วยงาน: เพิ่มแถวบันทึกอัตโนมัติ · สวิตช์บันทึกทันที · ลบหน่วยงานที่มีพนักงาน → ปฏิเสธพร้อมเหตุผล
 - ประกันกลุ่ม: เลือกทั้งหมด → ยืนยันส่ง → ยกเลิก batch
 - ชุดฟอร์ม: เลือกไซซ์ → บันทึกแจก
-- ฟอร์ม: แสดง error ใต้ช่อง · เปลี่ยนเป็น PRO / Pro Site → แสดงช่องตำแหน่ง → บันทึก → PVD เป็นสมาชิกวันแรก
+- ฟอร์ม: แสดง error ใต้ช่อง · เปลี่ยนเป็น PRO / Pro Site → แสดงช่องตำแหน่ง
 - ศูนย์ติดตามงาน: กรองระดับ "ด่วน" · บันทึกกิจกรรมแสดงสิ่งที่เพิ่งทำ
 - มือถือ 390px: ตารางเป็นการ์ด ไม่มี scroll แนวนอน · เมนูด้านล่าง + "เพิ่มเติม" เปิด drawer · โหมดมืดจำค่าข้ามหน้า
 - มือถือ 360–767px: ช่องค้นหาชิดโลโก้ (ห่าง 10px) ยืดถึงปุ่มด้านขวา · เมนูล่าง 5 ปุ่มกว้างเท่ากัน · แถบปุ่มฟอร์มอยู่เหนือเมนูล่างพอดี · เนื้อหาไม่ถูกบัง
@@ -1767,7 +1690,7 @@ describe('ประกันกลุ่ม', () => {
 - [x] MockApi (localStorage, seed + edge cases, บันทึกกิจกรรม) + HttpApi (พร้อมใช้เฟส 2) + `config.js`
 - [x] `app.css` design tokens (โทนสว่าง + โหมดมืด) + responsive (มือถือ/แท็บเล็ต)
 - [x] UI: DataTable (แบ่งหน้า + การ์ดมือถือ), ExcelGrid, Combobox (`<select data-combobox>`), Modal/Toast/confirm, ไอคอน SVG ในตัว
-- [x] 10 หน้า: ภาพรวม, ศูนย์ติดตามงาน, พนักงาน, รายละเอียด, ฟอร์ม, ประกันกลุ่ม, PVD, ชุดฟอร์ม, เงื่อนไข, หน่วยงาน
+- [x] 10 หน้า: ภาพรวม, ศูนย์ติดตามงาน, พนักงาน, รายละเอียด, ฟอร์ม, ประกันกลุ่ม, PVD (ตัดออกภายหลัง), ชุดฟอร์ม, เงื่อนไข, หน่วยงาน
 - [x] CRUD ครบ (พนักงาน/หน่วยงาน ลบได้ตามเงื่อนไข, ยกเลิก batch/การแจก)
 - [x] ทดสอบการใช้งานจริงด้วย headless Chrome ผ่าน Apache 2.2 ในเครื่อง 17/17
 - [x] Desktop สูงพอดีจอ (`page fit` / `fill` / `fill-body`)
@@ -1821,7 +1744,6 @@ describe('ประกันกลุ่ม', () => {
 - [ ] อายุ 65 ตรวจเฉพาะตอนแจ้งเข้า หรือต้องแจ้งออกเมื่ออายุครบ 65 ระหว่างเป็นสมาชิกด้วย?
 - [ ] ขาดงาน 3 วันแล้วกลับมาทำงาน → แจ้งเข้าใหม่ + นับอายุงานใหม่ไหม?
 - [ ] พนักงานรายวัน CNS / CIC / PRO ได้ประกันกลุ่มไหม (ไฟล์ระบุแค่ HL, AS)?
-- [ ] PVD: ตาราง vesting จริง และนิยาม "ลาออกถูกต้องตามระเบียบ"
 - [ ] ชุดฟอร์มส่วนกลาง: ช่อง "วันเริ่มงาน" ว่าง = ไม่ได้จนกว่าจะผ่านทดลองงาน ใช่ไหม?
 - [ ] ช่างทีมโมบาย "2+1" = ชุดช่าง 2 + โปโล 1 ใช่ไหม?
 - [ ] แจกชุดประจำปีเดือนไหน และต้องทำงานครบกี่เดือนก่อนรอบแจก?

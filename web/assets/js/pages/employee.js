@@ -17,7 +17,7 @@ import {
   UNIFORM_EVENT_LABEL,
   UNIFORM_ITEM_LABEL,
 } from '../shared/labels.js';
-import { alertBox, avatar, badge, card, emptyState, errorState, infoList, progress } from '../ui/components.js';
+import { alertBox, avatar, badge, card, emptyState, errorState, infoList } from '../ui/components.js';
 import { confirmAction } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 import { activityFeed, enhanceIssueActions, issueAction, wireIssueActions } from './_shared.js';
@@ -63,36 +63,6 @@ function insuranceCard(emp, st) {
       </div>`
     : reasons(st.reasons);
   return card({ title: 'ประกันกลุ่ม', iconName: 'shield-plus', actions: b, body });
-}
-
-function pvdCard(st, settings) {
-  const joined = st.memberYears !== null;
-  const b = !st.eligible
-    ? badge('ไม่มีสิทธิ', 'danger', { lg: true })
-    : joined
-      ? badge('เป็นสมาชิก', 'success', { lg: true })
-      : badge('รอครบสิทธิ', 'info', { lg: true });
-  const body = !st.eligible
-    ? reasons(st.reasons)
-    : html`<div style="display:grid;gap:20px">
-        ${infoList(
-          [
-            { label: 'วันเป็นสมาชิก', value: thaiDate(st.joinDate) },
-            { label: 'อายุสมาชิก', value: joined ? `${st.memberYears} ปี` : '–' },
-            { label: `พนักงานหัก ${settings.pvdEmployeeRate}%`, value: html`<span class="num">${money(st.employeeMonthly)} ฿/เดือน</span>` },
-            { label: `บริษัทสมทบ ${settings.pvdCompanyRate}%`, value: html`<span class="num">${money(st.companyMonthly)} ฿/เดือน</span>` },
-          ],
-          2,
-        )}
-        ${st.vestingPercent !== null
-          ? html`<div>
-              <div class="row between small" style="margin-bottom:6px"><span class="muted">สิทธิในเงินสมทบ (vesting)</span><b class="num">${st.vestingPercent}%</b></div>
-              ${progress(st.vestingPercent, st.vestingPercent >= 100 ? 'success' : '')}
-              ${settings.pvdVestingIsPlaceholder ? html`<p class="small" style="margin-top:6px;color:var(--warning)">ตาราง vesting เป็นค่าตัวอย่าง รอ HR ยืนยัน</p>` : ''}
-            </div>`
-          : ''}
-      </div>`;
-  return card({ title: 'กองทุนสำรองเลี้ยงชีพ', iconName: 'piggy-bank', actions: b, body });
 }
 
 function renderUniform(emp, st) {
@@ -183,7 +153,6 @@ async function load() {
       ]),
     );
     render($('#insurance'), insuranceCard(e, b.insurance));
-    render($('#pvd'), pvdCard(b.pvd, rules.settings));
     renderUniform(e, b.uniform);
     render($('#activity'), activityFeed(activity, { linkEmployee: false }));
   } catch (err) {

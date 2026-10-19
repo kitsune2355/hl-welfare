@@ -3,7 +3,7 @@ import { api } from '../app/api.js';
 import { initPage } from '../app/shell.js';
 import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { CONTRACT_LABEL, EMPLOYEE_TYPE_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
-import { alertBox, badge, card, errorState, infoList, tabs } from '../ui/components.js';
+import { badge, card, errorState, infoList, tabs } from '../ui/components.js';
 import { DataTable } from '../ui/table.js';
 
 initPage('rules');
@@ -26,7 +26,6 @@ function draw() {
     tabs(
       [
         { value: 'insurance', label: 'ประกันกลุ่ม' },
-        { value: 'pvd', label: 'กองทุนสำรองฯ' },
         { value: 'uniform', label: 'ชุดฟอร์ม' },
         { value: 'settings', label: 'ค่าตั้งค่า' },
         { value: 'open', label: 'รอ HR ยืนยัน', count: questionCount },
@@ -54,32 +53,6 @@ function draw() {
       },
       { key: 'n', header: 'หมายเหตุ', hideOnMobile: true, cell: (x) => html`<span class="muted">${x.note}</span>` },
     ]);
-  } else if (tab === 'pvd') {
-    render(
-      $('#content'),
-      html`<div class="grid grid-3">
-        ${card({ title: 'สิทธิสมาชิก', padded: false, cls: 'span-2', body: raw('<div id="t"></div>') })}
-        ${card({
-          title: 'Vesting',
-          description: '% สิทธิในเงินสมทบตามอายุสมาชิก',
-          body: html`${s.pvdVestingIsPlaceholder ? html`<div class="mb">${alertBox({ tone: 'warning', body: 'ค่าตัวอย่าง — รอ HR ยืนยัน' })}</div>` : ''}
-            <ul class="summary-list">
-              ${s.pvdVesting.map((v) => html`<li style="padding:8px 0"><span class="muted">ตั้งแต่ ${v.minYears} ปี</span><b class="num">${v.percent}%</b></li>`)}
-            </ul>
-            <p class="small muted" style="margin-top:12px">กระทำผิด / ขาดงาน 3 วัน → 0%</p>`,
-        })}
-      </div>`,
-    );
-    new DataTable($('#t'), {
-      rowKey: (r) => r.id,
-      rowNumbers: false,
-      columns: [
-        { key: 't', header: 'ประเภท', cell: (x) => html`<b style="font-weight:500">${EMPLOYEE_TYPE_LABEL[x.employeeType]}</b>` },
-        { key: 'e', header: 'สิทธิ', cell: (x) => (x.eligible ? badge('ได้รับ', 'success') : badge('ไม่ได้รับ', 'danger')) },
-        { key: 'w', header: 'รอ (วัน)', align: 'right', cell: (x) => (x.eligible ? (x.waitDays === 0 ? 'วันแรก' : x.waitDays) : '–') },
-        { key: 'n', header: 'หมายเหตุ', hideOnMobile: true, cell: (x) => html`<span class="muted">${x.note}</span>` },
-      ],
-    }).setRows(rules.pvd);
   } else if (tab === 'uniform') {
     tableCard(rules.uniform, [
       { key: 'id', header: '#', cell: (x) => html`<span class="muted">${x.id}</span>` },
@@ -110,8 +83,6 @@ function draw() {
             { label: 'อายุสูงสุดประกันกลุ่ม', value: `${s.insuranceMaxAge} ปี` },
             { label: 'วันที่รอบแจ้งประกัน', value: `ทุกวันที่ ${s.insuranceCycleDay}${s.insuranceCycleDayDaily && s.insuranceCycleDayDaily !== s.insuranceCycleDay ? ` · พนักงานรายวันทุกวันที่ ${s.insuranceCycleDayDaily}` : ''}` },
             { label: 'ขาดงาน 3 วัน: วันออก', value: `วันทำงานสุดท้าย + ${s.absentExtraDays} วัน` },
-            { label: 'PVD พนักงานหัก', value: `${s.pvdEmployeeRate}%` },
-            { label: 'PVD บริษัทสมทบ', value: `${s.pvdCompanyRate}%` },
             { label: 'เดือนแจกชุดประจำปี', value: `1 ${MONTHS[s.uniformAnnualMonth - 1]}` },
           ],
           3,

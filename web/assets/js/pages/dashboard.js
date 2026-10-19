@@ -75,7 +75,6 @@ const upcoming = new DataTable($('#upcoming'), {
   pageSize: 10,
   columns: [
     { key: 'emp', header: 'พนักงาน', text: (r) => `${r.employee.firstName} ${r.employee.lastName}`, cell: (r) => employeeCell(r.employee, { link: true }) },
-    { key: 'benefit', header: 'สิทธิ', mobile: 'aside', cell: (r) => (r.benefit === 'INSURANCE' ? badge('ประกันกลุ่ม', 'info') : badge('PVD', 'primary')) },
     {
       key: 'date',
       header: 'วันที่ครบ',
