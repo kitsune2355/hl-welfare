@@ -150,7 +150,7 @@ export class DataTable {
    * @param {HTMLElement} root
    * @param {{columns: {key:string, header:string, cell:(row:any)=>any, align?:'left'|'right'|'center', cls?:string,
    *   hideOnMobile?: boolean, mobile?: 'lead'|'title'|'aside'|'field'|'footer',
-   *   filter?: boolean, text?: (row:any)=>string, sort?: (row:any)=>any}[], rowKey:(row:any)=>any,
+   *   filter?: boolean, export?: boolean, text?: (row:any)=>string, sort?: (row:any)=>any}[], rowKey:(row:any)=>any,
    *   onRowClick?: (row:any)=>void, empty?: any, pageSize?: number, page?: number, onPageChange?: (p:number)=>void,
    *   rowNumbers?: boolean, rowClass?: (row:any)=>string, onRender?: (root: HTMLElement)=>void,
    *   exportable?: boolean, exportName?: string}} opts
@@ -181,7 +181,7 @@ export class DataTable {
     // ส่งออก Excel: คอลัมน์ที่มีชื่อหัว (ไม่รวมคอลัมน์ปุ่ม) · ทุกแถวตามตัวกรอง/การเรียง
     wireExport(root, () => ({
       name: this.o.exportName,
-      columns: this.o.columns.filter((c) => typeof c.header === 'string' && c.header !== '').map((c) => ({ header: c.header, text: (r) => this.textOf(r, c.key) })),
+      columns: this.o.columns.filter((c) => typeof c.header === 'string' && c.header !== '' && c.export !== false).map((c) => ({ header: c.header, text: (r) => this.textOf(r, c.key) })),
       rows: this.filtered(),
     }));
     this.render();

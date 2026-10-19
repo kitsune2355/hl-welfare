@@ -1,6 +1,7 @@
 // ส่งออกไฟล์แจ้งเข้า-ออกประกันกลุ่ม ตามแบบฟอร์มของบริษัทประกัน (แทนปุ่ม "ส่งแจ้ง")
 //
 //   1) buildInsurerExport — ใครอยู่ในไฟล์รอบนี้ (ฝั่ง server ทำแบบเดียวกันในเฟส 2)
+//      buildBatchExport   — ไฟล์ของการส่งออกครั้งที่ผ่านมา (ดาวน์โหลดซ้ำจากประวัติ)
 //   2) cellValue          — ค่าในเซลล์ของแต่ละคอลัมน์ (ใช้ตอนเติมลงไฟล์แบบฟอร์ม Excel — app/excelTemplate.js)
 //   3) exportCsvRows      — ตารางเดียวสำหรับ CSV
 //
@@ -31,6 +32,34 @@ export function buildInsurerExport({ cycleDate, insurer, employees, sites, rules
     })
     .map((r) => ({ ...r, employee: { ...r.employee, siteName: siteById.get(r.employee.siteId)?.name ?? '' } }));
 
+  return { ...exportData(cycleDate, insurer, rows, companyName, insurer.companies), alreadyExported: rows.filter((r) => r.submitted).length };
+}
+
+/**
+ * ไฟล์แจ้งบริษัทประกันของการส่งออกครั้งที่ผ่านมา (ประวัติ) — ใช้ดาวน์โหลดซ้ำเมื่อไฟล์หาย
+ * = รายชื่อเฉพาะใน batch นั้น (ไม่รวมที่เพิ่มขึ้นทีหลัง) · ไม่บันทึกอะไรเพิ่ม
+ * ข้อมูลพนักงาน/การผูกบริษัท/แบบฟอร์ม = ปัจจุบัน (บริษัทที่เลิกผูกแล้วแต่มีรายชื่อใน batch ยังได้ชีตของตัวเอง)
+ */
+export function buildBatchExport({ batch, insurer, employees, sites, rules, batches, companies = [] }) {
+  const cycleRow = new Map(buildInsuranceCycle(batch.cycleDate, employees, sites, rules, batches).rows.map((r) => [`${r.employee.id}|${directionOf(r.type)}`, r]));
+  const empById = new Map(employees.map((e) => [e.id, e]));
+  const siteById = new Map(sites.map((s) => [s.id, s]));
+  const companyName = new Map(companies.map((c) => [c.code, c.legalName ?? c.name]));
+  const rows = batch.items
+    .filter((it) => empById.has(it.employeeId))
+    .map(({ employeeId, type }) => {
+      const e = empById.get(employeeId);
+      const r = cycleRow.get(`${employeeId}|${directionOf(type)}`);
+      return { type, employee: { ...e, siteName: siteById.get(e.siteId)?.name ?? '' }, effectiveDate: r?.effectiveDate ?? null, reason: r?.reason ?? '', submitted: true };
+    });
+  const bound = new Set(insurer.companies.map((c) => c.companyCode));
+  const extra = [...new Set(rows.map((r) => r.employee.companyCode))].filter((c) => !bound.has(c)).sort();
+  const cos = [...insurer.companies, ...extra.map((companyCode) => ({ companyCode, policyNo: '', holderName: '', plan: '' }))];
+  return { ...exportData(batch.cycleDate, insurer, rows, companyName, cos), batchId: batch.id, alreadyExported: rows.length };
+}
+
+/** รายชื่อ → ข้อมูลไฟล์: แยกตามบริษัทในเครือ (ชีตละบริษัท) + รายการที่ข้อมูลไม่ครบ */
+function exportData(cycleDate, insurer, rows, companyName, cos) {
   const needs = requiredEmployeeFields(insurer);
   const missing = rows
     .filter((r) => r.type === 'IN') // ข้อมูลส่วนตัวใช้เฉพาะแถวเข้าใหม่
@@ -40,7 +69,7 @@ export function buildInsurerExport({ cycleDate, insurer, employees, sites, rules
   return {
     cycleDate,
     insurer,
-    companies: insurer.companies.map((c) => {
+    companies: cos.map((c) => {
       const mine = rows.filter((r) => r.employee.companyCode === c.companyCode);
       return {
         ...c,
@@ -50,7 +79,6 @@ export function buildInsurerExport({ cycleDate, insurer, employees, sites, rules
       };
     }),
     missing,
-    alreadyExported: rows.filter((r) => r.submitted).length,
   };
 }
 

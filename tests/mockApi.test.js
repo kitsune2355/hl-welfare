@@ -172,3 +172,21 @@ describe('รอบแจ้งประกัน: พนักงานรา�
     expect(benefits.insurance.enrollCycleDate).toBe('2026-11-06'); // รอบแจ้งของพนักงานรายวันเป็นวันที่ 6
   });
 });
+
+describe('ประวัติการส่งออก: ดาวน์โหลดไฟล์แจ้งประกันอีกครั้ง', () => {
+  it('ได้รายชื่อเดิมของครั้งนั้น · ไม่บันทึกซ้ำ · ลบแบบฟอร์มแล้ว → 404', async () => {
+    const api = make();
+    await api.exportInsurance({ cycleDate: '2026-11-05', insurerId: 1, record: true });
+    const before = await api.listInsuranceBatches();
+    const b = before.find((x) => x.insurerId === 1 && x.cycleDate === '2026-11-05');
+    const d = await api.exportInsuranceBatch(b.id);
+    const ids = d.companies.flatMap((c) => [...c.in, ...c.out]).map((r) => `${r.employee.id}|${r.type}`).sort();
+    expect(ids).toEqual(b.items.map((i) => `${i.employeeId}|${i.type}`).sort());
+    expect(d.batchId).toBe(b.id);
+    expect(d.insurer.id).toBe(1);
+    expect(d.companies.flatMap((c) => c.in).every((r) => r.employee.nationalId !== undefined)).toBe(true);
+    expect((await api.listInsuranceBatches()).length).toBe(before.length);
+    await api.deleteInsurer(1);
+    await expect(api.exportInsuranceBatch(b.id)).rejects.toMatchObject({ status: 404 });
+  });
+});

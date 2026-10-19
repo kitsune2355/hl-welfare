@@ -1,7 +1,7 @@
 import { ApiError } from '../../application/errors.js';
 import { buildDashboard } from '../../application/usecases/dashboard.js';
 import { batchCounts, batchIds, buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex } from '../../application/usecases/insuranceCycle.js';
-import { buildInsurerExport } from '../../application/usecases/insurerExport.js';
+import { buildBatchExport, buildInsurerExport } from '../../application/usecases/insurerExport.js';
 import { buildUniformPending } from '../../application/usecases/uniformPending.js';
 import { validateBindings, validateInsurerForm } from '../../application/insurerFormRules.js';
 import { buildWorkQueue } from '../../application/usecases/workQueue.js';
@@ -260,6 +260,17 @@ export class MockApi {
       return [...this.db.batches]
         .sort((a, b) => b.id - a.id)
         .map((b) => ({ ...b, employees: batchIds(b).map((id) => byId.get(id)).filter(Boolean).map(employeeLite) }));
+    });
+  }
+  /** ไฟล์แจ้งบริษัทประกันของการส่งออกครั้งที่ผ่านมา (ดาวน์โหลดซ้ำ — ไม่บันทึกอะไรเพิ่ม) */
+  exportInsuranceBatch(id) {
+    return this.run(() => {
+      const batch = this.db.batches.find((x) => x.id === id);
+      if (!batch) throw new ApiError('ไม่พบรายการส่งออก', 404);
+      const insurer = this.db.insurers.find((x) => x.id === batch.insurerId);
+      if (!insurer) throw new ApiError(`ไม่พบแบบฟอร์มของ${batch.insurerName ?? 'บริษัทประกัน'}แล้ว — ดาวน์โหลดเป็น CSV จากหน้ารายชื่อแทน`, 404);
+      const { employees, sites, rules, batches, companies } = this.db;
+      return buildBatchExport({ batch, insurer, employees, sites, rules, batches, companies });
     });
   }
   getInsuranceBatch(id) {

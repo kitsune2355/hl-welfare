@@ -85,6 +85,9 @@ export class HttpApi {
   getInsuranceBatch(id) {
     return this.req(`/insurance/batches/${id}`);
   }
+  exportInsuranceBatch(id) {
+    return this.req(`/insurance/batches/${id}/export`);
+  }
   // ---------- แบบฟอร์มบริษัทประกัน + ส่งออกไฟล์ ----------
   listInsurers() {
     return this.req('/insurers');

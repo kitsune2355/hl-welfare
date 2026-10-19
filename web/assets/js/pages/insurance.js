@@ -1,5 +1,6 @@
 // หน้า: ประกันกลุ่ม (insurance.html?cycle=&tab=)
 // แท็บ: แจ้งออกทันที / แจ้งเข้า / แจ้งออก (ตัวเลข = ยังไม่ส่งออก) / ประวัติการส่งออก (คลิกแถว = ดูรายชื่อ · ลิงก์ตรง ?batch=)
+//   ประวัติ: ปุ่มไอคอน ดูรายชื่อ · ดาวน์โหลดไฟล์แจ้งประกันอีกครั้ง (ไฟล์หาย — รายชื่อเดิมของครั้งนั้น ไม่บันทึกซ้ำ) · ยกเลิก
 // ไม่มีปุ่ม "ส่งแจ้ง" — HR กด "ส่งออกไฟล์แจ้งประกัน" ทุกรอบ ได้ไฟล์ Excel ตามแบบฟอร์มของแต่ละบริษัทประกัน (ตั้งค่าที่ insurers.html)
 import { api } from '../app/api.js';
 import { initPage, refreshCounts } from '../app/shell.js';
@@ -89,7 +90,7 @@ render(
           <span class="card-icon">${raw(icon('history'))}</span>
           <div>
             <h2>ประวัติการส่งออก</h2>
-            <p>ทุกครั้งที่ส่งออกไฟล์แบบ “บันทึกว่าแจ้งแล้ว” · ส่งออกผิด? กด “ยกเลิก” แล้วรายชื่อจะกลับไปรอส่งออก</p>
+            <p>ทุกครั้งที่ส่งออกไฟล์แบบ “บันทึกว่าแจ้งแล้ว” · ไฟล์หาย? กดไอคอนดาวน์โหลดเพื่อรับไฟล์เดิมอีกครั้ง · ส่งออกผิด? กดไอคอนยกเลิก แล้วรายชื่อจะกลับไปรอส่งออก</p>
           </div>
         </div>
       </header>
@@ -186,11 +187,16 @@ const batchTable = new DataTable($('#batches'), {
     { key: 'by', header: 'โดย', hideOnMobile: true, cell: (b) => html`<span class="muted">${b.submittedBy}</span>` },
     {
       key: 'actions',
-      header: '',
+      header: 'จัดการ',
       align: 'right',
-      cell: (b) => html`<span class="row-actions">
-        <button class="btn btn-ghost btn-sm" data-open-batch="${b.id}">${raw(icon('users'))} ดูรายชื่อ</button>
-        <button class="btn btn-ghost btn-sm" data-cancel-batch="${b.id}">${raw(icon('undo-2'))} ยกเลิก</button>
+      cls: 'icon-actions',
+      mobile: 'footer',
+      filter: false,
+      export: false, // ปุ่มไม่ต้องอยู่ในไฟล์ Excel ของตาราง
+      cell: (b) => html`<span class="row-actions icons">
+        <button class="btn-icon sm" data-open-batch="${b.id}" title="ดูรายชื่อ" aria-label="ดูรายชื่อ #${b.id}">${raw(icon('users'))}</button>
+        <button class="btn-icon sm" data-download-batch="${b.id}" title="ดาวน์โหลดไฟล์แจ้งประกันอีกครั้ง" aria-label="ดาวน์โหลดไฟล์แจ้งประกัน #${b.id}">${raw(icon('download'))}</button>
+        <button class="btn-icon sm danger" data-cancel-batch="${b.id}" title="ยกเลิกการส่งออก" aria-label="ยกเลิกการส่งออก #${b.id}">${raw(icon('undo-2'))}</button>
       </span>`,
     },
   ],
@@ -251,7 +257,8 @@ async function openBatch(id) {
     description: b ? `รอบ ${thaiDate(b.cycleDate)} · ส่งออกเมื่อ ${thaiDateTime(b.submittedAt)} โดย ${b.submittedBy}` : '',
     body: html`<div data-batch-body>${loader({ text: 'กำลังโหลดรายชื่อ' })}</div>`,
     footer: html`<button class="btn btn-ghost danger-text foot-start" data-batch-cancel disabled>${raw(icon('undo-2'))} ยกเลิกการส่งออก</button>
-      <button class="btn" data-batch-csv disabled>${raw(icon('download'))} ส่งออก CSV</button>
+      <button class="btn" data-batch-csv disabled>CSV</button>
+      <button class="btn" data-batch-file disabled data-label="กำลังสร้างไฟล์">${raw(icon('download'))} ไฟล์แจ้งประกัน</button>
       <button class="btn btn-primary" data-close>ปิด</button>`,
     onClose: () => setParams({ batch: '' }),
   });
@@ -291,6 +298,9 @@ async function openBatch(id) {
   const csvBtn = m.el.querySelector('[data-batch-csv]');
   csvBtn.disabled = false;
   csvBtn.onclick = () => batchCsv(d);
+  const fileBtn = m.el.querySelector('[data-batch-file]');
+  fileBtn.disabled = false;
+  fileBtn.onclick = () => downloadBatchFile(d, fileBtn);
   const cancelBtn = m.el.querySelector('[data-batch-cancel]');
   cancelBtn.disabled = false;
   cancelBtn.onclick = () => {
@@ -359,7 +369,26 @@ on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
 
 const sections = $('#sections');
 on(sections, 'click', '[data-open-batch]', (_e, btn) => openBatch(Number(btn.dataset.openBatch)));
+on(sections, 'click', '[data-download-batch]', (_e, btn) => downloadBatchFile(batches.find((x) => x.id === Number(btn.dataset.downloadBatch)), btn));
 on(sections, 'click', '[data-cancel-batch]', (_e, btn) => cancelBatch(batches.find((x) => x.id === Number(btn.dataset.cancelBatch))));
+
+/** ไฟล์แจ้งประกันของการส่งออกครั้งนั้นอีกครั้ง (ไฟล์หาย) — รายชื่อเดิม · ไม่บันทึกประวัติซ้ำ · ไม่มีแบบฟอร์ม Excel → CSV */
+function downloadBatchFile(b, btn) {
+  return busy(btn, async () => {
+    const d = await api.exportInsuranceBatch(b.id);
+    const name = exportFileName(d.insurer, d.cycleDate);
+    const excel = !!d.insurer.template;
+    if (excel) {
+      const out = await progress.track(templateBuffer(d.insurer.template).then((buf) => fillTemplate(buf, d, { exportDate: today })));
+      downloadBlob(new Blob([out], { type: XLSX_MIME }), `${name}.xlsx`);
+    } else {
+      const csv = exportCsvRows(d);
+      downloadCsv(`${name}.csv`, csv.header, csv.rows);
+    }
+    const n = countOf(d);
+    toast.success(`ดาวน์โหลดไฟล์ส่งออก #${b.id} อีกครั้ง${excel ? '' : ' (CSV — ยังไม่มีแบบฟอร์ม Excel)'} — เข้า ${n.in} · ออก ${n.out} ราย`);
+  }).catch((e) => toast.error(errorMessage(e)));
+}
 
 function cancelBatch(b) {
   confirmAction({
