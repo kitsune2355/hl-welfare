@@ -642,7 +642,9 @@ export class ExcelGrid {
               const cls = [editable ? 'editable' : col.editor ? 'locked' : 'muted', err ? 'invalid' : '', isActive ? 'active' : '', changed ? 'changed' : ''].join(' ') + pinCls(col);
               let content;
               if (col.editor === 'switch') {
-                content = html`<span class="switch sm" aria-checked="${!!col.value(entry.row)}" aria-hidden="true"></span>`;
+                // แสดงเป็น checkbox (ชื่อ editor 'switch' คงไว้ให้หน้าที่เรียกใช้อยู่) — คลิกที่เซลล์คือสลับค่า
+                // pointer-events: none กันคลิกที่ตัว checkbox สลับซ้ำกับตัวจัดการคลิกของเซลล์
+                content = html`<input type="checkbox" class="grid-check" tabindex="-1" aria-hidden="true" style="width:18px;height:18px;margin:0;pointer-events:none" ${col.value(entry.row) ? raw('checked') : ''} ${editable ? '' : raw('disabled')} />`;
               } else if (col.display) {
                 content = col.display(entry.row);
               } else {
