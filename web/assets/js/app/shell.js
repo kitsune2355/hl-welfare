@@ -5,7 +5,7 @@
 import { html, raw } from '../shared/dom.js';
 import { hydrateIcons, icon } from '../shared/icons.js';
 import { enhanceSelects } from '../ui/combobox.js';
-import { avatar, badge } from '../ui/components.js';
+import { avatar } from '../ui/components.js';
 import { toast } from '../ui/overlay.js';
 import { API_MODE, api } from './api.js';
 import { isAuthEnabled, logout, requireSession } from './auth.js';
@@ -109,7 +109,6 @@ export function initPage(active, { tour = active } = {}) {
       ${SETTINGS.map((m) => navLink(m, active))}
     </nav>
     <div class="sidebar-foot">
-      <div class="row">แหล่งข้อมูล ${API_MODE === 'mock' ? badge('Mock data', 'warning') : badge('API', 'success')}</div>
       ${API_MODE === 'mock' ? html`<button class="reset-btn" id="reset-btn">${raw(icon('rotate-ccw'))} รีเซ็ตข้อมูลจำลอง</button>` : ''}
       <!-- ผู้ใช้ที่เข้าสู่ระบบ — ยึดล่างสุดของ sidebar -->
       <div class="sidebar-user" title="${user.name} · ${user.role}">
