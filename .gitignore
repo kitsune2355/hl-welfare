@@ -4,3 +4,7 @@ node_modules/
 
 # ค่าเชื่อมต่อระบบสต็อก Uniform (มีกุญแจลับ) — คัดลอกจาก stock_bridge.config.example.php
 web/api/stock_bridge.config.php
+
+# backend: ค่าตั้ง/ความลับ + composer
+backend/.env
+backend/vendor/

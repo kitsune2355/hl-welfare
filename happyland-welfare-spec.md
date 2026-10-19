@@ -29,6 +29,7 @@
 15. [การทดสอบ](#15-การทดสอบ)
 16. [Checklist](#16-checklist)
 17. [ประเด็นที่ต้องยืนยันกับ HR](#17-ประเด็นที่ต้องยืนยันกับ-hr)
+18. [ประเด็นเปิด — การเข้าสู่ระบบ](#18-ประเด็นเปิด--การเข้าสู่ระบบ-ต้องตัดสินใจ)
 
 ---
 
@@ -745,7 +746,7 @@ export interface WelfareApi {
   cancelUniformIssue(id: number): Promise<void>;         // กลับเป็น "ค้างแจก"
 
   // ----- เข้าสู่ระบบ -----
-  login(username: string, password: string): Promise<{ username: string; name: string; role: string }>; // 401 ถ้าไม่ถูกต้อง
+  login(username: string, password: string, remember?: boolean): Promise<AuthUser>; // 401 ถ้าไม่ถูกต้อง · 429 ผิดหลายครั้ง
   logout(): Promise<void>;
   setActor(name: string): void;                          // mock: ชื่อที่บันทึกในกิจกรรม
 
@@ -802,9 +803,12 @@ export interface WelfareApi {
 | DELETE | `/api/employees/{id}` | – | 204 / 409 |
 | DELETE | `/api/insurance/batches/{id}` | – | 204 |
 | DELETE | `/api/uniform/issues/{id}` | – | 204 |
-| POST | `/api/auth/login` | `{username, password}` | `{username, name, role}` + ตั้ง session cookie (401 ถ้าผิด) |
-| POST | `/api/auth/logout` | – | 204 |
-| GET | `/api/auth/me` | – | ผู้ใช้ปัจจุบัน หรือ 401 |
+| POST | `/api/auth/login` | `{username, password, remember}` | `AuthUser` + session cookie (+ refresh cookie เมื่อ `remember`) · 401 ผิด · 429 ผิดหลายครั้ง (ข้อ 10.9.1) |
+| POST | `/api/auth/refresh` | – (refresh cookie) | `AuthUser` + session ใหม่ + refresh cookie ตัวใหม่ · 401 `{code}` · 409 `REFRESH_RACE` |
+| POST | `/api/auth/logout` | – | 204 (เพิกถอนโทเคน ลบ cookie) |
+| GET | `/api/auth/me` | – | `AuthUser` หรือ 401 |
+| POST | `/api/auth/password` | `{currentPassword, newPassword}` | `AuthUser` · เพิกถอนทุกโทเคน + session เครื่องอื่น · 422 |
+| POST | `/api/stock/bridge` | `{action: catalog\|submit\|status\|cancel, …}` | ตอบ `{ok, message, …}` ตาม stock_hr (ไม่ห่อ `data`) · submit/cancel ต้องเป็น HR_ADMIN/HR_COMPANY (403) · ผู้ขอเบิกจาก session |
 | GET | `/api/monitor/tasks` | – | `MonitorTask[]` (เรียงด่วนก่อน) |
 | GET | `/api/activity` | `?entity=&employeeId=&limit=` | `ActivityLog[]` (ใหม่ก่อน) |
 
@@ -815,8 +819,11 @@ export interface WelfareApi {
 - แจกชุดฟอร์มซ้ำ key เดิม → 409 `"รายการนี้แจกไปแล้ว"`
 - ไม่พบข้อมูล → 404
 - ลบหน่วยงานที่ยังมีพนักงาน / ลบพนักงานที่มีประวัติ → 409 พร้อมข้อความแนะนำทางเลือก
-- ทุก create/update/delete/cancel ต้องเขียน `audit_log` (= `ActivityLog`) พร้อม `summary` ภาษาไทย และ `user_name` จาก session
-- ทุก endpoint (ยกเว้น `/api/auth/login`) ต้องมี session → ไม่มี = 401 (หน้าเว็บพากลับหน้า login)
+- ทุก create/update/delete/cancel ต้องเขียน `audit_log` (= `ActivityLog`) พร้อม `summary` ภาษาไทย + `user_id` และ `user_name` (ชื่อ ณ ตอนนั้น) **จาก session เท่านั้น** — ห้ามรับชื่อผู้ทำรายการ (`issuedBy`, `submittedBy`, `requested_by_*`, `uploadedBy`) จาก body
+- ทุก endpoint (ยกเว้น `/api/auth/login|refresh|logout`) ต้องมี session → ไม่มี = 401 `{error, code}` (หน้าเว็บต่ออายุด้วย refresh 1 ครั้ง ไม่ได้ → หน้า login)
+- คำขอที่เปลี่ยนข้อมูลต้องเป็น `Content-Type: application/json` (415) และถ้ามี `Origin` ต้องเป็น origin เดียวกัน/`CORS_ORIGIN` (403) — กัน CSRF ร่วมกับ cookie `SameSite=Lax`
+
+`AuthUser` = `{ id, username, name, role /* ป้ายแสดงผล เช่น "HR Admin" */, roleCode /* HR_ADMIN|HR_COMPANY|PAYROLL|STOCK|EXECUTIVE */, empCode }`
 
 ### จุดเลือกแหล่งข้อมูล — `app/api.js`
 ```js
@@ -836,20 +843,13 @@ export class ApiError extends Error {
 }
 ```
 
-### `infrastructure/http/httpApi.js` (แกนหลัก)
+### `infrastructure/http/httpApi.js` + `serverAuth.js` (แกนหลัก)
 ```js
-async req(path, init) {
-  let res;
-  try {
-    res = await fetch(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(init?.headers ?? {}) },
-      credentials: 'include',
-    });
-  } catch { throw new ApiError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้', 0); }
-  const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-  if (!res.ok || body.error !== undefined) throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status);
-  return body.data;
+// HttpApi.req → ServerAuth.authorized: ได้ 401 → POST /auth/refresh ครั้งเดียว (คำขอพร้อมกันใช้ refresh ร่วมกัน) แล้วลองใหม่
+//   refresh 409 REFRESH_RACE (อีกแท็บเพิ่งหมุนโทเคน) → GET /auth/me แล้วลองใหม่
+//   ไม่สำเร็จ → onUnauthorized() → app/auth.js ล้างข้อมูลแสดงผล แล้วไป login.html?next=หน้าเดิม
+req(path, init) {
+  return this.auth.authorized(() => this.auth.call(path, init)); // call = fetch(credentials: 'include') → body.data / ApiError
 }
 ```
 
@@ -1144,12 +1144,46 @@ Desktop  76–100 จาก 258 รายการ      ( « ‹ 1 … 3 [4] 5 �
 | เรื่อง | การทำงาน |
 |---|---|
 | ป้องกันทุกหน้า | สคริปต์ใน `<head>` ของทุกหน้าตรวจ session ก่อนแสดงผล → ไม่มี = ไป `login.html?next=หน้าเดิม` (ไม่มีเนื้อหาแวบให้เห็น) · `initPage()` ตรวจซ้ำอีกชั้น |
-| Session | `app/auth.js` เก็บใน sessionStorage (ปิดแท็บ = ออก) หรือ localStorage เมื่อเลือก "จดจำฉัน" · หมดอายุตาม `auth.sessionHours` |
+| Session | **mock**: `app/auth.js` เก็บข้อมูลผู้ใช้ใน sessionStorage (ปิดแท็บ = ออก) หรือ localStorage เมื่อเลือก "จดจำฉัน" · หมดอายุตาม `auth.sessionHours` · **server**: sessionStorage เท่านั้น (ชื่อ/บทบาทไว้แสดงผล) — กุญแจจริงคือ cookie HttpOnly ของ PHP ดูข้อ 10.9.1 |
 | หลังเข้าสู่ระบบ | กลับหน้าเดิม (`?next=` รับเฉพาะไฟล์ .html ในโฟลเดอร์เดียวกัน กันลิงก์พาไปเว็บอื่น) · ชื่อ + บทบาท + ปุ่มออกจากระบบ ยึดอยู่ล่างสุดของ sidebar (มือถืออยู่ในเมนู drawer) · ทุกกิจกรรมบันทึกชื่อผู้ใช้ |
 | ออกจากระบบ | ปุ่มข้างชื่อผู้ใช้ (ล่างสุดของ sidebar) → `login.html?bye=1` |
 | ปิดระบบ login | `config.js` → `auth.enabled: false` (เข้าเป็น "ผู้ใช้ทั่วไป" อัตโนมัติ) |
 | ผู้ใช้ทดลอง (mock) | `infrastructure/mock/users.js` — ⚠️ ไฟล์นี้ส่งถึงเบราว์เซอร์ ห้ามใส่รหัสผ่านจริง |
-| เฟส 2 (PHP) | `POST api/auth/login` ตรวจกับตาราง `users` (`password_hash`/`password_verify`) ตั้ง session cookie (`HttpOnly`, `SameSite=Lax`) · ทุก endpoint ตรวจ session → 401 · **การตรวจในเบราว์เซอร์ใช้เพื่อการนำทางเท่านั้น ความปลอดภัยจริงอยู่ที่ PHP** |
+| ใครตรวจรหัสผ่าน | `config.js` → `auth.provider`: `'auto'` (mock ↔ apiMode) · `'mock'` · `'server'` = PHP backend แม้ข้อมูลยังเป็น mock (ใช้เมื่อส่งเบิกคลังจริงและต้องรู้ว่าใครขอ) |
+| PHP (`backend/`) | ข้อ 10.9.1 · **การตรวจในเบราว์เซอร์ใช้เพื่อการนำทางเท่านั้น ความปลอดภัยจริงอยู่ที่ PHP** |
+
+### 10.9.1 การยืนยันตัวตนฝั่ง PHP (session + refresh token) — ✅ ทำแล้วใน `backend/`
+
+**หลักการ**: เบราว์เซอร์ไม่เคยถือกุญแจที่ JS อ่านได้ · session ฝั่งเซิร์ฟเวอร์อายุสั้น · "จดจำฉัน" = refresh token ที่หมุนทุกครั้งที่ใช้ · ผู้ทำรายการทุกครั้งมาจาก session
+
+| ส่วน | รายละเอียด |
+|---|---|
+| Session | PHP session ปกติ (cookie `HLW_SESSION`) · `HttpOnly` + `Secure` + `SameSite=Lax` · path = `APP_BASE_PATH/` · ไม่มีวันหมดอายุบน cookie (ปิดเบราว์เซอร์ = หมด) · ฝั่งเซิร์ฟเวอร์หมดเมื่อไม่ใช้งาน `SESSION_IDLE_MINUTES` (30) หรือครบ `SESSION_ABSOLUTE_HOURS` (12) · `session_regenerate_id(true)` ทุกครั้งที่ login/refresh/เปลี่ยนรหัสผ่าน (กัน session fixation) · `use_strict_mode` |
+| ตรวจทุกคำขอ | `SessionGuard` อ่านผู้ใช้จากตาราง `users` ใหม่ทุกครั้ง: `is_active = 0` หรือ `session_version` ไม่ตรง (เปลี่ยนรหัสผ่าน) → 401 ทันทีทุกเครื่อง |
+| Refresh token | สุ่ม 256 บิต (`random_bytes(32)` → hex 64 ตัว) · ฐานข้อมูลเก็บเฉพาะ `SHA-256` ใน `auth_refresh_tokens.token_hash` · cookie `HLW_REFRESH`: `HttpOnly` + `Secure` + `SameSite=Lax` · **path = `APP_BASE_PATH/api/auth`** (ส่งไปเฉพาะ endpoint ของ auth) · อายุ `REFRESH_TOKEN_DAYS` (30) นับใหม่ทุกครั้งที่หมุน · **ห้ามเก็บโทเคนใน localStorage/sessionStorage** |
+| หมุนโทเคน | `POST /api/auth/refresh` ใน transaction (`SELECT … FOR UPDATE`): ตัวเดิม `revoked_reason = ROTATED`, `replaced_by = ตัวใหม่` (family เดิม) แล้วเริ่ม session ใหม่ |
+| ตรวจจับโทเคนรั่ว | ใช้ตัวที่ `ROTATED` ไปแล้วซ้ำ → เพิกถอน**ทั้ง family** (`REUSE`) + `audit_log` `USER/TOKEN_REUSE` + 401 → เจ้าของตัวจริงต้อง login ใหม่ · ยกเว้นภายใน `REFRESH_GRACE_SECONDS` (10) หลังหมุน = สองแท็บต่ออายุพร้อมกัน → 409 `REFRESH_RACE` (ไม่เพิกถอน หน้าเว็บถาม `/auth/me` แล้วลองใหม่) · ตัวที่ถูกเพิกถอนด้วยเหตุอื่นหรือหมดอายุ → 401 เฉย ๆ |
+| ออกจากระบบ | เพิกถอน family ของโทเคนในเบราว์เซอร์นี้ (`LOGOUT`) · ทำลาย session · ลบทั้ง 2 cookie · login ใหม่โดยไม่เลือกจดจำฉัน ก็เพิกถอนโทเคนเดิมในเบราว์เซอร์นั้นด้วย |
+| เปลี่ยนรหัสผ่าน | `POST /api/auth/password` (หรือ `php bin/user.php password <user>`) → `session_version + 1` + เพิกถอนทุกโทเคนของผู้ใช้ (`PASSWORD_CHANGE`) · เครื่องที่เปลี่ยนยังอยู่ในระบบ (session ใหม่) แต่ต้องเลือกจดจำฉันใหม่ · รหัสผ่านใหม่ ≥ 8 ตัว ไม่เหมือนชื่อผู้ใช้ |
+| รหัสผ่าน | `password_hash(PASSWORD_DEFAULT)` / `password_verify` · rehash อัตโนมัติเมื่อ algorithm เปลี่ยน · ไม่พบผู้ใช้ก็ยัง verify กับ hash หลอก (เวลาเท่ากัน) · ข้อความผิดเหมือนกันทุกกรณี "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" · ชื่อผู้ใช้ไม่สนตัวพิมพ์ (เก็บตัวเล็ก) |
+| จำกัดการเดา | ตาราง `auth_login_attempts` · ผิด ≥ `LOGIN_MAX_FAILS_PER_USER` (5) ต่อชื่อผู้ใช้ (นับหลังเข้าสำเร็จครั้งล่าสุด) หรือ ≥ `LOGIN_MAX_FAILS_PER_IP` (20) ต่อ IP ภายใน `LOGIN_WINDOW_MINUTES` (15) → 429 + `Retry-After` (รหัสถูกก็ไม่ให้เข้าจนพ้นช่วง) |
+| CSRF | cookie `SameSite=Lax` + คำขอเปลี่ยนข้อมูลต้องเป็น JSON (415) + ตรวจ `Origin`/`Sec-Fetch-Site` (403) — `Http/CsrfGuard.php` |
+| ผู้ใช้ | ยังไม่มีหน้าจัดการผู้ใช้ — `php backend/bin/user.php create <user> "<ชื่อ>" [ROLE] [EMP_CODE]` · `password <user>` · `disable <user>` (รหัสผ่านอ่านจาก stdin) |
+
+**ลำดับในหน้าเว็บ** (`auth.provider = 'server'` หรือ `apiMode = 'http'`)
+1. login.html → `POST api/auth/login {username, password, remember}` → เก็บ `AuthUser` ใน **sessionStorage** (ไว้แสดงชื่อ/นำทาง) → ไปหน้าที่ต้องการ
+2. ทุกคำขอส่ง cookie เอง (`credentials: 'include'`) · ได้ 401 → `POST api/auth/refresh` ครั้งเดียวแล้วลองคำขอเดิมใหม่ · ไม่ได้ → ล้าง sessionStorage → `login.html?next=หน้าเดิม`
+3. เปิดเบราว์เซอร์ใหม่ (sessionStorage ว่าง) → สคริปต์ใน `<head>` พาไป login.html → `restore()` = `GET api/auth/me` (session ยังอยู่) หรือ `POST api/auth/refresh` (เลือกจดจำฉันไว้) → สำเร็จ = เข้าหน้าเดิมทันทีโดยไม่ต้องกรอกรหัส
+4. ออกจากระบบ → `POST api/auth/logout` → `login.html?bye=1` (หน้านี้ไม่ restore)
+
+**ผู้ทำรายการ (actor attribution)**
+- ทุกการเขียนรับผู้ใช้จาก `SessionGuard::require()` ไม่ใช่จาก body · `uniform_issues.issued_by_user_id + issued_by_name`, `insurance_batches.submitted_by_user_id + submitted_by_name`, `audit_log.user_id + user_name` (ชื่อ ณ ตอนนั้น — เปลี่ยนชื่อผู้ใช้ภายหลังประวัติไม่เปลี่ยน)
+- ส่งเบิกชุดฟอร์มไป stock_hr: `POST api/stock/bridge` (`StockRequestService`) **ทิ้ง** `requested_by_*` ที่เบราว์เซอร์ส่งมา แล้วใส่ `requested_by_name` (ชื่อ), `requested_by_user` (username), `requested_by_user_id`, `requested_by_emp_code` (`users.emp_code`) จาก session · ทุกใบที่ออก/ยกเลิกสำเร็จเขียน `audit_log` (`STOCK_REQUEST`, entity_id = `<employee_id>:<entitlement_key>`, summary มีเลขใบ WRQ)
+- ออก/ยกเลิกใบเบิกได้เฉพาะ `HR_ADMIN`, `HR_COMPANY` (403) · ดูแคตตาล็อก/สถานะได้ทุกบทบาทที่เข้าสู่ระบบ
+- `web/api/stock_bridge.php` (PHP 5.2 บน AppServ): ตั้ง `$stock_bridge_auth_url` = `<backend>/api/auth/me` → ไฟล์นี้ส่ง cookie ของผู้ใช้ไปถาม backend ก่อน (ไม่มี session = 401) และใส่ `requested_by_*` จากผู้ใช้ที่ได้ · ไม่ตั้ง = โหมดสาธิตเฟส 1 (รับเฉพาะเครื่องนี้ เชื่อชื่อจากเบราว์เซอร์) · เมื่อ backend ขึ้น host แล้ว ให้ตั้ง `stock.bridgeUrl: 'api/stock/bridge'` และลบไฟล์นี้
+
+**ไฟล์**: `backend/src/Application/Service/AuthService.php` (login/refresh/logout/เปลี่ยนรหัสผ่าน) · `Http/Auth/SessionGuard.php` (session + cookie) · `Http/Controller/AuthController.php` · `Application/Service/StockRequestService.php` + `Http/Controller/StockBridgeController.php` · `Infrastructure/Persistence/Pdo*.php` · หน้าเว็บ `infrastructure/http/serverAuth.js`, `app/api.js` (`authApi`, `AUTH_PROVIDER`), `app/auth.js`, `pages/login.js`
+
 
 ### 10.10 แนะนำการใช้งาน (driver.js)
 - ทุกหน้ามี "ทัวร์" สั้น ๆ 2–9 ขั้น ไฮไลต์ส่วนสำคัญพร้อมคำอธิบายภาษาไทย
@@ -1252,6 +1286,10 @@ CORS_ORIGIN=                 # ว่าง = ไม่เปิด CORS (หน
 ```
 
 ### 12.2 `public/index.php` (front controller)
+> ✅ สร้างแล้ว (เฉพาะ auth + `/api/stock/bridge`): ไม่ต้องใช้ composer — `src/bootstrap.php` มี autoload `App\` + อ่าน `.env` เอง · Controller คืน `Response` แล้ว index.php เป็นคน `send()` · ตัวอย่างด้านล่างคือรูปที่ต้องเติมให้ครบทุก endpoint (ต่อ route ที่ `$r` ใน `backend/public/index.php`)
+>
+> รันบนเครื่อง (PHP 8.2+ เช่น `C:\php83`): `copy backend\.env.example backend\.env` → `php -S localhost:8000 -t web backend/dev-router.php` → เปิด `http://localhost:8000/login.html` (หน้าเว็บ + API origin เดียวกันเหมือน host จริง)
+
 ```php
 <?php
 declare(strict_types=1);
@@ -1381,7 +1419,8 @@ final class Database
 - `submitInsuranceBatch`, `exportInsurance(record)` และ `createUniformIssue` ทำใน **transaction** และพึ่ง unique key กันซ้ำ
 - ตอบ 422 พร้อม `errors: {field: message}` เมื่อ validation ไม่ผ่าน (HttpApi ส่งต่อเป็น `ApiError.details`)
 - เขียน `audit_log` ทุกครั้งที่ create/update พนักงาน, ส่ง batch, แจกชุด
-- เฟสถัดไป: login + role (HR Admin / HR บริษัท / Payroll / ผู้ดูแลสต็อก / ผู้บริหาร)
+- **ผู้ทำรายการมาจาก session เท่านั้น**: Controller เรียก `$guard->require($req)` แล้วส่ง `User` เข้า Service (`issued_by_user_id/name`, `submitted_by_user_id/name`, `AuditLog::write(…, $actor)`) · ห้ามอ่าน `issuedBy`/`submittedBy`/`uploadedBy`/`requested_by_*` จาก body · `UniformController::stockRequest/stockSync/cancel` ใช้ `StockRequestService` (ใส่ `requested_by_*` จาก session ให้เอง)
+- role (HR Admin / HR บริษัท / Payroll / ผู้ดูแลสต็อก / ผู้บริหาร): ตอนนี้ตรวจเฉพาะการออก/ยกเลิกใบเบิก (`SessionGuard::requireRole`) — สิทธิ์รายหน้า/รายบริษัทเป็นเฟส 3
 
 ---
 
@@ -1396,6 +1435,65 @@ USE happyland_welfare;
 CREATE TABLE companies (
   code        VARCHAR(10)  PRIMARY KEY,
   name        VARCHAR(150) NOT NULL
+) ENGINE=InnoDB;
+
+-- ===== ผู้ใช้ + การเข้าสู่ระบบ (ข้อ 10.9.1) =====
+-- รหัสผ่านเก็บด้วย password_hash() เท่านั้น · ชื่อผู้ใช้เก็บตัวพิมพ์เล็ก
+CREATE TABLE users (
+  id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  username             VARCHAR(50)  NOT NULL UNIQUE,
+  password_hash        VARCHAR(255) NOT NULL,
+  name                 VARCHAR(150) NOT NULL,
+  emp_code             VARCHAR(20)  NULL,              -- รหัสพนักงานของผู้ใช้ (ส่งให้ stock_hr เป็น requested_by_emp_code)
+  role                 ENUM('HR_ADMIN','HR_COMPANY','PAYROLL','STOCK','EXECUTIVE') NOT NULL DEFAULT 'HR_ADMIN',
+  company_code         VARCHAR(10) NULL,               -- null = ทุกบริษัท (เฟส 3: จำกัดสิทธิ์ตามบริษัท)
+  is_active            TINYINT(1) NOT NULL DEFAULT 1,
+  session_version      INT UNSIGNED NOT NULL DEFAULT 1, -- +1 เมื่อเปลี่ยนรหัสผ่าน → session ทุกเครื่องหลุด
+  password_changed_at  DATETIME NULL,
+  last_login_at        DATETIME NULL,
+  created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by           VARCHAR(50) NOT NULL DEFAULT 'system',
+  updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  updated_by           VARCHAR(50) NOT NULL DEFAULT 'system'
+) ENGINE=InnoDB;
+
+-- refresh token ของ "จดจำฉัน" — เก็บเฉพาะ SHA-256 (hex) ของโทเคน ไม่เคยเก็บค่าจริง
+-- หมุนทุกครั้งที่ใช้ (แถวเก่า revoked_reason = ROTATED, replaced_by = แถวใหม่) · family = สายโทเคนของการ login 1 ครั้งบน 1 อุปกรณ์
+CREATE TABLE auth_refresh_tokens (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id         INT UNSIGNED NOT NULL,
+  token_hash      CHAR(64) CHARACTER SET ascii NOT NULL,
+  family_id       CHAR(32) CHARACTER SET ascii NOT NULL,
+  expires_at      DATETIME NOT NULL,
+  created_ip      VARCHAR(45) NOT NULL,
+  user_agent      VARCHAR(255) NOT NULL DEFAULT '',
+  revoked_at      DATETIME NULL,
+  revoked_reason  ENUM('ROTATED','LOGOUT','REUSE','PASSWORD_CHANGE','ADMIN') NULL,
+  replaced_by     BIGINT UNSIGNED NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by      VARCHAR(50) NOT NULL,
+  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  updated_by      VARCHAR(50) NOT NULL,
+  UNIQUE KEY uq_refresh_hash (token_hash),
+  INDEX idx_refresh_family (family_id),
+  INDEX idx_refresh_user (user_id, revoked_at),
+  INDEX idx_refresh_expires (expires_at),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (replaced_by) REFERENCES auth_refresh_tokens(id)
+) ENGINE=InnoDB;
+
+-- ใช้จำกัดการเดารหัสผ่าน (ผิด 5 ครั้ง/ชื่อผู้ใช้ หรือ 20 ครั้ง/IP ใน 15 นาที → 429)
+CREATE TABLE auth_login_attempts (
+  id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  username    VARCHAR(50) NOT NULL,
+  ip          VARCHAR(45) NOT NULL,
+  succeeded   TINYINT(1) NOT NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,   -- = เวลาที่ลอง
+  created_by  VARCHAR(50) NOT NULL DEFAULT 'system',
+  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  updated_by  VARCHAR(50) NOT NULL DEFAULT 'system',
+  INDEX idx_attempt_user (username, created_at),
+  INDEX idx_attempt_ip (ip, created_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE sites (
@@ -1486,11 +1584,13 @@ CREATE TABLE insurance_batches (
   id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   cycle_date    DATE NOT NULL,                    -- ส่งออก 1 ครั้ง = 1 แถว (เข้า/ออกอยู่ใน insurance_batch_items)
   submitted_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  submitted_by  VARCHAR(100) NOT NULL,
+  submitted_by_user_id INT UNSIGNED NULL,       -- ผู้ส่งจาก session (null = ข้อมูลก่อนมีระบบผู้ใช้)
+  submitted_by_name VARCHAR(150) NOT NULL,      -- ชื่อ ณ ตอนส่ง (API ส่งเป็น submittedBy)
   insurer_id    INT UNSIGNED NULL,                -- แบบฟอร์มที่ส่งออก (ลบแบบฟอร์มได้ → ไม่ทำ FK)
   insurer_name  VARCHAR(100) NULL,
   INDEX idx_batch_cycle (cycle_date),
-  INDEX idx_batch_cycle_insurer (cycle_date, insurer_id)
+  INDEX idx_batch_cycle_insurer (cycle_date, insurer_id),
+  FOREIGN KEY (submitted_by_user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
 -- แบบฟอร์ม Excel ของบริษัทประกัน: ค่าที่ซ้อนกัน (คอลัมน์, หัว/ท้ายเอกสาร) เก็บเป็น JSON
@@ -1523,40 +1623,35 @@ CREATE TABLE uniform_issues (
   qty              TINYINT UNSIGNED NOT NULL,
   size             VARCHAR(10) NOT NULL,
   issued_at        DATE NOT NULL,
-  issued_by        VARCHAR(100) NOT NULL,
+  issued_by_user_id INT UNSIGNED NULL,      -- ผู้บันทึก/ผู้ส่งเบิกจาก session — ห้ามรับจาก body
+  issued_by_name   VARCHAR(150) NOT NULL,   -- ชื่อ ณ ตอนบันทึก (API ส่งเป็น issuedBy)
   UNIQUE KEY uq_emp_ent (employee_id, entitlement_key),
-  FOREIGN KEY (employee_id) REFERENCES employees(id)
-) ENGINE=InnoDB;
-
--- ผู้ใช้ระบบ (หน้า login) — รหัสผ่านเก็บด้วย password_hash() เท่านั้น
-CREATE TABLE users (
-  id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  username       VARCHAR(50)  NOT NULL UNIQUE,
-  password_hash  VARCHAR(255) NOT NULL,
-  name           VARCHAR(150) NOT NULL,
-  role           ENUM('HR_ADMIN','HR_COMPANY','PAYROLL','STOCK','EXECUTIVE') NOT NULL DEFAULT 'HR_ADMIN',
-  company_code   VARCHAR(10) NULL,           -- null = ทุกบริษัท (เฟส 3: จำกัดสิทธิ์ตามบริษัท)
-  is_active      TINYINT(1) NOT NULL DEFAULT 1,
-  last_login_at  DATETIME NULL,
-  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  FOREIGN KEY (employee_id) REFERENCES employees(id),
+  FOREIGN KEY (issued_by_user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
 -- = ActivityLog ในแท็บบันทึกกิจกรรม (ห้ามแก้/ลบ)
 CREATE TABLE audit_log (
   id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  entity     ENUM('EMPLOYEE','SITE','INSURANCE_BATCH','UNIFORM_ISSUE') NOT NULL,
-  entity_id  VARCHAR(50) NOT NULL,
-  action     ENUM('CREATE','UPDATE','DELETE','CANCEL') NOT NULL,
+  entity     ENUM('EMPLOYEE','SITE','INSURANCE_BATCH','UNIFORM_ISSUE','STOCK_REQUEST','USER') NOT NULL,
+  entity_id  VARCHAR(50) NOT NULL,           -- STOCK_REQUEST = "<employee_id>:<entitlement_key>" · USER = users.id
+  action     ENUM('CREATE','UPDATE','DELETE','CANCEL','LOGIN','LOGOUT','PASSWORD_CHANGE','TOKEN_REUSE') NOT NULL,
   summary    VARCHAR(500) NOT NULL,      -- ข้อความภาษาไทยสำหรับแสดงผล
   employee_id INT UNSIGNED NULL,         -- ลิงก์ไปหน้าพนักงาน
   before_json JSON NULL,
   after_json  JSON NULL,
-  user_name  VARCHAR(100) NOT NULL,
+  user_id    INT UNSIGNED NULL,          -- ผู้กระทำจาก session (null = ระบบ เช่น พบโทเคนถูกใช้ซ้ำ)
+  user_name  VARCHAR(150) NOT NULL,      -- ชื่อ ณ ตอนนั้น (เปลี่ยนชื่อผู้ใช้ภายหลัง ประวัติไม่เปลี่ยน)
   at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by VARCHAR(50) NOT NULL,       -- username ผู้กระทำ หรือ 'system'
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,  -- ไม่มีการแก้จริง (ห้ามแก้/ลบ)
+  updated_by VARCHAR(50) NOT NULL,
   INDEX idx_audit_entity (entity, entity_id),
   INDEX idx_audit_employee (employee_id),
-  INDEX idx_audit_at (at)
+  INDEX idx_audit_user (user_id, at),
+  INDEX idx_audit_at (at),
+  FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 ```
 
@@ -1688,6 +1783,26 @@ describe('ประกันกลุ่ม', () => {
 
 ---
 
+### 15.3 Backend: การเข้าสู่ระบบ (PHP + ฐานข้อมูลจริง)
+```bash
+# ต้องมี MySQL 8 / MariaDB 10.6+ — ฐานข้อมูล TEST_DB_NAME ถูกลบแล้วสร้างใหม่ทุกครั้ง (ต้องมีคำว่า test)
+TEST_DB_PORT=3306 TEST_DB_USER=root TEST_DB_PASS= php backend/tests/auth_test.php
+```
+เปิด built-in server จริง + stock_hr ตัวปลอม (`tests/fake_stock_hr.php` ตรวจ HMAC แบบเดียวกับของจริง) แล้วยิง HTTP พร้อม cookie jar แยกต่อ "เบราว์เซอร์" — 51 ข้อ:
+- login ผิด/ไม่มีผู้ใช้ → 401 ข้อความเดียวกัน · สำเร็จ → cookie `HttpOnly` + `SameSite=Lax` · ไม่เลือกจดจำฉัน → ไม่มี refresh cookie
+- CSRF: ไม่ใช่ JSON → 415 · Origin เว็บอื่น → 403
+- refresh cookie path `/api/auth`, 64 hex, DB เก็บเฉพาะ SHA-256, อายุ 30 วัน · refresh → session ใหม่ + โทเคนใหม่ · ตัวเก่า ROTATED → replaced_by
+- ใช้ซ้ำภายใน grace → 409 ไม่เพิกถอน · หลัง grace → 401 + เพิกถอนทั้ง family + audit TOKEN_REUSE · โทเคนปลอม → 401
+- logout เพิกถอน + ลบ cookie · เปลี่ยนรหัสผ่าน → ทุกโทเคนถูกเพิกถอน เครื่องอื่นหลุด เครื่องนี้อยู่ต่อ · ปิดบัญชี → หลุดทันที
+- `/api/stock/bridge`: ไม่ login 401 · Payroll ดูได้ส่งเบิกไม่ได้ (403) · stock_hr ได้ `requested_by_*` จาก session แม้ body ปลอมชื่อมา · audit_log มี user_id + เลขใบ
+- ผิด 5 ครั้ง → 429 + `Retry-After` · ไม่มี PHP warning ใน log
+
+**หน้าเว็บ** — `tests/serverAuth.test.js` (อยู่ใน `npm test`): 401 → refresh → ลองใหม่ · refresh ไม่ได้ → onUnauthorized ครั้งเดียว · 401 พร้อมกันหลายคำขอ → refresh ครั้งเดียว · 409 REFRESH_RACE · restore()
+
+**ทดสอบด้วยมือ (ทำแล้ว 19 ต.ค. 2569 บน Chrome ใน Claude desktop)**: provider `server` → login + จดจำฉัน → `document.cookie` ว่าง (HttpOnly), localStorage ไม่มีอะไร · ลบไฟล์ session ฝั่งเซิร์ฟเวอร์ + ล้าง sessionStorage → เปิด uniform.html → ผ่าน login.html แล้วกลับเข้าหน้าเดิมเอง (refresh หมุนโทเคนใน family เดิม) · ลบ session อีกครั้งแล้วเรียก API → refresh แล้วได้ผล · ออกจากระบบ → me/refresh = 401 · โหมด mock: login บัญชีทดลองได้เหมือนเดิม ไม่มี error ใน console · `stock_bridge.php` ที่ตั้ง `$stock_bridge_auth_url`: ไม่มี session 401, มี session → stock_hr ได้ชื่อจาก backend
+
+**ยังไม่ได้ทดสอบ / ต้องทดสอบเมื่อขึ้น host**: HTTPS จริง + `COOKIE_SECURE=1` · `APP_BASE_PATH=/hl-welfare` (path ของ cookie) · session หมดเพราะไม่ใช้งาน 30 นาที / ครบ 12 ชม. (ทดสอบด้วยการตั้งค่าน้อย ๆ) · `stock_bridge.php` บน PHP 5.2 จริงของ AppServ (ทดสอบตรรกะบน PHP 8.3 + ตรวจ syntax ด้วย 5.2 แล้ว) · stock_hr จริงรับ field `requested_by_user/_user_id/_emp_code` (ตอนนี้ stock_hr เก็บแค่ `requested_by_name`)
+
 ## 16. Checklist
 
 ### เฟส 1 — หน้าเว็บ (HTML + JS) + Mock ✅
@@ -1727,8 +1842,10 @@ describe('ประกันกลุ่ม', () => {
 - [ ] `InsurerExportService` คู่แฝดของ `usecases/insurerExport.js` (`buildInsurerExport`) + `InsurerController` (CRUD + bindings + `validateInsurerForm`) + ตาราง `insurer_forms` (เก็บไฟล์แบบฟอร์มใน `template_file`) · อ่านตำแหน่ง/ล้าง/เติมไฟล์ยังทำในเบราว์เซอร์ (PHP เก็บไฟล์ + ส่งข้อมูล)
 - [ ] `InsuranceCycleService::batchDetail()` คู่แฝดของ `buildBatchDetail` (`usecases/insuranceCycle.js`) + `GET /api/insurance/batches/{id}`
 - [ ] Validation + transaction + unique key กันซ้ำ
-- [ ] audit_log (user_name จาก session)
-- [ ] ตาราง `users` + `POST /api/auth/login|logout`, `GET /api/auth/me` + ตรวจ session ทุก endpoint
+- [ ] audit_log ทุก endpoint (`user_id` + `user_name` จาก session — `PdoAuditLog` พร้อมแล้ว)
+- [x] ตาราง `users`, `auth_refresh_tokens`, `auth_login_attempts` + `POST /api/auth/login|refresh|logout|password`, `GET /api/auth/me` + จำกัดการเดารหัสผ่าน + CSRF guard (ข้อ 10.9.1)
+- [x] `POST /api/stock/bridge` (ผู้ขอเบิกจาก session) · `stock_bridge.php` ตรวจผู้ใช้ผ่าน `$stock_bridge_auth_url`
+- [ ] ตรวจ session ทุก endpoint ข้อมูล (เพิ่มตอนสร้างแต่ละ Controller) · `uploadedBy` ของแบบฟอร์มประกันให้ PHP ใส่เอง
 - [ ] ตั้ง `apiMode: 'http'` ใน `config.js` แล้วทุกหน้าทำงานเหมือน mock
 
 ### เฟส 3 (ภายหลัง)
@@ -1756,3 +1873,15 @@ describe('ประกันกลุ่ม', () => {
 - [ ] CIC ระดับ 6 ขึ้นไป ได้ชุดฟอร์มกี่ตัว?
 - [ ] แม่บ้าน CNS และพนักงานรายวัน ได้ชุดฟอร์มไหม?
 - [ ] ระดับพนักงาน "6 ขึ้นไป" สูงสุดถึงระดับเท่าไร?
+
+## 18. ประเด็นเปิด — การเข้าสู่ระบบ (ต้องตัดสินใจ)
+- [ ] **อายุ session / จดจำฉัน**: idle 30 นาที, สูงสุด 12 ชม., refresh 30 วัน (นับใหม่ทุกครั้งที่หมุน → ใช้ทุกวันจะไม่หมด) — ต้องมีอายุสูงสุดของ family (เช่น 90 วันแล้วต้องกรอกรหัสใหม่) ไหม?
+- [ ] **ล็อกบัญชีจากการเดารหัส**: ผิด 5 ครั้ง/15 นาที ล็อกชื่อผู้ใช้นั้น → คนอื่นแกล้งล็อกบัญชีได้ (ใส่ผิดซ้ำ ๆ) · ยอมรับได้ไหม หรือให้ล็อกตาม IP + ชื่อผู้ใช้คู่กัน / ใช้ CAPTCHA
+- [ ] **สิทธิ์ส่งเบิกคลัง**: ตอนนี้ HR_ADMIN + HR_COMPANY · ผู้ดูแลสต็อก (STOCK) ควรยกเลิกใบได้ไหม · HR_COMPANY ควรส่งเบิกได้เฉพาะพนักงานบริษัทตัวเอง (เฟส 3)?
+- [ ] **stock_hr**: เพิ่มคอลัมน์ `requested_by_user`, `requested_by_user_id`, `requested_by_emp_code` ใน `tb_doc_welfare` (ตอนนี้ welfare_submit/welfare_cancel อ่านแค่ `requested_by_name` — field ใหม่ถูกส่งไปแล้วแต่ยังไม่ถูกเก็บ) · ต้องแก้ใน repo stock_hr
+- [ ] **รหัสพนักงานของผู้ใช้** (`users.emp_code`): ใครกรอก / ผูกกับตาราง employees ไหม
+- [ ] **session หลายเครื่องเซิร์ฟเวอร์**: ตอนนี้ใช้ไฟล์ session ของ PHP — ถ้า host มีหลายเครื่อง/คอนเทนเนอร์ ต้องย้าย session ไป DB/Redis
+- [ ] **ล้างข้อมูลเก่า**: งานตั้งเวลาลบ `auth_refresh_tokens` ที่หมดอายุ/ถูกเพิกถอนเกิน 90 วัน และ `auth_login_attempts` เกิน 90 วัน
+- [ ] **หน้าเปลี่ยนรหัสผ่าน / จัดการผู้ใช้**: API `/api/auth/password` พร้อมแล้ว แต่ยังไม่มีหน้าจอ (ตอนนี้ผู้ดูแลใช้ `bin/user.php`)
+- [ ] **audit_log entity ใหม่** `USER`, `STOCK_REQUEST`: แท็บบันทึกกิจกรรมต้องเพิ่มป้าย/ตัวกรอง (`ActivityEntity` ใน `domain/types.js`) หรือซ่อน `USER` จากผู้ใช้ทั่วไป
+- [ ] **สคีมาเดิม**: `insurance_batch_items` ใช้ PRIMARY KEY บน generated column (`direction`) — MariaDB 10.11 ไม่รองรับ (MySQL 8 ได้) · ถ้า host เป็น MariaDB ต้องเปลี่ยนเป็นคอลัมน์ปกติ + trigger/ตรวจใน PHP

@@ -1,6 +1,6 @@
 // หน้า: เข้าสู่ระบบ (login.html?next=&bye=1)
-import { api, API_MODE } from '../app/api.js';
-import { getSession, GUEST, isAuthEnabled, safeNext, saveSession } from '../app/auth.js';
+import { api, authApi, AUTH_PROVIDER } from '../app/api.js';
+import { getSession, GUEST, isAuthEnabled, isServerAuth, safeNext, saveSession } from '../app/auth.js';
 import { CONFIG } from '../config.js';
 import { $, esc, getParam } from '../shared/dom.js';
 import { hydrateIcons, icon } from '../shared/icons.js';
@@ -15,6 +15,18 @@ if (!isAuthEnabled()) {
   location.replace(next);
 } else if (getSession()) {
   location.replace(next);
+} else if (isServerAuth() && getParam('bye') !== '1') {
+  // ยังมี session ฝั่งเซิร์ฟเวอร์ หรือเคยเลือก "จดจำฉัน" (refresh cookie) → เข้าระบบให้เลยโดยไม่ต้องกรอกรหัส
+  authApi
+    .restore()
+    .then((u) => {
+      if (!u) return;
+      saveSession(u);
+      location.replace(next);
+    })
+    .catch(() => {
+      /* เซิร์ฟเวอร์ไม่ตอบ — ให้กรอกรหัสผ่านตามปกติ */
+    });
 }
 
 hydrateIcons();
@@ -52,7 +64,7 @@ if (getParam('bye') === '1') {
 }
 
 // ----- บัญชีทดลอง (โหมด mock) -----
-const demo = API_MODE === 'mock' && CONFIG.auth.showDemoAccounts ? (api.demoAccounts?.() ?? []) : [];
+const demo = AUTH_PROVIDER === 'mock' && CONFIG.auth.showDemoAccounts ? (api.demoAccounts?.() ?? []) : [];
 if (demo.length) {
   $('#demo').classList.remove('hidden');
   $('#demo-list').innerHTML = demo.map(
@@ -134,8 +146,9 @@ form.addEventListener('submit', async (e) => {
   setLoading(true);
   try {
     // หน้าล็อกอินมี animation ของตัวเอง (ปุ่มหมุน + เครื่องหมายถูก) — ไม่ใช้ loading กลางจอ
-    const u = await progress.quiet(() => api.login(user.value.trim(), pass.value));
-    saveSession(u, $('#remember').checked);
+    const remember = $('#remember').checked;
+    const u = await progress.quiet(() => authApi.login(user.value.trim(), pass.value, remember));
+    saveSession(u, remember);
     playSuccess(u.name);
   } catch (ex) {
     setLoading(false);

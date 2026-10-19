@@ -1,7 +1,9 @@
-// การเข้าสู่ระบบฝั่งหน้าเว็บ — เก็บ session ใน sessionStorage (หรือ localStorage เมื่อเลือก "จดจำฉัน")
-// เฟส 2: PHP ตรวจสิทธิ์จริงด้วย session cookie อีกชั้น (ข้อมูลในเบราว์เซอร์ใช้แสดงผล/นำทางเท่านั้น)
+// การเข้าสู่ระบบฝั่งหน้าเว็บ — เก็บ "ข้อมูลผู้ใช้สำหรับแสดงผล" (ชื่อ/บทบาท) ไว้นำทาง ไม่ใช่กุญแจ
+//  - mock: sessionStorage หรือ localStorage เมื่อเลือก "จดจำฉัน"
+//  - server: sessionStorage เท่านั้น · ความปลอดภัยจริงอยู่ที่ cookie HttpOnly ของ PHP (JS อ่านไม่ได้)
+//    "จดจำฉัน" = refresh cookie ฝั่งเซิร์ฟเวอร์ → เปิดเบราว์เซอร์ใหม่ หน้า login ต่ออายุให้เอง (restore)
 import { CONFIG } from '../config.js';
-import { api } from './api.js';
+import { api, authApi, AUTH_PROVIDER, UNAUTHORIZED_EVENT } from './api.js';
 
 const KEY = 'hl-session';
 const GUEST = { username: 'guest', name: 'ผู้ใช้ทั่วไป', role: 'Guest' };
@@ -24,7 +26,7 @@ export function saveSession(user, remember = false) {
   const s = { ...user, at: Date.now(), expiresAt: Date.now() + CONFIG.auth.sessionHours * 3_600_000 };
   try {
     clearSession();
-    (remember ? localStorage : sessionStorage).setItem(KEY, JSON.stringify(s));
+    (remember && AUTH_PROVIDER === 'mock' ? localStorage : sessionStorage).setItem(KEY, JSON.stringify(s));
   } catch {
     /* ignore */
   }
@@ -64,7 +66,7 @@ export function requireSession() {
 
 export async function logout() {
   try {
-    await api.logout?.();
+    await authApi.logout?.();
   } catch {
     /* ออกจากระบบฝั่งหน้าเว็บต่อแม้ API ล้มเหลว */
   }
@@ -73,4 +75,13 @@ export async function logout() {
 }
 
 export const isAuthEnabled = () => CONFIG.auth.enabled;
+export const isServerAuth = () => AUTH_PROVIDER === 'server';
+
+// session ฝั่งเซิร์ฟเวอร์หมดและต่ออายุไม่ได้ → ล้างข้อมูลแสดงผลแล้วไปหน้า login (กลับมาหน้าเดิมหลังเข้าใหม่)
+if (typeof window !== 'undefined') {
+  window.addEventListener(UNAUTHORIZED_EVENT, () => {
+    clearSession();
+    if (!/login\.html$/.test(location.pathname)) location.replace(loginUrl());
+  });
+}
 export { GUEST };

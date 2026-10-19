@@ -30,7 +30,7 @@
  * @property {() => Promise<{changed: number}>} syncUniformStock                 ดึงสถานะใบเบิกจากระบบสต็อก
  * @property {() => Promise<import('../domain/types.js').MonitorTask[]>} getWorkQueue
  * @property {(filter?: {entity?: string, employeeId?: number, limit?: number}) => Promise<import('../domain/types.js').ActivityLog[]>} listActivity
- * @property {(username: string, password: string) => Promise<{username: string, name: string, role: string}>} login   401 ถ้าไม่ถูกต้อง
+ * @property {(username: string, password: string, remember?: boolean) => Promise<{username: string, name: string, role: string}>} login   401 ถ้าไม่ถูกต้อง · 429 ถ้าผิดหลายครั้ง (http: remember = refresh cookie)
  * @property {() => Promise<void>} logout
  * @property {(name: string) => void} setActor                                ชื่อผู้ใช้ที่บันทึกในกิจกรรม (mock)
  * @property {() => Promise<void>} [reset]                                      มีเฉพาะ mock

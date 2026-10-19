@@ -1,0 +1,4 @@
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]
+# ห้ามเปิดไฟล์ .env / โค้ดนอก public ผ่านเว็บ (วางเฉพาะ public/ ไว้ใต้ document root)

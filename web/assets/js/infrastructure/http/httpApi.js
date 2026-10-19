@@ -1,25 +1,19 @@
-import { ApiError } from '../../application/errors.js';
+import { ServerAuth } from './serverAuth.js';
 
-/** WelfareApi ผ่าน REST → PHP backend (สเปกข้อ 8) */
+/**
+ * WelfareApi ผ่าน REST → PHP backend (สเปกข้อ 8)
+ * ได้ 401 → ต่ออายุ session ด้วย /auth/refresh ครั้งเดียวแล้วลองใหม่ · ไม่สำเร็จ → auth.onUnauthorized (ไปหน้า login)
+ */
 export class HttpApi {
   baseUrl;
-  constructor(baseUrl) {
+  /** @type {ServerAuth} */
+  auth;
+  constructor(baseUrl, auth = new ServerAuth(baseUrl)) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.auth = auth;
   }
-  async req(path, init) {
-    let res;
-    try {
-      res = await fetch(`${this.baseUrl}${path}`, {
-        ...init,
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(init?.headers ?? {}) },
-        credentials: 'include',
-      });
-    } catch {
-      throw new ApiError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้', 0);
-    }
-    const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    if (!res.ok || body.error !== undefined) throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status, body.errors);
-    return body.data;
+  req(path, init) {
+    return this.auth.authorized(() => this.auth.call(path, init));
   }
   send(method, path, data) {
     return this.req(path, { method, body: JSON.stringify(data) });
@@ -27,15 +21,15 @@ export class HttpApi {
   async del(path) {
     await this.req(path, { method: 'DELETE' });
   }
-  // ---------- เข้าสู่ระบบ (PHP ใช้ session cookie) ----------
-  login(username, password) {
-    return this.send('POST', '/auth/login', { username, password });
+  // ---------- เข้าสู่ระบบ (session cookie + refresh cookie แบบ HttpOnly — ดู serverAuth.js) ----------
+  login(username, password, remember = false) {
+    return this.auth.login(username, password, remember);
   }
   logout() {
-    return this.send('POST', '/auth/logout', {});
+    return this.auth.logout();
   }
   setActor() {
-    /* PHP ใช้ผู้ใช้จาก session เอง */
+    /* PHP ใช้ผู้ใช้จาก session เอง — ไม่รับชื่อจากหน้าเว็บ */
   }
   getDashboard() {
     return this.req('/dashboard');
