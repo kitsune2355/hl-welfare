@@ -31,7 +31,7 @@ $admin = mysqli_connect($c['db_host'], $c['db_user'], $c['db_pass'], '', (int)$c
 mysqli_query($admin, 'DROP DATABASE IF EXISTS `' . $c['db_name'] . '`');
 mysqli_query($admin, 'CREATE DATABASE `' . $c['db_name'] . '` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci');
 mysqli_select_db($admin, $c['db_name']);
-foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities') as $f) {
+foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password') as $f) {
     $sql = file_get_contents($root . '/backend/sql/' . $f . '.sql');
     if (!mysqli_multi_query($admin, $sql)) { die("$f: " . mysqli_error($admin) . "\n"); }
     do {
@@ -754,6 +754,36 @@ $boss->req('PUT', '/admin/permissions', array('matrix' => array('users.manage' =
 check('HR Admin ตั้งสิทธิ์เองไม่ได้ (กันยกระดับตัวเอง)', S($hr->req('PUT', '/admin/permissions', array('matrix' => array('audit.view' => array('HR_ADMIN'))))) === 403
     && !cap_allowed('HR_ADMIN', 'audit.view'));
 
+section('รหัสผ่านตั้งต้น 4123 + บังคับเปลี่ยนรหัสเอง (migration 009)');
+$r = $hr->req('POST', '/admin/users', array('username' => 'fresh', 'name' => 'พนักงาน ใหม่', 'role' => 'PAYROLL'));
+$freshId = $r['json']['data']['id'];
+check('สร้างผู้ใช้โดยไม่ใส่รหัส → รหัส 4123 + ต้องเปลี่ยนเอง', $r['status'] === 201 && $r['json']['data']['mustChangePassword'] === true
+    && pw_verify('4123', db_value('SELECT password_hash FROM users WHERE id = ?', array($freshId))));
+check('รหัสอื่นที่สั้นยังไม่ผ่าน (ยกเว้น 4123 อย่างเดียว)', S($hr->req('POST', '/admin/users', array('username' => 'fresh2', 'name' => 'x', 'role' => 'PAYROLL',
+    'password' => '1234'))) === 422);
+$fb = new Browser('10.9.1.1');
+$r = $fb->req('POST', '/auth/login', array('username' => 'fresh', 'password' => '4123'));
+check('login ด้วย 4123 ได้ + บอกว่าต้องเปลี่ยนรหัส', $r['status'] === 200 && $r['json']['data']['mustChangePassword'] === true);
+$r = $fb->req('GET', '/dashboard');
+check('ยังไม่เปลี่ยนรหัส → API อื่น 403 PASSWORD_CHANGE_REQUIRED · /auth/me ใช้ได้', $r['status'] === 403 && $r['json']['code'] === 'PASSWORD_CHANGE_REQUIRED'
+    && S($fb->req('GET', '/employees')) === 403 && S($fb->req('GET', '/auth/me')) === 200);
+check('เปลี่ยนเป็น 4123 / รหัสเดิม / สั้น → 422', S($fb->req('POST', '/auth/password', array('currentPassword' => '4123', 'newPassword' => '4123'))) === 422
+    && S($fb->req('POST', '/auth/password', array('currentPassword' => '4123', 'newPassword' => 'abc'))) === 422);
+$r = $fb->req('POST', '/auth/password', array('currentPassword' => '4123', 'newPassword' => 'MyOwn-12345'));
+check('ตั้งรหัสเอง → เลิกบังคับ ใช้งานต่อได้ทันที', $r['status'] === 200 && $r['json']['data']['mustChangePassword'] === false
+    && S($fb->req('GET', '/dashboard')) === 200 && (int)db_value('SELECT must_change_password FROM users WHERE id = ?', array($freshId)) === 0);
+$fb2 = new Browser('10.9.1.2');
+$fb2->req('POST', '/auth/login', array('username' => 'fresh', 'password' => 'MyOwn-12345', 'remember' => true));
+$r = $hr->req('POST', '/admin/users/' . $freshId . '/password', array());
+check('รีเซ็ตเป็น 4123 (ไม่ส่งรหัส) → บังคับเปลี่ยนอีกครั้ง + ออกจากระบบทุกอุปกรณ์', $r['status'] === 200 && $r['json']['data']['mustChangePassword'] === true
+    && S($fb->req('GET', '/auth/me')) === 401 && S($fb2->req('GET', '/auth/me')) === 401 && S($fb2->req('POST', '/auth/refresh')) === 401
+    && new_browser_login('fresh', '4123') === 200 && new_browser_login('fresh', 'MyOwn-12345') === 401);
+check('audit PASSWORD_RESET บอกรีเซ็ตเป็นรหัสตั้งต้น', strpos((string)db_value("SELECT summary FROM audit_log WHERE action = 'PASSWORD_RESET' ORDER BY id DESC LIMIT 1"),
+    'รีเซ็ตรหัสผ่านเป็นรหัสตั้งต้น') !== false);
+check('HR Admin รีเซ็ตรหัส SUPER_ADMIN ไม่ได้', S($hr->req('POST', '/admin/users/' . $bossId . '/password', array())) === 403
+    && S($boss->req('GET', '/auth/me')) === 200);
+check('SUPER_ADMIN รีเซ็ตได้ + ตั้งรหัสที่แข็งแรงให้ได้ (ก็ต้องเปลี่ยนเอง)', S($boss->req('POST', '/admin/users/' . $freshId . '/password', array('password' => 'Strong-12345'))) === 200
+    && (int)db_value('SELECT must_change_password FROM users WHERE id = ?', array($freshId)) === 1);
 
 require dirname(__FILE__) . '/rules_test.php';
 

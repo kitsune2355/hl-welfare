@@ -94,6 +94,7 @@ function admin_map_user($r, $sessions, $devices, $locked)
         'activeSessions' => isset($sessions[$id]) ? $sessions[$id] : 0,
         'devices' => isset($devices[$id]) ? $devices[$id] : 0,
         'locked' => in_array($r['username'], $locked, true),
+        'mustChangePassword' => !empty($r['must_change_password']),
     );
 }
 
@@ -155,7 +156,7 @@ function admin_user_fields($b, $creating, $me)
     return $set;
 }
 
-/** POST /admin/users {username, name, role, empCode, password} */
+/** POST /admin/users {username, name, role, empCode, password?} — ไม่ใส่รหัส = 4123 · ผู้ใช้ใหม่ต้องเปลี่ยนรหัสเองก่อนใช้งาน */
 function api_admin_user_create($req, $params)
 {
     $me = cap_require($req, 'users.manage');
@@ -165,22 +166,33 @@ function api_admin_user_create($req, $params)
         throw new ApiError('กรุณาตรวจสอบข้อมูล', 422, array('username' => 'ชื่อผู้ใช้ใช้ได้เฉพาะ a-z 0-9 . _ - (2–50 ตัว)'));
     }
     $set = admin_user_fields($b, true, $me);
+    $password = admin_given_password($b, $username);
+    if (user_by_username($username)) {
+        throw new ApiError('กรุณาตรวจสอบข้อมูล', 409, array('username' => 'มีชื่อผู้ใช้ ' . $username . ' อยู่แล้ว'));
+    }
+    db_begin();
+    $res = db_exec('INSERT INTO users (username, password_hash, must_change_password, name, emp_code, role, created_at, created_by, updated_by)
+                    VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)',
+        array($username, pw_hash($password), $set['name'], $set['emp_code'], $set['role'], db_now(), $me['username'], $me['username']));
+    audit_write('USER', $res['id'], 'CREATE', 'สร้างผู้ใช้ ' . $username . ' (' . $set['name'] . ') บทบาท ' . admin_role_label($set['role']), null, $me);
+    db_commit();
+    return http_data(admin_user($res['id']), 201);
+}
+
+/**
+ * รหัสผ่านที่ผู้ดูแลตั้งให้ ({password}) — ว่าง = รหัสตั้งต้น AUTH_DEFAULT_PASSWORD (4123)
+ * รหัสตั้งต้นยกเว้นความยาวขั้นต่ำได้คนเดียว (ผู้ใช้ถูกบังคับเปลี่ยนเองตอนเข้าสู่ระบบ) · รหัสอื่นต้องผ่าน assert_strong_password
+ */
+function admin_given_password($b, $username)
+{
     $password = (string)arr_get($b, 'password', '');
+    if ($password === '' || $password === AUTH_DEFAULT_PASSWORD) { return AUTH_DEFAULT_PASSWORD; }
     try {
         assert_strong_password($password, $username);
     } catch (ApiError $e) {
         throw new ApiError('กรุณาตรวจสอบข้อมูล', 422, array('password' => $e->getMessage()));
     }
-    if (user_by_username($username)) {
-        throw new ApiError('กรุณาตรวจสอบข้อมูล', 409, array('username' => 'มีชื่อผู้ใช้ ' . $username . ' อยู่แล้ว'));
-    }
-    db_begin();
-    $res = db_exec('INSERT INTO users (username, password_hash, name, emp_code, role, created_at, created_by, updated_by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        array($username, pw_hash($password), $set['name'], $set['emp_code'], $set['role'], db_now(), $me['username'], $me['username']));
-    audit_write('USER', $res['id'], 'CREATE', 'สร้างผู้ใช้ ' . $username . ' (' . $set['name'] . ') บทบาท ' . admin_role_label($set['role']), null, $me);
-    db_commit();
-    return http_data(admin_user($res['id']), 201);
+    return $password;
 }
 
 function admin_target($params)
@@ -236,22 +248,18 @@ function api_admin_user_update($req, $params)
     return admin_user($u['id']);
 }
 
-/** POST /admin/users/{id}/password {password} — ตั้งรหัสผ่านใหม่ + ออกจากระบบทุกอุปกรณ์ */
+/** POST /admin/users/{id}/password {password?} — ตั้งรหัสผ่านใหม่ (ว่าง = รีเซ็ตเป็น 4123) + ออกจากระบบทุกอุปกรณ์ + บังคับเปลี่ยนเอง */
 function api_admin_user_password($req, $params)
 {
     $me = cap_require($req, 'users.manage');
     $u = admin_target($params);
     admin_guard_target($me, $u['role']);
     admin_not_self($me, $u, 'รหัสผ่านของตัวเองให้เปลี่ยนด้วยรหัสผ่านปัจจุบัน (เมนูเปลี่ยนรหัสผ่าน)');
-    $password = (string)arr_get(req_json($req), 'password', '');
-    try {
-        assert_strong_password($password, $u['username']);
-    } catch (ApiError $e) {
-        throw new ApiError('กรุณาตรวจสอบข้อมูล', 422, array('password' => $e->getMessage()));
-    }
+    $password = admin_given_password(req_json($req), $u['username']);
     db_begin();
-    auth_set_password($u, $password, $me['username']);
-    audit_write('USER', $u['id'], 'PASSWORD_RESET', 'ผู้ดูแลตั้งรหัสผ่านใหม่ให้ ' . $u['username'] . ' (ออกจากระบบทุกอุปกรณ์)', null, $me);
+    auth_set_password($u, $password, $me['username'], true);   // ผู้ใช้ต้องเปลี่ยนเองก่อนใช้งาน
+    audit_write('USER', $u['id'], 'PASSWORD_RESET', ($password === AUTH_DEFAULT_PASSWORD ? 'รีเซ็ตรหัสผ่านเป็นรหัสตั้งต้น ให้ ' : 'ผู้ดูแลตั้งรหัสผ่านใหม่ให้ ')
+        . $u['username'] . ' (ออกจากระบบทุกอุปกรณ์ · ต้องเปลี่ยนรหัสเองก่อนใช้งาน)', null, $me);
     db_commit();
     return admin_user($u['id']);
 }
@@ -514,14 +522,16 @@ function api_admin_health($req, $params)
         '004_super_admin' => strpos((string)admin_column_type('users', 'role'), 'SUPER_ADMIN') !== false,
         '005_admin_monitor' => admin_column_type('auth_login_attempts', 'cleared_at') !== null,
         '006_system_settings' => admin_column_type('system_settings', 'value') !== null,
+        '007_uniform_quantities' => admin_column_type('uniform_rules', 'rule_key') !== null,
         '008_role_capabilities' => admin_column_type('role_capabilities', 'allowed') !== null,
+        '009_must_change_password' => admin_column_type('users', 'must_change_password') !== null,
     );
     $pending = array();
     foreach ($migrations as $m => $ok) {
         if (!$ok) { $pending[] = $m; }
     }
     $checks[] = admin_check('migrations', 'Migration (backend/sql)', count($pending) ? 'error' : 'ok',
-        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 008');
+        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 009');
 
     $cfgIssues = array();
     $cfgError = false;

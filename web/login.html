@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="assets/css/login.css" />
     <script>
       try { if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
+      // ขนาดตัวอักษรที่ใช้ล่าสุดในเบราว์เซอร์นี้ (app/fontSize.js)
+      try { var f = Number(localStorage.getItem('hl-font') || 100); if (f !== 100 && f >= 80 && f <= 150) document.documentElement.style.setProperty('--ui-zoom', f / 100); } catch (e) {}
     </script>
   </head>
   <body class="login-body">

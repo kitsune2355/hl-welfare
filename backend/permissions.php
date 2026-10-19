@@ -155,6 +155,10 @@ function perm_handler_caps()
 function auth_route_guard($req, $handler = null)
 {
     $u = auth_require($req);
+    /* ผู้ดูแลตั้ง/รีเซ็ตรหัสให้ (เช่น 4123) → ใช้ได้แค่ดูตัวเองกับเปลี่ยนรหัสผ่าน จนกว่าจะตั้งรหัสเอง */
+    if ($u['mustChangePassword'] && !in_array($handler, array('api_auth_me', 'api_auth_password'), true)) {
+        throw new ApiError('กรุณาเปลี่ยนรหัสผ่านก่อนใช้งาน (รหัสผ่านนี้ผู้ดูแลระบบตั้งให้)', 403, null, 'PASSWORD_CHANGE_REQUIRED');
+    }
     $map = perm_handler_caps();
     if ($handler !== null && isset($map[$handler]) && !cap_allowed($u['role'], $map[$handler])) { throw cap_forbidden($map[$handler]); }
     return $u;

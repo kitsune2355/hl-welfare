@@ -11,6 +11,7 @@ import { API_MODE, api } from './api.js';
 import { can, isAuthEnabled, logout, refreshSessionUser, requireSession } from './auth.js';
 import { installNavigationProgress, progress } from '../ui/loading.js';
 import { initTour } from './tour.js';
+import { applyFontSize, getFontSize } from './fontSize.js';
 
 const MENU = [
   { id: 'dashboard', href: 'index.html', label: 'ภาพรวม & ติดตามงาน', icon: 'layout-dashboard', cap: 'dashboard.view' },
@@ -38,6 +39,12 @@ const ADMIN = [
 ];
 
 /** เมนูที่ผู้ใช้นี้เห็น */
+/** บัญชีของฉัน — ทุกคนที่ login (หน้า account.html) */
+const ACCOUNT = [
+  { id: 'account-password', href: 'account.html#password', label: 'เปลี่ยนรหัสผ่าน', icon: 'key-round' },
+  { id: 'account-font', href: 'account.html#font', label: 'ขนาดตัวอักษร', icon: 'type' },
+];
+
 const allowedFor = (user) => (m) =>
   (!m.roles || m.roles.includes(user.roleCode)) && (!m.cap || can(m.cap)) && (!m.anyCap || m.anyCap.some((c) => can(c)));
 const PAGES = [...MENU, ...SETTINGS, ...ADMIN];
@@ -130,6 +137,13 @@ function navLink(item, active) {
 export function initPage(active, { tour = active } = {}) {
   const user = requireSession(); // ยังไม่ login → ไปหน้า login.html
   if (!user) return;
+  applyFontSize(getFontSize()); // หน้าที่ยังไม่มีสคริปต์ใน <head> ก็ได้ขนาดตัวอักษรเหมือนกัน
+  // ผู้ดูแลตั้ง/รีเซ็ตรหัสให้ (เช่น 4123) → ต้องเปลี่ยนรหัสเองก่อนใช้หน้าอื่น (เซิร์ฟเวอร์ก็ตอบ 403 ทุก API)
+  if (user.mustChangePassword && !active.startsWith('account')) {
+    const here = `${location.pathname.split('/').pop() || 'index.html'}${location.search}`;
+    location.replace(`account.html?force=1&next=${encodeURIComponent(here)}#password`);
+    throw new Error('ต้องเปลี่ยนรหัสผ่านก่อนใช้งาน');
+  }
   guardPage(active, user);
   const main = document.getElementById('page');
   const sidebar = document.createElement('aside');
@@ -141,6 +155,8 @@ export function initPage(active, { tour = active } = {}) {
     <nav class="nav" aria-label="เมนูหลัก">
       ${MENU.filter(allowedFor(user)).map((m) => navLink(m, active))}
       ${SETTINGS.some(allowedFor(user)) ? html`<div class="nav-section">ตั้งค่า</div>${SETTINGS.filter(allowedFor(user)).map((m) => navLink(m, active))}` : ''}
+      <div class="nav-section">บัญชีของฉัน</div>
+      ${ACCOUNT.map((m) => navLink(m, active))}
       ${ADMIN.some(allowedFor(user)) ? html`<div class="nav-section">ผู้ดูแลระบบ</div>${ADMIN.filter(allowedFor(user)).map((m) => navLink(m, active))}` : ''}
     </nav>
     <div class="sidebar-foot">

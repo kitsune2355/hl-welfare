@@ -67,6 +67,9 @@ const state = { roles: [], counts: {} };
 const ago = (s) => (s ? html`<time datetime="${s}" title="${thaiDateTime(s)}">${timeAgo(s)}</time>` : html`<span class="muted">–</span>`);
 const when = (s) => (s ? thaiDateTime(s) : '–');
 const userCell = (r) => html`<span class="two-line"><b>${r.name}</b><span class="sub">${r.username} · ${r.roleLabel}</span></span>`;
+/** รหัสผ่านตั้งต้นที่ผู้ดูแลตั้ง/รีเซ็ตให้ (= AUTH_DEFAULT_PASSWORD ใน backend/auth.php) — ผู้ใช้ถูกบังคับเปลี่ยนเองตอนเข้าสู่ระบบ */
+const DEFAULT_PASSWORD = '4123';
+
 /** บัญชี SUPER_ADMIN — คนที่ไม่ใช่ SUPER_ADMIN แตะไม่ได้ */
 const isProtected = (role) => role === 'SUPER_ADMIN' && !isSuper;
 const protectedMark = () => html`<span class="small muted row" style="gap:4px" title="บัญชีผู้ดูแลระบบสูงสุด แก้ไขได้เฉพาะผู้ดูแลระบบสูงสุด">${raw(icon('lock'))} ป้องกัน</span>`;
@@ -145,8 +148,12 @@ const users = new DataTable($('#users'), {
     {
       key: 'status',
       header: 'สถานะ',
-      text: (u) => (u.isActive ? (u.locked ? 'ถูกล็อก' : 'ใช้งาน') : 'ปิดบัญชี'),
-      cell: (u) => (u.isActive ? (u.locked ? badge('ถูกล็อก', 'danger') : badge('ใช้งาน', 'success')) : badge('ปิดบัญชี', 'neutral')),
+      text: (u) => (u.isActive ? (u.locked ? 'ถูกล็อก' : u.mustChangePassword ? 'รอตั้งรหัสเอง' : 'ใช้งาน') : 'ปิดบัญชี'),
+      cell: (u) =>
+        u.isActive
+          ? html`${u.locked ? badge('ถูกล็อก', 'danger') : badge('ใช้งาน', 'success')}
+              ${u.mustChangePassword ? html` ${badge('รอตั้งรหัสเอง', 'warning', { dot: false })}` : ''}`
+          : badge('ปิดบัญชี', 'neutral'),
     },
     { key: 'online', header: 'ออนไลน์ / จดจำ', align: 'center', text: (u) => `${u.activeSessions} / ${u.devices}`, cell: (u) => html`<span class="num">${u.activeSessions} / ${u.devices}</span>` },
     { key: 'last', header: 'เข้าล่าสุด', sort: (u) => u.lastLoginAt ?? '', text: (u) => when(u.lastLoginAt), cell: (u) => ago(u.lastLoginAt) },
@@ -162,7 +169,7 @@ const users = new DataTable($('#users'), {
         <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${u.id}" title="แก้ไขชื่อ / บทบาท / รหัสพนักงาน">${raw(icon('pencil'))} แก้ไข</button>
         ${isMe(u)
           ? ''
-          : html`<button class="btn btn-ghost btn-sm" data-action="password" data-id="${u.id}" title="ตั้งรหัสผ่านใหม่" aria-label="ตั้งรหัสผ่านใหม่ให้ ${u.username}">${raw(icon('lock'))}</button>
+          : html`<button class="btn btn-ghost btn-sm" data-action="password" data-id="${u.id}" title="รีเซ็ตรหัสผ่านเป็น ${DEFAULT_PASSWORD}" aria-label="รีเซ็ตรหัสผ่านของ ${u.username} เป็น ${DEFAULT_PASSWORD}">${raw(icon('lock'))}</button>
               <button class="btn btn-ghost btn-sm" data-action="signout" data-id="${u.id}" title="ออกจากระบบทุกอุปกรณ์" aria-label="ให้ ${u.username} ออกจากระบบทุกอุปกรณ์" ${u.activeSessions + u.devices ? '' : 'disabled'}>${raw(icon('log-out'))}</button>
               <button class="btn btn-ghost btn-sm" data-action="toggle" data-id="${u.id}" title="${u.isActive ? 'ปิดบัญชี' : 'เปิดใช้บัญชี'}" aria-label="${u.isActive ? 'ปิดบัญชี' : 'เปิดใช้บัญชี'} ${u.username}">${raw(icon(u.isActive ? 'user-x' : 'user-plus'))}</button>`}
       </span>`,
@@ -256,16 +263,17 @@ const roleSelect = (disabled = false) =>
 $('#add-user').addEventListener('click', () =>
   formModal({
     title: 'เพิ่มผู้ใช้',
-    description: 'ใช้ชื่อผู้ใช้เดียวกับ stock_hr ถ้ามีบัญชีที่นั่น · แจ้งรหัสผ่านให้ผู้ใช้แล้วให้เปลี่ยนเองภายหลัง',
+    description: `ใช้ชื่อผู้ใช้เดียวกับ stock_hr ถ้ามีบัญชีที่นั่น · รหัสเริ่มต้น ${DEFAULT_PASSWORD} — ผู้ใช้ต้องตั้งรหัสของตัวเองตอนเข้าสู่ระบบครั้งแรก`,
     fields: html`${field('username', 'ชื่อผู้ใช้', html`<input class="input" name="username" autocomplete="off" spellcheck="false" />`, { required: true, hint: 'a-z 0-9 . _ - (2–50 ตัว)' })}
       ${field('name', 'ชื่อ-สกุล', html`<input class="input" name="name" />`, { required: true })}
       ${field('role', 'บทบาท', roleSelect(), { required: true })}
       ${field('empCode', 'รหัสพนักงาน', html`<input class="input" name="empCode" />`, { hint: 'ส่งให้สต็อกเป็นผู้ขอเบิก' })}
-      ${field('password', 'รหัสผ่านเริ่มต้น', passwordInput(), { required: true, hint: 'อย่างน้อย 8 ตัว' })}`,
-    values: { role: 'HR_ADMIN', password: randomPassword() },
+      ${field('password', 'รหัสผ่านเริ่มต้น', passwordInput(), { hint: `ว่าง / ${DEFAULT_PASSWORD} = รหัสตั้งต้น · ตั้งเองต้องยาวอย่างน้อย 8 ตัว` })}`,
+    values: { role: 'HR_ADMIN', password: DEFAULT_PASSWORD },
     okLabel: 'เพิ่มผู้ใช้',
     save: async (v) => {
       const u = await adminApi.createUser(v);
+      if (v.password === '' || v.password === DEFAULT_PASSWORD) toast.success(`แจ้ง ${u.username} ว่ารหัสเริ่มต้นคือ ${DEFAULT_PASSWORD} (ต้องเปลี่ยนตอนเข้าครั้งแรก)`);
       toast.success(`เพิ่มผู้ใช้ ${u.username} แล้ว`);
       await loadUsers();
     },
@@ -294,18 +302,17 @@ on($('#users'), 'click', '[data-action]', async (_e, b) => {
     });
   }
   if (act === 'password') {
-    return formModal({
-      title: `ตั้งรหัสผ่านใหม่ให้ ${u.username}`,
-      description: `${u.name} จะออกจากระบบทุกอุปกรณ์ แล้วต้องเข้าด้วยรหัสใหม่`,
-      fields: field('password', 'รหัสผ่านใหม่', passwordInput(), { required: true, hint: 'คัดลอกไว้ก่อนกดบันทึก — ระบบไม่เก็บรหัสที่อ่านได้' }),
-      values: { password: randomPassword() },
-      okLabel: 'ตั้งรหัสผ่าน',
-      save: async (v) => {
-        await adminApi.resetPassword(u.id, v.password);
-        toast.success(`ตั้งรหัสผ่านใหม่ให้ ${u.username} แล้ว`);
-        await loadUsers();
-      },
-    });
+    if (
+      await confirmAction({
+        title: `รีเซ็ตรหัสผ่านของ ${u.username} เป็น ${DEFAULT_PASSWORD}?`,
+        description: `${u.name} จะออกจากระบบทุกอุปกรณ์ทันที · เข้าด้วย ${DEFAULT_PASSWORD} แล้วต้องตั้งรหัสของตัวเองก่อนใช้งาน`,
+        confirmLabel: `รีเซ็ตเป็น ${DEFAULT_PASSWORD}`,
+        successMessage: `รีเซ็ตแล้ว — แจ้ง ${u.username} ให้เข้าด้วย ${DEFAULT_PASSWORD}`,
+        action: () => adminApi.resetPassword(u.id, ''),
+      })
+    )
+      reloadAccessToo();
+    return;
   }
   if (act === 'signout') {
     if (await confirmAction({

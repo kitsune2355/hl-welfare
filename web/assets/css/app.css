@@ -5353,3 +5353,93 @@ html:has(#ed),
     width: 72px;
   }
 }
+
+/* =====================================================================
+   ขนาดตัวอักษรของทั้งระบบ (app/fontSize.js · หน้า "บัญชีของฉัน")
+   --ui-zoom ตั้งที่ <html> ในสคริปต์ส่วน <head> ของทุกหน้า (ก่อนวาดหน้า) · ไม่ตั้ง = 1
+   app.css ใช้ px ทั้งหมด จึงย่อ/ขยายทั้งหน้าด้วย zoom · ความสูงแบบ vh ต้องหารด้วย zoom ไม่งั้นล้นจอ
+   ===================================================================== */
+html {
+  zoom: var(--ui-zoom, 1);
+}
+.app {
+  min-height: calc(100vh / var(--ui-zoom, 1));
+}
+@media (min-width: 1024px) {
+  body,
+  .app {
+    height: calc(100vh / var(--ui-zoom, 1));
+  }
+}
+.modal-lg,
+.modal:has([data-batch-body]) {
+  max-height: calc((100dvh - 48px) / var(--ui-zoom, 1));
+}
+@media (max-width: 639px) {
+  .modal-lg {
+    max-height: calc((100dvh - 24px) / var(--ui-zoom, 1));
+  }
+}
+
+/* ----- บัญชีของฉัน (account.html) ----- */
+.account-grid {
+  align-items: start;
+}
+.pw-rules {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.pw-rules li.ok {
+  color: var(--success);
+}
+.pw-rules li.soft:not(.ok) {
+  opacity: 0.75;
+}
+.font-levels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.font-level {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 96px;
+  padding: 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.font-level:hover {
+  border-color: var(--primary);
+}
+.font-level:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+.font-level.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+.font-level small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.font-sample {
+  font-weight: 600;
+  line-height: 1.3;
+}
+@media (max-width: 1023px) {
+  .account-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

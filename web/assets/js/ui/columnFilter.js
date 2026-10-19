@@ -5,7 +5,7 @@
 // ค่าที่ใช้กรอง: text(row) ถ้ามี · ไม่มี = ข้อความที่แสดงในเซลล์
 // ค่าที่ใช้เรียง: sort(row) ถ้ามี (เช่น วันที่ ISO, ตัวเลข) · ไม่มี = ค่าที่ใช้กรอง
 // ตรึงคอลัมน์ไว้ด้านซ้าย: ปุ่มในกล่องเดียวกัน · จำแยกต่อตาราง/ต่อเครื่อง (localStorage hl-pins:<หน้า>#<id ตาราง>)
-import { esc, html, raw } from '../shared/dom.js';
+import { cssRect, esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 
 const ENT = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
@@ -178,11 +178,11 @@ export function openColumnFilter({ anchor, label, values, selected, sortDir, onA
   };
 
   // ตำแหน่ง: ใต้หัวคอลัมน์ ไม่ล้นขอบจอ
-  const r = anchor.getBoundingClientRect();
+  const r = cssRect(anchor); // หน่วย CSS px (รองรับขนาดตัวอักษรของระบบ)
   const width = 260;
   pop.style.width = `${width}px`;
-  pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - width - 8))}px`;
-  pop.style.top = `${Math.min(r.bottom + 4, window.innerHeight - 420)}px`;
+  pop.style.left = `${Math.max(8, Math.min(r.left, r.vw - width - 8))}px`;
+  pop.style.top = `${Math.min(r.bottom + 4, r.vh - 420)}px`;
 
   const close = () => {
     document.removeEventListener('mousedown', outside, true);

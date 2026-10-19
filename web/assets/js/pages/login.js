@@ -2,7 +2,7 @@
 import { api, authApi, AUTH_PROVIDER } from '../app/api.js';
 import { getSession, GUEST, isAuthEnabled, isServerAuth, safeNext, saveSession } from '../app/auth.js';
 import { CONFIG } from '../config.js';
-import { $, esc, getParam } from '../shared/dom.js';
+import { $, cssRect, esc, getParam } from '../shared/dom.js';
 import { hydrateIcons, icon } from '../shared/icons.js';
 import { progress, spinner } from '../ui/loading.js';
 
@@ -121,7 +121,7 @@ function setLoading(on) {
 function playSuccess(name) {
   btn.classList.add('success');
   btn.innerHTML = `${icon('check')}<span class="lc-label">สำเร็จ</span>`;
-  const r = btn.getBoundingClientRect();
+  const r = cssRect(btn); // หน่วย CSS px (รองรับขนาดตัวอักษรของระบบ)
   const overlay = $('#success');
   overlay.style.setProperty('--x', `${r.left + r.width / 2}px`);
   overlay.style.setProperty('--y', `${r.top + r.height / 2}px`);

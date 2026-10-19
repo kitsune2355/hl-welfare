@@ -95,13 +95,23 @@ export async function refreshSessionUser() {
   const before = getSession();
   if (!before) return false;
   const user = await authApi.me();
-  const changed = JSON.stringify(before.caps ?? null) !== JSON.stringify(user.caps ?? null) || before.roleCode !== user.roleCode;
+  const changed =
+    JSON.stringify(before.caps ?? null) !== JSON.stringify(user.caps ?? null) ||
+    before.roleCode !== user.roleCode ||
+    !!before.mustChangePassword !== !!user.mustChangePassword;
+  updateSessionUser(user);
+  return changed;
+}
+
+/** แทนข้อมูลผู้ใช้ใน session ที่เก็บไว้ (คงเวลาหมดอายุเดิม) — เช่น หลังเปลี่ยนรหัสผ่าน */
+export function updateSessionUser(user) {
+  const before = getSession();
+  if (!before) return;
   try {
     sessionStorage.setItem(KEY, JSON.stringify({ ...before, ...user }));
   } catch {
     /* ignore */
   }
-  return changed;
 }
 
 export const isAuthEnabled = () => CONFIG.auth.enabled;

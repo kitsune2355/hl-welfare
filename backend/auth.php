@@ -14,6 +14,8 @@
 
 define('SESSION_COOKIE', 'HLW_SESSION');
 define('REFRESH_COOKIE', 'HLW_REFRESH');
+/* รหัสผ่านตั้งต้นที่ผู้ดูแลตั้ง/รีเซ็ตให้ — สั้นและรู้กันทั่วไป จึงบังคับให้ผู้ใช้เปลี่ยนเองก่อนใช้งาน (must_change_password, migration 009) */
+define('AUTH_DEFAULT_PASSWORD', '4123');
 
 $GLOBALS['hlw_role_labels'] = array('SUPER_ADMIN' => 'ผู้ดูแลระบบ', 'HR_ADMIN' => 'HR Admin', 'HR_COMPANY' => 'HR บริษัท', 'PAYROLL' => 'Payroll',
     'STOCK' => 'ผู้ดูแลสต็อก', 'EXECUTIVE' => 'ผู้บริหาร');
@@ -28,7 +30,7 @@ function map_user($r)
 {
     return array('id' => (int)$r['id'], 'username' => $r['username'], 'name' => $r['name'], 'role' => $r['role'],
         'empCode' => $r['emp_code'], 'isActive' => (bool)$r['is_active'], 'sessionVersion' => (int)$r['session_version'],
-        'passwordHash' => $r['password_hash']);
+        'passwordHash' => $r['password_hash'], 'mustChangePassword' => !empty($r['must_change_password']));
 }
 
 /** AuthUser ที่ส่งให้หน้าเว็บ (ไม่มี hash) */
@@ -37,7 +39,8 @@ function user_public($u)
     $labels = $GLOBALS['hlw_role_labels'];
     return array('id' => $u['id'], 'username' => $u['username'], 'name' => $u['name'],
         'role' => isset($labels[$u['role']]) ? $labels[$u['role']] : $u['role'], 'roleCode' => $u['role'], 'empCode' => $u['empCode'],
-        'caps' => caps_for_role($u['role']));       // สิทธิ์ (permissions.php) — หน้าเว็บใช้ซ่อนเมนู/ปุ่ม
+        'caps' => caps_for_role($u['role']),                // สิทธิ์ (permissions.php) — หน้าเว็บใช้ซ่อนเมนู/ปุ่ม
+        'mustChangePassword' => $u['mustChangePassword']);  // true = ผู้ดูแลตั้งรหัสให้ ต้องเปลี่ยนเองก่อนใช้งาน
 }
 
 function user_by_id($id)
@@ -214,11 +217,14 @@ function assert_strong_password($password, $username)
     if (strtolower($password) === strtolower($username)) { throw new ApiError('รหัสผ่านต้องไม่เหมือนชื่อผู้ใช้', 422); }
 }
 
-/** ตั้งรหัสผ่านใหม่ + session_version +1 + เพิกถอนทุก token/session (ผู้ใช้เปลี่ยนเอง หรือผู้ดูแลผ่าน bin/user.php) */
-function auth_set_password($u, $password, $by)
+/**
+ * ตั้งรหัสผ่านใหม่ + session_version +1 + เพิกถอนทุก token/session (ผู้ใช้เปลี่ยนเอง หรือผู้ดูแลตั้ง/รีเซ็ตให้)
+ * $mustChange = true เมื่อผู้ดูแลเป็นคนตั้ง → ผู้ใช้ต้องเปลี่ยนเองก่อนใช้งาน · ผู้ใช้เปลี่ยนเอง = false
+ */
+function auth_set_password($u, $password, $by, $mustChange = false)
 {
-    db_exec('UPDATE users SET password_hash = ?, session_version = session_version + 1, password_changed_at = ?, updated_by = ?
-             WHERE id = ?', array(pw_hash($password), db_now(), $by, $u['id']));
+    db_exec('UPDATE users SET password_hash = ?, session_version = session_version + 1, password_changed_at = ?, must_change_password = ?,
+             updated_by = ? WHERE id = ?', array(pw_hash($password), db_now(), $mustChange ? 1 : 0, $by, $u['id']));
     auth_revoke_all($u['id'], 'PASSWORD_CHANGE', $by);
 }
 
@@ -360,6 +366,7 @@ function api_auth_password($req, $params)
     }
     $new = (string)arr_get($b, 'newPassword', '');
     assert_strong_password($new, $u['username']);
+    if (pw_verify($new, $u['passwordHash'])) { throw new ApiError('รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสเดิม', 422); }
     auth_set_password($u, $new, $u['username']);
     audit_write('USER', $u['id'], 'PASSWORD_CHANGE', 'เปลี่ยนรหัสผ่าน (ออกจากระบบทุกอุปกรณ์)', null, $u);
     $fresh = user_by_id($u['id']);

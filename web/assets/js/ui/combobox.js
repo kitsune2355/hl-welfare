@@ -9,7 +9,7 @@
 //   data-creatable = พิมพ์ค่าใหม่ที่ไม่มีในรายการได้ · data-size="sm" = ขนาดเล็ก · <option disabled> = ไม่แสดง
 //
 // ถ้าเปลี่ยน option ด้วย JS ภายหลัง ให้เรียก select.refreshCombobox()
-import { esc, html, raw } from '../shared/dom.js';
+import { cssRect, esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 
 const norm = (s) => String(s).toLowerCase().normalize('NFC');
@@ -31,15 +31,15 @@ export function openPicker({ anchor, options, value, creatable = false, initialQ
   let closed = false;
 
   const place = () => {
-    const r = anchor.getBoundingClientRect();
+    const r = cssRect(anchor); // หน่วย CSS px (รองรับขนาดตัวอักษรของระบบ)
     const width = Math.max(r.width, 220);
-    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
-    const below = window.innerHeight - r.bottom;
+    const left = Math.max(8, Math.min(r.left, r.vw - width - 8));
+    const below = r.vh - r.bottom;
     pop.style.left = `${left}px`;
     pop.style.width = `${width}px`;
     if (below < 300 && r.top > below) {
       pop.style.top = '';
-      pop.style.bottom = `${window.innerHeight - r.top + 4}px`;
+      pop.style.bottom = `${r.vh - r.top + 4}px`;
     } else {
       pop.style.bottom = '';
       pop.style.top = `${r.bottom + 4}px`;
