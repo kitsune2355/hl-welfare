@@ -1,6 +1,6 @@
 import { uniformStatus } from '../../domain/uniform.js';
 
-/** ชุดฟอร์มที่ถึงกำหนดแต่ยังไม่แจก (เฉพาะพนักงานที่ยังทำงานอยู่) เรียงตามวันครบกำหนด */
+/** ชุดฟอร์มที่ถึงกำหนดแต่ยังไม่แจก และยังไม่ได้ส่งเบิกคลัง (เฉพาะพนักงานที่ยังทำงานอยู่) เรียงตามวันครบกำหนด */
 export function buildUniformPending(employees, sites, rules, issues, today) {
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const rows = [];
@@ -8,7 +8,7 @@ export function buildUniformPending(employees, sites, rules, issues, today) {
     if (emp.status !== 'ACTIVE') continue;
     const st = uniformStatus(emp, siteById.get(emp.siteId) ?? null, rules, issues, today);
     for (const e of st.entitlements) {
-      if (e.issued) continue;
+      if (e.issued || e.requested) continue;
       rows.push({
         employee: emp,
         entitlementKey: e.key,

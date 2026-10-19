@@ -122,6 +122,16 @@ export class HttpApi {
   cancelUniformIssue(id) {
     return this.del(`/uniform/issues/${id}`);
   }
+  // ---------- ส่งเบิกผ่านระบบสต็อก HR (PHP เป็นคนเซ็นคำขอและคุยกับ stock_hr) ----------
+  getUniformStockOptions(employeeId, entitlementKey) {
+    return this.req(`/uniform/stock-options?employeeId=${employeeId}&entitlementKey=${encodeURIComponent(entitlementKey)}`);
+  }
+  requestUniformFromStock(input) {
+    return this.send('POST', '/uniform/stock-requests', input);
+  }
+  syncUniformStock() {
+    return this.send('POST', '/uniform/stock-sync', {});
+  }
   getWorkQueue() {
     return this.req('/monitor/tasks');
   }

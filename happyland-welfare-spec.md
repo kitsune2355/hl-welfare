@@ -794,6 +794,9 @@ export interface WelfareApi {
 | GET | `/api/uniform/issues` | `?employeeId=` | `UniformIssue[]` |
 | POST | `/api/uniform/issues` | `{employeeId, entitlementKey, event, qty, size, issuedAt}` | `UniformIssue` (201) |
 | GET | `/api/uniform/pending` | – | `UniformPendingRow[]` |
+| GET | `/api/uniform/stock-options` | `?employeeId=&entitlementKey=` | แบบ/ไซซ์/ยอดคงเหลือจากระบบสต็อก HR (409 ถ้าแจกหรือส่งเบิกแล้ว) |
+| POST | `/api/uniform/stock-requests` | `{employeeId, entitlementKey, lines: [{itemCode, productId, qty}]}` | `UniformIssue` (201, `source: STOCK`) — ออกใบเบิก WRQ ที่อนุมัติแล้วใน stock_hr |
+| POST | `/api/uniform/stock-sync` | – | `{changed}` — ดึงสถานะใบเบิกจาก stock_hr (คลังยกเลิก → สิทธิ์กลับเป็นค้างแจก) |
 | POST | `/api/sites` | `{companyCode, name, hasGroupInsurance, poloColor}` | `Site` (201) |
 | DELETE | `/api/sites/{id}` | – | 204 / 409 |
 | DELETE | `/api/employees/{id}` | – | 204 / 409 |
@@ -1293,6 +1296,9 @@ $r->put('/api/insurers/bindings',              [InsurerController::class, 'bindi
 $r->get('/api/uniform/issues',                [UniformController::class, 'issues']);
 $r->post('/api/uniform/issues',               [UniformController::class, 'issue']);
 $r->get('/api/uniform/pending',               [UniformController::class, 'pending']);
+$r->get('/api/uniform/stock-options',         [UniformController::class, 'stockOptions']);
+$r->post('/api/uniform/stock-requests',       [UniformController::class, 'stockRequest']);
+$r->post('/api/uniform/stock-sync',           [UniformController::class, 'stockSync']);
 
 try {
     $r->dispatch(Request::fromGlobals());

@@ -18,9 +18,9 @@ import {
   UNIFORM_ITEM_LABEL,
 } from '../shared/labels.js';
 import { alertBox, avatar, badge, card, emptyState, errorState, infoList } from '../ui/components.js';
-import { confirmAction } from '../ui/overlay.js';
+import { confirmAction, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
-import { activityFeed, enhanceIssueActions, issueAction, wireIssueActions } from './_shared.js';
+import { STOCK_STAGE, activityFeed, enhanceIssueActions, issueAction, stockDocLink, syncStockQuietly, wireIssueActions } from './_shared.js';
 
 initPage('employees', { tour: 'employee' });
 
@@ -66,8 +66,16 @@ function insuranceCard(emp, st) {
 }
 
 function renderUniform(emp, st) {
-  const pending = st.entitlements.filter((e) => !e.issued).length;
-  const b = st.ruleId === null ? badge('ไม่พบสิทธิ', 'danger', { lg: true }) : pending ? badge(`ค้างแจก ${pending}`, 'warning', { lg: true }) : badge('ครบแล้ว', 'success', { lg: true });
+  const pending = st.entitlements.filter((e) => !e.issued && !e.requested).length;
+  const waiting = st.entitlements.filter((e) => e.requested).length;
+  const b =
+    st.ruleId === null
+      ? badge('ไม่พบสิทธิ', 'danger', { lg: true })
+      : pending
+        ? badge(`ค้างแจก ${pending}`, 'warning', { lg: true })
+        : waiting
+          ? badge(`รอคลังจ่าย ${waiting}`, 'info', { lg: true })
+          : badge('ครบแล้ว', 'success', { lg: true });
   render(
     $('#uniform'),
     card({
@@ -93,12 +101,18 @@ function renderUniform(emp, st) {
         header: '',
         align: 'right',
         cell: (e) =>
-          e.issued
-            ? html`<span class="row" style="justify-content:flex-end">${badge('แจกแล้ว', 'success')}
+          e.stock
+            ? // ผ่านคลัง: ยกเลิกได้เฉพาะตอนรอคลังจ่าย (คลังจ่ายแล้วต้องยกเลิกที่ระบบสต็อก)
+              html`<span class="row" style="justify-content:flex-end;gap:6px">${stockDocLink(e.stock)} ${badge(STOCK_STAGE[e.stock.stage].label, STOCK_STAGE[e.stock.stage].tone)}
+                ${e.requested
+                  ? html`<button class="btn-icon sm danger" data-cancel-issue="${e.issueId}" data-stock="1" data-label="${UNIFORM_EVENT_LABEL[e.event]}" title="ยกเลิกการส่งเบิก" aria-label="ยกเลิกการส่งเบิก">${raw(icon('undo-2'))}</button>`
+                  : ''}</span>`
+            : e.issued
+              ? html`<span class="row" style="justify-content:flex-end">${badge('แจกแล้ว', 'success')}
                 <button class="btn-icon sm danger" data-cancel-issue="${e.issueId}" data-label="${UNIFORM_EVENT_LABEL[e.event]}" title="ยกเลิกการแจก" aria-label="ยกเลิกการแจก">${raw(icon('undo-2'))}</button></span>`
-            : emp.status === 'ACTIVE'
-              ? issueAction({ employeeId: emp.id, entitlementKey: e.key, event: e.event, qty: e.qty })
-              : badge('ไม่ได้แจก', 'neutral'),
+              : emp.status === 'ACTIVE'
+                ? issueAction({ employeeId: emp.id, entitlementKey: e.key, event: e.event, qty: e.qty, name: `${emp.firstName} ${emp.lastName}` })
+                : badge('ไม่ได้แจก', 'neutral'),
       },
     ],
     empty: emptyState({ iconName: 'shirt', title: 'ยังไม่ถึงรอบแจกชุดฟอร์ม', description: 'จะได้รับเมื่อเริ่มงาน / ผ่านทดลองงาน / รอบประจำปี ตามกฎ' }),
@@ -108,6 +122,8 @@ function renderUniform(emp, st) {
 
 async function load() {
   try {
+    const warn = await syncStockQuietly();
+    if (warn) toast.error(warn);
     const [b, rules, activity] = await Promise.all([api.getEmployeeBenefits(id), api.getRules(), api.listActivity({ employeeId: id, limit: 30 })]);
     const e = b.employee;
     // ข้อมูลที่ไฟล์แจ้งประกันใช้ แต่ยังว่าง
@@ -169,9 +185,11 @@ async function load() {
 wireIssueActions($('#uniform'), { today, onDone: load });
 on($('#uniform'), 'click', '[data-cancel-issue]', (_e, b) =>
   confirmAction({
-    title: `ยกเลิกการแจก (${b.dataset.label})?`,
-    body: 'ใช้กรณีบันทึกผิด เช่น เลือกไซซ์ผิด แล้วบันทึกใหม่ได้ทันที',
-    confirmLabel: 'ยกเลิกการแจก',
+    title: b.dataset.stock ? `ยกเลิกการส่งเบิก (${b.dataset.label})?` : `ยกเลิกการแจก (${b.dataset.label})?`,
+    body: b.dataset.stock
+      ? 'ใบเบิกในระบบสต็อกจะถูกยกเลิกด้วย — ยกเลิกได้เฉพาะใบที่คลังยังไม่จ่าย'
+      : 'ใช้กรณีบันทึกผิด เช่น เลือกไซซ์ผิด แล้วบันทึกใหม่ได้ทันที',
+    confirmLabel: b.dataset.stock ? 'ยกเลิกการส่งเบิก' : 'ยกเลิกการแจก',
     successMessage: 'ยกเลิกแล้ว — กลับไปเป็น “ค้างแจก”',
     action: async () => {
       await api.cancelUniformIssue(Number(b.dataset.cancelIssue));

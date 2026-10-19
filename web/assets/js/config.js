@@ -10,6 +10,18 @@ export const CONFIG = {
   /** URL ของ PHP API (ใช้เมื่อ apiMode = 'http') — path แบบ relative จากหน้าเว็บ */
   apiBaseUrl: 'api',
 
+  /**
+   * ระบบสต็อก HR (stock_hr) — ส่งเบิกชุดฟอร์มให้คลังจ่าย
+   * ต้องเปิดผ่าน AppServ (http://localhost/hl-welfare/web/) เพราะตัวกลางเป็น PHP
+   * ค่ากุญแจอยู่ใน web/api/stock_bridge.config.php
+   */
+  stock: {
+    /** ตัวกลางที่เซ็นคำขอแล้วส่งต่อ — path แบบ relative จากหน้าเว็บ */
+    bridgeUrl: 'api/stock_bridge.php',
+    /** ลิงก์ใบเบิกในระบบสต็อก ต่อท้ายด้วย doc_id */
+    docUrl: 'http://localhost/stock_hr/print_doc.php?doc_id=',
+  },
+
   /** การเข้าสู่ระบบ (หน้า login.html) */
   auth: {
     /** false = ไม่ต้อง login (เข้าระบบเป็น "ผู้ใช้ทั่วไป" อัตโนมัติ) */

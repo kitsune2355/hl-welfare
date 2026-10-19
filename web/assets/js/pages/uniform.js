@@ -10,15 +10,19 @@ import { UNIFORM_EVENT_LABEL } from '../shared/labels.js';
 import { badge, emptyState, employeeCell, errorState, tabs } from '../ui/components.js';
 import { confirmAction } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
-import { enhanceIssueActions, issueAction, wireIssueActions } from './_shared.js';
+import { isHandedOut, isStockIssue } from '../domain/uniform.js';
+import { alertBox } from '../ui/components.js';
+import { STOCK_STAGE, enhanceIssueActions, issueAction, stockDocLink, syncStockQuietly, wireIssueActions } from './_shared.js';
 
 initPage('uniform');
 
 const today = todayISO();
 const OVERDUE_DAYS = 30;
-let tab = getParam('tab') === 'history' ? 'history' : 'pending';
+const TABS = ['pending', 'waiting', 'history'];
+let tab = TABS.includes(getParam('tab')) ? getParam('tab') : 'pending';
 let pending = null;
-let issues = null;
+let issues = null; // แจกแล้ว (บันทึกเอง + คลังจ่ายแล้ว)
+let waiting = null; // ส่งเบิกคลังแล้ว รอคลังจ่าย
 let employees = new Map();
 const pieces = (label) => label.split('+').reduce((s, x) => s + Number(x), 0); // "2+1" → 3
 const annualYear = (key) => ` ${Number(key.slice(7)) + 543}`;
@@ -55,10 +59,36 @@ const pendingTable = new DataTable($('#pending'), {
       key: 'act',
       header: '',
       align: 'right',
-      cell: (r) => issueAction({ employeeId: r.employee.id, entitlementKey: r.entitlementKey, event: r.event, qty: pieces(r.qtyLabel) }),
+      cell: (r) =>
+        issueAction({ employeeId: r.employee.id, entitlementKey: r.entitlementKey, event: r.event, qty: pieces(r.qtyLabel), name: `${r.employee.firstName} ${r.employee.lastName}` }),
     },
   ],
   empty: emptyState({ iconName: 'package-check', title: 'แจกครบทุกรายการแล้ว 🎉', description: 'ไม่มีชุดฟอร์มค้างแจก' }),
+});
+
+const empCol = { key: 'emp', header: 'พนักงาน', mobile: 'title', cell: (i) => (employees.get(i.employeeId) ? employeeCell(employees.get(i.employeeId), { link: true }) : `#${i.employeeId}`) };
+const roundCol = { key: 'ev', header: 'รอบ', cell: (i) => `${UNIFORM_EVENT_LABEL[i.event]}${i.event === 'ANNUAL' ? annualYear(i.entitlementKey) : ''}` };
+const stockItems = (i) => i.stock.items.map((x) => `${x.name} × ${x.qty}`).join(', ');
+
+const waitingTable = new DataTable($('#waiting'), {
+  rowKey: (i) => i.id,
+  pageSize: 25,
+  columns: [
+    { key: 'date', header: 'วันที่ส่งเบิก', mobile: 'field', sort: (i) => i.issuedAt, cell: (i) => html`<span class="num">${thaiDate(i.issuedAt)}</span>` },
+    empCol,
+    roundCol,
+    { key: 'doc', header: 'ใบเบิก', mobile: 'aside', sort: (i) => i.stock.docNo, cell: (i) => stockDocLink(i.stock) },
+    { key: 'items', header: 'รายการ', hideOnMobile: true, cell: (i) => html`<span class="muted truncate" style="display:block;max-width:320px" title="${stockItems(i)}">${stockItems(i)}</span>` },
+    { key: 'by', header: 'ส่งโดย', hideOnMobile: true, cell: (i) => html`<span class="muted">${i.issuedBy}</span>` },
+    {
+      key: 'cancel',
+      header: '',
+      align: 'right',
+      cell: (i) =>
+        html`<button class="btn-icon sm danger" data-cancel-issue="${i.id}" title="ยกเลิกการส่งเบิก" aria-label="ยกเลิกการส่งเบิก">${raw(icon('undo-2'))}</button>`,
+    },
+  ],
+  empty: emptyState({ iconName: 'package-check', title: 'ไม่มีใบที่รอคลังจ่าย', description: 'กด “ส่งเบิกคลัง” ที่แท็บค้างแจก แล้วใบจะมารออยู่ที่นี่' }),
 });
 
 const historyTable = new DataTable($('#history'), {
@@ -66,17 +96,30 @@ const historyTable = new DataTable($('#history'), {
   pageSize: 25,
   columns: [
     { key: 'date', header: 'วันที่แจก', mobile: 'field', sort: (i) => i.issuedAt, cell: (i) => html`<span class="num">${thaiDate(i.issuedAt)}</span>` },
-    { key: 'emp', header: 'พนักงาน', mobile: 'title', cell: (i) => (employees.get(i.employeeId) ? employeeCell(employees.get(i.employeeId), { link: true }) : `#${i.employeeId}`) },
-    { key: 'ev', header: 'รอบ', cell: (i) => `${UNIFORM_EVENT_LABEL[i.event]}${i.event === 'ANNUAL' ? annualYear(i.entitlementKey) : ''}` },
+    empCol,
+    roundCol,
     { key: 'qty', header: 'จำนวน', align: 'right', sort: (i) => i.qty, cell: (i) => html`<span class="num">${i.qty} ตัว</span>` },
     { key: 'size', header: 'ไซซ์', align: 'center', mobile: 'aside', cell: (i) => badge(i.size, 'primary', { dot: false }) },
+    {
+      key: 'src',
+      header: 'ที่มา',
+      hideOnMobile: true,
+      text: (i) => (isStockIssue(i) ? i.stock.docNo : 'บันทึกเอง'),
+      cell: (i) =>
+        isStockIssue(i)
+          ? html`<span class="row" style="gap:6px">${stockDocLink(i.stock)} ${badge(STOCK_STAGE[i.stock.stage].label, STOCK_STAGE[i.stock.stage].tone)}</span>`
+          : badge('บันทึกเอง', 'neutral'),
+    },
     { key: 'by', header: 'บันทึกโดย', hideOnMobile: true, cell: (i) => html`<span class="muted">${i.issuedBy}</span>` },
     {
       key: 'cancel',
       header: '',
       align: 'right',
+      // ผ่านคลังแล้วยกเลิกที่นี่ไม่ได้ — สต็อกถูกตัดไปแล้ว ต้องให้คลังยกเลิกใบจ่าย
       cell: (i) =>
-        html`<button class="btn-icon sm danger" data-cancel-issue="${i.id}" title="ยกเลิกการแจก" aria-label="ยกเลิกการแจก">${raw(icon('undo-2'))}</button>`,
+        isStockIssue(i)
+          ? ''
+          : html`<button class="btn-icon sm danger" data-cancel-issue="${i.id}" title="ยกเลิกการแจก" aria-label="ยกเลิกการแจก">${raw(icon('undo-2'))}</button>`,
     },
   ],
   empty: emptyState({ iconName: 'history', title: 'ยังไม่มีประวัติการแจก' }),
@@ -88,13 +131,13 @@ function drawTabs() {
     tabs(
       [
         { value: 'pending', label: 'ค้างแจก', count: pending?.length },
+        { value: 'waiting', label: 'รอคลังจ่าย', count: waiting?.length },
         { value: 'history', label: 'ประวัติการแจก', count: issues?.length },
       ],
       tab,
     ),
   );
-  $('#tab-pending').classList.toggle('hidden', tab !== 'pending');
-  $('#tab-history').classList.toggle('hidden', tab !== 'history');
+  for (const t of TABS) $(`#tab-${t}`).classList.toggle('hidden', tab !== t);
 }
 
 function drawSummary() {
@@ -121,13 +164,17 @@ function drawSummary() {
 
 async function load() {
   try {
+    const warn = await syncStockQuietly();
+    render($('#stock-warn'), warn ? alertBox({ tone: 'warning', body: warn }) : '');
     const [p, i, emps] = await Promise.all([api.listUniformPending(), api.listUniformIssues(), api.listEmployees()]);
     pending = p;
-    issues = i;
+    issues = i.filter(isHandedOut);
+    waiting = i.filter((x) => !isHandedOut(x));
     employees = new Map(emps.map((e) => [e.id, e]));
     drawTabs();
     drawSummary();
     pendingTable.setRows(pending);
+    waitingTable.setRows(waiting);
     historyTable.setRows(issues);
   } catch (e) {
     render($('#pending'), html`<div style="padding:16px">${errorState(e)}</div>`);
@@ -141,6 +188,22 @@ on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
   drawTabs();
 });
 wireIssueActions($('#pending'), { today, onDone: load });
+on($('#waiting'), 'click', '[data-cancel-issue]', (_e, b) => {
+  const i = waiting.find((x) => x.id === Number(b.dataset.cancelIssue));
+  confirmAction({
+    title: `ยกเลิกการส่งเบิก ${i.stock.docNo}?`,
+    description: `${UNIFORM_EVENT_LABEL[i.event]} · ${stockItems(i)}`,
+    body: 'ใบเบิกในระบบสต็อกจะถูกยกเลิกด้วย และรายการจะกลับไปเป็น “ค้างแจก” — ยกเลิกได้เฉพาะใบที่คลังยังไม่จ่าย',
+    confirmLabel: 'ยกเลิกการส่งเบิก',
+    successMessage: 'ยกเลิกแล้ว — รายการกลับไปเป็น “ค้างแจก”',
+    action: async () => {
+      await api.cancelUniformIssue(i.id);
+      refreshCounts();
+      await load();
+    },
+  });
+});
+$('#sync').onclick = () => load();
 on($('#history'), 'click', '[data-cancel-issue]', (_e, b) => {
   const i = issues.find((x) => x.id === Number(b.dataset.cancelIssue));
   confirmAction({

@@ -38,6 +38,23 @@ export function resolveStyle(rule, site) {
   return `${rule.style} · โปโล${site?.poloColor === 'NAVY' ? 'สีน้ำเงิน' : 'สีดำ'}`;
 }
 
+/**
+ * โลโก้บริษัทบนเสื้อ — ใช้เลือกแบบเสื้อในระบบสต็อก
+ * กฎรุ่นก่อนไม่มี rule.logo (เก็บอยู่ใน localStorage) จึงอ่านจากชื่อแบบ "… โลโก้ HL" แทน
+ */
+export function uniformLogo(rule, emp) {
+  return rule.logo ?? rule.style.match(/โลโก้\s*(\S+)/)?.[1] ?? emp.companyCode;
+}
+
+/**
+ * การแจกที่ผ่านคลัง (source = 'STOCK') นับว่า "แจกแล้ว" เมื่อคลังจ่ายของแล้วเท่านั้น
+ * ระหว่างรอคลังจ่าย (REQUESTED) สิทธิ์ยังไม่ครบ แต่ไม่อยู่ใน "ค้างแจก" เพราะ HR ส่งเบิกไปแล้ว
+ * ใบที่คลังยกเลิกไม่ถูกเก็บไว้ (mock ลบทิ้งตอน sync) สิทธิ์จึงกลับเป็นค้างแจกเอง
+ */
+export const STOCK_HANDED_OUT = ['ISSUED', 'RECEIVED'];
+export const isStockIssue = (issue) => issue.source === 'STOCK';
+export const isHandedOut = (issue) => !isStockIssue(issue) || STOCK_HANDED_OUT.includes(issue.stock.stage);
+
 export function uniformStatus(emp, site, rules, issues, today) {
   const rule = matchUniformRule(emp, rules.uniform);
   if (!rule) {
@@ -45,6 +62,7 @@ export function uniformStatus(emp, site, rules, issues, today) {
     return {
       ruleId: null,
       style: null,
+      logo: null,
       reasons: [
         typeCovered
           ? 'ไม่พบกฎชุดฟอร์มที่ตรงกับบริษัท/กลุ่ม/ระดับของพนักงาน (รอ HR ยืนยัน)'
@@ -60,7 +78,20 @@ export function uniformStatus(emp, site, rules, issues, today) {
   const ents = [];
   const push = (key, event, dueDate, qty, qtyLabel) => {
     const issue = mine.find((i) => i.entitlementKey === key);
-    ents.push({ key, event, dueDate, qty, qtyLabel, items, style, issued: !!issue, issueId: issue?.id ?? null });
+    ents.push({
+      key,
+      event,
+      dueDate,
+      qty,
+      qtyLabel,
+      items,
+      style,
+      issued: !!issue && isHandedOut(issue),
+      requested: !!issue && !isHandedOut(issue),
+      issueId: issue?.id ?? null,
+      stockDocNo: issue?.stock?.docNo ?? null,
+      stock: issue?.stock ?? null,
+    });
   };
   if (rule.qtyStart > 0 && emp.startDate <= limit) {
     push('START', 'START', emp.startDate, rule.qtyStart, rule.qtyStartLabel ?? String(rule.qtyStart));
@@ -77,5 +108,5 @@ export function uniformStatus(emp, site, rules, issues, today) {
       if (due > pass && due <= limit) push(`ANNUAL-${y}`, 'ANNUAL', due, rule.qtyAnnual, String(rule.qtyAnnual));
     }
   }
-  return { ruleId: rule.id, style, reasons: [], entitlements: ents };
+  return { ruleId: rule.id, style, logo: uniformLogo(rule, emp), reasons: [], entitlements: ents };
 }

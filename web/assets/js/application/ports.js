@@ -24,7 +24,10 @@
  * @property {(employeeId?: number) => Promise<import('../domain/types.js').UniformIssue[]>} listUniformIssues
  * @property {(input: Object) => Promise<import('../domain/types.js').UniformIssue>} createUniformIssue
  * @property {() => Promise<import('../domain/types.js').UniformPendingRow[]>} listUniformPending
- * @property {(id: number) => Promise<void>} cancelUniformIssue                 กลับเป็น "ค้างแจก"
+ * @property {(id: number) => Promise<void>} cancelUniformIssue                 กลับเป็น "ค้างแจก" (ผ่านคลัง: ยกเลิกใบในสต็อกด้วย, 409 ถ้าคลังจ่ายแล้ว)
+ * @property {(employeeId: number, entitlementKey: string) => Promise<Object>} getUniformStockOptions   แบบ/ไซซ์/ยอดคงเหลือจากระบบสต็อก (409 ถ้าแจก/ส่งเบิกแล้ว)
+ * @property {(input: {employeeId: number, entitlementKey: string, lines: {itemCode: string, productId: number, qty: number}[]}) => Promise<import('../domain/types.js').UniformIssue>} requestUniformFromStock  ออกใบเบิก WRQ (อนุมัติอัตโนมัติ)
+ * @property {() => Promise<{changed: number}>} syncUniformStock                 ดึงสถานะใบเบิกจากระบบสต็อก
  * @property {() => Promise<import('../domain/types.js').MonitorTask[]>} getWorkQueue
  * @property {(filter?: {entity?: string, employeeId?: number, limit?: number}) => Promise<import('../domain/types.js').ActivityLog[]>} listActivity
  * @property {(username: string, password: string) => Promise<{username: string, name: string, role: string}>} login   401 ถ้าไม่ถูกต้อง

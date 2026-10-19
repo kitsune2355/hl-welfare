@@ -3,10 +3,14 @@ import { buildDashboard } from '../../application/usecases/dashboard.js';
 import { batchCounts, batchIds, buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex } from '../../application/usecases/insuranceCycle.js';
 import { buildBatchExport, buildInsurerExport } from '../../application/usecases/insurerExport.js';
 import { buildUniformPending } from '../../application/usecases/uniformPending.js';
+import { buildStockOptions, stockChange, stockRef, stockSizes, stockSubmitPayload, toStockRequest } from '../../application/usecases/uniformStock.js';
 import { validateBindings, validateInsurerForm } from '../../application/insurerFormRules.js';
 import { buildWorkQueue } from '../../application/usecases/workQueue.js';
 import { todayISO } from '../../domain/date.js';
-import { benefitsOf } from '../../domain/eligibility.js';
+import { benefitsOf, uniformStatus } from '../../domain/eligibility.js';
+import { isHandedOut, isStockIssue } from '../../domain/uniform.js';
+import { CONFIG } from '../../config.js';
+import { StockGateway } from '../http/stockGateway.js';
 import { BATCH_TYPE_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
 import { buildSeed } from './seed.js';
 import { MOCK_USERS } from './users.js';
@@ -67,18 +71,28 @@ const nowStamp = () => {
 
 const fullName = (e) => `${e.firstName} ${e.lastName}`;
 
-/** WelfareApi ในหน่วยความจำ + localStorage — ใช้ domain/use-case ชุดเดียวกับ PHP */
+/**
+ * WelfareApi ในหน่วยความจำ + localStorage — ใช้ domain/use-case ชุดเดียวกับ PHP
+ * ยกเว้นการส่งเบิกชุดฟอร์ม ซึ่งเรียกระบบสต็อกจริงผ่าน StockGateway (เทสต์ส่งตัวปลอมเข้ามาแทน)
+ */
 export class MockApi {
   db;
   today;
-  constructor(today = () => todayISO()) {
+  stock;
+  constructor(today = () => todayISO(), stock = new StockGateway(CONFIG.stock.bridgeUrl)) {
     this.today = today;
+    this.stock = stock;
     this.db = load(this.today());
   }
   // ---------- helpers ----------
   async run(fn) {
     await new Promise((r) => setTimeout(r, LATENCY_MS));
     return structuredClone(fn());
+  }
+  /** แบบ run สำหรับคำสั่งที่ต้องรอระบบสต็อก */
+  async runAsync(fn) {
+    await new Promise((r) => setTimeout(r, LATENCY_MS));
+    return structuredClone(await fn());
   }
   persist() {
     try {
@@ -431,14 +445,24 @@ export class MockApi {
         .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt) || b.id - a.id),
     );
   }
+  /** สิทธิ์ที่ยังไม่ได้แจกและยังไม่ได้ส่งเบิก — 404 ไม่พบ / 409 แจกหรือส่งเบิกไปแล้ว */
+  openEntitlement(employeeId, entitlementKey) {
+    const e = this.employee(employeeId);
+    const site = this.site(e.siteId);
+    const st = uniformStatus(e, site, this.db.rules, this.db.issues, this.today());
+    const ent = st.entitlements.find((x) => x.key === entitlementKey);
+    if (!ent) throw new ApiError('ไม่พบสิทธิ์ชุดฟอร์มรายการนี้', 404);
+    if (ent.requested) throw new ApiError(`ส่งเบิกคลังไปแล้ว (ใบ ${ent.stockDocNo}) — รอคลังจ่าย`, 409);
+    if (ent.issued) throw new ApiError('รายการนี้แจกไปแล้ว', 409);
+    return { e, site, st, ent };
+  }
   createUniformIssue(input) {
     return this.run(() => {
       const e = this.employee(input.employeeId);
       if (!input.size.trim()) throw new ApiError('กรุณาเลือกไซซ์', 422);
-      if (this.db.issues.some((i) => i.employeeId === input.employeeId && i.entitlementKey === input.entitlementKey)) {
-        throw new ApiError('รายการนี้แจกไปแล้ว', 409);
-      }
-      const issue = { ...input, id: nextId(this.db.issues), issuedBy: this.actor };
+      const dup = this.db.issues.find((i) => i.employeeId === input.employeeId && i.entitlementKey === input.entitlementKey);
+      if (dup) throw new ApiError(isStockIssue(dup) ? `ส่งเบิกคลังไปแล้ว (ใบ ${dup.stock.docNo})` : 'รายการนี้แจกไปแล้ว', 409);
+      const issue = { ...input, source: 'MANUAL', id: nextId(this.db.issues), issuedBy: this.actor };
       this.db.issues.push(issue);
       this.log(
         'UNIFORM_ISSUE',
@@ -451,20 +475,102 @@ export class MockApi {
       return issue;
     });
   }
+  /** ผ่านคลัง: ยกเลิกได้เฉพาะใบที่คลังยังไม่จ่าย และต้องยกเลิกใบในระบบสต็อกก่อน */
   cancelUniformIssue(id) {
-    return this.run(() => {
+    return this.runAsync(async () => {
       const i = this.db.issues.find((x) => x.id === id);
       if (!i) throw new ApiError('ไม่พบรายการแจก', 404);
+      if (isStockIssue(i)) {
+        if (isHandedOut(i)) throw new ApiError(`คลังจ่ายของตามใบ ${i.stock.docNo} ไปแล้ว — ต้องให้คลังยกเลิกใบจ่ายในระบบสต็อก`, 409);
+        await this.stock.cancel(i.stock.ref, 'ยกเลิกจากระบบสวัสดิการ', this.actor);
+      }
       const e = this.db.employees.find((x) => x.id === i.employeeId);
       this.db.issues = this.db.issues.filter((x) => x.id !== id);
       this.log(
         'UNIFORM_ISSUE',
         'CANCEL',
         id,
-        `ยกเลิกการแจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[i.event]}) ของ ${e ? fullName(e) : `#${i.employeeId}`}`,
+        isStockIssue(i)
+          ? `ยกเลิกการส่งเบิกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[i.event]}) ใบ ${i.stock.docNo} ของ ${e ? fullName(e) : `#${i.employeeId}`}`
+          : `ยกเลิกการแจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[i.event]}) ของ ${e ? fullName(e) : `#${i.employeeId}`}`,
         i.employeeId,
       );
       this.persist();
+    });
+  }
+  // ---------- ส่งเบิกผ่านระบบสต็อก HR (ระบบสต็อกจริง ผ่าน web/api/stock_bridge.php) ----------
+  getUniformStockOptions(employeeId, entitlementKey) {
+    return this.runAsync(async () => {
+      const { e, st, ent } = this.openEntitlement(employeeId, entitlementKey);
+      const catalog = await this.stock.catalog({ items: ent.items, logo: st.logo, siteId: e.siteId });
+      return { ...buildStockOptions(ent, catalog, e), logo: st.logo, event: ent.event, qty: ent.qty, qtyLabel: ent.qtyLabel, style: ent.style };
+    });
+  }
+  requestUniformFromStock({ employeeId, entitlementKey, lines }) {
+    return this.runAsync(async () => {
+      const { e, site, st, ent } = this.openEntitlement(employeeId, entitlementKey);
+      if (!lines?.length) throw new ApiError('กรุณาเลือกสินค้าอย่างน้อย 1 รายการ', 422);
+      for (const l of lines) {
+        if (!l.productId) throw new ApiError('กรุณาเลือกแบบและไซซ์ให้ครบทุกรายการ', 422);
+        if (!(Number.isInteger(l.qty) && l.qty > 0)) throw new ApiError('จำนวนต้องเป็นจำนวนเต็มมากกว่า 0', 422);
+      }
+      const ref = stockRef(e.id, ent.key);
+      const res = await this.stock.submit(stockSubmitPayload(e, site, ent, st.logo, lines, this.actor));
+      const stock = res.status?.[ref] ? toStockRequest(ref, res.status[ref]) : { ref, docId: res.doc_id, docNo: res.doc_no, stage: 'REQUESTED', issuedAt: null, receivedAt: null, items: [] };
+      // คำขอก่อนหน้าหลุดระหว่างทาง (ระบบสต็อกออกใบไปแล้ว) — ใช้ใบเดิม ไม่ซ้อนรายการ
+      this.db.issues = this.db.issues.filter((i) => !(i.employeeId === e.id && i.entitlementKey === ent.key));
+      const issue = {
+        id: nextId(this.db.issues),
+        employeeId: e.id,
+        entitlementKey: ent.key,
+        event: ent.event,
+        qty: lines.reduce((s, l) => s + l.qty, 0),
+        size: stockSizes(stock),
+        issuedAt: this.today(),
+        issuedBy: this.actor,
+        source: 'STOCK',
+        stock,
+      };
+      this.db.issues.push(issue);
+      this.log('UNIFORM_ISSUE', 'CREATE', issue.id, `ส่งเบิกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[ent.event]}) ใบ ${stock.docNo} ให้ ${fullName(e)} — รอคลังจ่าย`, e.id);
+      this.persist();
+      return issue;
+    });
+  }
+  /**
+   * ดึงสถานะใบเบิกจากระบบสต็อก — หน้าชุดฟอร์ม/พนักงานเรียกก่อนแสดงผล
+   * ใบที่เซ็นรับแล้วจบแล้ว ไม่ต้องถามซ้ำ / ใบที่คลังยกเลิก → ลบทิ้ง สิทธิ์กลับเป็นค้างแจก
+   * @returns {Promise<{changed: number}>}
+   */
+  syncUniformStock() {
+    return this.runAsync(async () => {
+      const open = this.db.issues.filter((i) => isStockIssue(i) && i.stock.stage !== 'RECEIVED');
+      if (!open.length) return { changed: 0 };
+      const status = await this.stock.status(open.map((i) => i.stock.ref));
+      let changed = 0;
+      for (const i of open) {
+        const s = status[i.stock.ref];
+        const next = s && s.doc_id === i.stock.docId ? toStockRequest(i.stock.ref, s) : null;
+        const kind = stockChange(i.stock, next);
+        if (kind === 'NONE') continue;
+        changed++;
+        const e = this.db.employees.find((x) => x.id === i.employeeId);
+        const who = e ? fullName(e) : `#${i.employeeId}`;
+        if (kind === 'CANCELLED') {
+          this.db.issues = this.db.issues.filter((x) => x.id !== i.id);
+          const why = next.cancelNote ? ` (${next.cancelNote})` : '';
+          this.log('UNIFORM_ISSUE', 'CANCEL', i.id, `คลังยกเลิกใบ ${i.stock.docNo}${why} — ชุดฟอร์มของ ${who} กลับเป็นค้างแจก`, i.employeeId);
+          continue;
+        }
+        i.stock = next;
+        i.size = stockSizes(next);
+        i.qty = next.items.reduce((s2, x) => s2 + x.qty, 0) || i.qty;
+        if (next.issuedAt) i.issuedAt = next.issuedAt.slice(0, 10);
+        if (kind === 'ISSUED') this.log('UNIFORM_ISSUE', 'UPDATE', i.id, `คลังจ่ายชุดฟอร์มตามใบ ${next.docNo} ให้ ${who} แล้ว`, i.employeeId);
+        if (kind === 'RECEIVED') this.log('UNIFORM_ISSUE', 'UPDATE', i.id, `${who} เซ็นรับชุดฟอร์มตามใบ ${next.docNo} แล้ว`, i.employeeId);
+      }
+      if (changed) this.persist();
+      return { changed };
     });
   }
   listUniformPending() {

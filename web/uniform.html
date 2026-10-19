@@ -24,13 +24,15 @@
       <div class="page-head">
         <div>
           <h1>ชุดฟอร์ม</h1>
-          <p>สิทธิตามกลุ่ม/ระดับ/ตำแหน่ง — บันทึกการแจกพร้อมไซซ์</p>
+          <p>สิทธิตามกลุ่ม/ระดับ/ตำแหน่ง — ส่งเบิกคลังให้จ่ายตามไซซ์ในระบบสต็อก HR</p>
         </div>
         <div class="page-actions">
+          <button class="btn" id="sync" title="ดึงสถานะใบเบิกล่าสุดจากระบบสต็อก"><i data-icon="refresh-cw"></i> ดึงสถานะจากคลัง</button>
           <button class="btn" id="export"><i data-icon="download"></i> ส่งออกรายการค้าง</button>
         </div>
       </div>
 
+      <div id="stock-warn"></div>
       <div id="tabs"></div>
 
       <!-- แท็บ: ค้างแจก -->
@@ -41,7 +43,7 @@
               <span class="card-icon"><i data-icon="shirt"></i></span>
               <div>
                 <h2>รายการค้างแจก</h2>
-                <p>เลือกไซซ์แล้วกดบันทึกแจกได้ทันที</p>
+                <p>กด “ส่งเบิกคลัง” เลือกแบบและไซซ์จากสต็อก — แจกนอกระบบไปแล้วใช้ปุ่มดินสอ</p>
               </div>
             </div>
           </header>
@@ -60,6 +62,20 @@
           <div id="summary" class="fill-body scroll"></div>
         </section>
       </div>
+
+      <!-- แท็บ: รอคลังจ่าย -->
+      <section class="card fill hidden" id="tab-waiting">
+        <header class="card-head">
+          <div class="card-title">
+            <span class="card-icon"><i data-icon="package-check"></i></span>
+            <div>
+              <h2>รอคลังจ่าย</h2>
+              <p>ใบเบิกในระบบสต็อก HR (อนุมัติอัตโนมัติ) — คลังจ่ายแล้วจะย้ายไปประวัติการแจกเอง</p>
+            </div>
+          </div>
+        </header>
+        <div id="waiting" class="fill-body"></div>
+      </section>
 
       <!-- แท็บ: ประวัติการแจก -->
       <section class="card fill hidden" id="tab-history">

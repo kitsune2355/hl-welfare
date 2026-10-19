@@ -1,61 +1,199 @@
 // ชิ้นส่วนที่หลายหน้าใช้ร่วมกัน (บันทึกแจกชุด, ไทม์ไลน์กิจกรรม)
 import { api } from '../app/api.js';
 import { refreshCounts } from '../app/shell.js';
-import { html, on, raw } from '../shared/dom.js';
+import { CONFIG } from '../config.js';
+import { html, on, raw, render } from '../shared/dom.js';
 import { timeAgo } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
-import { ACTIVITY_ENTITY_LABEL, SIZES, UNIFORM_EVENT_LABEL } from '../shared/labels.js';
+import { ACTIVITY_ENTITY_LABEL, SIZES, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
 import { enhanceSelects } from '../ui/combobox.js';
-import { emptyState } from '../ui/components.js';
-import { errorMessage, toast } from '../ui/overlay.js';
-import { spinner } from '../ui/loading.js';
+import { alertBox, emptyState, errorState } from '../ui/components.js';
+import { errorMessage, openModal, toast } from '../ui/overlay.js';
+import { loader } from '../ui/loading.js';
 
-// ===================== บันทึกแจกชุดฟอร์ม (เลือกไซซ์ + ปุ่ม) =====================
+// ===================== แจกชุดฟอร์ม: ส่งเบิกคลัง (หลัก) / บันทึกแจกเอง (รอง) =====================
 
-/** HTML ของช่องไซซ์ + ปุ่มบันทึกแจก — ต้องเรียก wireIssueActions(root, ...) หนึ่งครั้งต่อ container */
-export function issueAction({ employeeId, entitlementKey, event, qty }) {
-  return html`<div class="row" data-issue data-emp="${employeeId}" data-key="${entitlementKey}" data-event="${event}" data-qty="${qty}" style="justify-content:flex-end">
-    <select data-combobox data-size="sm" aria-label="ไซซ์" class="combo" style="width:96px">
-      <option value="">ไซซ์</option>
-      ${SIZES.map((s) => html`<option value="${s}">${s}</option>`)}
-    </select>
-    <button class="btn btn-primary btn-sm" data-issue-save disabled>บันทึกแจก</button>
+/**
+ * ปุ่มของสิทธิ์ที่ค้างแจก — ต้องเรียก wireIssueActions(root, ...) หนึ่งครั้งต่อ container
+ * ส่งเบิกคลัง = ออกใบเบิกในระบบสต็อก HR ให้คลังจ่าย (ตัดสต็อกจริง)
+ * บันทึกแจกเอง = กรณีแจกนอกระบบไปแล้ว หรือระบบสต็อกใช้งานไม่ได้ (ไม่ตัดสต็อก)
+ */
+export function issueAction({ employeeId, entitlementKey, event, qty, name = '' }) {
+  return html`<div class="row" data-issue data-emp="${employeeId}" data-key="${entitlementKey}" data-event="${event}" data-qty="${qty}" data-name="${name}" style="justify-content:flex-end;gap:6px">
+    <button class="btn-icon sm" data-issue-manual title="บันทึกแจกเอง (แจกนอกระบบสต็อกไปแล้ว)" aria-label="บันทึกแจกเอง">${raw(icon('pencil'))}</button>
+    <button class="btn btn-primary btn-sm" data-stock-request>${raw(icon('send'))} ส่งเบิกคลัง</button>
   </div>`;
 }
 
 export function wireIssueActions(root, { today, onDone }) {
-  root.addEventListener('change', (e) => {
-    const box = e.target.closest('[data-issue]');
-    if (box && e.target.matches('select')) box.querySelector('[data-issue-save]').disabled = !e.target.value;
+  const ctx = (btn) => {
+    const d = btn.closest('[data-issue]').dataset;
+    return { employeeId: Number(d.emp), entitlementKey: d.key, event: d.event, qty: Number(d.qty), name: d.name, today, onDone };
+  };
+  on(root, 'click', '[data-stock-request]', (_e, btn) => openStockRequest(ctx(btn)));
+  on(root, 'click', '[data-issue-manual]', (_e, btn) => openManualIssue(ctx(btn)));
+}
+
+/** เรียกหลัง render ตารางที่มี issueAction (ปุ่มไม่มี select แล้ว คงไว้ให้หน้าที่เรียกอยู่) */
+export const enhanceIssueActions = (root) => enhanceSelects(root);
+
+const roundLabel = (event, key) => `${UNIFORM_EVENT_LABEL[event]}${event === 'ANNUAL' ? ` ${Number(key.slice(7)) + 543}` : ''}`;
+
+/** ลิงก์ใบเบิกในระบบสต็อก HR */
+export const stockDocLink = (stock) =>
+  html`<a class="num" href="${CONFIG.stock.docUrl}${stock.docId}" target="_blank" rel="noopener" title="เปิดใบเบิกในระบบสต็อก">${stock.docNo} ${raw(icon('external-link'))}</a>`;
+
+/** ป้ายสถานะใบเบิกในคลัง */
+export const STOCK_STAGE = {
+  REQUESTED: { label: 'รอคลังจ่าย', tone: 'warning' },
+  ISSUED: { label: 'คลังจ่ายแล้ว', tone: 'info' },
+  RECEIVED: { label: 'เซ็นรับแล้ว', tone: 'success' },
+};
+
+/** บันทึกแจกเอง — เลือกไซซ์ แล้วบันทึกว่าแจกแล้ว (ไม่ผ่านคลัง) */
+function openManualIssue({ employeeId, entitlementKey, event, qty, name, today, onDone }) {
+  const m = openModal({
+    title: 'บันทึกแจกเอง',
+    description: `${name ? `${name} · ` : ''}${roundLabel(event, entitlementKey)} · ${qty} ตัว`,
+    body: html`${alertBox({ tone: 'warning', body: 'ใช้เมื่อแจกนอกระบบสต็อกไปแล้วเท่านั้น — ไม่ออกใบเบิกและไม่ตัดยอดในคลัง ถ้ายังไม่ได้แจก ให้ใช้ “ส่งเบิกคลัง”' })}
+      <div class="field" style="margin-top:16px">
+        <label for="manual-size">ไซซ์ที่แจก<span class="req">*</span></label>
+        <select class="input" id="manual-size">
+          <option value="">เลือกไซซ์</option>
+          ${SIZES.map((s) => html`<option value="${s}">${s}</option>`)}
+        </select>
+      </div>`,
+    footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button class="btn btn-primary" data-ok data-label="บันทึกแจก" disabled>บันทึกแจก</button>`,
   });
-  on(root, 'click', '[data-issue-save]', async (_e, btn) => {
-    const box = btn.closest('[data-issue]');
-    const size = box.querySelector('select').value;
-    const event = box.dataset.event;
-    btn.disabled = true;
-    btn.innerHTML = `${spinner({ size: 'sm', onColor: true })} บันทึกแจก`;
+  const sel = m.el.querySelector('#manual-size');
+  const ok = m.el.querySelector('[data-ok]');
+  sel.onchange = () => (ok.disabled = !sel.value);
+  sel.focus();
+  ok.onclick = async () => {
+    m.busy(true, ok);
     try {
-      await api.createUniformIssue({
-        employeeId: Number(box.dataset.emp),
-        entitlementKey: box.dataset.key,
-        event,
-        qty: Number(box.dataset.qty),
-        size,
-        issuedAt: today,
-      });
-      toast.success(`บันทึกแจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[event]}) ไซซ์ ${size} แล้ว`);
+      await api.createUniformIssue({ employeeId, entitlementKey, event, qty, size: sel.value, issuedAt: today });
+      toast.success(`บันทึกแจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[event]}) ไซซ์ ${sel.value} แล้ว`);
+      m.busy(false, ok);
+      m.close();
       refreshCounts();
       onDone();
     } catch (err) {
       toast.error(errorMessage(err));
-      btn.disabled = false;
-      btn.textContent = 'บันทึกแจก';
+      m.busy(false, ok);
     }
-  });
+  };
 }
 
-/** เรียกหลัง render ตารางที่มี issueAction */
-export const enhanceIssueActions = (root) => enhanceSelects(root);
+/** ส่งเบิกคลัง — เลือกแบบ (ชาย/หญิง) ไซซ์ และจำนวนของแต่ละรายการ จากสินค้าในระบบสต็อก */
+async function openStockRequest({ employeeId, entitlementKey, event, name, onDone }) {
+  const m = openModal({
+    title: 'ส่งเบิกชุดฟอร์มไปคลัง',
+    description: `${name ? `${name} · ` : ''}${roundLabel(event, entitlementKey)}`,
+    body: html`<div data-stock-body>${loader({ text: 'กำลังโหลดรายการจากระบบสต็อก' })}</div>`,
+    footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button class="btn btn-primary" data-ok data-label="ส่งเบิกคลัง" disabled>ส่งเบิกคลัง</button>`,
+  });
+  const body = m.el.querySelector('[data-stock-body]');
+  const ok = m.el.querySelector('[data-ok]');
+  let opt;
+  try {
+    opt = await api.getUniformStockOptions(employeeId, entitlementKey);
+  } catch (err) {
+    render(body, errorState(err));
+    return;
+  }
+  // สิ่งที่ผู้ใช้เลือก — index ของแบบ + สินค้า (ไซซ์) + จำนวน ต่อรายการ
+  const picks = opt.items.map((it) => ({ variant: it.variantIndex, productId: 0, qty: it.qty }));
+
+  const productsOf = (i) => opt.items[i].variants[picks[i].variant]?.products ?? [];
+  const lineHtml = (it, i) => {
+    const p = picks[i];
+    const chosen = productsOf(i).find((x) => x.productId === p.productId);
+    const short = chosen && chosen.onHand < p.qty;
+    return html`<div class="form-grid stock-line" data-line="${i}" style="grid-template-columns:1fr 1fr 84px;align-items:start;padding:12px 0;border-bottom:1px solid var(--border)">
+      <div class="field">
+        <label>${UNIFORM_ITEM_LABEL[it.itemCode] ?? it.itemCode}</label>
+        ${it.variants.length > 1
+          ? html`<select class="input" data-variant aria-label="แบบ">
+              ${it.variants.map((v, vi) => html`<option value="${vi}" ${vi === p.variant ? raw('selected') : ''}>${v.label}</option>`)}
+            </select>`
+          : html`<span class="small muted" style="min-height:40px;display:flex;align-items:center">${it.variants[0]?.name ?? '–'}</span>`}
+      </div>
+      <div class="field">
+        <label>ไซซ์<span class="req">*</span></label>
+        <select class="input" data-product aria-label="ไซซ์">
+          <option value="">เลือกไซซ์</option>
+          ${productsOf(i).map((x) => html`<option value="${x.productId}" ${x.productId === p.productId ? raw('selected') : ''}>${x.size} (คงเหลือ ${x.onHand})</option>`)}
+        </select>
+        ${chosen ? html`<span class="${short ? 'error' : 'hint'}">${short ? `สต็อกไม่พอ (มี ${chosen.onHand})` : `คงเหลือ ${chosen.onHand}`}</span>` : ''}
+      </div>
+      <div class="field">
+        <label>จำนวน</label>
+        <input class="input num" type="number" min="1" step="1" data-qty value="${p.qty}" aria-label="จำนวน" />
+      </div>
+    </div>`;
+  };
+  const draw = () => {
+    const d = opt.department;
+    render(
+      body,
+      html`${opt.blockers.length
+          ? alertBox({ tone: 'danger', title: 'ยังส่งเบิกไม่ได้', body: html`${opt.blockers.join(' · ')} — แจ้งผู้ดูแลระบบสต็อกให้จับคู่ก่อน` })
+          : alertBox({
+              tone: 'info',
+              body: html`ใบเบิกลงหน่วยงาน <b>${d.name}</b>${d.company ? ` (${d.company})` : ''} และ<b>อนุมัติอัตโนมัติ</b> — เมื่อคลังจ่ายแล้ว สถานะในระบบนี้จะอัปเดตเอง`,
+            })}
+        <p class="small muted" style="margin:12px 0 0">${opt.style} · สิทธิ์ ${opt.qtyLabel} ตัว · ของไม่พอก็ส่งเบิกได้ คลังจะจ่ายเมื่อมีของ</p>
+        <div>${opt.items.map(lineHtml)}</div>`,
+    );
+    ok.disabled = opt.blockers.length > 0 || picks.some((p) => !p.productId || !(Number.isInteger(p.qty) && p.qty > 0));
+  };
+  draw();
+
+  body.addEventListener('change', (e) => {
+    const line = e.target.closest('[data-line]');
+    if (!line) return;
+    const p = picks[Number(line.dataset.line)];
+    if (e.target.matches('[data-variant]')) {
+      p.variant = Number(e.target.value);
+      p.productId = 0; // ไซซ์เป็นสินค้าของแต่ละแบบ เปลี่ยนแบบแล้วต้องเลือกใหม่
+    } else if (e.target.matches('[data-product]')) p.productId = Number(e.target.value);
+    else if (e.target.matches('[data-qty]')) p.qty = Number(e.target.value);
+    draw();
+  });
+
+  ok.onclick = async () => {
+    m.busy(true, ok);
+    try {
+      const lines = opt.items.map((it, i) => ({ itemCode: it.itemCode, productId: picks[i].productId, qty: picks[i].qty }));
+      const issue = await api.requestUniformFromStock({ employeeId, entitlementKey, lines });
+      toast.success(`ส่งเบิกแล้ว ใบ ${issue.stock.docNo} — รอคลังจ่าย`);
+      m.busy(false, ok);
+      m.close();
+      refreshCounts();
+      onDone();
+    } catch (err) {
+      toast.error(errorMessage(err));
+      m.busy(false, ok);
+    }
+  };
+}
+
+/**
+ * ดึงสถานะใบเบิกจากระบบสต็อกก่อนแสดงผล — ระบบสต็อกล่มต้องไม่ทำให้หน้าเปิดไม่ได้
+ * คืนข้อความเตือน หรือ '' ถ้าสำเร็จ
+ */
+export async function syncStockQuietly() {
+  try {
+    const { changed } = await api.syncUniformStock();
+    if (changed) refreshCounts();
+    return '';
+  } catch (err) {
+    return `ดึงสถานะจากระบบสต็อกไม่ได้ (${errorMessage(err)}) — แสดงสถานะล่าสุดที่บันทึกไว้`;
+  }
+}
 
 // ===================== ไทม์ไลน์บันทึกกิจกรรม =====================
 

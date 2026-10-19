@@ -69,14 +69,18 @@
  * @property {string} qtyLabel         เช่น "2+1"
  * @property {UniformItemCode[]} items
  * @property {string} style
- * @property {boolean} issued
+ * @property {boolean} issued           แจกแล้ว (บันทึกเอง หรือคลังจ่ายแล้ว)
+ * @property {boolean} requested        ส่งเบิกคลังแล้ว รอคลังจ่าย
  * @property {number|null} issueId
+ * @property {string|null} stockDocNo   เลขใบเบิกในระบบสต็อก (WRQ-…)
+ * @property {StockRequest|null} stock  ใบเบิกในระบบสต็อก (null = ไม่ได้ผ่านคลัง)
  */
 
 /**
  * @typedef {Object} UniformStatus
  * @property {number|null} ruleId
  * @property {string|null} style
+ * @property {string|null} logo         โลโก้บริษัทบนเสื้อ (เลือกแบบในระบบสต็อก)
  * @property {string[]} reasons
  * @property {UniformEntitlement[]} entitlements
  */
@@ -121,9 +125,25 @@
  * @property {string} entitlementKey
  * @property {UniformEvent} event
  * @property {number} qty
- * @property {string} size
- * @property {ISODate} issuedAt
+ * @property {string} size             ไซซ์ (ผ่านคลัง = ไซซ์ของทุกรายการต่อกัน เช่น "L · 41")
+ * @property {ISODate} issuedAt         บันทึกเอง = วันที่แจก / ผ่านคลัง = วันที่ส่งเบิก แล้วเป็นวันที่คลังจ่าย
  * @property {string} issuedBy
+ * @property {'MANUAL'|'STOCK'} [source] ไม่มี = MANUAL (ข้อมูลก่อนเชื่อมระบบสต็อก)
+ * @property {StockRequest} [stock]      มีเมื่อ source = 'STOCK'
+ */
+
+/** @typedef {'REQUESTED'|'ISSUED'|'RECEIVED'|'CANCELLED'} StockStage */
+
+/**
+ * ใบเบิกในระบบสต็อก HR ของการแจกหนึ่งรายการ
+ * @typedef {Object} StockRequest
+ * @property {string} ref                <employeeId>:<entitlementKey>
+ * @property {number} docId
+ * @property {string} docNo              WRQ-ปปดด-####
+ * @property {StockStage} stage
+ * @property {string|null} issuedAt      คลังจ่ายเมื่อ
+ * @property {string|null} receivedAt    พนักงานเซ็นรับเมื่อ
+ * @property {{productId: number, name: string, size: string, qty: number}[]} items
  */
 
 /**
