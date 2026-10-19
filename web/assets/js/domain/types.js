@@ -135,7 +135,7 @@
 /** @typedef {'REQUESTED'|'ISSUED'|'RECEIVED'|'CANCELLED'} StockStage */
 
 /**
- * ใบเบิกในระบบสต็อก HR ของการแจกหนึ่งรายการ
+ * ใบเบิกในระบบสต็อก Uniform ของการแจกหนึ่งรายการ
  * @typedef {Object} StockRequest
  * @property {string} ref                <employeeId>:<entitlementKey>
  * @property {number} docId

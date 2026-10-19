@@ -15,7 +15,7 @@ import { loader } from '../ui/loading.js';
 
 /**
  * ปุ่มของสิทธิ์ที่ค้างแจก — ต้องเรียก wireIssueActions(root, ...) หนึ่งครั้งต่อ container
- * ส่งเบิกคลัง = ออกใบเบิกในระบบสต็อก HR ให้คลังจ่าย (ตัดสต็อกจริง)
+ * ส่งเบิกคลัง = ออกใบเบิกในระบบสต็อก Uniform ให้คลังจ่าย (ตัดสต็อกจริง)
  * บันทึกแจกเอง = กรณีแจกนอกระบบไปแล้ว หรือระบบสต็อกใช้งานไม่ได้ (ไม่ตัดสต็อก)
  */
 export function issueAction({ employeeId, entitlementKey, event, qty, name = '' }) {
@@ -39,7 +39,7 @@ export const enhanceIssueActions = (root) => enhanceSelects(root);
 
 const roundLabel = (event, key) => `${UNIFORM_EVENT_LABEL[event]}${event === 'ANNUAL' ? ` ${Number(key.slice(7)) + 543}` : ''}`;
 
-/** ลิงก์ใบเบิกในระบบสต็อก HR */
+/** ลิงก์ใบเบิกในระบบสต็อก Uniform */
 export const stockDocLink = (stock) =>
   html`<a class="num" href="${CONFIG.stock.docUrl}${stock.docId}" target="_blank" rel="noopener" title="เปิดใบเบิกในระบบสต็อก">${stock.docNo} ${raw(icon('external-link'))}</a>`;
 

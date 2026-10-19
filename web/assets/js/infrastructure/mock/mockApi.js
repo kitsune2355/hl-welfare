@@ -498,7 +498,7 @@ export class MockApi {
       this.persist();
     });
   }
-  // ---------- ส่งเบิกผ่านระบบสต็อก HR (ระบบสต็อกจริง ผ่าน web/api/stock_bridge.php) ----------
+  // ---------- ส่งเบิกผ่านระบบสต็อก Uniform (ระบบสต็อกจริง ผ่าน web/api/stock_bridge.php) ----------
   getUniformStockOptions(employeeId, entitlementKey) {
     return this.runAsync(async () => {
       const { e, st, ent } = this.openEntitlement(employeeId, entitlementKey);

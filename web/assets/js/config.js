@@ -11,7 +11,7 @@ export const CONFIG = {
   apiBaseUrl: 'api',
 
   /**
-   * ระบบสต็อก HR (stock_hr) — ส่งเบิกชุดฟอร์มให้คลังจ่าย
+   * ระบบสต็อก Uniform (stock_hr) — ส่งเบิกชุดฟอร์มให้คลังจ่าย
    * ต้องเปิดผ่าน AppServ (http://localhost/hl-welfare/web/) เพราะตัวกลางเป็น PHP
    * ค่ากุญแจอยู่ใน web/api/stock_bridge.config.php
    */

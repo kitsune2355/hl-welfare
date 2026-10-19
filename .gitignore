@@ -2,5 +2,5 @@ node_modules/
 .DS_Store
 *.log
 
-# ค่าเชื่อมต่อระบบสต็อก HR (มีกุญแจลับ) — คัดลอกจาก stock_bridge.config.example.php
+# ค่าเชื่อมต่อระบบสต็อก Uniform (มีกุญแจลับ) — คัดลอกจาก stock_bridge.config.example.php
 web/api/stock_bridge.config.php

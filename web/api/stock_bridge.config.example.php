@@ -1,6 +1,6 @@
 <?php
 /* ============================================================
- *  web/api/stock_bridge.config.example.php — ค่าเชื่อมต่อระบบสต็อก HR
+ *  web/api/stock_bridge.config.example.php — ค่าเชื่อมต่อระบบสต็อก Uniform
  *
  *  คัดลอกเป็น stock_bridge.config.php แล้วกรอกค่า
  *      copy web\api\stock_bridge.config.example.php web\api\stock_bridge.config.php

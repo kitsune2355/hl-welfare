@@ -1,6 +1,6 @@
 <?php
 /* ============================================================
- *  web/api/stock_bridge.php — ตัวกลางส่งคำขอเบิกชุดฟอร์มไประบบสต็อก HR (stock_hr)
+ *  web/api/stock_bridge.php — ตัวกลางส่งคำขอเบิกชุดฟอร์มไประบบสต็อก Uniform (stock_hr)
  *
  *  หน้าเว็บเรียกไฟล์นี้ (infrastructure/http/stockGateway.js) ไฟล์นี้เซ็นคำขอ
  *  ด้วยกุญแจลับแล้วส่งต่อไป stock_hr/api/welfare.php กุญแจจึงไม่หลุดไปถึงเบราว์เซอร์

@@ -1,7 +1,7 @@
 import { ApiError } from '../../application/errors.js';
 
 /**
- * ระบบสต็อก HR ผ่านตัวกลาง web/api/stock_bridge.php (ตัวกลางเซ็นคำขอด้วยกุญแจลับ)
+ * ระบบสต็อก Uniform ผ่านตัวกลาง web/api/stock_bridge.php (ตัวกลางเซ็นคำขอด้วยกุญแจลับ)
  * สัญญาของแต่ละคำสั่งดูที่หัวไฟล์ stock_hr/api/welfare.php
  */
 export class StockGateway {

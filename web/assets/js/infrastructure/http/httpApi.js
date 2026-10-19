@@ -122,7 +122,7 @@ export class HttpApi {
   cancelUniformIssue(id) {
     return this.del(`/uniform/issues/${id}`);
   }
-  // ---------- ส่งเบิกผ่านระบบสต็อก HR (PHP เป็นคนเซ็นคำขอและคุยกับ stock_hr) ----------
+  // ---------- ส่งเบิกผ่านระบบสต็อก Uniform (PHP เป็นคนเซ็นคำขอและคุยกับ stock_hr) ----------
   getUniformStockOptions(employeeId, entitlementKey) {
     return this.req(`/uniform/stock-options?employeeId=${employeeId}&entitlementKey=${encodeURIComponent(entitlementKey)}`);
   }
