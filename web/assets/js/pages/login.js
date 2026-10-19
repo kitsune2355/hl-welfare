@@ -4,7 +4,7 @@ import { getSession, GUEST, isAuthEnabled, safeNext, saveSession } from '../app/
 import { CONFIG } from '../config.js';
 import { $, esc, getParam } from '../shared/dom.js';
 import { hydrateIcons, icon } from '../shared/icons.js';
-import { spinner } from '../ui/loading.js';
+import { progress, spinner } from '../ui/loading.js';
 
 const next = safeNext(getParam('next'));
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -133,7 +133,8 @@ form.addEventListener('submit', async (e) => {
   }
   setLoading(true);
   try {
-    const u = await api.login(user.value.trim(), pass.value);
+    // หน้าล็อกอินมี animation ของตัวเอง (ปุ่มหมุน + เครื่องหมายถูก) — ไม่ใช้ loading กลางจอ
+    const u = await progress.quiet(() => api.login(user.value.trim(), pass.value));
     saveSession(u, $('#remember').checked);
     playSuccess(u.name);
   } catch (ex) {
