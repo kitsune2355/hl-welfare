@@ -5278,6 +5278,18 @@ html:has(#ed),
 .perm-cell:hover {
   background: var(--primary-soft);
 }
+/* สิทธิ์ที่มีผลทุกบริษัท — บทบาทที่ดูแลบริษัทเดียวให้ไม่ได้ */
+.perm-cell.perm-locked {
+  cursor: not-allowed;
+  color: var(--muted);
+}
+.perm-cell.perm-locked:hover {
+  background: transparent;
+}
+.perm-cell.perm-locked .icon {
+  width: 15px;
+  height: 15px;
+}
 .perm-table td.perm-changed,
 .perm-table td.perm-changed .perm-cell {
   background: var(--chg-edit-bg);

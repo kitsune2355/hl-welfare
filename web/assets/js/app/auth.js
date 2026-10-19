@@ -79,6 +79,20 @@ export async function logout() {
  * SUPER_ADMIN ได้ทุกอย่าง · ไม่มี caps (โหมด mock / session เก่า) = ได้ทุกอย่าง
  * @param {string} cap เช่น 'employees.edit'
  */
+/**
+ * บริษัทที่ผู้ใช้นี้ดูแล — null = ทุกบริษัท · HR บริษัท = รหัสบริษัทของตัวเอง ('' = ผู้ดูแลยังไม่ได้กำหนด)
+ * เซิร์ฟเวอร์กรองข้อมูลและตรวจทุกคำขอเองแล้ว (backend/permissions.php) — หน้าเว็บใช้จำกัดตัวเลือกให้ตรงกัน
+ */
+export function myCompany() {
+  return getSession()?.companyCode ?? null;
+}
+
+/** รหัสบริษัทที่ผู้ใช้นี้เลือกได้ (ช่องบริษัทในตาราง / แท็กกรอง) */
+export function companyChoices(all) {
+  const c = myCompany();
+  return c === null ? all : all.filter((x) => x === c);
+}
+
 export function can(cap) {
   const s = getSession();
   if (!s) return false;

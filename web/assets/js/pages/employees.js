@@ -1,6 +1,6 @@
 // หน้า: พนักงาน (employees.html) — ตาราง Excel เพิ่ม / แก้ไข / ลบ / บันทึกพ้นสภาพ ในตารางทั้งหมด (ไม่มีฟอร์มแยก)
 import { api } from '../app/api.js';
-import { can } from '../app/auth.js';
+import { can, companyChoices, myCompany } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
 import { normalizeEmployee, validateEmployee } from '../application/employeeRules.js';
 import { todayISO } from '../domain/date.js';
@@ -39,7 +39,7 @@ const TAG_GROUPS = [
   { param: 'status', field: 'status', label: 'สถานะ', options: STATUS_LABEL },
   { param: 'type', field: 'employeeType', label: 'ประเภท', options: EMPLOYEE_TYPE_LABEL },
   { param: 'company', field: 'companyCode', label: 'บริษัท', options: Object.fromEntries(COMPANY_CODES.map((c) => [c, c])) },
-];
+].filter((g) => g.param !== 'company' || myCompany() === null); // HR บริษัทเห็นบริษัทเดียว — ไม่ต้องมีแท็กบริษัท
 const filter = () => ({
   q: getParam('q'),
   companyCode: getParam('company'),
@@ -88,7 +88,7 @@ const columns = [
     required: true,
     editor: 'select',
     value: (e) => e.companyCode,
-    options: () => COMPANY_CODES.map((c) => ({ value: c, label: c })),
+    options: () => companyChoices(COMPANY_CODES).map((c) => ({ value: c, label: c })),
     set: setField('companyCode', str),
   },
   {
@@ -244,7 +244,7 @@ function blankEmployee() {
       empCode: '',
       firstName: '',
       lastName: '',
-      companyCode: f.companyCode || 'HL',
+      companyCode: f.companyCode || myCompany() || 'HL',
       siteId: 0,
       employeeType: f.employeeType && (f.employeeType !== 'PRO_SITE' || f.companyCode === 'PRO') ? f.employeeType : 'CENTRAL',
       contractType: 'REGULAR',

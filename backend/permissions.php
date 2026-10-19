@@ -36,7 +36,7 @@ function perm_defs()
             'roles' => array('HR_ADMIN', 'HR_COMPANY'), 'handlers' => array('api_stock_request')),
         'rules.view' => array('group' => 'เงื่อนไขสวัสดิการ', 'kind' => 'view', 'label' => 'เห็นหน้าเงื่อนไขสวัสดิการ', 'page' => 'rules',
             'roles' => $all, 'handlers' => array()),
-        'rules.edit' => array('group' => 'เงื่อนไขสวัสดิการ', 'kind' => 'action', 'label' => 'แก้เงื่อนไขสวัสดิการ',
+        'rules.edit' => array('allCompanies' => true, 'group' => 'เงื่อนไขสวัสดิการ', 'kind' => 'action', 'label' => 'แก้เงื่อนไขสวัสดิการ',
             'roles' => array('HR_ADMIN'), 'handlers' => array()),
         'sites.view' => array('group' => 'หน่วยงาน', 'kind' => 'view', 'label' => 'เห็นหน้าหน่วยงาน', 'page' => 'sites',
             'roles' => $all, 'handlers' => array()),
@@ -44,18 +44,18 @@ function perm_defs()
             'roles' => $all, 'handlers' => array('api_site_create', 'api_site_update', 'api_site_delete')),
         'insurers.view' => array('group' => 'แบบฟอร์มประกัน', 'kind' => 'view', 'label' => 'เห็นหน้าแบบฟอร์มประกัน', 'page' => 'insurers',
             'roles' => $all, 'handlers' => array('api_insurers')),
-        'insurers.edit' => array('group' => 'แบบฟอร์มประกัน', 'kind' => 'action', 'label' => 'แก้แบบฟอร์ม / ผูกบริษัทกับบริษัทประกัน',
+        'insurers.edit' => array('allCompanies' => true, 'group' => 'แบบฟอร์มประกัน', 'kind' => 'action', 'label' => 'แก้แบบฟอร์ม / ผูกบริษัทกับบริษัทประกัน',
             'roles' => $all, 'handlers' => array('api_insurer_save', 'api_insurer_bindings', 'api_insurer_delete')),
         /* ---------- ผู้ดูแลระบบ (api/admin.php ตรวจเอง) — บัญชี SUPER_ADMIN แก้ได้เฉพาะ SUPER_ADMIN เสมอ ---------- */
-        'users.manage' => array('group' => 'ผู้ดูแลระบบ', 'kind' => 'action', 'label' => 'จัดการผู้ใช้ระบบ (เพิ่ม แก้ ปิดบัญชี ตั้งรหัสผ่าน)',
+        'users.manage' => array('allCompanies' => true, 'group' => 'ผู้ดูแลระบบ', 'kind' => 'action', 'label' => 'จัดการผู้ใช้ระบบ (เพิ่ม แก้ ปิดบัญชี ตั้งรหัสผ่าน)',
             'page' => 'admin-users', 'roles' => array('HR_ADMIN'), 'handlers' => array()),
-        'security.view' => array('group' => 'ผู้ดูแลระบบ', 'kind' => 'action', 'label' => 'ดูการเข้าสู่ระบบ / จบ session / ปลดล็อก',
+        'security.view' => array('allCompanies' => true, 'group' => 'ผู้ดูแลระบบ', 'kind' => 'action', 'label' => 'ดูการเข้าสู่ระบบ / จบ session / ปลดล็อก',
             'roles' => array(), 'handlers' => array()),
-        'system.health' => array('group' => 'ผู้ดูแลระบบ', 'kind' => 'action', 'label' => 'ดูสถานะระบบ / ล้างข้อมูลเก่า',
+        'system.health' => array('allCompanies' => true, 'group' => 'ผู้ดูแลระบบ', 'kind' => 'action', 'label' => 'ดูสถานะระบบ / ล้างข้อมูลเก่า',
             'roles' => array(), 'handlers' => array()),
-        'system.settings' => array('group' => 'ผู้ดูแลระบบ', 'kind' => 'action', 'label' => 'ตั้งค่าระบบ + การเชื่อมต่อสต็อก Uniform',
+        'system.settings' => array('allCompanies' => true, 'group' => 'ผู้ดูแลระบบ', 'kind' => 'action', 'label' => 'ตั้งค่าระบบ + การเชื่อมต่อสต็อก Uniform',
             'roles' => array(), 'handlers' => array()),
-        'audit.view' => array('group' => 'ผู้ดูแลระบบ', 'kind' => 'action', 'label' => 'ดูบันทึกการใช้งานทั้งหมด (รวมการเข้าสู่ระบบ)',
+        'audit.view' => array('allCompanies' => true, 'group' => 'ผู้ดูแลระบบ', 'kind' => 'action', 'label' => 'ดูบันทึกการใช้งานทั้งหมด (รวมการเข้าสู่ระบบ)',
             'roles' => array(), 'handlers' => array()),
     );
 }
@@ -100,6 +100,7 @@ function cap_allowed($role, $cap)
     if ($role === 'SUPER_ADMIN') { return true; }
     $defs = perm_defs();
     if (!isset($defs[$cap])) { return false; }
+    if (scoped_role($role) && !empty($defs[$cap]['allCompanies'])) { return false; }   // มีผลทุกบริษัท → บทบาทที่ดูแลบริษัทเดียวทำไม่ได้
     $rows = perm_rows();
     return isset($rows[$role][$cap]) ? $rows[$role][$cap] : cap_default($role, $cap);
 }
@@ -137,6 +138,54 @@ function cap_require($req, $cap)
     $u = auth_require($req);
     if (!cap_allowed($u['role'], $cap)) { throw cap_forbidden($cap); }
     return $u;
+}
+
+/* ============================================================
+ *  ขอบเขตบริษัท — HR บริษัท (HR_COMPANY) เห็นและทำรายการได้เฉพาะพนักงานบริษัทของตัวเอง (users.company_code)
+ *  repo_employees / repo_employee / repo_issues / repo_batches กรองให้เอง (repo/repo.php) · handler ตรวจตอนเขียน
+ *  บทบาทอื่นเห็นทุกบริษัท · capability ที่มี allCompanies (กฎ แบบฟอร์มประกัน ผู้ใช้ ระบบ) บทบาทนี้ทำไม่ได้
+ * ============================================================ */
+function scoped_role($role)
+{
+    return $role === 'HR_COMPANY';
+}
+
+/** null = ทุกบริษัท · 'CNS' = เฉพาะ CNS · '' = ไม่มีบริษัทไหนเลย (HR บริษัทที่ยังไม่ได้กำหนดบริษัท) */
+function user_scope($u)
+{
+    return ($u && scoped_role($u['role'])) ? (string)$u['companyCode'] : null;
+}
+
+/** ขอบเขตของผู้ใช้ในคำขอนี้ (auth_user ตั้งไว้) — ไม่มีผู้ใช้ (CLI / งานตั้งเวลา) = ทุกบริษัท */
+function data_scope()
+{
+    return user_scope(isset($GLOBALS['hlw_auth_user']) ? $GLOBALS['hlw_auth_user'] : null);
+}
+
+function in_scope($companyCode)
+{
+    $s = data_scope();
+    return $s === null || $companyCode === $s;
+}
+
+function scope_forbidden()
+{
+    $s = data_scope();
+    return new ApiError($s === '' ? 'บัญชี HR บริษัทนี้ยังไม่ได้กำหนดบริษัท — ติดต่อผู้ดูแลระบบ'
+        : 'บัญชีนี้ดูแลเฉพาะพนักงานบริษัท ' . $s, 403, null, 'OUT_OF_SCOPE');
+}
+
+function scope_require($companyCode)
+{
+    if (!in_scope($companyCode)) { throw scope_forbidden(); }
+}
+
+/** งานที่มีผลทุกบริษัท (ส่งข้อมูลหลักทั้งหมดไปสต็อก ฯลฯ) — บัญชีที่ดูแลบริษัทเดียวทำไม่ได้ */
+function scope_require_all()
+{
+    if (data_scope() !== null) {
+        throw new ApiError('งานนี้มีผลกับทุกบริษัท — ให้ HR ส่วนกลางหรือผู้ดูแลระบบทำ', 403, null, 'OUT_OF_SCOPE');
+    }
 }
 
 /** handler → capability (สร้างครั้งเดียว) */

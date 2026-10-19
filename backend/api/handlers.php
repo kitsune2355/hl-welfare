@@ -36,7 +36,15 @@ function assert_iso_date($d, $message = 'วันที่ไม่ถูกต
 function api_dashboard($req, $params)
 {
     $w = repo_world();
-    return build_dashboard(today_iso(), $w['employees'], $w['sites'], $w['rules'], $w['batches'], $w['issues']);
+    $d = build_dashboard(today_iso(), $w['employees'], $w['sites'], $w['rules'], $w['batches'], $w['issues']);
+    if (data_scope() !== null) {     // HR บริษัท: กราฟแยกบริษัทเหลือบริษัทของตัวเอง
+        $keep = array();
+        foreach ($d['activeByCompany'] as $c) {
+            if (in_scope($c['companyCode'])) { $keep[] = $c; }
+        }
+        $d['activeByCompany'] = $keep;
+    }
+    return $d;
 }
 
 function api_work_queue($req, $params)
@@ -51,6 +59,13 @@ function api_activity($req, $params)
     /* การเข้าสู่ระบบ / งานระบบ ดูได้เฉพาะผู้มีสิทธิ์ audit.view (หน้า admin.html) */
     $where = cap_allowed($u['role'], 'audit.view') ? array() : array("entity NOT IN ('USER', 'SYSTEM')");
     $args = array();
+    $s = data_scope();
+    if ($s !== null) {
+        /* HR บริษัท: เฉพาะกิจกรรมของพนักงาน/หน่วยงานบริษัทตัวเอง และที่ตัวเองทำ */
+        $where[] = "(employee_id IN (SELECT id FROM employees WHERE company_code = ?)
+                     OR (entity = 'SITE' AND entity_id IN (SELECT CAST(id AS CHAR) FROM sites WHERE company_code = ?)) OR user_id = ?)";
+        array_push($args, $s, $s, $u['id']);
+    }
     if (req_query($req, 'entity') !== null) { $where[] = 'entity = ?'; $args[] = req_query($req, 'entity'); }
     if (req_query($req, 'employeeId') !== null) { $where[] = 'employee_id = ?'; $args[] = (int)req_query($req, 'employeeId'); }
     $limit = (int)req_query($req, 'limit', 200);
@@ -66,7 +81,21 @@ function api_activity($req, $params)
  *  บริษัท / หน่วยงาน
  * ============================================================ */
 function api_companies($req, $params) { return repo_companies(); }
-function api_sites($req, $params) { return repo_sites(); }
+function api_sites($req, $params)
+{
+    $out = array();
+    foreach (repo_sites() as $s) {
+        if (in_scope($s['companyCode'])) { $out[] = $s; }
+    }
+    return $out;
+}
+
+/** หน่วยงานนอกบริษัทของ HR บริษัท = ไม่พบ (ไม่บอกว่ามีอยู่) */
+function scoped_site_or_404($id)
+{
+    $s = repo_site($id);
+    return find_or_404(($s && in_scope($s['companyCode'])) ? $s : null, 'ไม่พบหน่วยงาน');
+}
 
 function api_site_create($req, $params)
 {
@@ -76,6 +105,7 @@ function api_site_create($req, $params)
     $code = (string)arr_get($b, 'companyCode', '');
     if ($name === '') { throw new ApiError('กรุณาระบุชื่อหน่วยงาน', 422); }
     if (!db_value('SELECT code FROM companies WHERE code = ?', array($code))) { throw new ApiError('ไม่พบบริษัท', 422); }
+    scope_require($code);
     if (db_value('SELECT id FROM sites WHERE company_code = ? AND name = ?', array($code, $name))) {
         throw new ApiError('มีหน่วยงานชื่อนี้ในบริษัทแล้ว', 409);
     }
@@ -99,7 +129,7 @@ function api_site_update($req, $params)
 {
     $u = auth_require($req);
     $id = param_id($params);
-    $s = find_or_404(repo_site($id), 'ไม่พบหน่วยงาน');
+    $s = scoped_site_or_404($id);
     $patch = req_json($req);
     if (array_key_exists('name', $patch) && trim((string)$patch['name']) === '') { throw new ApiError('กรุณาระบุชื่อหน่วยงาน', 422); }
     $changes = array();
@@ -131,7 +161,7 @@ function api_site_delete($req, $params)
 {
     $u = auth_require($req);
     $id = param_id($params);
-    $s = find_or_404(repo_site($id), 'ไม่พบหน่วยงาน');
+    $s = scoped_site_or_404($id);
     $n = (int)db_value('SELECT COUNT(*) FROM employees WHERE site_id = ?', array($id));
     if ($n > 0) { throw new ApiError('ลบไม่ได้ — ยังมีพนักงานในหน่วยงานนี้ ' . $n . ' คน', 409); }
     db_begin();
@@ -226,6 +256,7 @@ function api_employee_save($req, $params)
     if ($in['endReason'] !== null && !in_array($in['endReason'], array('RESIGN', 'ABSENT_3D', 'TERMINATED', 'MISCONDUCT'), true)) {
         throw new ApiError('เหตุผลพ้นสภาพไม่ถูกต้อง', 422, array('endReason' => 'เหตุผลพ้นสภาพไม่ถูกต้อง'));
     }
+    if ($id) { find_or_404(repo_employee($id), 'ไม่พบพนักงาน'); }     // พนักงานนอกบริษัทของ HR บริษัท = ไม่พบ
     $errors = validate_employee($in);
     if (count($errors)) {
         $first = reset($errors);
@@ -233,6 +264,7 @@ function api_employee_save($req, $params)
     }
     $dup = db_value('SELECT id FROM employees WHERE emp_code = ? AND id <> ?', array($in['empCode'], $id));
     if ($dup) { throw new ApiError('รหัสพนักงานซ้ำ', 409); }
+    scope_require($in['companyCode']);       // HR บริษัท: เพิ่ม/ย้ายพนักงานไปบริษัทอื่นไม่ได้
     $site = repo_site($in['siteId']);
     if (!$site) { throw new ApiError('ไม่พบหน่วยงาน', 422); }
     if ($site['companyCode'] !== $in['companyCode']) { throw new ApiError('หน่วยงานไม่ได้อยู่ในบริษัทที่เลือก', 422); }
@@ -377,6 +409,9 @@ function api_batch_cancel($req, $params)
     $u = auth_require($req);
     $id = param_id($params);
     $b = find_or_404(find_by(repo_batches(), 'id', $id), 'ไม่พบรายการส่งแจ้ง');
+    if (batch_items_out_of_scope($id)) {
+        throw new ApiError('การส่งออกครั้งนี้มีพนักงานบริษัทอื่นรวมอยู่ด้วย — ให้ HR ส่วนกลางยกเลิก', 403, null, 'OUT_OF_SCOPE');
+    }
     $c = batch_counts($b);
     db_begin();
     db_exec('DELETE FROM insurance_batches WHERE id = ?', array($id));
@@ -405,6 +440,12 @@ function api_insurance_export($req, $params)
     $replaced = array();
     foreach ($w['batches'] as $x) {
         if ($x['cycleDate'] === $cycleDate && $x['insurerId'] === $insurerId) { $replaced[] = $x['id']; }
+    }
+    foreach ($replaced as $rid) {
+        if (batch_items_out_of_scope($rid)) {
+            db_rollback();
+            throw new ApiError('รอบนี้ส่งออกไฟล์รวมหลายบริษัทไปแล้ว — ให้ HR ส่วนกลางส่งออกแทน', 409, null, 'OUT_OF_SCOPE');
+        }
     }
     foreach ($replaced as $rid) { db_exec('DELETE FROM insurance_batches WHERE id = ?', array($rid)); }
     $all = array();
@@ -741,6 +782,7 @@ function api_stock_bridge($req, $params)
     if (!in_array($action, array('catalog', 'submit', 'status', 'cancel'), true)) { throw new ApiError('ไม่รู้จักคำสั่งที่ส่งมา', 400); }
     $write = $action === 'submit' || $action === 'cancel';
     $u = $write ? auth_require_role($req, stock_write_roles()) : auth_require($req);
+    if ($write) { scope_require_all(); }     // ตัวกลางตรวจบริษัทของพนักงานไม่ได้ (ข้อมูลอยู่ในเบราว์เซอร์)
     foreach (array('requested_by_name', 'requested_by_user', 'requested_by_user_id', 'requested_by_emp_code') as $k) { unset($in[$k]); }
     if ($write) {
         foreach (stock_actor_fields($u) as $k => $v) { $in[$k] = $v; }

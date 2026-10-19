@@ -1,6 +1,6 @@
 // หน้า: หน่วยงาน (sites.html) — ตาราง Excel เพิ่ม/แก้/ลบ
 import { api } from '../app/api.js';
-import { can } from '../app/auth.js';
+import { can, companyChoices, myCompany } from '../app/auth.js';
 import { initPage } from '../app/shell.js';
 import { UNIFORM_EVENTS } from '../domain/uniform.js';
 import { $, html, raw, render } from '../shared/dom.js';
@@ -31,7 +31,7 @@ function drawSummary() {
 const grid = new ExcelGrid($('#grid'), {
   rowKey: (s) => s.id,
   addLabel: 'เพิ่มหน่วยงาน',
-  newRow: () => ({ id: 0, companyCode: 'HL', name: '', hasGroupInsurance: true, poloColor: 'BLACK' }),
+  newRow: () => ({ id: 0, companyCode: myCompany() || 'HL', name: '', hasGroupInsurance: true, poloColor: 'BLACK' }),
   validate: (s) => (s.name.trim() ? {} : { name: 'กรุณาระบุชื่อหน่วยงาน' }),
   columns: [
     {
@@ -43,7 +43,7 @@ const grid = new ExcelGrid($('#grid'), {
       // หน่วยงานที่สร้างแล้วย้ายบริษัทไม่ได้ (พนักงานผูกอยู่) — เลือกได้ตอนสร้างเท่านั้น
       editable: (s) => s.id === 0,
       value: (s) => s.companyCode,
-      options: () => COMPANY_CODES.map((c) => ({ value: c, label: c })),
+      options: () => companyChoices(COMPANY_CODES).map((c) => ({ value: c, label: c })),
       set: (s, v) => ({ ...s, companyCode: String(v) }),
     },
     { key: 'name', header: 'ชื่อหน่วยงาน', width: 320, required: true, editor: 'text', value: (s) => s.name, set: (s, v) => ({ ...s, name: String(v ?? '').trim() }) },
@@ -238,7 +238,8 @@ $('#grid').addEventListener(
 );
 
 // ส่งทั้งหมดเอง — ใช้เมื่อสต็อกเคยล่ม หรือกฎที่ตั้งล่วงหน้าเพิ่งถึงวันมีผล
-$('#sync-stock').style.display = can('sites.edit') ? '' : 'none';
+// ส่งทุกบริษัทพร้อมกัน — HR บริษัท (ดูแลบริษัทเดียว) กดไม่ได้ · การบันทึกหน่วยงานของตัวเองยังส่งไปสต็อกเองตามปกติ
+$('#sync-stock').style.display = can('sites.edit') && myCompany() === null ? '' : 'none';
 $('#sync-stock').onclick = async (e) => {
   const btn = e.currentTarget;
   btn.disabled = true;

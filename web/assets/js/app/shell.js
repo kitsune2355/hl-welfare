@@ -38,6 +38,9 @@ const ADMIN = [
   },
 ];
 
+/** HR บริษัท: บอกบริษัทที่ดูแล (เห็นข้อมูลเฉพาะบริษัทนั้น) */
+const scopeText = (user) => (user.companyCode === '' ? ' · ยังไม่ได้กำหนดบริษัท' : user.companyCode ? ` · ${user.companyCode}` : '');
+
 /** เมนูที่ผู้ใช้นี้เห็น */
 /** บัญชีของฉัน — ทุกคนที่ login (หน้า account.html) */
 const ACCOUNT = [
@@ -162,9 +165,9 @@ export function initPage(active, { tour = active } = {}) {
     <div class="sidebar-foot">
       ${API_MODE === 'mock' ? html`<button class="reset-btn" id="reset-btn">${raw(icon('rotate-ccw'))} รีเซ็ตข้อมูลจำลอง</button>` : ''}
       <!-- ผู้ใช้ที่เข้าสู่ระบบ — ยึดล่างสุดของ sidebar -->
-      <div class="sidebar-user" title="${user.name} · ${user.role}">
+      <div class="sidebar-user" title="${user.name} · ${user.role}${scopeText(user)}">
         ${avatar(user.name)}
-        <span class="user-text"><b>${user.name}</b><small>${user.role}</small></span>
+        <span class="user-text"><b>${user.name}</b><small>${user.role}${scopeText(user)}</small></span>
         ${isAuthEnabled() ? html`<button class="btn-icon sm" id="logout-btn" aria-label="ออกจากระบบ" title="ออกจากระบบ">${raw(icon('log-out'))}</button>` : ''}
       </div>
     </div>`);

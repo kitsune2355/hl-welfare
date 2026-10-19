@@ -102,17 +102,21 @@ function repo_site($id)
     return map_site($r, isset($over[(int)$id]) ? $over[(int)$id] : array());
 }
 
+/* พนักงาน / การแจก / การแจ้งประกัน กรองตามขอบเขตบริษัทของผู้ใช้ในคำขอนี้ (data_scope() ใน permissions.php)
+   — HR บริษัทเห็นเฉพาะบริษัทตัวเอง ทุก use-case ที่อ่านผ่านฟังก์ชันเหล่านี้จึงถูกจำกัดตาม · ไม่มีผู้ใช้ (CLI) = ทุกบริษัท */
 function repo_employees()
 {
+    $s = data_scope();
     $out = array();
-    foreach (db_all('SELECT * FROM employees ORDER BY id') as $r) { $out[] = map_employee($r); }
+    foreach (db_all('SELECT * FROM employees' . ($s !== null ? ' WHERE company_code = ?' : '') . ' ORDER BY id',
+        $s !== null ? array($s) : array()) as $r) { $out[] = map_employee($r); }
     return $out;
 }
 
 function repo_employee($id)
 {
     $r = db_one('SELECT * FROM employees WHERE id = ?', array((int)$id));
-    return $r ? map_employee($r) : null;
+    return ($r && in_scope($r['company_code'])) ? map_employee($r) : null;
 }
 
 /**
@@ -214,12 +218,16 @@ function map_uniform_rule_row($r)
 function repo_batches()
 {
     $items = array();
-    foreach (db_all('SELECT batch_id, employee_id, type FROM insurance_batch_items ORDER BY batch_id, seq') as $r) {
+    $s = data_scope();
+    foreach (db_all('SELECT i.batch_id, i.employee_id, i.type FROM insurance_batch_items i'
+        . ($s !== null ? ' JOIN employees e ON e.id = i.employee_id WHERE e.company_code = ?' : '') . ' ORDER BY i.batch_id, i.seq',
+        $s !== null ? array($s) : array()) as $r) {
         $items[(int)$r['batch_id']][] = array('employeeId' => (int)$r['employee_id'], 'type' => $r['type']);
     }
     $out = array();
     foreach (db_all('SELECT * FROM insurance_batches ORDER BY id') as $r) {
         $id = (int)$r['id'];
+        if ($s !== null && !isset($items[$id])) { continue; }   // ไม่มีพนักงานบริษัทนี้ในการส่งครั้งนั้น
         $out[] = array(
             'id' => $id,
             'cycleDate' => $r['cycle_date'],
@@ -264,15 +272,28 @@ function map_issue($r)
 /** UniformIssue[] — ข้อมูลตั้งต้น (MANUAL) ไม่มี source ใน mock: ส่ง source ไปด้วยเสมอ (หน้าเว็บถือว่าไม่มี = MANUAL) */
 function repo_issues()
 {
+    $s = data_scope();
     $out = array();
-    foreach (db_all('SELECT * FROM uniform_issues ORDER BY id') as $r) { $out[] = map_issue($r); }
+    foreach (db_all('SELECT u.* FROM uniform_issues u'
+        . ($s !== null ? ' JOIN employees e ON e.id = u.employee_id WHERE e.company_code = ?' : '') . ' ORDER BY u.id',
+        $s !== null ? array($s) : array()) as $r) { $out[] = map_issue($r); }
     return $out;
 }
 
 function repo_issue($id)
 {
-    $r = db_one('SELECT * FROM uniform_issues WHERE id = ?', array((int)$id));
-    return $r ? map_issue($r) : null;
+    $r = db_one('SELECT u.*, e.company_code AS emp_company FROM uniform_issues u LEFT JOIN employees e ON e.id = u.employee_id WHERE u.id = ?',
+        array((int)$id));
+    return ($r && in_scope($r['emp_company'])) ? map_issue($r) : null;
+}
+
+/** การส่งแจ้งครั้งนี้มีพนักงานนอกขอบเขตบริษัทของผู้ใช้กี่คน (ยกเลิก/แทนที่ได้เฉพาะเมื่อเป็น 0) */
+function batch_items_out_of_scope($batchId)
+{
+    $s = data_scope();
+    if ($s === null) { return 0; }
+    return (int)db_value('SELECT COUNT(*) FROM insurance_batch_items i JOIN employees e ON e.id = i.employee_id
+                          WHERE i.batch_id = ? AND e.company_code <> ?', array((int)$batchId, $s));
 }
 
 /** InsurerForm — คอลัมน์หลัก + ส่วนที่เหลือจาก form_json */

@@ -63,7 +63,7 @@ render($('#title'), group.title);
 render($('#subtitle'), group.subtitle);
 document.title = `${group.title} · HL Welfare`;
 const loaded = new Set();
-const state = { roles: [], counts: {} };
+const state = { roles: [], companies: [], counts: {} };
 
 const ago = (s) => (s ? html`<time datetime="${s}" title="${thaiDateTime(s)}">${timeAgo(s)}</time>` : html`<span class="muted">–</span>`);
 const when = (s) => (s ? thaiDateTime(s) : '–');
@@ -151,7 +151,16 @@ const users = new DataTable($('#users'), {
     }),
   columns: [
     { key: 'name', header: 'ผู้ใช้', text: (u) => `${u.name} ${u.username}`, cell: (u) => html`<span class="two-line"><b>${u.name}${isMe(u) ? ' (คุณ)' : ''}</b><span class="sub">${u.username}</span></span>` },
-    { key: 'role', header: 'บทบาท', text: (u) => u.roleLabel, cell: (u) => badge(u.roleLabel, u.role === 'SUPER_ADMIN' ? 'danger' : 'info') },
+    {
+      key: 'role',
+      header: 'บทบาท',
+      text: (u) => u.roleLabel + (u.companyCode ? ` · ${u.companyCode}` : ''),
+      // HR บริษัท: บริษัทที่ดูแลต่อท้าย (เห็นข้อมูลเฉพาะบริษัทนั้น)
+      cell: (u) =>
+        html`<span class="row" style="gap:6px">${badge(u.roleLabel, u.role === 'SUPER_ADMIN' ? 'danger' : 'info')}${u.companyCode
+          ? html`<span class="small" title="ดูแลเฉพาะบริษัท ${u.companyCode}">${u.companyCode}</span>`
+          : ''}</span>`,
+    },
     { key: 'empCode', header: 'รหัสพนักงาน', text: (u) => u.empCode ?? '', cell: (u) => u.empCode ?? html`<span class="muted">–</span>` },
     {
       key: 'status',
@@ -190,6 +199,7 @@ async function loadUsers() {
   render($('#users'), html`<div class="card-body">${raw(String(skeletonLines(5)))}</div>`);
   const d = await adminApi.listUsers();
   state.roles = d.roles;
+  state.companies = d.companies ?? [];
   state.counts.users = d.users.filter((u) => u.isActive).length;
   state.users = d.users;
   users.setRows(d.users);
@@ -236,6 +246,13 @@ function formModal({ title, description = '', fields, values = {}, okLabel = '�
   const form = m.el.querySelector('form');
   for (const [k, v] of Object.entries(values)) if (form.elements[k]) form.elements[k].value = v ?? '';
   form.querySelector('[data-gen]')?.addEventListener('click', () => (form.elements.password.value = randomPassword()));
+  // ช่อง "บริษัทที่ดูแล" แสดงเฉพาะบทบาทที่ดูแลบริษัทเดียว (HR บริษัท)
+  const companyField = form.querySelector('[data-field="companyCode"]');
+  if (companyField && form.elements.role) {
+    const sync = () => companyField.classList.toggle('hidden', !state.roles.find((r) => r.value === form.elements.role.value)?.scoped);
+    form.elements.role.addEventListener('change', sync);
+    sync();
+  }
   form.querySelector('input:not([readonly]), select')?.focus();
   const ok = m.el.querySelector('[data-ok]');
   const submit = async (e) => {
@@ -265,6 +282,14 @@ function formModal({ title, description = '', fields, values = {}, okLabel = '�
   form.addEventListener('submit', submit);
 }
 
+const companyField = () =>
+  field(
+    'companyCode',
+    'บริษัทที่ดูแล',
+    html`<select class="input" name="companyCode"><option value="">— เลือกบริษัท —</option>${state.companies.map((c) => html`<option value="${c.value}">${c.label}</option>`)}</select>`,
+    { required: true, hint: 'เห็นและทำรายการได้เฉพาะพนักงานของบริษัทนี้' },
+  );
+
 const roleSelect = (disabled = false) =>
   html`<select class="input" name="role" ${disabled ? 'disabled' : ''}>${state.roles.map((r) => html`<option value="${r.value}">${r.label}</option>`)}</select>`;
 
@@ -275,6 +300,7 @@ $('#add-user').addEventListener('click', () =>
     fields: html`${field('username', 'ชื่อผู้ใช้', html`<input class="input" name="username" autocomplete="off" spellcheck="false" />`, { required: true, hint: 'a-z 0-9 . _ - (2–50 ตัว)' })}
       ${field('name', 'ชื่อ-สกุล', html`<input class="input" name="name" />`, { required: true })}
       ${field('role', 'บทบาท', roleSelect(), { required: true })}
+      ${companyField()}
       ${field('empCode', 'รหัสพนักงาน', html`<input class="input" name="empCode" />`, { hint: 'ส่งให้สต็อกเป็นผู้ขอเบิก' })}
       ${field('password', 'รหัสผ่านเริ่มต้น', passwordInput(), { hint: `ว่าง / ${DEFAULT_PASSWORD} = รหัสตั้งต้น · ตั้งเองต้องยาวอย่างน้อย 8 ตัว` })}`,
     values: { role: 'HR_ADMIN', password: DEFAULT_PASSWORD },
@@ -296,11 +322,13 @@ function openEditUser(u) {
     description: isMe(u) ? 'บทบาทของตัวเองเปลี่ยนไม่ได้ — ให้ผู้ดูแลระบบคนอื่นเปลี่ยนให้' : 'เปลี่ยนบทบาทมีผลกับคำขอถัดไปทันที',
     fields: html`${field('name', 'ชื่อ-สกุล', html`<input class="input" name="name" />`, { required: true })}
       ${field('role', 'บทบาท', roleSelect(isMe(u)), { required: true })}
+      ${companyField()}
       ${field('empCode', 'รหัสพนักงาน', html`<input class="input" name="empCode" />`)}`,
-    values: { name: u.name, role: u.role, empCode: u.empCode },
+    values: { name: u.name, role: u.role, empCode: u.empCode, companyCode: u.companyCode ?? '' },
     save: async (v) => {
       const patch = { name: v.name, empCode: v.empCode };
       if (!isMe(u)) patch.role = v.role;
+      if (state.roles.find((r) => r.value === (patch.role ?? u.role))?.scoped) patch.companyCode = v.companyCode;
       await adminApi.updateUser(u.id, patch);
       toast.success('บันทึกแล้ว');
       await loadUsers();
@@ -444,6 +472,12 @@ function drawPermissions() {
                       ${d.roles.map((r) => {
                         const checked = on.has(r.value);
                         const isDefault = checked === c.defaultRoles.includes(r.value);
+                        // สิทธิ์ที่มีผลทุกบริษัท — บทบาทที่ดูแลบริษัทเดียว (HR บริษัท) ให้ไม่ได้
+                        if (c.lockedRoles?.includes(r.value)) {
+                          return html`<td class="perm-col${r.value === perm.mobileRole ? ' on' : ''}">
+                            <span class="perm-cell perm-locked" title="${r.label} ดูแลบริษัทเดียว — สิทธิ์นี้มีผลกับทุกบริษัท จึงให้ไม่ได้">${raw(icon('lock'))}</span>
+                          </td>`;
+                        }
                         return html`<td class="perm-col${r.value === perm.mobileRole ? ' on' : ''}${checked !== was.has(r.value) ? ' perm-changed' : ''}">
                           <label class="perm-cell" title="${r.label} · ${c.label}${isDefault ? '' : ' (ต่างจากค่าเริ่มต้น)'}">
                             <input type="checkbox" data-cap="${c.key}" data-role="${r.value}" ${checked ? 'checked' : ''} ${d.ready ? '' : 'disabled'}

@@ -86,6 +86,7 @@ function admin_map_user($r, $sessions, $devices, $locked)
         'role' => $r['role'],
         'roleLabel' => admin_role_label($r['role']),
         'empCode' => $r['emp_code'],
+        'companyCode' => scoped_role($r['role']) ? $r['company_code'] : null,
         'isActive' => (bool)$r['is_active'],
         'lastLoginAt' => admin_stamp($r['last_login_at']),
         'passwordChangedAt' => admin_stamp($r['password_changed_at']),
@@ -126,12 +127,21 @@ function api_admin_users($req, $params)
 {
     $me = cap_require($req, 'users.manage');
     $roles = array();
-    foreach (admin_assignable_roles($me) as $code => $label) { $roles[] = array('value' => $code, 'label' => $label); }
-    return array('users' => admin_user_rows(), 'roles' => $roles);
+    foreach (admin_assignable_roles($me) as $code => $label) {
+        $roles[] = array('value' => $code, 'label' => $label, 'scoped' => scoped_role($code));
+    }
+    $companies = array();
+    foreach (repo_companies() as $c) {
+        $companies[] = array('value' => $c['code'], 'label' => $c['code'] . ' · ' . (!empty($c['legalName']) ? $c['legalName'] : $c['name']));
+    }
+    return array('users' => admin_user_rows(), 'roles' => $roles, 'companies' => $companies);
 }
 
-/** ตรวจ name / role / empCode (ส่งมาเฉพาะที่จะแก้) → array ของคอลัมน์ · ผิด → 422 + errors */
-function admin_user_fields($b, $creating, $me)
+/**
+ * ตรวจ name / role / empCode / companyCode (ส่งมาเฉพาะที่จะแก้) → array ของคอลัมน์ · ผิด → 422 + errors
+ * $current = ผู้ใช้เดิม (ตอนแก้) — HR บริษัทต้องมีบริษัท · บทบาทอื่นล้างบริษัทออก (เห็นทุกบริษัท)
+ */
+function admin_user_fields($b, $creating, $me, $current = null)
 {
     $errors = array();
     $set = array();
@@ -152,6 +162,17 @@ function admin_user_fields($b, $creating, $me)
         if (strlen($code) > 20) { $errors['empCode'] = 'รหัสพนักงานยาวเกิน 20 ตัวอักษร'; }
         $set['emp_code'] = $code === '' ? null : $code;
     }
+    $role = isset($set['role']) ? $set['role'] : ($current ? $current['role'] : '');
+    if (scoped_role($role)) {
+        $company = array_key_exists('companyCode', $b) ? strtoupper(trim((string)$b['companyCode']))
+            : ($current ? (string)$current['companyCode'] : '');
+        if ($company === '' || !db_value('SELECT code FROM companies WHERE code = ?', array($company))) {
+            $errors['companyCode'] = 'HR บริษัทต้องเลือกบริษัทที่ดูแล';
+        }
+        $set['company_code'] = $company;
+    } elseif (isset($set['role'])) {
+        $set['company_code'] = null;
+    }
     if (count($errors)) { throw new ApiError('กรุณาตรวจสอบข้อมูล', 422, $errors); }
     return $set;
 }
@@ -171,10 +192,12 @@ function api_admin_user_create($req, $params)
         throw new ApiError('กรุณาตรวจสอบข้อมูล', 409, array('username' => 'มีชื่อผู้ใช้ ' . $username . ' อยู่แล้ว'));
     }
     db_begin();
-    $res = db_exec('INSERT INTO users (username, password_hash, must_change_password, name, emp_code, role, created_at, created_by, updated_by)
-                    VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)',
-        array($username, pw_hash($password), $set['name'], $set['emp_code'], $set['role'], db_now(), $me['username'], $me['username']));
-    audit_write('USER', $res['id'], 'CREATE', 'สร้างผู้ใช้ ' . $username . ' (' . $set['name'] . ') บทบาท ' . admin_role_label($set['role']), null, $me);
+    $res = db_exec('INSERT INTO users (username, password_hash, must_change_password, name, emp_code, role, company_code, created_at, created_by, updated_by)
+                    VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?)',
+        array($username, pw_hash($password), $set['name'], $set['emp_code'], $set['role'], isset($set['company_code']) ? $set['company_code'] : null,
+            db_now(), $me['username'], $me['username']));
+    audit_write('USER', $res['id'], 'CREATE', 'สร้างผู้ใช้ ' . $username . ' (' . $set['name'] . ') บทบาท ' . admin_role_label($set['role'])
+        . (empty($set['company_code']) ? '' : ' บริษัท ' . $set['company_code']), null, $me);
     db_commit();
     return http_data(admin_user($res['id']), 201);
 }
@@ -212,7 +235,7 @@ function api_admin_user_update($req, $params)
     $u = admin_target($params);
     admin_guard_target($me, $u['role']);
     $b = req_json($req);
-    $set = admin_user_fields($b, false, $me);
+    $set = admin_user_fields($b, false, $me, $u);
     $changes = array();
     if (isset($set['name']) && $set['name'] !== $u['name']) { $changes[] = 'ชื่อ ' . $u['name'] . ' → ' . $set['name']; }
     if (isset($set['role']) && $set['role'] !== $u['role']) {
@@ -221,6 +244,9 @@ function api_admin_user_update($req, $params)
     }
     if (array_key_exists('emp_code', $set) && $set['emp_code'] !== $u['empCode']) {
         $changes[] = 'รหัสพนักงาน ' . ($u['empCode'] === null ? '-' : $u['empCode']) . ' → ' . ($set['emp_code'] === null ? '-' : $set['emp_code']);
+    }
+    if (array_key_exists('company_code', $set) && $set['company_code'] !== $u['companyCode']) {
+        $changes[] = 'บริษัทที่ดูแล ' . ($u['companyCode'] ? $u['companyCode'] : 'ทุกบริษัท') . ' → ' . ($set['company_code'] ? $set['company_code'] : 'ทุกบริษัท');
     }
     $active = array_key_exists('isActive', $b) ? (bool)$b['isActive'] : $u['isActive'];
     if ($active !== $u['isActive']) {
@@ -796,8 +822,18 @@ function admin_perm_view()
         foreach (perm_roles() as $role => $label) {
             if (cap_allowed($role, $key)) { $allowed[] = $role; }
         }
+        $locked = array();
+        if (!empty($d['allCompanies'])) {
+            foreach (perm_roles() as $role => $label) {
+                if (scoped_role($role)) { $locked[] = $role; }
+            }
+        }
+        $defaults = array();
+        foreach ($d['roles'] as $role) {
+            if (!in_array($role, $locked, true)) { $defaults[] = $role; }
+        }
         $caps[] = array('key' => $key, 'group' => $d['group'], 'kind' => $d['kind'], 'label' => $d['label'],
-            'page' => arr_get($d, 'page'), 'defaultRoles' => $d['roles'], 'roles' => $allowed);
+            'page' => arr_get($d, 'page'), 'defaultRoles' => $defaults, 'roles' => $allowed, 'lockedRoles' => $locked);
     }
     $roles = array();
     foreach (perm_roles() as $code => $label) {
@@ -843,7 +879,7 @@ function api_admin_permissions_save($req, $params)
         $on = array();
         $off = array();
         foreach ($roles as $role => $label) {
-            $allowed = in_array($role, $list, true);
+            $allowed = in_array($role, $list, true) && !(scoped_role($role) && !empty($defs[$cap]['allCompanies']));
             if ($allowed !== cap_allowed($role, $cap)) {
                 if ($allowed) { $on[] = $label; } else { $off[] = $label; }
             }

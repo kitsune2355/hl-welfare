@@ -4,6 +4,7 @@
 //   กิจกรรม = บันทึกกิจกรรม (audit log)
 // รีเฟรชอัตโนมัติทุก 60 วินาที + เมื่อกลับมาที่แท็บของเบราว์เซอร์
 import { api } from '../app/api.js';
+import { myCompany } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
 import { progress } from '../ui/loading.js';
 import { startTourIfNew } from '../app/tour.js';
@@ -104,7 +105,7 @@ function drawSummary(d) {
   }
   render(
     $('#stats'),
-    html`${statCard({ label: 'พนักงานปัจจุบัน', value: int(d.activeTotal), hint: 'ทุกบริษัทในเครือ', iconName: 'users', href: 'employees.html?status=ACTIVE' })}
+    html`${statCard({ label: 'พนักงานปัจจุบัน', value: int(d.activeTotal), hint: myCompany() ? `บริษัท ${myCompany()}` : 'ทุกบริษัทในเครือ', iconName: 'users', href: 'employees.html?status=ACTIVE' })}
     ${statCard({
       label: `รอบแจ้งประกัน ${thaiDate(d.nextCycleDate)}`,
       value: html`${d.nextCycleIn}<small>เข้า</small>${d.nextCycleOut}<small>ออก</small>`,

@@ -49,6 +49,7 @@ function master_sync_after_change($actor, $siteIds = null, $removed = array())
 function api_stock_sync_master($req, $params)
 {
     $u = function_exists('cap_require') ? cap_require($req, 'sites.edit') : auth_require($req);
+    if (function_exists('scope_require_all')) { scope_require_all(); }   // ส่งทุกบริษัท — HR บริษัทกดไม่ได้
     if (!master_sync_configured()) {
         throw new ApiError('ยังไม่ได้ตั้งค่าการเชื่อมต่อสต็อก Uniform (หน้าผู้ดูแลระบบ › ตั้งค่าระบบ)', 409, null, 'STOCK_NOT_CONFIGURED');
     }

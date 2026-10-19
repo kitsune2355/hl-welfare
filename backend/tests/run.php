@@ -498,11 +498,13 @@ $r = $boss->req('POST', '/admin/users', array('username' => 'newbie', 'name' => 
 check('สร้าง: ชื่อว่าง / บทบาทผิด → 422 ทุกช่อง', $r['status'] === 422 && isset($r['json']['errors']['name']) && isset($r['json']['errors']['role']));
 $r = $boss->req('POST', '/admin/users', array('username' => 'newbie', 'name' => 'น้องใหม่ ทดสอบ', 'role' => 'HR_ADMIN', 'password' => 'short'));
 check('สร้าง: รหัสผ่านสั้น → 422 errors.password', $r['status'] === 422 && isset($r['json']['errors']['password']));
+$r = $boss->req('POST', '/admin/users', array('username' => 'newbie', 'name' => 'น้องใหม่ ทดสอบ', 'role' => 'HR_COMPANY', 'password' => 'Newbie-12345'));
+check('สร้าง HR บริษัทไม่เลือกบริษัท → 422 errors.companyCode', $r['status'] === 422 && isset($r['json']['errors']['companyCode']));
 $r = $boss->req('POST', '/admin/users', array('username' => 'Newbie', 'name' => 'น้องใหม่ ทดสอบ', 'role' => 'HR_COMPANY', 'empCode' => 'HL-0099',
-    'password' => 'Newbie-12345'));
+    'companyCode' => 'hl', 'password' => 'Newbie-12345'));
 $newId = $r['json']['data']['id'];
-check('สร้างผู้ใช้ → 201 (ชื่อผู้ใช้ตัวเล็ก)', $r['status'] === 201 && $r['json']['data']['username'] === 'newbie' && $r['json']['data']['role'] === 'HR_COMPANY'
-    && $r['json']['data']['empCode'] === 'HL-0099' && $r['json']['data']['createdBy'] === 'boss', json_encode($r['json']));
+check('สร้างผู้ใช้ → 201 (ชื่อผู้ใช้ตัวเล็ก · บริษัทที่ดูแล)', $r['status'] === 201 && $r['json']['data']['username'] === 'newbie' && $r['json']['data']['role'] === 'HR_COMPANY'
+    && $r['json']['data']['empCode'] === 'HL-0099' && $r['json']['data']['companyCode'] === 'HL' && $r['json']['data']['createdBy'] === 'boss', json_encode($r['json']));
 check('ชื่อผู้ใช้ซ้ำ → 409', S($boss->req('POST', '/admin/users', array('username' => 'newbie', 'name' => 'ซ้ำ', 'role' => 'HR_ADMIN',
     'password' => 'Newbie-12345'))) === 409);
 $nb = new Browser('10.6.6.6');
@@ -792,6 +794,7 @@ check('SUPER_ADMIN รีเซ็ตได้ + ตั้งรหัสที�
     && (int)db_value('SELECT must_change_password FROM users WHERE id = ?', array($freshId)) === 1);
 
 require dirname(__FILE__) . '/rules_test.php';
+require dirname(__FILE__) . '/scope_test.php';
 
 echo "\nผ่าน " . $GLOBALS['pass'] . ' · ไม่ผ่าน ' . $GLOBALS['fail'] . "\n";
 exit($GLOBALS['fail'] ? 1 : 0);

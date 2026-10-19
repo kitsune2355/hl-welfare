@@ -29,7 +29,7 @@ function auth_cfg($key)
 function map_user($r)
 {
     return array('id' => (int)$r['id'], 'username' => $r['username'], 'name' => $r['name'], 'role' => $r['role'],
-        'empCode' => $r['emp_code'], 'isActive' => (bool)$r['is_active'], 'sessionVersion' => (int)$r['session_version'],
+        'empCode' => $r['emp_code'], 'companyCode' => $r['company_code'], 'isActive' => (bool)$r['is_active'], 'sessionVersion' => (int)$r['session_version'],
         'passwordHash' => $r['password_hash'], 'mustChangePassword' => !empty($r['must_change_password']));
 }
 
@@ -40,6 +40,7 @@ function user_public($u)
     return array('id' => $u['id'], 'username' => $u['username'], 'name' => $u['name'],
         'role' => isset($labels[$u['role']]) ? $labels[$u['role']] : $u['role'], 'roleCode' => $u['role'], 'empCode' => $u['empCode'],
         'caps' => caps_for_role($u['role']),                // สิทธิ์ (permissions.php) — หน้าเว็บใช้ซ่อนเมนู/ปุ่ม
+        'companyCode' => user_scope($u),                    // null = ทุกบริษัท · HR บริษัท = บริษัทของตัวเอง ('' = ยังไม่ได้กำหนด)
         'mustChangePassword' => $u['mustChangePassword']);  // true = ผู้ดูแลตั้งรหัสให้ ต้องเปลี่ยนเองก่อนใช้งาน
 }
 
