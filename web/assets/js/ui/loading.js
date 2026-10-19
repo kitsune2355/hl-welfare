@@ -40,6 +40,8 @@ function ensureOverlay() {
 
 function show() {
   showTimer = null;
+  // หน้าล็อกอินมี animation ของตัวเอง (ปุ่มหมุน + เครื่องหมายถูก) — ไม่แสดง loading กลางจอเลย
+  if (document.body.classList.contains('login-body')) return;
   clearTimeout(finishTimer);
   shownAt = performance.now();
   ensureOverlay().classList.add('active');
