@@ -11,6 +11,7 @@
 // text(row) = ข้อความที่ใช้กรอง · sort(row) = ค่าที่ใช้เรียง (เช่น วันที่ ISO) เมื่อค่าที่แสดงเรียงไม่ถูก
 //
 // ปุ่มในเซลล์: ใส่ data-action="..." แล้วดักด้วย on(container, 'click', '[data-action="..."]', fn)
+// ปุ่ม "Excel" มุมขวาบนของทุกตาราง: ส่งออกทุกแถวตามตัวกรอง · ปิดด้วย exportable: false · ชื่อไฟล์ exportName (ไม่ใส่ = ชื่อหน้า)
 import { html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import {
@@ -26,6 +27,7 @@ import {
   tableId,
 } from './columnFilter.js';
 import { enhanceSelects } from './combobox.js';
+import { exportButton, wireExport } from './exportExcel.js';
 
 export const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -150,11 +152,12 @@ export class DataTable {
    *   hideOnMobile?: boolean, mobile?: 'lead'|'title'|'aside'|'field'|'footer',
    *   filter?: boolean, text?: (row:any)=>string, sort?: (row:any)=>any}[], rowKey:(row:any)=>any,
    *   onRowClick?: (row:any)=>void, empty?: any, pageSize?: number, page?: number, onPageChange?: (p:number)=>void,
-   *   rowNumbers?: boolean, rowClass?: (row:any)=>string, onRender?: (root: HTMLElement)=>void}} opts
+   *   rowNumbers?: boolean, rowClass?: (row:any)=>string, onRender?: (root: HTMLElement)=>void,
+   *   exportable?: boolean, exportName?: string}} opts
    */
   constructor(root, opts) {
     this.root = root;
-    this.o = { rowNumbers: true, ...opts };
+    this.o = { rowNumbers: true, exportable: true, ...opts };
     this.rows = null;
     this.page = opts.page ?? 1;
     this.size = opts.pageSize ?? 0;
@@ -175,6 +178,12 @@ export class DataTable {
       const row = tr && this.visible().find((r) => String(this.o.rowKey(r)) === tr.dataset.key);
       if (row) this.o.onRowClick(row);
     });
+    // ส่งออก Excel: คอลัมน์ที่มีชื่อหัว (ไม่รวมคอลัมน์ปุ่ม) · ทุกแถวตามตัวกรอง/การเรียง
+    wireExport(root, () => ({
+      name: this.o.exportName,
+      columns: this.o.columns.filter((c) => typeof c.header === 'string' && c.header !== '').map((c) => ({ header: c.header, text: (r) => this.textOf(r, c.key) })),
+      rows: this.filtered(),
+    }));
     this.render();
   }
 
@@ -340,7 +349,9 @@ export class DataTable {
     const showPager = this.size && this.rows && total > 0;
     const noMatch = !loading && this.rows.length > 0 && total === 0;
     this.root.innerHTML = String(
-      html`${filterSummary(this.filter, (k) => this.col(k).header)}${table}${cards}${noMatch
+      html`${this.o.exportable
+        ? html`<div class="tbl-tools">${filterSummary(this.filter, (k) => this.col(k).header)}<span class="tbl-tools-end">${exportButton(loading || !total)}</span></div>`
+        : filterSummary(this.filter, (k) => this.col(k).header)}${table}${cards}${noMatch
         ? html`<div class="empty" style="padding:32px"><b>ไม่มีแถวที่ตรงกับตัวกรองคอลัมน์</b></div>`
         : !loading && rows.length === 0
           ? (empty ?? '')

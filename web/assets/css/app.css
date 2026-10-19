@@ -5048,3 +5048,69 @@ html:has(#ed),
 .grid.eq > * > .card {
   height: 100%;
 }
+
+/* =====================================================================
+   ตาราง: แถบเครื่องมือ (ปุ่มส่งออก Excel) + หัวคอลัมน์สีพื้นชัดเจน (ทุกตาราง)
+   ===================================================================== */
+:root {
+  --th-bg: #e3eef6;
+  --th-fg: #0f3550;
+  --th-line: #c4d8e6;
+}
+:root[data-theme='dark'] {
+  --th-bg: #1d2d40;
+  --th-fg: #dbe8f5;
+  --th-line: #2c405a;
+}
+.tbl-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 12px 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tbl-tools > .filter-bar {
+  flex: 1;
+  border-bottom: 0;
+  align-self: stretch;
+}
+.tbl-tools-end {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.tbl-export .icon {
+  color: #107c41; /* สีไอคอน Excel */
+}
+.tbl-export:disabled .icon {
+  color: inherit;
+}
+.grid-toolbar .tbl-export {
+  flex: none;
+}
+/* หัวคอลัมน์ */
+.table th,
+.xgrid th,
+.xgrid th.stick-left,
+.xgrid th.stick-right,
+.table th.rownum {
+  background: var(--th-bg);
+  color: var(--th-fg);
+  font-weight: 700;
+  border-bottom: 2px solid var(--th-line);
+  border-right-color: var(--th-line);
+}
+.table th .th-filter,
+.xgrid th .th-filter {
+  color: color-mix(in srgb, var(--th-fg) 60%, transparent);
+}
+.table th .th-filter.on,
+.xgrid th .th-filter.on {
+  color: var(--primary);
+}
+@media (max-width: 767px) {
+  .tbl-tools-end .tbl-export span {
+    display: none; /* มือถือ: เหลือไอคอน */
+  }
+}

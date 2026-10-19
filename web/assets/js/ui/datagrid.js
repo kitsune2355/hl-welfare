@@ -41,6 +41,7 @@ import {
 } from './columnFilter.js';
 import { openPicker } from './combobox.js';
 import { spinner } from './loading.js';
+import { exportButton, wireExport } from './exportExcel.js';
 import { confirmAction, errorMessage, toast } from './overlay.js';
 import { pagerHtml, wirePager } from './table.js';
 
@@ -74,6 +75,12 @@ export class ExcelGrid {
     window.addEventListener('beforeunload', (e) => {
       if (this.hasPending()) e.preventDefault();
     });
+    // ส่งออก Excel: ข้อมูลที่บันทึกแล้ว ทุกแถวตามตัวกรอง/การเรียง (ไม่รวมการเปลี่ยนแปลงที่ยังไม่บันทึก)
+    wireExport(root, () => ({
+      name: this.o.exportName,
+      columns: this.cols.filter((c) => c.header).map((c) => ({ header: c.header, text: (r) => this.textOf(r, c.key) })),
+      rows: this.filtered(),
+    }));
     this.render();
   }
 
@@ -655,6 +662,7 @@ export class ExcelGrid {
         ${this.o.mobileAddHref ? html`<a class="btn btn-primary btn-sm show-mobile" href="${this.o.mobileAddHref}">${raw(icon('plus'))} ${this.o.mobileAddLabel ?? addLabel}</a>` : ''} ${toolbar ?? ''}
         <span class="help">ดับเบิลคลิก / Enter / พิมพ์ = แก้ไข · Esc = ยกเลิก · ←↑↓→ เลื่อนเซลล์ · Ctrl+S = บันทึก</span>
         ${this.pendingBar()}
+        ${exportButton(loading || !this.filtered().length)}
       </div>
       ${filterSummary(this.filter, (k) => this.colByKey(k).header)}
       <div class="xgrid-wrap" tabindex="0" role="grid" aria-rowcount="${entries.length}">
