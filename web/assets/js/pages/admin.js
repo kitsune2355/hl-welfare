@@ -140,7 +140,13 @@ const users = new DataTable($('#users'), {
   rowKey: (u) => u.id,
   pageSize: 25,
   exportName: 'ผู้ใช้ระบบ',
-  rowClass: (u) => (u.isActive ? '' : 'muted'),
+  rowClass: (u) => `${u.isActive ? '' : 'muted'}${isProtected(u.role) ? '' : ' row-edit'}`,
+  // แถวที่แก้ได้: ดับเบิลคลิก / Enter (โฟกัสด้วย Tab ได้) / แตะบนจอสัมผัส → ฟอร์มแก้ไข (openEditUser)
+  onRender: (root) =>
+    root.querySelectorAll('[data-key].row-edit').forEach((r) => {
+      r.tabIndex = 0;
+      r.title = matchMedia('(hover: none)').matches ? 'แตะเพื่อแก้ไข' : 'ดับเบิลคลิกเพื่อแก้ไข (หรือกด Enter)';
+    }),
   columns: [
     { key: 'name', header: 'ผู้ใช้', text: (u) => `${u.name} ${u.username}`, cell: (u) => html`<span class="two-line"><b>${u.name}${isMe(u) ? ' (คุณ)' : ''}</b><span class="sub">${u.username}</span></span>` },
     { key: 'role', header: 'บทบาท', text: (u) => u.roleLabel, cell: (u) => badge(u.roleLabel, u.role === 'SUPER_ADMIN' ? 'danger' : 'info') },
@@ -280,27 +286,57 @@ $('#add-user').addEventListener('click', () =>
   }),
 );
 
+/** ฟอร์มแก้ไขชื่อ / บทบาท / รหัสพนักงาน — เปิดจากดับเบิลคลิกแถว, แตะแถว (จอสัมผัส), Enter ที่แถว หรือปุ่มดินสอ */
+function openEditUser(u) {
+  if (isProtected(u.role)) return toast.error('บัญชีผู้ดูแลระบบสูงสุด แก้ไขได้เฉพาะผู้ดูแลระบบสูงสุด');
+  return formModal({
+    title: `แก้ไขผู้ใช้ ${u.username}`,
+    description: isMe(u) ? 'บทบาทของตัวเองเปลี่ยนไม่ได้ — ให้ผู้ดูแลระบบคนอื่นเปลี่ยนให้' : 'เปลี่ยนบทบาทมีผลกับคำขอถัดไปทันที',
+    fields: html`${field('name', 'ชื่อ-สกุล', html`<input class="input" name="name" />`, { required: true })}
+      ${field('role', 'บทบาท', roleSelect(isMe(u)), { required: true })}
+      ${field('empCode', 'รหัสพนักงาน', html`<input class="input" name="empCode" />`)}`,
+    values: { name: u.name, role: u.role, empCode: u.empCode },
+    save: async (v) => {
+      const patch = { name: v.name, empCode: v.empCode };
+      if (!isMe(u)) patch.role = v.role;
+      await adminApi.updateUser(u.id, patch);
+      toast.success('บันทึกแล้ว');
+      await loadUsers();
+    },
+  });
+}
+
+/** แถวผู้ใช้ (ตาราง tr หรือการ์ดบนมือถือ li) จาก event — ไม่นับการกดปุ่ม/ลิงก์ในแถว */
+function rowUser(e) {
+  if (e.target.closest('button, a, input, select, .popover')) return null;
+  const row = e.target.closest('#users [data-key]');
+  return row ? userById(row.dataset.key) : null;
+}
+// ดับเบิลคลิกแถว = แก้ไข · จอสัมผัส (ไม่มี hover) แตะครั้งเดียว = แก้ไข · คีย์บอร์ด: Tab ไปที่แถวแล้วกด Enter
+$('#users').addEventListener('dblclick', (e) => {
+  const u = rowUser(e);
+  if (u) openEditUser(u);
+});
+$('#users').addEventListener('click', (e) => {
+  if (!matchMedia('(hover: none)').matches) return;
+  const u = rowUser(e);
+  if (u) openEditUser(u);
+});
+$('#users').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.target.closest('button, a, input, select')) return;
+  const row = e.target.closest('#users [data-key]');
+  const u = row && userById(row.dataset.key);
+  if (u) {
+    e.preventDefault();
+    openEditUser(u);
+  }
+});
+
 on($('#users'), 'click', '[data-action]', async (_e, b) => {
   const u = userById(b.dataset.id);
   if (!u) return;
   const act = b.dataset.action;
-  if (act === 'edit') {
-    return formModal({
-      title: `แก้ไขผู้ใช้ ${u.username}`,
-      description: isMe(u) ? 'บทบาทของตัวเองเปลี่ยนไม่ได้ — ให้ผู้ดูแลระบบคนอื่นเปลี่ยนให้' : 'เปลี่ยนบทบาทมีผลกับคำขอถัดไปทันที',
-      fields: html`${field('name', 'ชื่อ-สกุล', html`<input class="input" name="name" />`, { required: true })}
-        ${field('role', 'บทบาท', roleSelect(isMe(u)), { required: true })}
-        ${field('empCode', 'รหัสพนักงาน', html`<input class="input" name="empCode" />`)}`,
-      values: { name: u.name, role: u.role, empCode: u.empCode },
-      save: async (v) => {
-        const patch = { name: v.name, empCode: v.empCode };
-        if (!isMe(u)) patch.role = v.role;
-        await adminApi.updateUser(u.id, patch);
-        toast.success('บันทึกแล้ว');
-        await loadUsers();
-      },
-    });
-  }
+  if (act === 'edit') return openEditUser(u);
   if (act === 'password') {
     if (
       await confirmAction({

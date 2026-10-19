@@ -5443,3 +5443,15 @@ html {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+/* ผู้ใช้ระบบ: แถวที่แก้ได้ — ดับเบิลคลิก / Enter / แตะ = แก้ไข */
+#users .row-edit {
+  cursor: pointer;
+  user-select: none; /* ดับเบิลคลิกไม่เลือกข้อความ */
+}
+#users tr.row-edit:hover td {
+  background: var(--primary-soft);
+}
+#users .row-edit:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
