@@ -10,7 +10,7 @@
  *  รหัสผ่านอ่านจากบรรทัดแรกของ stdin เช่น  echo รหัสผ่าน | php backend/bin/user.php create hr "Somjai Jaidee"
  *  ชื่อภาษาไทย: PHP 5.2 บน Windows อ่านภาษาไทยจาก argument ไม่ได้ → ใส่ชื่อเป็นบรรทัดที่สองของ stdin (ไฟล์ UTF-8)
  *      php backend/bin/user.php create hr - HR_ADMIN HL-0001 < hr.txt      (hr.txt: บรรทัด 1 = รหัสผ่าน, บรรทัด 2 = ชื่อ)
- *  ROLE: HR_ADMIN (ค่าเริ่มต้น) | HR_COMPANY | PAYROLL | STOCK | EXECUTIVE
+ *  ROLE: HR_ADMIN (ค่าเริ่มต้น) | SUPER_ADMIN | HR_COMPANY | PAYROLL | STOCK | EXECUTIVE
  *  username ควรตรงกับบัญชีใน stock_hr (tb_user.username) — สต็อกใช้ส่งลิงก์เซ็นรับให้ผู้ขอเบิก
  *  เขียนให้รองรับ PHP 5.2.6:  C:\AppServ\php5\php.exe backend\bin\user.php ...
  * ============================================================ */

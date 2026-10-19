@@ -15,7 +15,7 @@
 define('SESSION_COOKIE', 'HLW_SESSION');
 define('REFRESH_COOKIE', 'HLW_REFRESH');
 
-$GLOBALS['hlw_role_labels'] = array('HR_ADMIN' => 'HR Admin', 'HR_COMPANY' => 'HR บริษัท', 'PAYROLL' => 'Payroll',
+$GLOBALS['hlw_role_labels'] = array('SUPER_ADMIN' => 'ผู้ดูแลระบบ', 'HR_ADMIN' => 'HR Admin', 'HR_COMPANY' => 'HR บริษัท', 'PAYROLL' => 'Payroll',
     'STOCK' => 'ผู้ดูแลสต็อก', 'EXECUTIVE' => 'ผู้บริหาร');
 
 function auth_cfg($key)

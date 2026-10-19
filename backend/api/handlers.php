@@ -715,7 +715,7 @@ function api_stock_sync($req, $params)
 /** บทบาทที่ออก/ยกเลิกใบเบิกได้ */
 function stock_write_roles()
 {
-    return array('HR_ADMIN', 'HR_COMPANY');
+    return array('SUPER_ADMIN', 'HR_ADMIN', 'HR_COMPANY');
 }
 
 /**
