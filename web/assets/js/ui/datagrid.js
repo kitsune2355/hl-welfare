@@ -45,6 +45,8 @@ import { exportButton, wireExport } from './exportExcel.js';
 import { confirmAction, errorMessage, toast } from './overlay.js';
 import { pagerHtml, wirePager } from './table.js';
 
+/** เพิ่มแถวได้ครั้งละไม่เกินนี้ */
+const MAX_ADD = 100;
 const fmt = (v) => (v === null || v === undefined || v === '' ? '' : String(v));
 
 export class ExcelGrid {
@@ -60,6 +62,7 @@ export class ExcelGrid {
     this.newRows = []; // { key, row } — แถวใหม่ที่ยังไม่บันทึก
     this.deleted = new Set(); // key ของแถวที่จะลบตอนบันทึก
     this.saving = false;
+    this.addCount = 1; // จำนวนแถวที่จะเพิ่มต่อการกดหนึ่งครั้ง
     this.status = new Map(); // key → { state: 'saving'|'saved'|'error', message? }
     this.active = null; // { r, c }
     this.editing = false;
@@ -439,10 +442,12 @@ export class ExcelGrid {
     });
   }
 
-  addRow() {
+  /** เพิ่มแถวใหม่ n แถวด้านบน (ช่องจำนวนข้างปุ่ม "เพิ่มแถว" · 1–100) */
+  addRow(n = this.addCount) {
     if (!this.o.newRow) return;
-    const key = `new:${++this.seq}`;
-    this.newRows = [{ key, row: this.o.newRow() }, ...this.newRows];
+    const count = Math.min(MAX_ADD, Math.max(1, Math.floor(Number(n)) || 1));
+    const added = Array.from({ length: count }, () => ({ key: `new:${++this.seq}`, row: this.o.newRow() }));
+    this.newRows = [...added, ...this.newRows];
     this.render();
     this.setActive(0, 0);
     this.focusGrid();
@@ -470,7 +475,7 @@ export class ExcelGrid {
       const btn = e.target.closest('[data-grid-act]');
       if (btn) {
         const act = btn.dataset.gridAct;
-        if (act === 'add') return this.addRow();
+        if (act === 'add') return this.addRow(this.root.querySelector('[data-add-count]')?.value);
         if (act === 'save-all') return this.saveAll();
         if (act === 'discard-all') return this.discardAll();
         const entry = this.entries().find((x) => x.key === btn.dataset.key);
@@ -521,7 +526,14 @@ export class ExcelGrid {
       if (!td || this.cols[Number(td.dataset.c)].editor === 'switch') return;
       this.startEdit();
     });
+    root.addEventListener('input', (e) => {
+      if (e.target.matches?.('[data-add-count]')) this.addCount = Math.min(MAX_ADD, Math.max(1, Math.floor(Number(e.target.value)) || 1));
+    });
     root.addEventListener('keydown', (e) => {
+      if (e.target.matches?.('[data-add-count]') && e.key === 'Enter') {
+        e.preventDefault();
+        return this.addRow(e.target.value);
+      }
       // Ctrl/⌘ + S = บันทึกทั้งหมด
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !this.editing) {
         e.preventDefault();
@@ -658,7 +670,13 @@ export class ExcelGrid {
     const noMatch = !loading && this.rows.length > 0 && total === 0 && !this.newRows.length;
     const hadFocus = this.root.contains(document.activeElement);
     this.root.innerHTML = String(html`<div class="grid-toolbar">
-        ${newRow ? html`<button class="btn btn-primary btn-sm ${this.o.mobileCard ? 'hide-mobile' : ''}" data-grid-act="add">${raw(icon('plus'))} ${addLabel}</button>` : ''}
+        ${newRow
+          ? html`<span class="add-group ${this.o.mobileCard ? 'hide-mobile' : ''}">
+              <button class="btn btn-primary btn-sm" data-grid-act="add">${raw(icon('plus'))} ${addLabel}</button>
+              <input class="input add-count num" data-add-count type="number" min="1" max="${MAX_ADD}" value="${this.addCount}" aria-label="จำนวนแถวที่จะเพิ่ม" title="จำนวนแถวที่จะเพิ่ม (1–${MAX_ADD})" />
+              <span class="add-unit">แถว</span>
+            </span>`
+          : ''}
         ${this.o.mobileAddHref ? html`<a class="btn btn-primary btn-sm show-mobile" href="${this.o.mobileAddHref}">${raw(icon('plus'))} ${this.o.mobileAddLabel ?? addLabel}</a>` : ''} ${toolbar ?? ''}
         <span class="help">ดับเบิลคลิก / Enter / พิมพ์ = แก้ไข · Esc = ยกเลิก · ←↑↓→ เลื่อนเซลล์ · Ctrl+S = บันทึก</span>
         ${this.pendingBar()}
