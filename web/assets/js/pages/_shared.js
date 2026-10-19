@@ -1,5 +1,6 @@
 // ชิ้นส่วนที่หลายหน้าใช้ร่วมกัน (บันทึกแจกชุด, ไทม์ไลน์กิจกรรม)
 import { api } from '../app/api.js';
+import { can } from '../app/auth.js';
 import { refreshCounts } from '../app/shell.js';
 import { CONFIG } from '../config.js';
 import { html, on, raw, render } from '../shared/dom.js';
@@ -19,11 +20,17 @@ import { loader } from '../ui/loading.js';
  * บันทึกแจกเอง = กรณีแจกนอกระบบไปแล้ว หรือระบบสต็อกใช้งานไม่ได้ (ไม่ตัดสต็อก)
  */
 export function issueAction({ employeeId, entitlementKey, event, qty, name = '' }) {
+  const manual = can('uniform.issue');
+  const stock = can('stock.request');
+  if (!manual && !stock) return html`<span class="small muted">รอแจก</span>`;
   return html`<div class="row" data-issue data-emp="${employeeId}" data-key="${entitlementKey}" data-event="${event}" data-qty="${qty}" data-name="${name}" style="justify-content:flex-end;gap:6px">
-    <button class="btn-icon sm" data-issue-manual title="บันทึกแจกเอง (แจกนอกระบบสต็อกไปแล้ว)" aria-label="บันทึกแจกเอง">${raw(icon('pencil'))}</button>
-    <button class="btn btn-primary btn-sm" data-stock-request>${raw(icon('send'))} ส่งเบิกคลัง</button>
+    ${manual ? html`<button class="btn-icon sm" data-issue-manual title="บันทึกแจกเอง (แจกนอกระบบสต็อกไปแล้ว)" aria-label="บันทึกแจกเอง">${raw(icon('pencil'))}</button>` : ''}
+    ${stock ? html`<button class="btn btn-primary btn-sm" data-stock-request>${raw(icon('send'))} ส่งเบิกคลัง</button>` : ''}
   </div>`;
 }
+
+/** ยกเลิกการแจก/ส่งเบิกได้ไหม (สิทธิ์ uniform.issue · ใบในสต็อกต้องมี stock.request ด้วย) */
+export const canCancelIssue = (isStock) => can('uniform.issue') && (!isStock || can('stock.request'));
 
 export function wireIssueActions(root, { today, onDone }) {
   const ctx = (btn) => {

@@ -48,8 +48,8 @@ function api_work_queue($req, $params)
 function api_activity($req, $params)
 {
     $u = auth_require($req);
-    /* การเข้าสู่ระบบ / งานระบบ ดูได้เฉพาะผู้ดูแล (หน้า admin.html) */
-    $where = $u['role'] === 'SUPER_ADMIN' ? array() : array("entity NOT IN ('USER', 'SYSTEM')");
+    /* การเข้าสู่ระบบ / งานระบบ ดูได้เฉพาะผู้มีสิทธิ์ audit.view (หน้า admin.html) */
+    $where = cap_allowed($u['role'], 'audit.view') ? array() : array("entity NOT IN ('USER', 'SYSTEM')");
     $args = array();
     if (req_query($req, 'entity') !== null) { $where[] = 'entity = ?'; $args[] = req_query($req, 'entity'); }
     if (req_query($req, 'employeeId') !== null) { $where[] = 'employee_id = ?'; $args[] = (int)req_query($req, 'employeeId'); }
@@ -714,10 +714,10 @@ function api_stock_sync($req, $params)
     return array('changed' => $changed);
 }
 
-/** บทบาทที่ออก/ยกเลิกใบเบิกได้ */
+/** บทบาทที่ออก/ยกเลิกใบเบิกได้ = capability stock.request (ตั้งได้ที่ admin.html) */
 function stock_write_roles()
 {
-    return array('SUPER_ADMIN', 'HR_ADMIN', 'HR_COMPANY');
+    return cap_roles('stock.request');
 }
 
 /**

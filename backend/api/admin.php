@@ -1,6 +1,8 @@
 <?php
 /* ============================================================
- *  backend/api/admin.php — หน้าผู้ดูแลระบบ (web/admin.html) · SUPER_ADMIN เท่านั้น (ตรวจทุก endpoint)
+ *  backend/api/admin.php — หน้าผู้ดูแลระบบ (web/admin.html) · ตรวจสิทธิ์ทุก endpoint (backend/permissions.php):
+ *    users.manage (ค่าเริ่มต้น HR Admin) · security.view · system.health · system.settings · audit.view
+ *    ตั้งสิทธิ์ (/admin/permissions) = SUPER_ADMIN เท่านั้น · บัญชี SUPER_ADMIN แก้ได้เฉพาะ SUPER_ADMIN (admin_guard_target)
  *
  *    /admin/users          ผู้ใช้: สร้าง แก้ชื่อ/บทบาท/รหัสพนักงาน ปิด-เปิดบัญชี ตั้งรหัสผ่านใหม่ ออกจากระบบทุกอุปกรณ์
  *    /admin/sessions       session ที่ใช้อยู่ + อุปกรณ์ที่ "จดจำฉัน" (เพิกถอนได้)
@@ -8,6 +10,7 @@
  *    /admin/audit          บันทึกการใช้งานทุก entity (รวม USER / STOCK_REQUEST / SYSTEM)
  *    /admin/health         สถานะระบบ: ฐานข้อมูล migration ค่าตั้ง สต็อก Uniform ใบเบิกค้าง ข้อมูลที่ล้างได้
  *    /admin/cleanup        ล้าง session / refresh token / ประวัติ login เก่า (เหมือน bin/cleanup.php)
+ *    /admin/settings       ค่าตั้งระบบ + การเชื่อมต่อสต็อก (lib/settings.php) · /admin/permissions สิทธิ์รายบทบาท (permissions.php)
  *
  *  กันผู้ดูแลล็อกตัวเอง: แก้บทบาท / ปิดบัญชี / ตั้งรหัสผ่าน / ออกจากระบบทุกอุปกรณ์ ของตัวเองไม่ได้
  *  (จึงมี SUPER_ADMIN ที่ใช้งานได้อย่างน้อย 1 คนเสมอ)
@@ -17,6 +20,27 @@
 function admin_require($req)
 {
     return auth_require_role($req, array('SUPER_ADMIN'));
+}
+
+/**
+ * บัญชี SUPER_ADMIN แก้ได้เฉพาะ SUPER_ADMIN — ผู้จัดการผู้ใช้บทบาทอื่น (เช่น HR Admin ที่ได้สิทธิ์ users.manage) ห้ามแตะเด็ดขาด
+ * (แก้ข้อมูล ปิดบัญชี ตั้งรหัสผ่าน ออกจากระบบ จบ session เลิกจดจำ ปลดล็อก และตั้งบทบาทใครให้เป็น SUPER_ADMIN)
+ */
+function admin_guard_target($me, $role)
+{
+    if ($role === 'SUPER_ADMIN' && $me['role'] !== 'SUPER_ADMIN') {
+        throw new ApiError('บัญชีผู้ดูแลระบบสูงสุด (SUPER_ADMIN) แก้ไขได้เฉพาะผู้ดูแลระบบสูงสุดเท่านั้น', 403, null, 'PROTECTED');
+    }
+}
+
+/** บทบาทที่ผู้ใช้นี้กำหนดให้คนอื่นได้ */
+function admin_assignable_roles($me)
+{
+    $out = array();
+    foreach ($GLOBALS['hlw_role_labels'] as $code => $label) {
+        if ($code !== 'SUPER_ADMIN' || $me['role'] === 'SUPER_ADMIN') { $out[$code] = $label; }
+    }
+    return $out;
 }
 
 function admin_stamp($v)
@@ -99,14 +123,14 @@ function admin_user($id)
 /** GET /admin/users */
 function api_admin_users($req, $params)
 {
-    admin_require($req);
+    $me = cap_require($req, 'users.manage');
     $roles = array();
-    foreach ($GLOBALS['hlw_role_labels'] as $code => $label) { $roles[] = array('value' => $code, 'label' => $label); }
+    foreach (admin_assignable_roles($me) as $code => $label) { $roles[] = array('value' => $code, 'label' => $label); }
     return array('users' => admin_user_rows(), 'roles' => $roles);
 }
 
 /** ตรวจ name / role / empCode (ส่งมาเฉพาะที่จะแก้) → array ของคอลัมน์ · ผิด → 422 + errors */
-function admin_user_fields($b, $creating)
+function admin_user_fields($b, $creating, $me)
 {
     $errors = array();
     $set = array();
@@ -119,6 +143,7 @@ function admin_user_fields($b, $creating)
     if ($creating || array_key_exists('role', $b)) {
         $role = strtoupper((string)arr_get($b, 'role', ''));
         if (!isset($GLOBALS['hlw_role_labels'][$role])) { $errors['role'] = 'กรุณาเลือกบทบาท'; }
+        else { admin_guard_target($me, $role); }
         $set['role'] = $role;
     }
     if ($creating || array_key_exists('empCode', $b)) {
@@ -133,13 +158,13 @@ function admin_user_fields($b, $creating)
 /** POST /admin/users {username, name, role, empCode, password} */
 function api_admin_user_create($req, $params)
 {
-    $me = admin_require($req);
+    $me = cap_require($req, 'users.manage');
     $b = req_json($req);
     $username = strtolower(trim((string)arr_get($b, 'username', '')));
     if (!preg_match('/^[a-z0-9._-]{2,50}$/', $username)) {
         throw new ApiError('กรุณาตรวจสอบข้อมูล', 422, array('username' => 'ชื่อผู้ใช้ใช้ได้เฉพาะ a-z 0-9 . _ - (2–50 ตัว)'));
     }
-    $set = admin_user_fields($b, true);
+    $set = admin_user_fields($b, true, $me);
     $password = (string)arr_get($b, 'password', '');
     try {
         assert_strong_password($password, $username);
@@ -171,10 +196,11 @@ function admin_not_self($me, $u, $message)
 /** PATCH /admin/users/{id} {name?, role?, empCode?, isActive?} */
 function api_admin_user_update($req, $params)
 {
-    $me = admin_require($req);
+    $me = cap_require($req, 'users.manage');
     $u = admin_target($params);
+    admin_guard_target($me, $u['role']);
     $b = req_json($req);
-    $set = admin_user_fields($b, false);
+    $set = admin_user_fields($b, false, $me);
     $changes = array();
     if (isset($set['name']) && $set['name'] !== $u['name']) { $changes[] = 'ชื่อ ' . $u['name'] . ' → ' . $set['name']; }
     if (isset($set['role']) && $set['role'] !== $u['role']) {
@@ -213,8 +239,9 @@ function api_admin_user_update($req, $params)
 /** POST /admin/users/{id}/password {password} — ตั้งรหัสผ่านใหม่ + ออกจากระบบทุกอุปกรณ์ */
 function api_admin_user_password($req, $params)
 {
-    $me = admin_require($req);
+    $me = cap_require($req, 'users.manage');
     $u = admin_target($params);
+    admin_guard_target($me, $u['role']);
     admin_not_self($me, $u, 'รหัสผ่านของตัวเองให้เปลี่ยนด้วยรหัสผ่านปัจจุบัน (เมนูเปลี่ยนรหัสผ่าน)');
     $password = (string)arr_get(req_json($req), 'password', '');
     try {
@@ -232,8 +259,9 @@ function api_admin_user_password($req, $params)
 /** POST /admin/users/{id}/signout — เพิกถอนทุก session + จดจำฉัน ของผู้ใช้ */
 function api_admin_user_signout($req, $params)
 {
-    $me = admin_require($req);
+    $me = cap_require($req, 'users.manage');
     $u = admin_target($params);
+    admin_guard_target($me, $u['role']);
     admin_not_self($me, $u, 'ออกจากระบบของตัวเองใช้ปุ่มออกจากระบบ');
     db_begin();
     db_exec('UPDATE users SET session_version = session_version + 1, updated_by = ? WHERE id = ?', array($me['username'], $u['id']));
@@ -249,13 +277,13 @@ function api_admin_user_signout($req, $params)
 /** GET /admin/sessions → { sessions, devices } */
 function api_admin_sessions($req, $params)
 {
-    admin_require($req);
+    cap_require($req, 'security.view');
     $current = isset($GLOBALS['hlw_auth_session_id']) ? $GLOBALS['hlw_auth_session_id'] : 0;
     $sessions = array();
     foreach (db_all('SELECT s.*, u.username, u.name, u.role ' . admin_live_session_sql() . ' ORDER BY s.last_seen_at DESC, s.id DESC',
         admin_live_session_args()) as $r) {
         $sessions[] = array('id' => (int)$r['id'], 'userId' => (int)$r['user_id'], 'username' => $r['username'], 'name' => $r['name'],
-            'roleLabel' => admin_role_label($r['role']), 'ip' => $r['ip'], 'userAgent' => $r['user_agent'],
+            'role' => $r['role'], 'roleLabel' => admin_role_label($r['role']), 'ip' => $r['ip'], 'userAgent' => $r['user_agent'],
             'createdAt' => admin_stamp($r['created_at']), 'lastSeenAt' => admin_stamp($r['last_seen_at']),
             'expiresAt' => admin_stamp($r['expires_at']), 'current' => (int)$r['id'] === $current);
     }
@@ -265,7 +293,7 @@ function api_admin_sessions($req, $params)
             FROM auth_refresh_tokens t JOIN users u ON u.id = t.user_id
             WHERE t.revoked_at IS NULL AND t.expires_at > ? ORDER BY t.created_at DESC, t.id DESC', array(db_now())) as $r) {
         $devices[] = array('familyId' => $r['family_id'], 'userId' => (int)$r['user_id'], 'username' => $r['username'], 'name' => $r['name'],
-            'roleLabel' => admin_role_label($r['role']), 'ip' => $r['created_ip'], 'userAgent' => $r['user_agent'],
+            'role' => $r['role'], 'roleLabel' => admin_role_label($r['role']), 'ip' => $r['created_ip'], 'userAgent' => $r['user_agent'],
             'firstAt' => admin_stamp($r['first_at']), 'lastUsedAt' => admin_stamp($r['created_at']), 'expiresAt' => admin_stamp($r['expires_at']));
     }
     return array('sessions' => $sessions, 'devices' => $devices);
@@ -274,13 +302,14 @@ function api_admin_sessions($req, $params)
 /** DELETE /admin/sessions/{id} — จบ session (เครื่องที่จดจำฉันไว้จะต่ออายุเองได้ — ใช้ signout เพื่อบังคับ) */
 function api_admin_session_revoke($req, $params)
 {
-    $me = admin_require($req);
+    $me = cap_require($req, 'security.view');
     $id = param_id($params);
     if (isset($GLOBALS['hlw_auth_session_id']) && $GLOBALS['hlw_auth_session_id'] === $id) {
         throw new ApiError('นี่คือ session ที่คุณใช้อยู่ — ใช้ปุ่มออกจากระบบแทน', 422, null, 'SELF');
     }
-    $s = find_or_404(db_one('SELECT s.id, s.ip, u.id AS uid, u.username FROM auth_sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?',
+    $s = find_or_404(db_one('SELECT s.id, s.ip, u.id AS uid, u.username, u.role FROM auth_sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?',
         array($id)), 'ไม่พบ session');
+    admin_guard_target($me, $s['role']);
     db_begin();
     db_exec('UPDATE auth_sessions SET revoked_at = ?, updated_by = ? WHERE id = ? AND revoked_at IS NULL', array(db_now(), $me['username'], $id));
     audit_write('USER', $s['uid'], 'SESSION_REVOKE', 'ผู้ดูแลจบ session ของ ' . $s['username'] . ' (IP ' . $s['ip'] . ')', null, $me);
@@ -291,11 +320,12 @@ function api_admin_session_revoke($req, $params)
 /** DELETE /admin/devices/{familyId} — เลิกจดจำอุปกรณ์ (refresh token ทั้ง family) */
 function api_admin_device_revoke($req, $params)
 {
-    $me = admin_require($req);
+    $me = cap_require($req, 'security.view');
     $fid = isset($params['familyId']) ? (string)$params['familyId'] : '';
     if (!preg_match('/^[0-9a-f]{32}$/', $fid)) { throw new ApiError('ไม่พบอุปกรณ์', 404); }
-    $t = find_or_404(db_one('SELECT t.created_ip, u.id AS uid, u.username FROM auth_refresh_tokens t JOIN users u ON u.id = t.user_id
+    $t = find_or_404(db_one('SELECT t.created_ip, u.id AS uid, u.username, u.role FROM auth_refresh_tokens t JOIN users u ON u.id = t.user_id
         WHERE t.family_id = ? ORDER BY t.id DESC LIMIT 1', array($fid)), 'ไม่พบอุปกรณ์');
+    admin_guard_target($me, $t['role']);
     db_begin();
     $n = refresh_revoke_family($fid, 'ADMIN', $me['username']);
     audit_write('USER', $t['uid'], 'DEVICE_REVOKE', 'ผู้ดูแลเลิกจดจำอุปกรณ์ของ ' . $t['username'] . ' (IP ' . $t['created_ip'] . ', ' . $n . ' โทเคน)', null, $me);
@@ -332,7 +362,7 @@ function admin_lockouts()
 /** GET /admin/login-attempts?result=failed|ok&limit= → { attempts, lockouts, policy } */
 function api_admin_login_attempts($req, $params)
 {
-    admin_require($req);
+    cap_require($req, 'security.view');
     $where = array();
     $result = req_query($req, 'result');
     if ($result === 'failed') { $where[] = 'a.succeeded = 0'; }
@@ -352,7 +382,7 @@ function api_admin_login_attempts($req, $params)
 /** POST /admin/lockouts/clear {kind: USER|IP, key} — ไม่นับครั้งที่ผิดในช่วงล็อก (เก็บประวัติไว้) */
 function api_admin_lockout_clear($req, $params)
 {
-    $me = admin_require($req);
+    $me = cap_require($req, 'security.view');
     $b = req_json($req);
     $kind = (string)arr_get($b, 'kind', '');
     $key = trim((string)arr_get($b, 'key', ''));
@@ -363,6 +393,7 @@ function api_admin_lockout_clear($req, $params)
         . ($kind === 'USER' ? 'username = ?' : 'ip = ?'), array(db_now(), $me['username'], $since, $kind === 'USER' ? strtolower($key) : $key));
     if ($kind === 'USER') {
         $u = user_by_username($key);
+        if ($u) { admin_guard_target($me, $u['role']); }
         audit_write('USER', $u ? $u['id'] : $key, 'UNLOCK', 'ปลดล็อกการเข้าสู่ระบบของชื่อผู้ใช้ ' . strtolower($key) . ' (' . $r['affected'] . ' ครั้งที่ผิด)', null, $me);
     } else {
         audit_write('SYSTEM', $key, 'UNLOCK', 'ปลดล็อกการเข้าสู่ระบบจาก IP ' . $key . ' (' . $r['affected'] . ' ครั้งที่ผิด)', null, $me);
@@ -377,7 +408,7 @@ function api_admin_lockout_clear($req, $params)
 /** GET /admin/audit?entity=&action=&user=&q=&from=&to=&limit= → { rows, total, limit, facets } */
 function api_admin_audit($req, $params)
 {
-    admin_require($req);
+    cap_require($req, 'audit.view');
     $where = array();
     $args = array();
     foreach (array('entity' => 'entity', 'action' => 'action', 'user' => 'user_name', 'entityId' => 'entity_id') as $q => $col) {
@@ -465,7 +496,7 @@ function admin_stock_monitor()
 /** GET /admin/health?ping=0 (ไม่ ping สต็อก) */
 function api_admin_health($req, $params)
 {
-    admin_require($req);
+    cap_require($req, 'system.health');
     $cfg = $GLOBALS['hlw_config'];
     $checks = array();
     $mysql = (string)db_value('SELECT VERSION()');
@@ -483,13 +514,14 @@ function api_admin_health($req, $params)
         '004_super_admin' => strpos((string)admin_column_type('users', 'role'), 'SUPER_ADMIN') !== false,
         '005_admin_monitor' => admin_column_type('auth_login_attempts', 'cleared_at') !== null,
         '006_system_settings' => admin_column_type('system_settings', 'value') !== null,
+        '008_role_capabilities' => admin_column_type('role_capabilities', 'allowed') !== null,
     );
     $pending = array();
     foreach ($migrations as $m => $ok) {
         if (!$ok) { $pending[] = $m; }
     }
     $checks[] = admin_check('migrations', 'Migration (backend/sql)', count($pending) ? 'error' : 'ok',
-        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 006');
+        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 008');
 
     $cfgIssues = array();
     $cfgError = false;
@@ -610,7 +642,7 @@ function admin_cleanup_run($days, $actor, $actorName = null)
 /** POST /admin/cleanup {days} */
 function api_admin_cleanup($req, $params)
 {
-    $me = admin_require($req);
+    $me = cap_require($req, 'system.health');
     $days = (int)arr_get(req_json($req), 'days', sys_setting('cleanup_days'));
     if ($days < 1 || $days > 3650) { throw new ApiError('จำนวนวันต้องอยู่ระหว่าง 1–3650', 422); }
     return admin_cleanup_run($days, $me);
@@ -664,7 +696,7 @@ function admin_settings_view()
 /** GET /admin/settings */
 function api_admin_settings($req, $params)
 {
-    admin_require($req);
+    cap_require($req, 'system.settings');
     return admin_settings_view();
 }
 
@@ -676,7 +708,7 @@ function admin_setting_text($d, $v)
 /** PUT /admin/settings {values: {key: value}, reset: [key]} — secret ว่าง = ไม่เปลี่ยน · reset = กลับไปใช้ config.php */
 function api_admin_settings_save($req, $params)
 {
-    $me = admin_require($req);
+    $me = cap_require($req, 'system.settings');
     if (!admin_settings_table_ready()) {
         throw new ApiError('ยังไม่ได้รัน migration backend/sql/006_system_settings.sql — แก้ค่าที่ backend/config.php แทน', 409, null, 'MIGRATION_MISSING');
     }
@@ -725,7 +757,7 @@ function api_admin_settings_save($req, $params)
 /** POST /admin/stock/test {url?, secret?} — ทดสอบค่าใหม่ก่อนบันทึก (ไม่ส่ง = ใช้ค่าที่บันทึกไว้) */
 function api_admin_stock_test($req, $params)
 {
-    admin_require($req);
+    cap_require($req, 'system.settings');
     $b = req_json($req);
     $url = trim((string)arr_get($b, 'url', ''));
     $secret = trim((string)arr_get($b, 'secret', ''));
@@ -740,4 +772,82 @@ function api_admin_stock_test($req, $params)
     $c = admin_stock_ping($url === '' ? null : $url, $secret === '' ? null : $secret);
     return array('ok' => $c['status'] !== 'error', 'status' => $c['status'], 'detail' => $c['detail'],
         'url' => $url === '' ? sys_setting('stock_api_url') : $url, 'usedSavedSecret' => $secret === '');
+}
+
+/* ============================================================
+ *  สิทธิ์การใช้งาน (permissions.php) — ตาราง role_capabilities ทับค่าเริ่มต้นในโค้ด
+ * ============================================================ */
+function admin_perm_view()
+{
+    $ready = admin_column_type('role_capabilities', 'allowed') !== null;
+    $caps = array();
+    foreach (perm_defs() as $key => $d) {
+        $allowed = array();
+        foreach (perm_roles() as $role => $label) {
+            if (cap_allowed($role, $key)) { $allowed[] = $role; }
+        }
+        $caps[] = array('key' => $key, 'group' => $d['group'], 'kind' => $d['kind'], 'label' => $d['label'],
+            'page' => arr_get($d, 'page'), 'defaultRoles' => $d['roles'], 'roles' => $allowed);
+    }
+    $roles = array();
+    foreach (perm_roles() as $code => $label) {
+        $roles[] = array('value' => $code, 'label' => $label,
+            'users' => (int)db_value('SELECT COUNT(*) FROM users WHERE role = ? AND is_active = 1', array($code)));
+    }
+    $last = $ready ? db_one('SELECT MAX(updated_at) AS at FROM role_capabilities') : null;
+    return array('ready' => $ready, 'caps' => $caps, 'roles' => $roles,
+        'updatedAt' => $last && $last['at'] ? admin_stamp($last['at']) : null);
+}
+
+/** GET /admin/permissions */
+function api_admin_permissions($req, $params)
+{
+    admin_require($req);
+    return admin_perm_view();
+}
+
+/** PUT /admin/permissions {matrix: {capability: [role, …]}} — capability ที่ไม่ส่งมา = ไม่เปลี่ยน */
+function api_admin_permissions_save($req, $params)
+{
+    $me = admin_require($req);
+    if (admin_column_type('role_capabilities', 'allowed') === null) {
+        throw new ApiError('ยังไม่ได้รัน migration backend/sql/008_role_capabilities.sql', 409, null, 'MIGRATION_MISSING');
+    }
+    $matrix = arr_get(req_json($req), 'matrix');
+    if (!is_array($matrix)) { throw new ApiError('ข้อมูลสิทธิ์ไม่ถูกต้อง', 422); }
+    $defs = perm_defs();
+    $roles = perm_roles();
+    $errors = array();
+    foreach ($matrix as $cap => $list) {
+        if (!isset($defs[$cap])) { $errors[$cap] = 'ไม่รู้จักสิทธิ์นี้'; continue; }
+        if (!is_array($list)) { $errors[$cap] = 'ต้องเป็นรายการบทบาท'; continue; }
+        foreach ($list as $role) {
+            if (!isset($roles[$role])) { $errors[$cap] = 'ไม่รู้จักบทบาท ' . $role; }
+        }
+    }
+    if (count($errors)) { throw new ApiError('กรุณาตรวจสอบข้อมูล', 422, $errors); }
+
+    $changes = array();
+    db_begin();
+    foreach ($matrix as $cap => $list) {
+        $on = array();
+        $off = array();
+        foreach ($roles as $role => $label) {
+            $allowed = in_array($role, $list, true);
+            if ($allowed !== cap_allowed($role, $cap)) {
+                if ($allowed) { $on[] = $label; } else { $off[] = $label; }
+            }
+            db_exec('INSERT INTO role_capabilities (role, capability, allowed, created_at, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE allowed = VALUES(allowed), updated_by = VALUES(updated_by)',
+                array($role, $cap, $allowed ? 1 : 0, db_now(), $me['username'], $me['username']));
+        }
+        if (count($on)) { $changes[] = $defs[$cap]['label'] . ': เพิ่ม ' . implode(', ', $on); }
+        if (count($off)) { $changes[] = $defs[$cap]['label'] . ': เอาออก ' . implode(', ', $off); }
+    }
+    if (count($changes)) { audit_write('SYSTEM', 'permissions', 'PERMISSIONS', 'สิทธิ์การใช้งาน — ' . implode(' · ', $changes), null, $me); }
+    db_commit();
+    perm_reset_cache();
+    $out = admin_perm_view();
+    $out['changed'] = count($changes);
+    return $out;
 }

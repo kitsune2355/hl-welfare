@@ -33,6 +33,8 @@ test('ทุกคำสั่งเรียก endpoint /admin/* ที่ถ�
   await a.getSettings();
   await a.saveSettings({ stock_timeout: '30' }, ['refresh_days']);
   await a.testStock({ url: 'https://x/api/welfare.php' });
+  await a.getPermissions();
+  await a.savePermissions({ 'employees.edit': ['HR_ADMIN'] });
   assert.deepEqual(calls.map((c) => c.key), [
     'GET api/admin/users',
     'POST api/admin/users',
@@ -49,7 +51,10 @@ test('ทุกคำสั่งเรียก endpoint /admin/* ที่ถ�
     'GET api/admin/settings',
     'PUT api/admin/settings',
     'POST api/admin/stock/test',
+    'GET api/admin/permissions',
+    'PUT api/admin/permissions',
   ]);
+  assert.deepEqual(calls[16].body, { matrix: { 'employees.edit': ['HR_ADMIN'] } });
   assert.deepEqual(calls[13].body, { values: { stock_timeout: '30' }, reset: ['refresh_days'] });
   assert.deepEqual(calls[14].body, { url: 'https://x/api/welfare.php', secret: '' });
   assert.deepEqual(calls[3].body, { password: 'Secret-1234' });

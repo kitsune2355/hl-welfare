@@ -1,34 +1,75 @@
-// หน้า: ผู้ดูแลระบบ (admin.html?tab=users|access|health|audit) — SUPER_ADMIN เท่านั้น
-//   ผู้ใช้          = สร้าง / แก้ชื่อ-บทบาท-รหัสพนักงาน / ปิด-เปิดบัญชี / ตั้งรหัสผ่านใหม่ / ออกจากระบบทุกอุปกรณ์
-//   การเข้าสู่ระบบ = ที่ถูกล็อก (ปลดล็อก) · session · อุปกรณ์ที่จดจำ · ประวัติ login
-//   สถานะระบบ     = DB / migration / ค่าตั้ง / ping สต็อก Uniform · ใบเบิกค้าง · ล้างข้อมูลเก่า
-//   ตั้งค่าระบบ    = URL/กุญแจ/เวลารอ ของสต็อก Uniform (ทดสอบก่อนบันทึก) · การเข้าสู่ระบบ · เกณฑ์ติดตาม (ทับ config.php)
-//   บันทึกการใช้งาน = audit_log ทุก entity (รวม USER / STOCK_REQUEST / SYSTEM)
-// เซิร์ฟเวอร์ตรวจสิทธิ์ทุก endpoint (backend/api/admin.php) — เมนูซ่อนจากบทบาทอื่นใน app/shell.js
+// หน้า: ผู้ดูแลระบบ (admin.html?tab=…) — 3 เมนูในหัวข้อ "ผู้ดูแลระบบ" ของ sidebar
+//   ผู้ใช้ระบบ (users.manage)       = สร้าง / แก้ชื่อ-บทบาท-รหัสพนักงาน / ปิด-เปิดบัญชี / ตั้งรหัสผ่านใหม่ / ออกจากระบบทุกอุปกรณ์
+//   กำหนดสิทธิ์การใช้งาน (SUPER_ADMIN) = ตารางบทบาท × สิทธิ์ (เห็นหน้า / ทำรายการ)
+//   ระบบ & ความปลอดภัย — แท็บที่มีสิทธิ์:
+//     การเข้าสู่ระบบ (security.view) = ที่ถูกล็อก (ปลดล็อก) · session · อุปกรณ์ที่จดจำ · ประวัติ login
+//     สถานะระบบ (system.health)      = DB / migration / ค่าตั้ง / ping สต็อก Uniform · ใบเบิกค้าง · ล้างข้อมูลเก่า
+//     ตั้งค่าระบบ (system.settings)  = URL/กุญแจ/เวลารอ ของสต็อก Uniform (ทดสอบก่อนบันทึก) · การเข้าสู่ระบบ · เกณฑ์ติดตาม
+//     บันทึกการใช้งาน (audit.view)   = audit_log ทุก entity (รวม USER / STOCK_REQUEST / SYSTEM)
+// เซิร์ฟเวอร์ตรวจสิทธิ์ทุก endpoint (backend/api/admin.php) · บัญชี SUPER_ADMIN แก้ได้เฉพาะ SUPER_ADMIN (ปุ่มซ่อน + 403 PROTECTED)
 import { adminApi } from '../app/api.js';
-import { getSession } from '../app/auth.js';
+import { can, getSession } from '../app/auth.js';
 import { initPage } from '../app/shell.js';
 import { $, debounce, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { clock, int, thaiDate, thaiDateTime, timeAgo } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import { ACTIVITY_ENTITY_LABEL } from '../shared/labels.js';
-import { alertBox, badge, emptyState, errorState, infoList, skeletonCards, skeletonLines, tabs } from '../ui/components.js';
+import { alertBox, badge, emptyState, infoList, skeletonLines, tabs } from '../ui/components.js';
 import { busy } from '../ui/loading.js';
 import { confirmAction, errorMessage, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 import { activityAction, ENTITY_ICON } from './_shared.js';
 
-initPage('admin');
-
-const TABS = ['users', 'access', 'health', 'settings', 'audit'];
-let tab = TABS.includes(getParam('tab')) ? getParam('tab') : 'users';
 const me = getSession();
+const isSuper = me?.roleCode === 'SUPER_ADMIN';
+
+/** แท็บ → สิทธิ์ที่ต้องมี */
+const TAB_CAN = {
+  users: () => can('users.manage'),
+  permissions: () => isSuper,
+  access: () => can('security.view'),
+  health: () => can('system.health'),
+  settings: () => can('system.settings'),
+  audit: () => can('audit.view'),
+};
+const TAB_LABEL = { access: 'การเข้าสู่ระบบ', health: 'สถานะระบบ', settings: 'ตั้งค่าระบบ', audit: 'บันทึกการใช้งาน' };
+/** เมนู sidebar (id ใน app/shell.js) → แท็บในหน้านี้ */
+const GROUPS = {
+  users: { nav: 'admin-users', title: 'ผู้ใช้ระบบ', subtitle: 'เพิ่ม · แก้ไข · ปิดบัญชี · ตั้งรหัสผ่านใหม่ · ออกจากระบบทุกอุปกรณ์', tabs: ['users'] },
+  permissions: {
+    nav: 'admin-permissions',
+    title: 'กำหนดสิทธิ์การใช้งาน',
+    subtitle: 'บทบาทไหนเห็นเมนูใด และทำรายการอะไรได้บ้าง — เมนูและปุ่มที่ไม่มีสิทธิ์จะถูกซ่อน',
+    tabs: ['permissions'],
+  },
+  system: {
+    nav: 'admin-system',
+    title: 'ระบบ & ความปลอดภัย',
+    subtitle: 'การเข้าสู่ระบบ · สถานะระบบ · ตั้งค่าระบบ · บันทึกการใช้งาน',
+    tabs: ['access', 'health', 'settings', 'audit'],
+  },
+};
+const ALL_TABS = Object.values(GROUPS).flatMap((g) => g.tabs);
+const groupKeyOf = (t) => Object.keys(GROUPS).find((k) => GROUPS[k].tabs.includes(t));
+
+// ?tab= ชื่อแท็บ หรือ system (= แท็บแรกที่มีสิทธิ์) · ไม่มีสิทธิ์แท็บที่ขอ → แท็บอื่นในเมนูเดียวกัน
+const asked = getParam('tab') || 'users';
+const group = GROUPS[groupKeyOf(asked) ?? (GROUPS[asked] ? asked : 'users')];
+let tab = TAB_CAN[asked]?.() ? asked : (group.tabs.find((t) => TAB_CAN[t]()) ?? group.tabs[0]);
+initPage(group.nav); // ไม่มีสิทธิ์เมนูนี้เลย → shell พาไปหน้าที่เปิดได้
+
+render($('#title'), group.title);
+render($('#subtitle'), group.subtitle);
+document.title = `${group.title} · HL Welfare`;
 const loaded = new Set();
 const state = { roles: [], counts: {} };
 
 const ago = (s) => (s ? html`<time datetime="${s}" title="${thaiDateTime(s)}">${timeAgo(s)}</time>` : html`<span class="muted">–</span>`);
 const when = (s) => (s ? thaiDateTime(s) : '–');
 const userCell = (r) => html`<span class="two-line"><b>${r.name}</b><span class="sub">${r.username} · ${r.roleLabel}</span></span>`;
+/** บัญชี SUPER_ADMIN — คนที่ไม่ใช่ SUPER_ADMIN แตะไม่ได้ */
+const isProtected = (role) => role === 'SUPER_ADMIN' && !isSuper;
+const protectedMark = () => html`<span class="small muted row" style="gap:4px" title="บัญชีผู้ดูแลระบบสูงสุด แก้ไขได้เฉพาะผู้ดูแลระบบสูงสุด">${raw(icon('lock'))} ป้องกัน</span>`;
 
 /** Mozilla/5.0 (Windows NT 10.0; …) Chrome/141 … → "Chrome · Windows" */
 function device(ua) {
@@ -38,33 +79,29 @@ function device(ua) {
   return os ? `${b} · ${os}` : b;
 }
 
-// ===================== แท็บ =====================
+// ===================== แท็บ (เฉพาะเมนูระบบ & ความปลอดภัย ที่มีหลายแท็บ) =====================
 function drawTabs() {
   const c = state.counts;
-  render(
-    $('#tabs'),
-    tabs(
-      [
-        { value: 'users', label: 'ผู้ใช้', count: c.users },
-        { value: 'access', label: 'การเข้าสู่ระบบ', count: c.locks || undefined, tone: 'danger' },
-        { value: 'health', label: 'สถานะระบบ', count: c.problems || undefined, tone: c.errors ? 'danger' : 'warning' },
-        { value: 'settings', label: 'ตั้งค่าระบบ' },
-        { value: 'audit', label: 'บันทึกการใช้งาน' },
-      ],
-      tab,
-    ),
-  );
-  for (const t of TABS) $(`#tab-${t}`).classList.toggle('hidden', t !== tab);
+  const COUNT = {
+    access: { count: c.locks || undefined, tone: 'danger' },
+    health: { count: c.problems || undefined, tone: c.errors ? 'danger' : 'warning' },
+  };
+  const visible = group.tabs.filter((t) => TAB_CAN[t]());
+  $('#tabs').classList.toggle('hidden', visible.length < 2);
+  if (visible.length > 1) render($('#tabs'), tabs(visible.map((t) => ({ value: t, label: TAB_LABEL[t], ...COUNT[t] })), tab));
+  for (const t of ALL_TABS) $(`#tab-${t}`).classList.toggle('hidden', t !== tab);
 }
 
 on($('#tabs'), 'click', '[data-tab]', (_e, b) => {
+  if (b.dataset.tab === tab) return;
+  if (tab === 'permissions' && !leavePermissionsOk()) return;
   tab = b.dataset.tab;
-  setParams({ tab: tab === 'users' ? '' : tab });
+  setParams({ tab });
   drawTabs();
   load(tab);
 });
 
-const LOADERS = { users: loadUsers, access: loadAccess, health: loadHealth, settings: loadSettings, audit: loadAudit };
+const LOADERS = { users: loadUsers, permissions: loadPermissions, access: loadAccess, health: loadHealth, settings: loadSettings, audit: loadAudit };
 async function load(t, force = false) {
   if (loaded.has(t) && !force) return;
   loaded.add(t);
@@ -73,20 +110,26 @@ async function load(t, force = false) {
     render($('#updated'), `อัปเดต ${clock(new Date())}`);
   } catch (e) {
     loaded.delete(t);
-    if (e?.status === 403) return blocked('บัญชีนี้ไม่มีสิทธิ์ผู้ดูแลระบบ');
+    if (e?.status === 403 && e?.code !== 'PROTECTED') return blocked(errorMessage(e));
     toast.error(errorMessage(e));
   }
 }
 
 function blocked(message) {
-  render($('#blocked'), alertBox({ tone: 'danger', title: message, body: 'หน้านี้ใช้ได้เฉพาะบทบาท “ผู้ดูแลระบบ” (SUPER_ADMIN) บน PHP backend' }));
+  render(
+    $('#blocked'),
+    alertBox({ tone: 'danger', title: message, body: 'ขอสิทธิ์ได้จากผู้ดูแลระบบสูงสุด (เมนูกำหนดสิทธิ์การใช้งาน) · หน้านี้ต้องเชื่อมต่อ PHP backend' }),
+  );
   $('#blocked').classList.remove('hidden');
   $('#tabs').classList.add('hidden');
-  for (const t of TABS) $(`#tab-${t}`).classList.add('hidden');
+  for (const t of ALL_TABS) $(`#tab-${t}`).classList.add('hidden');
   $('#refresh').disabled = true;
 }
 
-$('#refresh').addEventListener('click', () => load(tab, true));
+$('#refresh').addEventListener('click', () => {
+  if (tab === 'permissions' && !leavePermissionsOk()) return;
+  load(tab, true);
+});
 
 // ===================== ผู้ใช้ =====================
 const isMe = (u) => u.id === me?.id;
@@ -112,13 +155,16 @@ const users = new DataTable($('#users'), {
       key: 'actions',
       header: '',
       filter: false,
-      cell: (u) => html`<span class="row-actions">
-        <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${u.id}" title="แก้ไข">${raw(icon('pencil'))} แก้ไข</button>
+      cell: (u) =>
+        isProtected(u.role)
+          ? protectedMark()
+          : html`<span class="row-actions">
+        <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${u.id}" title="แก้ไขชื่อ / บทบาท / รหัสพนักงาน">${raw(icon('pencil'))} แก้ไข</button>
         ${isMe(u)
           ? ''
-          : html`<button class="btn btn-ghost btn-sm" data-action="password" data-id="${u.id}" title="ตั้งรหัสผ่านใหม่">${raw(icon('lock'))}</button>
-              <button class="btn btn-ghost btn-sm" data-action="signout" data-id="${u.id}" title="ออกจากระบบทุกอุปกรณ์" ${u.activeSessions + u.devices ? '' : 'disabled'}>${raw(icon('log-out'))}</button>
-              <button class="btn btn-ghost btn-sm" data-action="toggle" data-id="${u.id}" title="${u.isActive ? 'ปิดบัญชี' : 'เปิดใช้บัญชี'}">${raw(icon(u.isActive ? 'user-x' : 'user-plus'))}</button>`}
+          : html`<button class="btn btn-ghost btn-sm" data-action="password" data-id="${u.id}" title="ตั้งรหัสผ่านใหม่" aria-label="ตั้งรหัสผ่านใหม่ให้ ${u.username}">${raw(icon('lock'))}</button>
+              <button class="btn btn-ghost btn-sm" data-action="signout" data-id="${u.id}" title="ออกจากระบบทุกอุปกรณ์" aria-label="ให้ ${u.username} ออกจากระบบทุกอุปกรณ์" ${u.activeSessions + u.devices ? '' : 'disabled'}>${raw(icon('log-out'))}</button>
+              <button class="btn btn-ghost btn-sm" data-action="toggle" data-id="${u.id}" title="${u.isActive ? 'ปิดบัญชี' : 'เปิดใช้บัญชี'}" aria-label="${u.isActive ? 'ปิดบัญชี' : 'เปิดใช้บัญชี'} ${u.username}">${raw(icon(u.isActive ? 'user-x' : 'user-plus'))}</button>`}
       </span>`,
     },
   ],
@@ -288,6 +334,161 @@ function reloadAccessToo() {
   loadUsers().catch((e) => toast.error(errorMessage(e)));
 }
 
+// ===================== กำหนดสิทธิ์การใช้งาน (SUPER_ADMIN) =====================
+// ตาราง capability × บทบาท · ติ๊ก "ทำรายการ" → ติ๊ก "เห็นหน้า" ของกลุ่มเดียวกันให้ · เอา "เห็นหน้า" ออก → เอารายการของกลุ่มนั้นออกด้วย
+const perm = { data: null, saved: new Map(), draft: new Map(), mobileRole: '' };
+const KIND_LABEL = { view: 'เห็นหน้า', action: 'ทำรายการ' };
+
+const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
+const permDirty = () => perm.data && perm.data.caps.some((c) => !sameSet(perm.saved.get(c.key), perm.draft.get(c.key)));
+
+function leavePermissionsOk() {
+  return !permDirty() || confirm('มีสิทธิ์ที่แก้แล้วยังไม่บันทึก — ออกโดยไม่บันทึก?');
+}
+window.addEventListener('beforeunload', (e) => {
+  if (permDirty()) e.preventDefault();
+});
+
+function setPermData(d) {
+  perm.data = d;
+  if (!perm.mobileRole) perm.mobileRole = d.roles[0]?.value ?? '';
+  perm.saved = new Map(d.caps.map((c) => [c.key, new Set(c.roles)]));
+  perm.draft = new Map(d.caps.map((c) => [c.key, new Set(c.roles)]));
+}
+
+function drawPermissions() {
+  const d = perm.data;
+  // วาดใหม่ทั้งตาราง → คงตำแหน่งเลื่อนเดิม (ไม่เด้งกลับบนสุดทุกครั้งที่ติ๊ก)
+  const wrap = $('#perm .perm-wrap');
+  const scroll = wrap ? [wrap.scrollTop, wrap.scrollLeft, $('#perm').scrollTop] : null;
+  const groups = [...new Set(d.caps.map((c) => c.group))];
+  const changed = d.caps.filter((c) => !sameSet(perm.saved.get(c.key), perm.draft.get(c.key))).length;
+  $('#perm-save').disabled = !changed || !d.ready;
+  $('#perm-undo').disabled = !changed;
+  $('#perm-save').dataset.label = changed ? `บันทึกสิทธิ์ (${changed})` : 'บันทึกสิทธิ์';
+  $('#perm-save').innerHTML = `${icon('save')} ${$('#perm-save').dataset.label}`;
+  render(
+    $('#perm'),
+    html`${d.ready ? '' : alertBox({ tone: 'warning', title: 'ยังไม่ได้รัน migration 008_role_capabilities.sql', body: 'แสดงค่าเริ่มต้นในโค้ด — รัน migration แล้วจึงบันทึกได้' })}
+      <label class="field perm-role-pick">
+        <span>แสดงสิทธิ์ของบทบาท</span>
+        <select class="input" id="perm-role">${d.roles.map((r) => html`<option value="${r.value}" ${r.value === perm.mobileRole ? 'selected' : ''}>${r.label} (${r.users} คน)</option>`)}</select>
+      </label>
+      <div class="perm-wrap">
+        <table class="perm-table">
+          <thead>
+            <tr>
+              <th scope="col" class="perm-cap">สิทธิ์</th>
+              ${d.roles.map((r) => html`<th scope="col" class="perm-col${r.value === perm.mobileRole ? ' on' : ''}"><span>${r.label}</span><small>${r.users} คน</small></th>`)}
+              <th scope="col" class="perm-super"><span>ผู้ดูแลระบบสูงสุด</span><small>ทุกอย่างเสมอ</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${groups.map(
+              (g) => html`<tr class="perm-group"><th colspan="${d.roles.length + 2}" scope="rowgroup">${g}</th></tr>
+                ${d.caps
+                  .filter((c) => c.group === g)
+                  .map((c) => {
+                    const on = perm.draft.get(c.key);
+                    const was = perm.saved.get(c.key);
+                    return html`<tr>
+                      <th scope="row" class="perm-cap">
+                        <span>${c.label}</span>
+                        ${badge(KIND_LABEL[c.kind], c.kind === 'view' ? 'info' : 'neutral', { dot: false })}
+                      </th>
+                      ${d.roles.map((r) => {
+                        const checked = on.has(r.value);
+                        const isDefault = checked === c.defaultRoles.includes(r.value);
+                        return html`<td class="perm-col${r.value === perm.mobileRole ? ' on' : ''}${checked !== was.has(r.value) ? ' perm-changed' : ''}">
+                          <label class="perm-cell" title="${r.label} · ${c.label}${isDefault ? '' : ' (ต่างจากค่าเริ่มต้น)'}">
+                            <input type="checkbox" data-cap="${c.key}" data-role="${r.value}" ${checked ? 'checked' : ''} ${d.ready ? '' : 'disabled'}
+                              aria-label="${r.label}: ${c.label}" />
+                            ${isDefault ? '' : html`<span class="perm-dot" aria-hidden="true"></span>`}
+                          </label>
+                        </td>`;
+                      })}
+                      <td class="perm-super"><span title="ผู้ดูแลระบบสูงสุดทำได้ทุกอย่างเสมอ">${raw(icon('check'))}</span></td>
+                    </tr>`;
+                  })}`,
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p class="small muted admin-note">
+        <span class="perm-dot"></span> = ต่างจากค่าเริ่มต้น · ช่องสีเหลือง = แก้แล้วยังไม่บันทึก ·
+        “เห็นหน้า” ซ่อนเมนูและปิดหน้านั้น · “ทำรายการ” ซ่อนปุ่ม — เซิร์ฟเวอร์ตรวจซ้ำทุกคำขอ ·
+        บัญชีผู้ดูแลระบบสูงสุดแก้ไขได้เฉพาะผู้ดูแลระบบสูงสุดเสมอ ${d.updatedAt ? `· บันทึกล่าสุด ${thaiDateTime(d.updatedAt)}` : ''}
+      </p>`,
+  );
+  if (scroll) {
+    const w = $('#perm .perm-wrap');
+    [w.scrollTop, w.scrollLeft, $('#perm').scrollTop] = scroll;
+  }
+}
+
+async function loadPermissions() {
+  render($('#perm'), skeletonLines(8));
+  setPermData(await adminApi.getPermissions());
+  drawPermissions();
+}
+
+on($('#perm'), 'change', 'input[data-cap]', (_e, box) => {
+  const { cap, role } = box.dataset;
+  const c = perm.data.caps.find((x) => x.key === cap);
+  const set = (key, v) => (v ? perm.draft.get(key).add(role) : perm.draft.get(key).delete(role));
+  set(cap, box.checked);
+  const sameGroup = perm.data.caps.filter((x) => x.group === c.group && x.key !== cap);
+  if (box.checked && c.kind === 'action') {
+    // ทำรายการได้ต้องเห็นหน้าด้วย
+    for (const v of sameGroup.filter((x) => x.kind === 'view')) set(v.key, true);
+  }
+  if (!box.checked && c.kind === 'view') {
+    const off = sameGroup.filter((x) => x.kind === 'action' && perm.draft.get(x.key).has(role));
+    for (const a of off) set(a.key, false);
+    if (off.length) toast.success(`เอาสิทธิ์ทำรายการในกลุ่ม “${c.group}” ออกด้วย (${off.length} รายการ) — ไม่เห็นหน้าแล้วทำรายการไม่ได้`);
+  }
+  drawPermissions();
+  $(`#perm input[data-cap="${cap}"][data-role="${role}"]`)?.focus({ preventScroll: true });
+});
+
+// มือถือ: แสดงทีละบทบาท (ตารางทั้งหมดกว้างเกินจอ)
+on($('#perm'), 'change', '#perm-role', (_e, sel) => {
+  perm.mobileRole = sel.value;
+  drawPermissions();
+});
+
+$('#perm-defaults').addEventListener('click', () => {
+  for (const c of perm.data.caps) perm.draft.set(c.key, new Set(c.defaultRoles));
+  drawPermissions();
+  toast.success('ติ๊กตามค่าเริ่มต้นแล้ว — กด “บันทึกสิทธิ์” เพื่อใช้งาน');
+});
+
+$('#perm-undo').addEventListener('click', () => {
+  for (const c of perm.data.caps) perm.draft.set(c.key, new Set(perm.saved.get(c.key)));
+  drawPermissions();
+});
+
+$('#perm-save').addEventListener('click', async () => {
+  const matrix = {};
+  for (const c of perm.data.caps) {
+    if (!sameSet(perm.saved.get(c.key), perm.draft.get(c.key))) matrix[c.key] = [...perm.draft.get(c.key)];
+  }
+  const n = Object.keys(matrix).length;
+  if (!n) return;
+  await confirmAction({
+    title: `บันทึกสิทธิ์ ${n} รายการ?`,
+    description: 'มีผลทันทีกับผู้ใช้ทุกคนในบทบาทเหล่านั้น — เมนูและปุ่มจะเปลี่ยนเมื่อผู้ใช้เปิดหน้าใหม่',
+    confirmLabel: 'บันทึกสิทธิ์',
+    danger: false,
+    action: async () => {
+      const d = await adminApi.savePermissions(matrix);
+      setPermData(d);
+      drawPermissions();
+      toast.success(`บันทึกแล้ว ${d.changed} การเปลี่ยนแปลง`);
+    },
+  });
+});
+
 // ===================== การเข้าสู่ระบบ =====================
 const sessions = new DataTable($('#sessions'), {
   rowKey: (s) => s.id,
@@ -304,7 +505,7 @@ const sessions = new DataTable($('#sessions'), {
       key: 'actions',
       header: '',
       filter: false,
-      cell: (s) => (s.current ? '' : html`<button class="btn btn-ghost btn-sm" data-session="${s.id}">${raw(icon('user-minus'))} จบ session</button>`),
+      cell: (s) => (s.current ? '' : isProtected(s.role) ? protectedMark() : html`<button class="btn btn-ghost btn-sm" data-session="${s.id}">${raw(icon('user-minus'))} จบ session</button>`),
     },
   ],
   empty: emptyState({ iconName: 'log-in', title: 'ไม่มี session ที่ใช้งานอยู่' }),
@@ -321,7 +522,7 @@ const devices = new DataTable($('#devices'), {
     { key: 'used', header: 'ใช้ล่าสุด', sort: (d) => d.lastUsedAt, text: (d) => when(d.lastUsedAt), cell: (d) => ago(d.lastUsedAt) },
     { key: 'first', header: 'จดจำตั้งแต่', hideOnMobile: true, sort: (d) => d.firstAt, text: (d) => when(d.firstAt), cell: (d) => when(d.firstAt) },
     { key: 'exp', header: 'หมดอายุ', hideOnMobile: true, sort: (d) => d.expiresAt, text: (d) => when(d.expiresAt), cell: (d) => when(d.expiresAt) },
-    { key: 'actions', header: '', filter: false, cell: (d) => html`<button class="btn btn-ghost btn-sm" data-device="${d.familyId}">${raw(icon('user-minus'))} เลิกจดจำ</button>` },
+    { key: 'actions', header: '', filter: false, cell: (d) => (isProtected(d.role) ? protectedMark() : html`<button class="btn btn-ghost btn-sm" data-device="${d.familyId}">${raw(icon('user-minus'))} เลิกจดจำ</button>`) },
   ],
   empty: emptyState({ iconName: 'lock', title: 'ไม่มีอุปกรณ์ที่จดจำไว้' }),
 });
@@ -446,10 +647,10 @@ function drawHealth(h) {
   render(
     $('#checks'),
     html`${h.checks.map(
-      (c) => html`<section class="card"><div class="card-body row" style="align-items:flex-start;gap:12px">
-        <span class="card-icon tone-${CHECK_TONE[c.status]}">${raw(icon(CHECK_ICON[c.status]))}</span>
-        <div style="min-width:0"><b>${c.label}</b><p class="small muted" style="margin:2px 0 0;overflow-wrap:anywhere">${c.detail}</p></div>
-      </div></section>`,
+      (c) => html`<div class="check-item">
+        <span class="card-icon tone-${CHECK_TONE[c.status]}" title="${c.status === 'ok' ? 'ปกติ' : c.status === 'warn' ? 'ควรดู' : 'ต้องแก้'}">${raw(icon(CHECK_ICON[c.status]))}</span>
+        <div><b>${c.label}</b><p class="small muted">${c.detail}</p></div>
+      </div>`,
     )}`,
   );
 
@@ -508,7 +709,7 @@ function drawHealth(h) {
 }
 
 async function loadHealth() {
-  render($('#checks'), skeletonCards(6));
+  render($('#checks'), skeletonLines(6));
   drawHealth(await adminApi.getHealth());
 }
 
@@ -796,13 +997,17 @@ const reloadAudit = debounce(() => {
 }, 300);
 $('#audit-filters').addEventListener('input', reloadAudit);
 $('#audit-filters').addEventListener('submit', (e) => e.preventDefault());
+$('#audit-clear').addEventListener('click', () => {
+  $('#audit-filters').reset();
+  reloadAudit();
+});
 
 // ===================== เริ่ม =====================
 if (!adminApi) blocked('หน้านี้ใช้ได้เมื่อเชื่อมต่อ PHP backend (apiMode: http)');
-else if (me?.roleCode && me.roleCode !== 'SUPER_ADMIN') blocked('บัญชีนี้ไม่มีสิทธิ์ผู้ดูแลระบบ');
+else if (!TAB_CAN[tab]()) blocked('บัญชีนี้ไม่มีสิทธิ์ใช้เมนูนี้');
 else {
   drawTabs();
   await load(tab);
-  // ตัวนับบนแท็บอื่น (ล็อก / ปัญหาระบบ) — โหลดเบื้องหลังหลังแท็บแรกเสร็จ
-  for (const t of ['users', 'access', 'health']) if (t !== tab) load(t);
+  // ตัวนับบนแท็บอื่นของเมนูเดียวกัน (ล็อก / ปัญหาระบบ) — โหลดเบื้องหลังหลังแท็บแรกเสร็จ
+  for (const t of ['access', 'health']) if (t !== tab && group.tabs.includes(t) && TAB_CAN[t]()) load(t);
 }

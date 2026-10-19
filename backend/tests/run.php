@@ -31,7 +31,7 @@ $admin = mysqli_connect($c['db_host'], $c['db_user'], $c['db_pass'], '', (int)$c
 mysqli_query($admin, 'DROP DATABASE IF EXISTS `' . $c['db_name'] . '`');
 mysqli_query($admin, 'CREATE DATABASE `' . $c['db_name'] . '` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci');
 mysqli_select_db($admin, $c['db_name']);
-foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings') as $f) {
+foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '008_role_capabilities') as $f) {
     $sql = file_get_contents($root . '/backend/sql/' . $f . '.sql');
     if (!mysqli_multi_query($admin, $sql)) { die("$f: " . mysqli_error($admin) . "\n"); }
     do {
@@ -464,9 +464,10 @@ $boss = new Browser('10.5.5.5');
 $boss->req('POST', '/auth/login', array('username' => 'boss', 'password' => 'Boss-12345'));
 $bossId = (int)db_value("SELECT id FROM users WHERE username = 'boss'");
 check('ไม่ login → 401', S($anon->req('GET', '/admin/users')) === 401);
-check('HR Admin → 403 ทุก endpoint', S($hr->req('GET', '/admin/users')) === 403 && S($hr->req('GET', '/admin/health')) === 403
+check('HR Admin (ค่าเริ่มต้น) เข้าได้เฉพาะผู้ใช้ระบบ — ส่วนอื่น 403', S($hr->req('GET', '/admin/users')) === 200 && S($hr->req('GET', '/admin/health')) === 403
     && S($hr->req('GET', '/admin/audit')) === 403 && S($hr->req('POST', '/admin/cleanup', array())) === 403
-    && S($hr->req('POST', '/admin/users', array('username' => 'x'))) === 403);
+    && S($hr->req('GET', '/admin/sessions')) === 403 && S($hr->req('GET', '/admin/permissions')) === 403);
+check('Payroll → 403 ผู้ใช้ระบบ', S($pay->req('GET', '/admin/users')) === 403 && S($pay->req('POST', '/admin/users', array('username' => 'x'))) === 403);
 $r = $boss->req('GET', '/admin/users');
 $byName = array();
 foreach ($r['json']['data']['users'] as $row) { $byName[$row['username']] = $row; }
@@ -673,6 +674,86 @@ $r = $boss->req('PUT', '/admin/settings', array('values' => array('stock_timeout
 check('ค่าใหม่ + คืนค่า key เดียวกัน → 422', $r['status'] === 422);
 $boss->req('PUT', '/admin/settings', array('reset' => array('stock_api_url', 'stock_api_secret', 'stock_timeout')));
 check('คืนค่าทั้งหมด → ตารางว่าง', (int)db_value('SELECT COUNT(*) FROM system_settings') === 0);
+
+section('สิทธิ์การใช้งานรายบทบาท (permissions.php + role_capabilities)');
+$pb = new Browser('10.8.8.8');
+$r = $pb->req('POST', '/auth/login', array('username' => 'payroll', 'password' => 'Payroll-1234'));
+$payCaps = $r['json']['data']['caps'];
+$me = $hr->req('GET', '/auth/me');
+check('caps ตามค่าเริ่มต้น (= พฤติกรรมเดิม): Payroll ไม่มีส่งเบิก/แก้กฎ · HR Admin มีครบ', $r['status'] === 200
+    && !in_array('stock.request', $payCaps) && !in_array('rules.edit', $payCaps) && in_array('employees.edit', $payCaps)
+    && count($me['json']['data']['caps']) === count(perm_defs()) - 4 && in_array('users.manage', $me['json']['data']['caps'])
+    && !in_array('audit.view', $me['json']['data']['caps']), json_encode($payCaps));
+check('ค่าใน migration 008 = ค่าเริ่มต้นในโค้ด', (int)db_value('SELECT COUNT(*) FROM role_capabilities') === 5 * count(perm_defs())
+    && stock_write_roles() === array('SUPER_ADMIN', 'HR_ADMIN', 'HR_COMPANY'));
+check('HR Admin → 403', S($hr->req('GET', '/admin/permissions')) === 403 && S($hr->req('PUT', '/admin/permissions', array('matrix' => array()))) === 403);
+$r = $boss->req('GET', '/admin/permissions');
+check('อ่านตารางสิทธิ์: ทุก capability × 5 บทบาท (ไม่มี SUPER_ADMIN)', $r['status'] === 200 && count($r['json']['data']['caps']) === count(perm_defs())
+    && count($r['json']['data']['roles']) === 5 && $r['json']['data']['ready'] === true);
+$r = $boss->req('PUT', '/admin/permissions', array('matrix' => array('nope.view' => array(), 'employees.edit' => array('SUPER_ADMIN'))));
+check('capability / บทบาทที่ไม่รู้จัก (รวม SUPER_ADMIN) → 422', $r['status'] === 422 && isset($r['json']['errors']['nope.view'])
+    && isset($r['json']['errors']['employees.edit']));
+$emp2 = $golden['reads']['employees'][1];
+check('ก่อนเอาสิทธิ์ออก Payroll แก้พนักงานได้', S($pb->req('PUT', '/employees/' . $emp2['id'], $emp2)) === 200);
+$r = $boss->req('PUT', '/admin/permissions', array('matrix' => array(
+    'employees.edit' => array('HR_ADMIN', 'HR_COMPANY'),
+    'insurance.view' => array('HR_ADMIN', 'HR_COMPANY', 'STOCK', 'EXECUTIVE'),
+    'stock.request' => array('HR_ADMIN', 'HR_COMPANY', 'PAYROLL'))));
+check('บันทึกสิทธิ์ → changed 3', $r['status'] === 200 && $r['json']['data']['changed'] === 3, json_encode($r['json']));
+$r = $pb->req('PUT', '/employees/' . $emp2['id'], $emp2);
+check('เอา employees.edit ออก → แก้พนักงาน 403 ข้อความบอกสิทธิ์', $r['status'] === 403 && $r['json']['code'] === 'FORBIDDEN'
+    && strpos($r['json']['error'], 'เพิ่ม / แก้ไข / ลบพนักงาน') !== false && S($pb->req('DELETE', '/employees/' . $emp2['id'])) === 403);
+check('รายการที่หลายหน้าใช้ร่วมยังอ่านได้ (พนักงาน หน่วยงาน กฎ ภาพรวม)', S($pb->req('GET', '/employees')) === 200 && S($pb->req('GET', '/sites')) === 200
+    && S($pb->req('GET', '/rules')) === 200 && S($pb->req('GET', '/dashboard')) === 200);
+check('เอา insurance.view ออก → endpoint ของหน้าประกัน 403', S($pb->req('GET', '/insurance/batches')) === 403
+    && S($pb->req('GET', '/insurance/cycles/2026-11-05')) === 403);
+check('เพิ่ม stock.request ให้ Payroll → ส่งเบิกผ่าน /stock/bridge ได้ + caps ใหม่ใน /auth/me ทันที',
+    S($pb->req('POST', '/stock/bridge', array('action' => 'submit', 'employee_id' => 12, 'entitlement_key' => 'ANNUAL-2026'))) === 200
+    && in_array('stock.request', arr_get(arr_get(arr_get($pb->req('GET', '/auth/me'), 'json'), 'data'), 'caps')));
+check('SUPER_ADMIN ทำได้ทุกอย่างเสมอ', cap_allowed('SUPER_ADMIN', 'employees.edit') && cap_allowed('SUPER_ADMIN', 'rules.edit')
+    && S($boss->req('PUT', '/employees/' . $emp2['id'], $emp2)) === 200);
+check('cap_require() สำหรับ handler อื่น (rules.edit)', cap_allowed('HR_ADMIN', 'rules.edit') && !cap_allowed('PAYROLL', 'rules.edit')
+    && !cap_allowed('PAYROLL', 'no.such.cap'));
+$sum = (string)db_value("SELECT summary FROM audit_log WHERE action = 'PERMISSIONS' ORDER BY id DESC LIMIT 1");
+check('audit PERMISSIONS บอกเพิ่ม/เอาออก', strpos($sum, 'เอาออก Payroll') !== false && strpos($sum, 'เพิ่ม Payroll') !== false, $sum);
+$defaults = array();
+foreach (perm_defs() as $cap => $d) { $defaults[$cap] = $d['roles']; }
+$r = $boss->req('PUT', '/admin/permissions', array('matrix' => $defaults));
+check('คืนค่าเริ่มต้น → Payroll แก้พนักงานได้อีก', $r['status'] === 200 && $r['json']['data']['changed'] === 3
+    && S($pb->req('PUT', '/employees/' . $emp2['id'], $emp2)) === 200);
+
+section('HR Admin จัดการผู้ใช้ (users.manage) — ห้ามแตะบัญชี SUPER_ADMIN');
+$r = $hr->req('GET', '/admin/users');
+$roleCodes = array();
+foreach ($r['json']['data']['roles'] as $ro) { $roleCodes[] = $ro['value']; }
+check('HR Admin เห็นรายชื่อ แต่ตั้งบทบาท SUPER_ADMIN ไม่ได้', $r['status'] === 200 && !in_array('SUPER_ADMIN', $roleCodes) && in_array('HR_ADMIN', $roleCodes));
+$r = $hr->req('POST', '/admin/users', array('username' => 'hrmade', 'name' => 'สร้างโดย HR', 'role' => 'PAYROLL', 'password' => 'Hrmade-12345'));
+$hrMade = $r['json']['data']['id'];
+check('HR Admin สร้างผู้ใช้บทบาทอื่นได้', $r['status'] === 201 && $r['json']['data']['createdBy'] === 'hr');
+check('สร้าง SUPER_ADMIN → 403 PROTECTED', arr_get(arr_get($hr->req('POST', '/admin/users', array('username' => 'sneaky', 'name' => 'x', 'role' => 'SUPER_ADMIN',
+    'password' => 'Sneaky-12345')), 'json'), 'code') === 'PROTECTED' && user_by_username('sneaky') === null);
+check('เลื่อนคนอื่นเป็น SUPER_ADMIN → 403', S($hr->req('PATCH', '/admin/users/' . $hrMade, array('role' => 'SUPER_ADMIN'))) === 403
+    && db_value('SELECT role FROM users WHERE id = ?', array($hrMade)) === 'PAYROLL');
+$r = $hr->req('PATCH', '/admin/users/' . $bossId, array('name' => 'ถูกแก้'));
+check('แก้ชื่อ / ปิดบัญชี / ตั้งรหัส / ออกทุกอุปกรณ์ ของ SUPER_ADMIN → 403 ทุกอย่าง', $r['status'] === 403 && $r['json']['code'] === 'PROTECTED'
+    && S($hr->req('PATCH', '/admin/users/' . $bossId, array('isActive' => false))) === 403
+    && S($hr->req('POST', '/admin/users/' . $bossId . '/password', array('password' => 'Hacked-12345'))) === 403
+    && S($hr->req('POST', '/admin/users/' . $bossId . '/signout', array())) === 403
+    && db_value('SELECT name FROM users WHERE id = ?', array($bossId)) === 'ผู้ดูแล ใหญ่' && S($boss->req('GET', '/auth/me')) === 200);
+check('แก้ผู้ใช้บทบาทอื่นได้ (ชื่อ / ปิดบัญชี)', S($hr->req('PATCH', '/admin/users/' . $hrMade, array('name' => 'แก้โดย HR', 'isActive' => false))) === 200);
+$boss->req('PUT', '/admin/permissions', array('matrix' => array('security.view' => array('HR_ADMIN'))));
+$r = $boss->req('GET', '/admin/sessions');
+$bossSid = null;
+foreach ($r['json']['data']['sessions'] as $sv) { if ($sv['username'] === 'boss') { $bossSid = $sv['id']; } }
+check('ให้ security.view แล้ว HR ดู session ได้ แต่จบ session ของ SUPER_ADMIN ไม่ได้', S($hr->req('GET', '/admin/sessions')) === 200
+    && S($hr->req('DELETE', '/admin/sessions/' . $bossSid)) === 403 && S($boss->req('GET', '/auth/me')) === 200
+    && S($hr->req('POST', '/admin/lockouts/clear', array('kind' => 'USER', 'key' => 'boss'))) === 403);
+$boss->req('PUT', '/admin/permissions', array('matrix' => array('security.view' => array(), 'users.manage' => array())));
+check('SUPER_ADMIN เอา users.manage ออก → HR เข้าไม่ได้', S($hr->req('GET', '/admin/users')) === 403);
+$boss->req('PUT', '/admin/permissions', array('matrix' => array('users.manage' => array('HR_ADMIN'))));
+check('HR Admin ตั้งสิทธิ์เองไม่ได้ (กันยกระดับตัวเอง)', S($hr->req('PUT', '/admin/permissions', array('matrix' => array('audit.view' => array('HR_ADMIN'))))) === 403
+    && !cap_allowed('HR_ADMIN', 'audit.view'));
+
 
 echo "\nผ่าน " . $GLOBALS['pass'] . ' · ไม่ผ่าน ' . $GLOBALS['fail'] . "\n";
 exit($GLOBALS['fail'] ? 1 : 0);

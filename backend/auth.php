@@ -36,7 +36,8 @@ function user_public($u)
 {
     $labels = $GLOBALS['hlw_role_labels'];
     return array('id' => $u['id'], 'username' => $u['username'], 'name' => $u['name'],
-        'role' => isset($labels[$u['role']]) ? $labels[$u['role']] : $u['role'], 'roleCode' => $u['role'], 'empCode' => $u['empCode']);
+        'role' => isset($labels[$u['role']]) ? $labels[$u['role']] : $u['role'], 'roleCode' => $u['role'], 'empCode' => $u['empCode'],
+        'caps' => caps_for_role($u['role']));       // สิทธิ์ (permissions.php) — หน้าเว็บใช้ซ่อนเมนู/ปุ่ม
 }
 
 function user_by_id($id)

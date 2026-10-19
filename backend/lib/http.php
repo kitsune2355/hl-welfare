@@ -125,7 +125,7 @@ function http_send($res)
 }
 
 /* ---------- router ---------- */
-/** $public = false → ต้องมี session (เรียก $GLOBALS['hlw_route_guard'] ก่อน handler) */
+/** $public = false → ต้องมี session (เรียก $GLOBALS['hlw_route_guard']($req, ชื่อ handler) ก่อน handler) */
 function router_add(&$routes, $method, $pattern, $handler, $public = false)
 {
     $re = '#^' . preg_replace('#\{(\w+)\}#', '(?P<$1>[^/]+)', $pattern) . '$#';
@@ -143,7 +143,7 @@ function router_dispatch($routes, $req)
         foreach ($m as $k => $v) {
             if (is_string($k)) { $params[$k] = $v; }
         }
-        if (!$r[3] && !empty($GLOBALS['hlw_route_guard'])) { call_user_func($GLOBALS['hlw_route_guard'], $req); }
+        if (!$r[3] && !empty($GLOBALS['hlw_route_guard'])) { call_user_func($GLOBALS['hlw_route_guard'], $req, $r[2]); }
         $out = call_user_func($r[2], $req, $params);
         return (is_array($out) && isset($out['status']) && array_key_exists('body', $out) && isset($out['cookies']))
             ? $out : http_data($out);

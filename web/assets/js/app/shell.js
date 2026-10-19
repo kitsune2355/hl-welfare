@@ -2,32 +2,61 @@
 //
 // ทุกหน้าเรียก:  import { initPage } from './app/shell.js';  initPage('employees');
 // แล้วใส่เนื้อหาใน <main id="page" class="page"> ของไฟล์ HTML
-import { html, raw } from '../shared/dom.js';
+import { getParam, html, raw, setParams } from '../shared/dom.js';
 import { hydrateIcons, icon } from '../shared/icons.js';
 import { enhanceSelects } from '../ui/combobox.js';
-import { avatar } from '../ui/components.js';
+import { avatar, emptyState } from '../ui/components.js';
 import { toast } from '../ui/overlay.js';
 import { API_MODE, api } from './api.js';
-import { isAuthEnabled, logout, requireSession } from './auth.js';
+import { can, isAuthEnabled, logout, refreshSessionUser, requireSession } from './auth.js';
 import { installNavigationProgress, progress } from '../ui/loading.js';
 import { initTour } from './tour.js';
 
 const MENU = [
-  { id: 'dashboard', href: 'index.html', label: 'ภาพรวม & ติดตามงาน', icon: 'layout-dashboard' },
-  { id: 'employees', href: 'employees.html', label: 'พนักงาน', icon: 'users' },
-  { id: 'insurance', href: 'insurance.html', label: 'ประกันกลุ่ม', icon: 'shield-plus', count: (d) => d.urgentPending, tone: 'danger' },
-  { id: 'uniform', href: 'uniform.html', label: 'ชุดฟอร์ม', icon: 'shirt', count: (d) => d.uniformPending, tone: 'warning' },
+  { id: 'dashboard', href: 'index.html', label: 'ภาพรวม & ติดตามงาน', icon: 'layout-dashboard', cap: 'dashboard.view' },
+  { id: 'employees', href: 'employees.html', label: 'พนักงาน', icon: 'users', cap: 'employees.view' },
+  { id: 'insurance', href: 'insurance.html', label: 'ประกันกลุ่ม', icon: 'shield-plus', cap: 'insurance.view', count: (d) => d.urgentPending, tone: 'danger' },
+  { id: 'uniform', href: 'uniform.html', label: 'ชุดฟอร์ม', icon: 'shirt', cap: 'uniform.view', count: (d) => d.uniformPending, tone: 'warning' },
 ];
 const SETTINGS = [
-  { id: 'rules', href: 'rules.html', label: 'เงื่อนไขสวัสดิการ', icon: 'book-open-text' },
-  { id: 'sites', href: 'sites.html', label: 'หน่วยงาน', icon: 'building-2' },
-  { id: 'insurers', href: 'insurers.html', label: 'แบบฟอร์มประกัน', icon: 'file-spreadsheet' },
-  // roles = เห็นเฉพาะบทบาทเหล่านี้ (roleCode จาก /auth/login) — เซิร์ฟเวอร์ตรวจสิทธิ์ซ้ำทุกคำขอ
-  { id: 'admin', href: 'admin.html', label: 'ผู้ดูแลระบบ', icon: 'shield-check', roles: ['SUPER_ADMIN'] },
+  { id: 'rules', href: 'rules.html', label: 'เงื่อนไขสวัสดิการ', icon: 'book-open-text', cap: 'rules.view' },
+  { id: 'sites', href: 'sites.html', label: 'หน่วยงาน', icon: 'building-2', cap: 'sites.view' },
+  { id: 'insurers', href: 'insurers.html', label: 'แบบฟอร์มประกัน', icon: 'file-spreadsheet', cap: 'insurers.view' },
+];
+// cap = สิทธิ์ที่ต้องมีจึงเห็นเมนู/เปิดหน้าได้ (ตั้งที่ “กำหนดสิทธิ์การใช้งาน”) · anyCap = มีอย่างใดอย่างหนึ่ง · roles = เฉพาะบทบาทเหล่านี้
+// SUPER_ADMIN เห็นทุกเมนู · เซิร์ฟเวอร์ตรวจสิทธิ์ซ้ำทุกคำขอ
+const ADMIN = [
+  { id: 'admin-users', href: 'admin.html?tab=users', label: 'ผู้ใช้ระบบ', icon: 'users', cap: 'users.manage' },
+  { id: 'admin-permissions', href: 'admin.html?tab=permissions', label: 'กำหนดสิทธิ์การใช้งาน', icon: 'shield-check', roles: ['SUPER_ADMIN'] },
+  {
+    id: 'admin-system',
+    href: 'admin.html?tab=system',
+    label: 'ระบบ & ความปลอดภัย',
+    icon: 'activity',
+    anyCap: ['security.view', 'system.health', 'system.settings', 'audit.view'],
+  },
 ];
 
-/** เมนูที่บทบาทนี้เห็น */
-const allowedFor = (user) => (m) => !m.roles || m.roles.includes(user.roleCode);
+/** เมนูที่ผู้ใช้นี้เห็น */
+const allowedFor = (user) => (m) =>
+  (!m.roles || m.roles.includes(user.roleCode)) && (!m.cap || can(m.cap)) && (!m.anyCap || m.anyCap.some((c) => can(c)));
+const PAGES = [...MENU, ...SETTINGS, ...ADMIN];
+
+/**
+ * ไม่มีสิทธิ์เปิดหน้านี้ → ไปหน้าแรกที่เปิดได้ (?denied=หน้าเดิม แจ้งเตือนที่นั่น) · ไม่มีหน้าไหนเลย → แสดงข้อความในหน้า
+ * โยน error เพื่อหยุดสคริปต์ของหน้าที่เปิดไม่ได้ (ไม่ให้ยิง API ต่อ)
+ */
+function guardPage(active, user) {
+  const page = PAGES.find((m) => m.id === active);
+  if (!page || allowedFor(user)(page)) return;
+  const first = PAGES.find(allowedFor(user));
+  if (first) location.replace(`${first.href}?denied=${encodeURIComponent(page.label)}`);
+  else
+    document.getElementById('page').innerHTML = String(
+      emptyState({ iconName: 'lock', title: 'บัญชีนี้ยังไม่มีสิทธิ์ใช้หน้าใดเลย', description: 'ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์' }),
+    );
+  throw new Error(`ไม่มีสิทธิ์เปิดหน้า ${page.label}`);
+}
 
 /** เมนูด้านล่าง (มือถือ <768px) — 4 หน้าหลัก + "เพิ่มเติม" (เปิดเมนูเต็ม: เงื่อนไข, หน่วยงาน, แบบฟอร์มประกัน, ผู้ใช้) */
 const BOTTOM_NAV = ['dashboard', 'employees', 'insurance', 'uniform'];
@@ -101,6 +130,7 @@ function navLink(item, active) {
 export function initPage(active, { tour = active } = {}) {
   const user = requireSession(); // ยังไม่ login → ไปหน้า login.html
   if (!user) return;
+  guardPage(active, user);
   const main = document.getElementById('page');
   const sidebar = document.createElement('aside');
   sidebar.className = 'sidebar';
@@ -109,9 +139,9 @@ export function initPage(active, { tour = active } = {}) {
       <div><b>HL Welfare</b><span>ระบบสวัสดิการพนักงาน</span></div>
     </div>
     <nav class="nav" aria-label="เมนูหลัก">
-      ${MENU.map((m) => navLink(m, active))}
-      <div class="nav-section">ตั้งค่า</div>
-      ${SETTINGS.filter(allowedFor(user)).map((m) => navLink(m, active))}
+      ${MENU.filter(allowedFor(user)).map((m) => navLink(m, active))}
+      ${SETTINGS.some(allowedFor(user)) ? html`<div class="nav-section">ตั้งค่า</div>${SETTINGS.filter(allowedFor(user)).map((m) => navLink(m, active))}` : ''}
+      ${ADMIN.some(allowedFor(user)) ? html`<div class="nav-section">ผู้ดูแลระบบ</div>${ADMIN.filter(allowedFor(user)).map((m) => navLink(m, active))}` : ''}
     </nav>
     <div class="sidebar-foot">
       ${API_MODE === 'mock' ? html`<button class="reset-btn" id="reset-btn">${raw(icon('rotate-ccw'))} รีเซ็ตข้อมูลจำลอง</button>` : ''}
@@ -141,7 +171,7 @@ export function initPage(active, { tour = active } = {}) {
   bottom.setAttribute('aria-label', 'เมนูด้านล่าง');
   const inMore = !BOTTOM_NAV.includes(active);
   bottom.innerHTML = String(
-    html`${BOTTOM_NAV.map((id) => {
+    html`${BOTTOM_NAV.filter((id) => allowedFor(user)(MENU.find((x) => x.id === id))).map((id) => {
         const m = MENU.find((x) => x.id === id);
         return html`<a href="${m.href}" class="bn-item${id === active ? ' active' : ''}" data-nav="${id}" ${id === active ? raw('aria-current="page"') : ''}>
           <span class="bn-ico">${raw(icon(m.icon))}<b class="nav-count hidden ${m.tone ?? ''}"></b></span>
@@ -190,6 +220,13 @@ export function initPage(active, { tour = active } = {}) {
   hydrateIcons(main);
   enhanceSelects(main);
   refreshCounts();
+  // ถูกพามาจากหน้าที่ไม่มีสิทธิ์
+  if (getParam('denied')) {
+    toast.error(`บัญชีนี้ไม่มีสิทธิ์เปิดหน้า “${getParam('denied')}” — ติดต่อผู้ดูแลระบบ`);
+    setParams({ denied: '' });
+  }
+  // บทบาท/สิทธิ์อาจถูกเปลี่ยนหลัง login → อ่านใหม่เงียบ ๆ เปลี่ยนแล้วโหลดหน้าใหม่ (เมนู/ปุ่มตามสิทธิ์ล่าสุด)
+  progress.quiet(refreshSessionUser).then((changed) => changed && location.reload(), () => {});
   initTour(tour, document.getElementById('help-btn')); // แนะนำการใช้งาน (driver.js)
   installNavigationProgress(); // คลิกลิงก์ → แถบ loading วิ่งทันที
 }

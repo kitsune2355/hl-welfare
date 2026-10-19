@@ -30,7 +30,7 @@ date_default_timezone_set($GLOBALS['hlw_config']['timezone']);
 foreach (array('lib/util.php', 'lib/db.php', 'lib/settings.php', 'lib/http.php', 'lib/security.php',
     'domain/date.php', 'domain/labels.php', 'domain/insurance.php', 'domain/uniform.php', 'domain/rules_check.php',
     'usecases/insurance_cycle.php', 'usecases/overview.php', 'usecases/insurer_export.php', 'usecases/uniform_stock.php',
-    'repo/repo.php', 'auth.php', 'api/stock_client.php', 'api/handlers.php', 'api/admin.php', 'api/routes.php') as $f) {
+    'repo/repo.php', 'auth.php', 'permissions.php', 'api/stock_client.php', 'api/handlers.php', 'api/admin.php', 'api/routes.php') as $f) {
     require_once $hlw_dir . '/' . $f;
 }
 
@@ -42,6 +42,7 @@ function api_handle($req)
     $GLOBALS['hlw_set_cookies'] = array();
     unset($GLOBALS['hlw_auth_user']);
     sys_settings_reset_cache();
+    perm_reset_cache();
     try {
         csrf_check($req);
         $res = router_dispatch(api_routes(), $req);

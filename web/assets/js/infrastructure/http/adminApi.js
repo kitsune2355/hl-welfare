@@ -69,6 +69,14 @@ export class AdminApi {
   saveSettings(values = {}, reset = []) {
     return this.send('PUT', '/admin/settings', { values, reset });
   }
+  // ---------- สิทธิ์การใช้งาน (SUPER_ADMIN) ----------
+  getPermissions() {
+    return this.req('/admin/permissions');
+  }
+  /** matrix = { capability: [role, …] } — ส่งเฉพาะที่เปลี่ยน */
+  savePermissions(matrix) {
+    return this.send('PUT', '/admin/permissions', { matrix });
+  }
   /** ทดสอบสต็อกด้วย url/secret ที่ยังไม่บันทึก (ไม่ส่ง = ค่าที่บันทึกไว้) */
   testStock({ url = '', secret = '' } = {}) {
     return this.send('POST', '/admin/stock/test', { url, secret });

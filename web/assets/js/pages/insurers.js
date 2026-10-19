@@ -7,7 +7,7 @@
 //
 // ไฟล์ที่อัปโหลดอยู่ในเบราว์เซอร์จนกด "บันทึก" — ตอนบันทึกจะล้างรายชื่อพนักงานในไฟล์ (ข้อมูลบุคคล) ก่อนเก็บ (app/excelTemplate.js)
 import { api } from '../app/api.js';
-import { getSession } from '../app/auth.js';
+import { can, getSession } from '../app/auth.js';
 import { analyzeTemplate, exportFileName, fillTemplate, gridsOf, readTemplateFile, sanitizedLayout, sanitizeTemplate, templateBuffer } from '../app/excelTemplate.js';
 import { initPage } from '../app/shell.js';
 import { blankInsurerForm, validateInsurerForm } from '../application/insurerFormRules.js';
@@ -192,7 +192,7 @@ function insurerCard(f) {
       ${f.companies.length ? f.companies.map((c) => html`<span class="co-chip">${c.companyCode}</span>`) : html`<span class="muted small">— ยังไม่ผูก (ผูกที่ตารางด้านล่าง)</span>`}
     </div>
     <footer class="ic-actions">
-      <a class="btn btn-sm btn-primary" href="insurers.html?id=${f.id}">${raw(icon('pencil'))} แก้ไขแบบฟอร์ม</a>
+      ${can('insurers.edit') ? html`<a class="btn btn-sm btn-primary" href="insurers.html?id=${f.id}">${raw(icon('pencil'))} แก้ไขแบบฟอร์ม</a>` : ''}
       ${t ? html`<button type="button" class="btn btn-sm" data-dl-template="${f.id}">${raw(icon('download'))} ดาวน์โหลดไฟล์ Excel</button>` : ''}
     </footer>
   </article>`;
@@ -245,7 +245,7 @@ let bindGrid = null;
 
 function drawOverview() {
   page.classList.remove('editing');
-  render($('#head-actions'), html`<a class="btn btn-primary" href="insurers.html?id=new">${raw(icon('plus'))} เพิ่มบริษัทประกัน</a>`);
+  render($('#head-actions'), can('insurers.edit') ? html`<a class="btn btn-primary" href="insurers.html?id=new">${raw(icon('plus'))} เพิ่มบริษัทประกัน</a>` : '');
   render(
     view,
     html`<section class="ov">
@@ -273,6 +273,7 @@ function drawOverview() {
   bindGrid = new ExcelGrid($('#bind-grid'), {
     columns: bindColumns(),
     rowKey: (b) => b.companyCode,
+    readOnly: !can('insurers.edit'),
     // กดบันทึก → ส่งการผูกทั้งหมด (แถวนี้เป็นค่าใหม่) ทีละแถวที่แก้ — API ตรวจทั้งชุด
     onSave: async (row) => {
       const next = bindings.map((b) => (b.companyCode === row.companyCode ? row : b));
@@ -779,7 +780,8 @@ try {
   [forms, companies] = await Promise.all([api.listInsurers(), api.listCompanies()]);
   loadBindings();
   const id = getParam('id');
-  if (id) openEditor(id);
+  // หน้าแก้ไขต้องมีสิทธิ์ insurers.edit — ไม่มี = แสดงภาพรวม
+  if (id && can('insurers.edit')) openEditor(id);
   else drawOverview();
 } catch (e) {
   render(view, errorState(e));

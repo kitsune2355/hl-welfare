@@ -12,7 +12,7 @@ import { confirmAction } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 import { isHandedOut, isStockIssue } from '../domain/uniform.js';
 import { alertBox } from '../ui/components.js';
-import { STOCK_STAGE, enhanceIssueActions, issueAction, stockDocLink, syncStockQuietly, wireIssueActions } from './_shared.js';
+import { STOCK_STAGE, canCancelIssue, enhanceIssueActions, issueAction, stockDocLink, syncStockQuietly, wireIssueActions } from './_shared.js';
 
 initPage('uniform');
 
@@ -85,7 +85,7 @@ const waitingTable = new DataTable($('#waiting'), {
       header: '',
       align: 'right',
       cell: (i) =>
-        html`<button class="btn-icon sm danger" data-cancel-issue="${i.id}" title="ยกเลิกการส่งเบิก" aria-label="ยกเลิกการส่งเบิก">${raw(icon('undo-2'))}</button>`,
+        !canCancelIssue(true) ? '' : html`<button class="btn-icon sm danger" data-cancel-issue="${i.id}" title="ยกเลิกการส่งเบิก" aria-label="ยกเลิกการส่งเบิก">${raw(icon('undo-2'))}</button>`,
     },
   ],
   empty: emptyState({ iconName: 'package-check', title: 'ไม่มีใบที่รอคลังจ่าย', description: 'กด “ส่งเบิกคลัง” ที่แท็บค้างแจก แล้วใบจะมารออยู่ที่นี่' }),
@@ -117,7 +117,7 @@ const historyTable = new DataTable($('#history'), {
       align: 'right',
       // ผ่านคลังแล้วยกเลิกที่นี่ไม่ได้ — สต็อกถูกตัดไปแล้ว ต้องให้คลังยกเลิกใบจ่าย
       cell: (i) =>
-        isStockIssue(i)
+        isStockIssue(i) || !canCancelIssue(false)
           ? ''
           : html`<button class="btn-icon sm danger" data-cancel-issue="${i.id}" title="ยกเลิกการแจก" aria-label="ยกเลิกการแจก">${raw(icon('undo-2'))}</button>`,
     },

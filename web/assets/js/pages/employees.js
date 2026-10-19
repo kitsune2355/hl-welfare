@@ -1,5 +1,6 @@
 // หน้า: พนักงาน (employees.html) — ตาราง Excel เพิ่ม / แก้ไข / ลบ / บันทึกพ้นสภาพ ในตารางทั้งหมด (ไม่มีฟอร์มแยก)
 import { api } from '../app/api.js';
+import { can } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
 import { normalizeEmployee, validateEmployee } from '../application/employeeRules.js';
 import { todayISO } from '../domain/date.js';
@@ -266,6 +267,7 @@ function blankEmployee() {
 const grid = new ExcelGrid($('#grid'), {
   columns,
   rowKey: (e) => e.id,
+  readOnly: !can('employees.edit'), // ไม่มีสิทธิ์แก้ = ดูอย่างเดียว
   // ไม่มีช่องเงินเดือนในระบบ (ไม่ต้องกรอก) → ไม่ตรวจเงินเดือน
   validate: (e) => {
     const { salary: _salary, ...errors } = validateEmployee(e);

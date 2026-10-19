@@ -3,6 +3,7 @@
 //   ประวัติ: ปุ่มไอคอน ดูรายชื่อ · ดาวน์โหลดไฟล์แจ้งประกันอีกครั้ง (ไฟล์หาย — รายชื่อเดิมของครั้งนั้น ไม่บันทึกซ้ำ) · ยกเลิก
 // ไม่มีปุ่ม "ส่งแจ้ง" — HR กด "ส่งออกไฟล์แจ้งประกัน" ทุกรอบ ได้ไฟล์ Excel ตามแบบฟอร์มของแต่ละบริษัทประกัน (ตั้งค่าที่ insurers.html)
 import { api } from '../app/api.js';
+import { can } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
 import { exportFileName, fillTemplate, templateBuffer } from '../app/excelTemplate.js';
 import { exportCsvRows, thaiMonthYear } from '../application/usecases/insurerExport.js';
@@ -195,8 +196,8 @@ const batchTable = new DataTable($('#batches'), {
       export: false, // ปุ่มไม่ต้องอยู่ในไฟล์ Excel ของตาราง
       cell: (b) => html`<span class="row-actions icons">
         <button class="btn-icon sm" data-open-batch="${b.id}" title="ดูรายชื่อ" aria-label="ดูรายชื่อ #${b.id}">${raw(icon('users'))}</button>
-        <button class="btn-icon sm" data-download-batch="${b.id}" title="ดาวน์โหลดไฟล์แจ้งประกันอีกครั้ง" aria-label="ดาวน์โหลดไฟล์แจ้งประกัน #${b.id}">${raw(icon('download'))}</button>
-        <button class="btn-icon sm danger" data-cancel-batch="${b.id}" title="ยกเลิกการส่งออก" aria-label="ยกเลิกการส่งออก #${b.id}">${raw(icon('undo-2'))}</button>
+        ${can('insurance.export') ? html`<button class="btn-icon sm" data-download-batch="${b.id}" title="ดาวน์โหลดไฟล์แจ้งประกันอีกครั้ง" aria-label="ดาวน์โหลดไฟล์แจ้งประกัน #${b.id}">${raw(icon('download'))}</button>` : ''}
+        ${can('insurance.submit') ? html`<button class="btn-icon sm danger" data-cancel-batch="${b.id}" title="ยกเลิกการส่งออก" aria-label="ยกเลิกการส่งออก #${b.id}">${raw(icon('undo-2'))}</button>` : ''}
       </span>`,
     },
   ],
@@ -299,9 +300,10 @@ async function openBatch(id) {
   csvBtn.disabled = false;
   csvBtn.onclick = () => batchCsv(d);
   const fileBtn = m.el.querySelector('[data-batch-file]');
-  fileBtn.disabled = false;
+  fileBtn.disabled = !can('insurance.export');
   fileBtn.onclick = () => downloadBatchFile(d, fileBtn);
   const cancelBtn = m.el.querySelector('[data-batch-cancel]');
+  if (!can('insurance.submit')) cancelBtn.remove(); // ไม่มีสิทธิ์ยกเลิกการแจ้ง
   cancelBtn.disabled = false;
   cancelBtn.onclick = () => {
     m.close();
@@ -491,7 +493,7 @@ async function openExport() {
         ? alertBox({ tone: 'warning', title: `บริษัท ${unmapped.join(', ')} ยังไม่ได้ผูกกับแบบฟอร์มที่เปิดใช้`, body: 'รายชื่อของบริษัทนี้จะไม่อยู่ในไฟล์ใด — เพิ่มบริษัทที่เมนู “แบบฟอร์มประกัน”' })
         : ''}
       <label class="export-record">
-        <input type="checkbox" data-record checked />
+        <input type="checkbox" data-record ${can('insurance.submit') ? 'checked' : 'disabled'} />
         <span><b>บันทึกว่าแจ้งรอบนี้แล้ว</b><small>รายชื่อในไฟล์จะไม่ตกค้างไปรอบถัดไป · ส่งออกซ้ำได้ (แทนที่ของเดิม) · ยกเลิกได้ที่แท็บประวัติการส่งออก — ไม่ติ๊ก = ดาวน์โหลดดูอย่างเดียว</small></span>
       </label>
       <div class="export-list">${previews.map(exportCard)}</div>`,
@@ -532,7 +534,9 @@ async function openExport() {
   });
 }
 
-$('#export').onclick = openExport;
+// ไม่มีสิทธิ์ส่งออก → ซ่อนปุ่ม (เซิร์ฟเวอร์ตรวจซ้ำ)
+if (can('insurance.export')) $('#export').onclick = openExport;
+else $('#export').remove();
 
 api
   .listInsurers()

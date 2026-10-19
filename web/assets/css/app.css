@@ -5146,3 +5146,210 @@ html:has(#ed),
   font-size: 12.5px;
   color: var(--muted);
 }
+
+/* =====================================================================
+   หน้าผู้ดูแลระบบ (admin.html) — แท็บสูงพอดีจอบน desktop (.page.fit + .panel.fill)
+   การ์ดยาวเลื่อนภายใน (.fill-body.scroll) · มือถือ/แท็บเล็ตเลื่อนทั้งหน้าตามปกติ
+   ===================================================================== */
+.admin-page .grid.grid-2.fill {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.admin-page .fill-body.scroll {
+  padding: 4px 16px 16px;
+}
+.admin-subhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 20px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.admin-subhead.first {
+  margin-top: 12px;
+}
+.admin-note {
+  margin: 0 0 8px;
+}
+.admin-block {
+  margin-top: 12px;
+}
+.check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+}
+.check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.check-item p {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+.check-item .card-icon {
+  flex: none;
+}
+/* ----- ตารางสิทธิ์ (บทบาท × สิทธิ์) ----- */
+.perm-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin: 12px 0;
+  max-height: none;
+}
+.perm-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13.5px;
+}
+.perm-table th,
+.perm-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+  text-align: center;
+  background: var(--surface);
+}
+.perm-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 8px;
+  background: var(--th-bg);
+  color: var(--th-fg);
+  font-weight: 600;
+  min-width: 96px;
+  vertical-align: bottom;
+}
+.perm-table thead th span,
+.perm-table thead th small {
+  display: block;
+}
+.perm-table thead th small {
+  font-weight: 400;
+  font-size: 11.5px;
+  opacity: 0.75;
+}
+.perm-table .perm-cap {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 8px 12px;
+  min-width: 240px;
+  font-weight: 400;
+}
+.perm-table thead .perm-cap {
+  z-index: 3;
+}
+.perm-table tbody .perm-cap span {
+  margin-right: 6px;
+}
+.perm-table .perm-group th {
+  position: sticky;
+  left: 0;
+  text-align: left;
+  padding: 12px 12px 6px;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 12.5px;
+  background: var(--surface-2);
+}
+.perm-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px; /* แตะง่ายบนมือถือ */
+  cursor: pointer;
+}
+.perm-cell input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.perm-cell:hover {
+  background: var(--primary-soft);
+}
+.perm-table td.perm-changed,
+.perm-table td.perm-changed .perm-cell {
+  background: var(--chg-edit-bg);
+}
+.perm-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--chg-edit);
+  vertical-align: middle;
+}
+.perm-table .perm-super {
+  color: var(--success);
+  background: var(--surface-2);
+  min-width: 110px;
+}
+.perm-table thead .perm-super {
+  background: var(--th-bg);
+}
+@media (min-width: 1024px) {
+  /* แท็บสิทธิ์: ตารางยืดเต็มการ์ด หัวตาราง/คอลัมน์แรกตรึง */
+  #perm.fill-body.scroll {
+    display: flex;
+    flex-direction: column;
+  }
+  #perm .perm-wrap {
+    flex: 1;
+    min-height: 0;
+  }
+}
+@media (max-width: 1023px) {
+  .admin-page .grid.grid-2.fill {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-page .card-head {
+    flex-wrap: wrap;
+  }
+  .perm-table .perm-cap {
+    min-width: 180px;
+  }
+}
+@media (max-width: 767px) {
+  .admin-page .filters > .input,
+  .admin-page .filters > label {
+    flex: 1 1 140px;
+  }
+  .perm-actions {
+    width: 100%;
+  }
+  .perm-actions .btn {
+    flex: 1 1 auto;
+  }
+}
+/* มือถือ: ตารางสิทธิ์แสดงทีละบทบาท (เลือกจาก .perm-role-pick) */
+.perm-role-pick {
+  display: none;
+}
+@media (max-width: 767px) {
+  .perm-role-pick {
+    display: flex;
+    margin-top: 12px;
+  }
+  .perm-table .perm-col:not(.on),
+  .perm-table .perm-super {
+    display: none;
+  }
+  .perm-table .perm-cap {
+    min-width: 0;
+    position: static;
+  }
+  .perm-table .perm-col.on {
+    width: 72px;
+  }
+}

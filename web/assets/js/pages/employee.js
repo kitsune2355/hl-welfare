@@ -20,7 +20,7 @@ import {
 import { alertBox, avatar, badge, card, emptyState, errorState, infoList } from '../ui/components.js';
 import { confirmAction, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
-import { STOCK_STAGE, activityFeed, enhanceIssueActions, issueAction, stockDocLink, syncStockQuietly, wireIssueActions } from './_shared.js';
+import { STOCK_STAGE, activityFeed, canCancelIssue, enhanceIssueActions, issueAction, stockDocLink, syncStockQuietly, wireIssueActions } from './_shared.js';
 
 initPage('employees', { tour: 'employee' });
 
@@ -104,12 +104,12 @@ function renderUniform(emp, st) {
           e.stock
             ? // ผ่านคลัง: ยกเลิกได้เฉพาะตอนรอคลังจ่าย (คลังจ่ายแล้วต้องยกเลิกที่ระบบสต็อก)
               html`<span class="row" style="justify-content:flex-end;gap:6px">${stockDocLink(e.stock)} ${badge(STOCK_STAGE[e.stock.stage].label, STOCK_STAGE[e.stock.stage].tone)}
-                ${e.requested
+                ${e.requested && canCancelIssue(true)
                   ? html`<button class="btn-icon sm danger" data-cancel-issue="${e.issueId}" data-stock="1" data-label="${UNIFORM_EVENT_LABEL[e.event]}" title="ยกเลิกการส่งเบิก" aria-label="ยกเลิกการส่งเบิก">${raw(icon('undo-2'))}</button>`
                   : ''}</span>`
             : e.issued
               ? html`<span class="row" style="justify-content:flex-end">${badge('แจกแล้ว', 'success')}
-                <button class="btn-icon sm danger" data-cancel-issue="${e.issueId}" data-label="${UNIFORM_EVENT_LABEL[e.event]}" title="ยกเลิกการแจก" aria-label="ยกเลิกการแจก">${raw(icon('undo-2'))}</button></span>`
+                ${canCancelIssue(false) ? html`<button class="btn-icon sm danger" data-cancel-issue="${e.issueId}" data-label="${UNIFORM_EVENT_LABEL[e.event]}" title="ยกเลิกการแจก" aria-label="ยกเลิกการแจก">${raw(icon('undo-2'))}</button>` : ''}</span>`
               : emp.status === 'ACTIVE'
                 ? issueAction({ employeeId: emp.id, entitlementKey: e.key, event: e.event, qty: e.qty, name: `${emp.firstName} ${emp.lastName}` })
                 : badge('ไม่ได้แจก', 'neutral'),

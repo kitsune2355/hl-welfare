@@ -25,6 +25,7 @@
 // กรองคอลัมน์ที่หัวตาราง: เปิดอัตโนมัติ · filter: false = ปิด · text(row) = ข้อความที่ใช้กรอง (ไม่ใส่ = ข้อความที่แสดง)
 // มือถือ (<768px): ใส่ mobileCard(row) => HTML เพื่อแสดงเป็นการ์ดแทนตาราง (แตะการ์ด = onOpen)
 //   และ mobileAddHref = ลิงก์ของปุ่ม "เพิ่ม" บนมือถือ เพราะการกรอกในเซลล์บนจอเล็กไม่สะดวก
+// readOnly: true = ดูอย่างเดียว (ไม่มีสิทธิ์แก้ — เช่น !can('employees.edit')) · ไม่มีปุ่มเพิ่ม/ลบ แก้เซลล์ไม่ได้ · ปุ่มเปิดรายละเอียดยังอยู่
 import { esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import {
@@ -53,6 +54,9 @@ export class ExcelGrid {
   constructor(root, opts) {
     this.root = root;
     this.o = { addLabel: 'เพิ่มแถว', ...opts };
+    if (this.o.readOnly) {
+      for (const k of ['newRow', 'onRemove', 'onDelete', 'mobileAddHref']) delete this.o[k];
+    }
     this.allCols = opts.columns;
     this.tid = tableId(root, opts);
     this.pins = loadPins(this.tid); // คอลัมน์ที่ผู้ใช้ตรึงไว้ด้านซ้าย
@@ -226,6 +230,7 @@ export class ExcelGrid {
   }
 
   canEdit(col, row) {
+    if (this.o.readOnly) return false;
     return !!col.editor && !!col.set && (col.editable ? col.editable(row) : true);
   }
 

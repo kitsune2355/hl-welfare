@@ -74,6 +74,36 @@ export async function logout() {
   location.replace('login.html?bye=1');
 }
 
+/**
+ * สิทธิ์ของผู้ใช้ปัจจุบัน (AuthUser.caps จาก PHP — backend/permissions.php) ใช้ซ่อนเมนู/ปุ่ม · เซิร์ฟเวอร์ตรวจซ้ำทุกคำขอ
+ * SUPER_ADMIN ได้ทุกอย่าง · ไม่มี caps (โหมด mock / session เก่า) = ได้ทุกอย่าง
+ * @param {string} cap เช่น 'employees.edit'
+ */
+export function can(cap) {
+  const s = getSession();
+  if (!s) return false;
+  if (s.roleCode === 'SUPER_ADMIN' || !Array.isArray(s.caps)) return true;
+  return s.caps.includes(cap);
+}
+
+/**
+ * อ่านผู้ใช้ล่าสุดจากเซิร์ฟเวอร์ (บทบาท/สิทธิ์อาจถูกเปลี่ยนหลัง login) แล้วเก็บแทนของเดิม — คืน true เมื่อสิทธิ์เปลี่ยน
+ * โหมด mock ไม่ทำอะไร
+ */
+export async function refreshSessionUser() {
+  if (AUTH_PROVIDER !== 'server') return false;
+  const before = getSession();
+  if (!before) return false;
+  const user = await authApi.me();
+  const changed = JSON.stringify(before.caps ?? null) !== JSON.stringify(user.caps ?? null) || before.roleCode !== user.roleCode;
+  try {
+    sessionStorage.setItem(KEY, JSON.stringify({ ...before, ...user }));
+  } catch {
+    /* ignore */
+  }
+  return changed;
+}
+
 export const isAuthEnabled = () => CONFIG.auth.enabled;
 export const isServerAuth = () => AUTH_PROVIDER === 'server';
 

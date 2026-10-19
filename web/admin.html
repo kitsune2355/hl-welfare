@@ -19,188 +19,194 @@
     </script>
   </head>
   <body>
-    <!-- admin.html?tab=users|access|health|settings|audit — SUPER_ADMIN เท่านั้น (เซิร์ฟเวอร์ตรวจทุก endpoint: backend/api/admin.php) -->
-    <main id="page" class="page">
+    <!--
+      admin.html?tab=… — 3 เมนูในหัวข้อ "ผู้ดูแลระบบ" ของ sidebar ใช้หน้านี้ร่วมกัน:
+        ผู้ใช้ระบบ            ?tab=users        สิทธิ์ users.manage (ค่าเริ่มต้น HR Admin)
+        กำหนดสิทธิ์การใช้งาน   ?tab=permissions  SUPER_ADMIN เท่านั้น
+        ระบบ & ความปลอดภัย   ?tab=access|health|settings|audit (system = แท็บแรกที่มีสิทธิ์)
+      แต่ละแท็บสูงพอดีจอบน desktop (เนื้อหาเลื่อนภายในการ์ด) · มือถือ/แท็บเล็ตเลื่อนทั้งหน้าตามปกติ
+      เซิร์ฟเวอร์ตรวจสิทธิ์ทุก endpoint (backend/api/admin.php) · บัญชี SUPER_ADMIN แก้ได้เฉพาะ SUPER_ADMIN
+    -->
+    <main id="page" class="page fit admin-page">
       <div class="page-head">
         <div>
-          <h1>ผู้ดูแลระบบ</h1>
-          <p>ผู้ใช้ · การเข้าสู่ระบบ · สถานะระบบ · ตั้งค่าระบบ · บันทึกการใช้งาน</p>
+          <h1 id="title">ผู้ดูแลระบบ</h1>
+          <p id="subtitle"></p>
         </div>
         <div class="page-actions">
           <span id="updated" class="small muted hide-sm"></span>
-          <button class="btn btn-sm" id="refresh" title="รีเฟรช" aria-label="รีเฟรช"><i data-icon="refresh-cw"></i><span class="hide-sm">รีเฟรช</span></button>
+          <button class="btn btn-sm" id="refresh" title="โหลดข้อมูลใหม่" aria-label="โหลดข้อมูลใหม่"><i data-icon="refresh-cw"></i><span class="hide-sm">รีเฟรช</span></button>
         </div>
       </div>
 
       <div id="blocked" class="hidden"></div>
       <div id="tabs"></div>
 
-      <!-- ===== ผู้ใช้ ===== -->
-      <div class="panel" id="tab-users">
-        <section class="card">
+      <!-- ===== ผู้ใช้ระบบ ===== -->
+      <div class="panel fill hidden" id="tab-users">
+        <section class="card fill">
           <header class="card-head">
             <div class="card-title">
               <span class="card-icon"><i data-icon="users"></i></span>
               <div>
                 <h2>ผู้ใช้ระบบ</h2>
-                <p>ชื่อผู้ใช้ควรตรงกับบัญชีใน stock_hr — สต็อกใช้ส่งลิงก์เซ็นรับชุดฟอร์มให้ผู้ขอเบิก</p>
+                <p id="users-note">ชื่อผู้ใช้ควรตรงกับบัญชีใน stock_hr — สต็อกใช้ส่งลิงก์เซ็นรับชุดฟอร์มให้ผู้ขอเบิก</p>
               </div>
             </div>
             <button class="btn btn-primary btn-sm" id="add-user"><i data-icon="user-plus"></i> เพิ่มผู้ใช้</button>
           </header>
-          <div id="users"></div>
+          <div id="users" class="fill-body"></div>
+        </section>
+      </div>
+
+      <!-- ===== กำหนดสิทธิ์การใช้งาน (SUPER_ADMIN) ===== -->
+      <div class="panel fill hidden" id="tab-permissions">
+        <section class="card fill">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="shield-check"></i></span>
+              <div>
+                <h2>สิทธิ์ของแต่ละบทบาท</h2>
+                <p>ติ๊ก = บทบาทนั้นเห็นหน้า / ทำรายการได้ · ผู้ดูแลระบบสูงสุดทำได้ทุกอย่างเสมอ · มีผลกับคำขอถัดไปทันที</p>
+              </div>
+            </div>
+            <div class="row perm-actions" style="gap:6px;flex-wrap:wrap">
+              <button class="btn btn-sm btn-ghost" id="perm-defaults" title="ติ๊กตามค่าเริ่มต้นของระบบ (ยังไม่บันทึก)"><i data-icon="rotate-ccw"></i> ค่าเริ่มต้น</button>
+              <button class="btn btn-sm" id="perm-undo" disabled><i data-icon="undo-2"></i> ยกเลิกที่แก้</button>
+              <button class="btn btn-sm btn-primary" id="perm-save" data-label="บันทึกสิทธิ์" disabled><i data-icon="save"></i> บันทึกสิทธิ์</button>
+            </div>
+          </header>
+          <div id="perm" class="fill-body scroll"></div>
         </section>
       </div>
 
       <!-- ===== การเข้าสู่ระบบ ===== -->
-      <div class="panel hidden" id="tab-access">
-        <div id="lockouts" class="mb"></div>
-        <section class="card mb">
-          <header class="card-head">
-            <div class="card-title">
-              <span class="card-icon"><i data-icon="log-in"></i></span>
-              <div>
-                <h2>Session ที่ใช้งานอยู่</h2>
-                <p id="sessions-note">จบ session แล้ว ถ้าเครื่องนั้นเลือก “จดจำฉัน” ไว้จะเข้าใหม่ได้เอง — ใช้ “ออกจากระบบทุกอุปกรณ์” ในแท็บผู้ใช้เพื่อบังคับ</p>
-              </div>
-            </div>
-          </header>
-          <div id="sessions"></div>
-        </section>
-        <section class="card mb">
-          <header class="card-head">
-            <div class="card-title">
-              <span class="card-icon"><i data-icon="lock"></i></span>
-              <div>
-                <h2>อุปกรณ์ที่ “จดจำฉัน”</h2>
-                <p>refresh token ที่ยังใช้ได้ (หมุนทุกครั้งที่ใช้) — เลิกจดจำแล้วเครื่องนั้นต้องกรอกรหัสผ่านใหม่</p>
-              </div>
-            </div>
-          </header>
-          <div id="devices"></div>
-        </section>
-        <section class="card">
-          <header class="card-head">
-            <div class="card-title">
-              <span class="card-icon"><i data-icon="history"></i></span>
-              <div>
-                <h2>ประวัติการเข้าสู่ระบบ</h2>
-                <p id="policy"></p>
-              </div>
-            </div>
-            <select class="input" id="attempt-result" aria-label="ผลการเข้าสู่ระบบ" style="width:auto">
-              <option value="">ทั้งหมด</option>
-              <option value="failed">ไม่สำเร็จ</option>
-              <option value="ok">สำเร็จ</option>
-            </select>
-          </header>
-          <div id="attempts"></div>
-        </section>
-      </div>
-
-      <!-- ===== สถานะระบบ ===== -->
-      <div class="panel hidden" id="tab-health">
-        <div id="checks" class="grid grid-3 mb"></div>
-        <section class="card mb">
-          <header class="card-head">
-            <div class="card-title">
-              <span class="card-icon"><i data-icon="package-check"></i></span>
-              <div>
-                <h2>ใบเบิกชุดฟอร์มในสต็อก Uniform</h2>
-                <p id="stock-note"></p>
-              </div>
-            </div>
-            <a class="btn btn-sm" href="uniform.html">ไปหน้าชุดฟอร์ม <i data-icon="arrow-right"></i></a>
-          </header>
-          <div class="card-body" id="stages"></div>
-          <div id="stuck"></div>
-        </section>
-        <div class="grid grid-2">
+      <div class="panel fill hidden" id="tab-access">
+        <div class="grid grid-2 fill">
           <section class="card">
             <header class="card-head">
               <div class="card-title">
-                <span class="card-icon"><i data-icon="trash-2"></i></span>
+                <span class="card-icon"><i data-icon="log-in"></i></span>
                 <div>
-                  <h2>ล้างข้อมูลเก่า</h2>
-                  <p>session · refresh token · ประวัติเข้าสู่ระบบ (ไม่ลบบันทึกการใช้งาน) — ตั้งเวลาด้วย backend/bin/cleanup.php</p>
+                  <h2>กำลังใช้งาน</h2>
+                  <p>บัญชี/IP ที่ถูกล็อก · session · อุปกรณ์ที่ “จดจำฉัน”</p>
                 </div>
               </div>
             </header>
-            <div class="card-body" id="cleanup"></div>
+            <div class="fill-body scroll">
+              <div id="lockouts" class="admin-block"></div>
+              <h3 class="admin-subhead">Session ที่ใช้งานอยู่</h3>
+              <p class="small muted admin-note">จบ session แล้ว ถ้าเครื่องนั้นเลือก “จดจำฉัน” ไว้จะเข้าใหม่ได้เอง — ใช้ “เลิกจดจำ” หรือ “ออกจากระบบทุกอุปกรณ์” (เมนูผู้ใช้ระบบ) เพื่อบังคับ</p>
+              <div id="sessions"></div>
+              <h3 class="admin-subhead">อุปกรณ์ที่ “จดจำฉัน”</h3>
+              <p class="small muted admin-note">เลิกจดจำแล้วเครื่องนั้นต้องกรอกรหัสผ่านใหม่เมื่อ session หมด</p>
+              <div id="devices"></div>
+            </div>
+          </section>
+          <section class="card">
+            <header class="card-head">
+              <div class="card-title">
+                <span class="card-icon"><i data-icon="history"></i></span>
+                <div>
+                  <h2>ประวัติการเข้าสู่ระบบ</h2>
+                  <p id="policy"></p>
+                </div>
+              </div>
+              <select class="input" id="attempt-result" aria-label="ผลการเข้าสู่ระบบ" style="width:auto">
+                <option value="">ทั้งหมด</option>
+                <option value="failed">ไม่สำเร็จ</option>
+                <option value="ok">สำเร็จ</option>
+              </select>
+            </header>
+            <div id="attempts" class="fill-body"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ===== สถานะระบบ ===== -->
+      <div class="panel fill hidden" id="tab-health">
+        <div class="grid grid-2 fill">
+          <section class="card">
+            <header class="card-head">
+              <div class="card-title">
+                <span class="card-icon"><i data-icon="activity"></i></span>
+                <div>
+                  <h2>การตรวจสถานะ</h2>
+                  <p>เขียว = ปกติ · เหลือง = ควรดู · แดง = ต้องแก้</p>
+                </div>
+              </div>
+            </header>
+            <div class="fill-body scroll">
+              <div id="checks" class="check-list"></div>
+              <h3 class="admin-subhead">ใบเบิกชุดฟอร์มในสต็อก Uniform <a class="small" href="uniform.html">ไปหน้าชุดฟอร์ม →</a></h3>
+              <p class="small muted admin-note" id="stock-note"></p>
+              <div id="stages" class="admin-block"></div>
+              <div id="stuck"></div>
+            </div>
           </section>
           <section class="card">
             <header class="card-head">
               <div class="card-title">
                 <span class="card-icon"><i data-icon="info"></i></span>
                 <div>
-                  <h2>ข้อมูลระบบ</h2>
-                  <p>เวอร์ชัน · ค่าตั้งการเข้าสู่ระบบ · จำนวนแถวในตาราง</p>
+                  <h2>ข้อมูลระบบ & ล้างข้อมูลเก่า</h2>
+                  <p>ไม่ลบบันทึกการใช้งาน — ตั้งเวลาล้างอัตโนมัติด้วย backend/bin/cleanup.php</p>
                 </div>
               </div>
             </header>
-            <div class="card-body" id="info"></div>
+            <div class="fill-body scroll">
+              <div id="cleanup" class="admin-block"></div>
+              <h3 class="admin-subhead">ข้อมูลระบบ</h3>
+              <div id="info"></div>
+            </div>
           </section>
         </div>
       </div>
 
       <!-- ===== ตั้งค่าระบบ (system_settings ทับ backend/config.php) ===== -->
-      <div class="panel hidden" id="tab-settings">
-        <div id="settings-alert"></div>
-        <section class="card mb">
-          <header class="card-head">
-            <div class="card-title">
-              <span class="card-icon"><i data-icon="package-check"></i></span>
-              <div>
-                <h2>การเชื่อมต่อสต็อก Uniform</h2>
-                <p>API ของ stock_hr (api/welfare.php) — เซ็นทุกคำขอด้วยกุญแจ HMAC ที่ต้องตรงกับ stock_hr/config_ctrl/welfare_key.php</p>
+      <div class="panel fill hidden" id="tab-settings">
+        <div class="grid grid-2 fill">
+          <section class="card">
+            <header class="card-head">
+              <div class="card-title">
+                <span class="card-icon"><i data-icon="package-check"></i></span>
+                <div>
+                  <h2>การเชื่อมต่อสต็อก Uniform</h2>
+                  <p>API ของ stock_hr (api/welfare.php) — กุญแจต้องตรงกับ stock_hr/config_ctrl/welfare_key.php</p>
+                </div>
               </div>
+            </header>
+            <div class="fill-body scroll">
+              <div id="settings-alert"></div>
+              <div id="stock-settings"></div>
             </div>
-          </header>
-          <div class="card-body" id="stock-settings"></div>
-        </section>
-        <div class="grid grid-2 mb">
+          </section>
           <section class="card">
             <header class="card-head">
               <div class="card-title">
                 <span class="card-icon"><i data-icon="log-in"></i></span>
                 <div>
-                  <h2>การเข้าสู่ระบบ</h2>
-                  <p>มีผลกับคำขอถัดไปทันที (session ที่เปิดอยู่ใช้ค่าใหม่ด้วย)</p>
+                  <h2>การเข้าสู่ระบบ & การติดตาม</h2>
+                  <p>มีผลกับคำขอถัดไปทันที</p>
                 </div>
               </div>
             </header>
-            <div class="card-body" id="auth-settings"></div>
-          </section>
-          <section class="card">
-            <header class="card-head">
-              <div class="card-title">
-                <span class="card-icon"><i data-icon="activity"></i></span>
-                <div>
-                  <h2>การติดตามระบบ</h2>
-                  <p>เกณฑ์เตือนในแท็บสถานะระบบ และการล้างข้อมูลเก่า</p>
-                </div>
-              </div>
-            </header>
-            <div class="card-body" id="monitor-settings"></div>
+            <div class="fill-body scroll">
+              <h3 class="admin-subhead first">การเข้าสู่ระบบ</h3>
+              <div id="auth-settings"></div>
+              <h3 class="admin-subhead">การติดตามระบบ</h3>
+              <div id="monitor-settings"></div>
+              <h3 class="admin-subhead">แก้ได้เฉพาะใน backend/config.php</h3>
+              <p class="small muted admin-note">ค่าที่ตั้งผิดแล้วอาจเข้าระบบไม่ได้ — ต้องแก้ที่เครื่องเซิร์ฟเวอร์</p>
+              <div id="fixed-settings"></div>
+            </div>
           </section>
         </div>
-        <section class="card">
-          <header class="card-head">
-            <div class="card-title">
-              <span class="card-icon"><i data-icon="lock"></i></span>
-              <div>
-                <h2>แก้ได้เฉพาะใน backend/config.php</h2>
-                <p>ค่าที่ตั้งผิดแล้วอาจเข้าระบบไม่ได้ — ต้องแก้ที่เครื่องเซิร์ฟเวอร์</p>
-              </div>
-            </div>
-          </header>
-          <div class="card-body" id="fixed-settings"></div>
-        </section>
       </div>
 
       <!-- ===== บันทึกการใช้งาน ===== -->
-      <div class="panel hidden" id="tab-audit">
-        <section class="card">
+      <div class="panel fill hidden" id="tab-audit">
+        <section class="card fill">
           <form class="filters" id="audit-filters">
             <div class="input-icon grow">
               <i data-icon="search"></i>
@@ -211,9 +217,10 @@
             <select class="input" name="user" aria-label="ผู้ทำรายการ" style="width:auto"></select>
             <label class="row small">ตั้งแต่ <input class="input" type="date" name="from" style="width:auto" /></label>
             <label class="row small">ถึง <input class="input" type="date" name="to" style="width:auto" /></label>
+            <button type="button" class="btn btn-sm btn-ghost" id="audit-clear"><i data-icon="filter-x"></i> ล้างตัวกรอง</button>
             <span class="small muted" id="audit-count"></span>
           </form>
-          <div id="audit"></div>
+          <div id="audit" class="fill-body"></div>
         </section>
       </div>
     </main>

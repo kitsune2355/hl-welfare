@@ -264,7 +264,7 @@ export const CONFIG = {
 | `uniform.html` | ชุดฟอร์ม | `?tab=history` |
 | `rules.html` | เงื่อนไขสวัสดิการ | `?tab=insurance\|uniform\|settings\|open` |
 | `sites.html` | หน่วยงาน | – |
-| `admin.html` | ผู้ดูแลระบบ (เฉพาะ SUPER_ADMIN) | `?tab=users\|access\|health\|settings\|audit` · แท็บบันทึกการใช้งานรับ `&entity=&action=&user=&q=&from=&to=` |
+| `admin.html` | ผู้ใช้ระบบ / กำหนดสิทธิ์การใช้งาน / ระบบ & ความปลอดภัย (ตามสิทธิ์ ข้อ 12.5) | `?tab=users\|permissions\|system\|access\|health\|settings\|audit` · แท็บบันทึกการใช้งานรับ `&entity=&action=&user=&q=&from=&to=` |
 | `insurers.html` | แบบฟอร์มประกัน (ตั้งค่า) | `?id=<id>` หรือ `?id=new` |
 
 ### 5.4 เพิ่มหน้าใหม่ (ตัวอย่าง `reports.html`)
@@ -1289,8 +1289,8 @@ scripts/export-seed.mjs      ← สร้าง sql/002, 003 และ golden.j
 | argv ภาษาไทย | PHP 5.2 บน Windows อ่านภาษาไทยจาก argument ไม่ได้ → `bin/user.php` รับชื่อทาง stdin |
 | SQL ภาษาไทย | ส่งเป็นไฟล์เสมอ (`mysql --default-character-set=utf8 hl_welfare < ไฟล์.sql`) ไม่ใช่ `mysql -e "…"` |
 
-### 12.4 หน้าผู้ดูแลระบบ (`admin.html` → `backend/api/admin.php`) — SUPER_ADMIN เท่านั้น
-ทุก endpoint `/admin/*` เรียก `admin_require()` (บทบาทอื่น 403) · เมนู “ผู้ดูแลระบบ” ซ่อนจากบทบาทอื่น (`roles` ใน `app/shell.js`) · หน้าเว็บใช้ `adminApi` (`infrastructure/http/adminApi.js`, เฉพาะโหมด server)
+### 12.4 หน้าผู้ดูแลระบบ (`admin.html` → `backend/api/admin.php`) — ตามสิทธิ์ (ข้อ 12.5)
+ทุก endpoint `/admin/*` ตรวจสิทธิ์ของแท็บนั้น (`cap_require`, ข้อ 12.5) · สิทธิ์การใช้งาน = `admin_require()` (SUPER_ADMIN) · หน้าเว็บใช้ `adminApi` (`infrastructure/http/adminApi.js`, เฉพาะโหมด server)
 
 | แท็บ | ทำอะไรได้ | endpoint |
 |---|---|---|
@@ -1307,6 +1307,15 @@ scripts/export-seed.mjs      ← สร้าง sql/002, 003 และ golden.j
   `schtasks /Create /TN "hl-welfare cleanup" /SC WEEKLY /D SUN /ST 03:00 /TR "C:\AppServ\php5\php.exe C:\AppServ\www\hl-welfare\backend\bin\cleanup.php"`
 - **migration 005** (`backend/sql/005_admin_monitor.sql`) ต้องรันก่อนขึ้นโค้ดนี้ — `auth.php` นับครั้งที่ผิดเฉพาะ `cleared_at IS NULL`
 - **ค่าตั้งระบบ** (`backend/lib/settings.php`, migration 006 `system_settings`): `sys_setting(key)` = แถวในตาราง → ไม่มีก็ `config.php` → ไม่มีก็ค่าเริ่มต้นใน `sys_setting_defs()` (key ที่แก้จากเว็บได้มีเท่านี้) · อ่าน DB ครั้งเดียวต่อคำขอ · ยังไม่รัน 006 = ใช้ config.php ทั้งหมด (ไม่ error) · `auth_cfg()` และ `stock_raw()` อ่านผ่าน `sys_setting` แล้ว · ฐานข้อมูล / `cookie_secure` / `timezone` / `today_override` / `refresh_grace_seconds` แก้ได้ที่ config.php เท่านั้น · กุญแจสต็อกเก็บเป็นข้อความในตาราง (ต้องใช้เซ็น HMAC) — สำรองฐานข้อมูลเท่ากับสำรองกุญแจ
+
+### 12.5 สิทธิ์การใช้งานรายบทบาท (`backend/permissions.php` · migration 008 `role_capabilities`)
+- **ผู้ดูแลระบบสูงสุด (SUPER_ADMIN)** เข้าได้ทุกเมนู ทำได้ทุกอย่างเสมอ (ไม่มีแถวในตาราง → ล็อกตัวเองไม่ได้) · **บทบาทอื่น** ได้ตามที่ SUPER_ADMIN ติ๊กในเมนู “กำหนดสิทธิ์การใช้งาน” (`admin.html?tab=permissions`, SUPER_ADMIN เท่านั้น — บทบาทอื่นตั้งสิทธิ์ไม่ได้ กันยกระดับตัวเอง)
+- **บัญชี SUPER_ADMIN แก้ได้เฉพาะ SUPER_ADMIN** — ผู้จัดการผู้ใช้บทบาทอื่น (เช่น HR Admin) แก้ชื่อ / ปิดบัญชี / ตั้งรหัส / ออกทุกอุปกรณ์ / จบ session / เลิกจดจำ / ปลดล็อก บัญชี SUPER_ADMIN ไม่ได้ และตั้งใครเป็น SUPER_ADMIN ไม่ได้ (403 `PROTECTED`, หน้าเว็บแสดง “ป้องกัน” แทนปุ่ม)
+- capability (`perm_defs()`): **เห็นหน้า** `dashboard.view` `employees.view` `insurance.view` `uniform.view` `rules.view` `sites.view` `insurers.view` · **ทำรายการ** `employees.edit` `insurance.export` `insurance.submit` `uniform.issue` `stock.request` `rules.edit` `sites.edit` `insurers.edit` · **ผู้ดูแล** `users.manage` (ค่าเริ่มต้น HR Admin) `security.view` `system.health` `system.settings` `audit.view` (ค่าเริ่มต้น SUPER_ADMIN เท่านั้น)
+- ค่าเริ่มต้น = พฤติกรรมเดิม: ทุกบทบาททำได้ทุกอย่าง ยกเว้น `stock.request` (HR Admin, HR บริษัท) · `rules.edit` และ `users.manage` (HR Admin) · ส่วนผู้ดูแลอื่น ๆ (SUPER_ADMIN)
+- **เซิร์ฟเวอร์**: route guard `auth_route_guard($req, $handler)` ตรวจ handler ที่อยู่ใน `perm_defs()[…]['handlers']` · handler อื่นเรียก `cap_require($req, 'rules.edit')` เอง · `stock_write_roles()` = `cap_roles('stock.request')` · “เห็นหน้า” ตรวจเฉพาะ endpoint ที่หน้านั้นใช้คนเดียว (รายการที่หลายหน้าใช้ร่วม เช่น พนักงาน หน่วยงาน กฎ ตัวเลขภาพรวม อ่านได้ทุกคนที่ login) · `/activity` แสดง USER/SYSTEM เฉพาะผู้มี `audit.view`
+- **หน้าเว็บ**: `AuthUser.caps` (จาก `/auth/login`, `/auth/me`) → `can('employees.edit')` ใน `app/auth.js` · sidebar ซ่อนเมนูตาม `cap` / `anyCap` / `roles` (`app/shell.js`) · เปิดหน้าที่ไม่มีสิทธิ์ → พาไปหน้าแรกที่เปิดได้ + แจ้งเตือน · ปุ่มซ่อนตามสิทธิ์ (ตาราง Excel `readOnly`, ส่งออก/ยกเลิกประกัน, แจก/ส่งเบิก/ยกเลิกชุด, แบบฟอร์มประกัน) · ทุกหน้าอ่านสิทธิ์ล่าสุดเงียบ ๆ ตอนเปิด เปลี่ยนแล้วโหลดหน้าใหม่
+- **เมนูผู้ดูแลระบบ** (sidebar หัวข้อ “ผู้ดูแลระบบ”): ผู้ใช้ระบบ (`users.manage`) · กำหนดสิทธิ์การใช้งาน (SUPER_ADMIN) · ระบบ & ความปลอดภัย (แท็บที่มีสิทธิ์: การเข้าสู่ระบบ / สถานะระบบ / ตั้งค่าระบบ / บันทึกการใช้งาน) — หน้าสูงพอดีจอบน desktop (เลื่อนภายในการ์ด) · มือถือเลื่อนทั้งหน้า ตารางสิทธิ์แสดงทีละบทบาท
 
 ---
 

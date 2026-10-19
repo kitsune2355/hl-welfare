@@ -2,9 +2,10 @@
 /* ============================================================
  *  backend/api/routes.php — ตาราง endpoint (สเปกข้อ 8) · path ต่อจาก web/api/index.php
  *  ทุก route ต้องมี session ยกเว้นที่ระบุ public (login / refresh / logout)
+ *  route guard ตรวจสิทธิ์ตาม handler ด้วย (perm_defs ใน backend/permissions.php)
  * ============================================================ */
 
-$GLOBALS['hlw_route_guard'] = 'auth_require';
+$GLOBALS['hlw_route_guard'] = 'auth_route_guard';
 
 function api_routes()
 {
@@ -75,5 +76,7 @@ function api_routes()
     router_add($r, 'GET', '/admin/settings', 'api_admin_settings');
     router_add($r, 'PUT', '/admin/settings', 'api_admin_settings_save');
     router_add($r, 'POST', '/admin/stock/test', 'api_admin_stock_test');
+    router_add($r, 'GET', '/admin/permissions', 'api_admin_permissions');
+    router_add($r, 'PUT', '/admin/permissions', 'api_admin_permissions_save');
     return $r;
 }
