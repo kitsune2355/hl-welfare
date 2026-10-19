@@ -16,7 +16,15 @@
  * @property {(id: number) => Promise<import('../domain/types.js').EmployeeBenefits>} getEmployeeBenefits
  * @property {(emp: Omit<Employee,'id'> & {id?: number}) => Promise<Employee>} saveEmployee   ไม่มี id = สร้างใหม่
  * @property {(id: number) => Promise<void>} deleteEmployee                     409 ถ้ามีประวัติแจ้งประกัน/แจกชุด
- * @property {() => Promise<Object>} getRules
+ * @property {() => Promise<Object>} getRules                                  กฎที่มีผล ณ วันนี้
+ * @property {() => Promise<Object>} getRuleHistory                            {today, insurance, uniform: [{id, current, pending, history}], settings: [{key, value, effectiveFrom}], uniformItems}
+ * @property {(kind: 'insurance'|'uniform', rule: Object) => Promise<Object>} createRule              rule.effectiveFrom (ไม่ส่ง = วันนี้) · คืนประวัติชุดใหม่
+ * @property {(kind: 'insurance'|'uniform', id: number, rule: Object) => Promise<Object>} updateRule   เพิ่มฉบับใหม่ที่มีผลตั้งแต่ rule.effectiveFrom
+ * @property {(kind: 'insurance'|'uniform', id: number, effectiveFrom: string) => Promise<Object>} retireRule  เลิกใช้กฎตั้งแต่วันที่
+ * @property {(kind: 'insurance'|'uniform', revisionId: number) => Promise<Object>} cancelRuleRevision  ยกเลิกฉบับที่ยังไม่ถึงวันมีผล (409 ถ้ามีผลแล้ว)
+ * @property {(input: {effectiveFrom?: string, values: Object<string, number>}) => Promise<Object>} saveRuleSettings
+ * @property {(key: string, date: string) => Promise<Object>} cancelSettingChange
+ * @property {(siteId: number, overrides: {ruleId: number, quantities: Object}[]) => Promise<Object>} saveSiteUniform  ชุดฟอร์มของหน่วยงาน (มีผลทันที) · คืน Site
  * @property {(cycleDate: string) => Promise<import('../domain/types.js').InsuranceCycle>} getInsuranceCycle
  * @property {() => Promise<import('../domain/types.js').InsuranceBatch[]>} listInsuranceBatches
  * @property {(input: {cycleDate: string, type: string, employeeIds: number[]}) => Promise<import('../domain/types.js').InsuranceBatch>} submitInsuranceBatch

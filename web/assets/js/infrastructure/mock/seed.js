@@ -264,14 +264,15 @@ export function buildSeed(today) {
       firstName: 'วีระ',
       lastName: 'ทำผิด',
     },
+    // ไม่มีกฎชุดฟอร์มของ HL ฝ่าย BU ส่วนกลาง → "ไม่พบกฎ" ในคิวงาน (CIC ระดับ 7 มีกฎแล้ว — HR ยืนยัน 1 ตัว)
     {
-      companyCode: 'CIC',
+      companyCode: 'HL',
       employeeType: 'CENTRAL',
       deptGroup: 'BU ส่วนกลาง',
       level: 7,
       startDays: 800,
       firstName: 'อรรถพล',
-      lastName: 'ระดับเจ็ด',
+      lastName: 'ไม่พบกฎ',
     },
     // ครบ 30 วันแล้ว รอแจ้งเข้ารอบถัดไป
     {
@@ -462,5 +463,7 @@ export function buildSeed(today) {
       }),
   ];
   const activities = raw.sort((a, b) => a.at.localeCompare(b.at)).map((a, i) => ({ ...a, id: i + 1 }));
-  return { companies: COMPANIES, sites: SITES, employees, batches, issues, rules, activities, insurers, marksV2: true };
+  // uniformOverrides = ชุดฟอร์มที่หน่วยงานตั้งทับกฎ [{ ruleId, quantities }] — ตั้งต้นไม่มี
+  const sites = SITES.map((s) => ({ ...s, uniformOverrides: [] }));
+  return { companies: COMPANIES, sites, employees, batches, issues, rules, activities, insurers, marksV2: true };
 }

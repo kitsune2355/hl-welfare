@@ -18,7 +18,8 @@ export function validateEmployee(e) {
   if (!e.siteId) x.siteId = 'กรุณาเลือกหน่วยงาน';
   if (e.employeeType === 'CENTRAL') {
     if (!e.deptGroup) x.deptGroup = 'กรุณาเลือกกลุ่ม/ฝ่าย';
-    if (!(Number(e.level) >= 1)) x.level = 'ระดับต้องเป็นตัวเลข ≥ 1';
+    // ระดับพนักงาน 1–9 (HR ยืนยันสูงสุดระดับ 9)
+    if (!(Number.isInteger(Number(e.level)) && Number(e.level) >= 1 && Number(e.level) <= 9)) x.level = 'ระดับต้องเป็นตัวเลข 1–9';
   }
   if (e.employeeType === 'PRO_SITE' && !e.position?.trim()) x.position = 'กรุณาระบุตำแหน่ง';
   if (e.status === 'INACTIVE') {

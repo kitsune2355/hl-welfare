@@ -15,6 +15,7 @@ export function buildUniformPending(employees, sites, rules, issues, today) {
         event: e.event,
         dueDate: e.dueDate,
         qtyLabel: e.qtyLabel,
+        itemQty: e.itemQty,
         style: e.style,
       });
     }

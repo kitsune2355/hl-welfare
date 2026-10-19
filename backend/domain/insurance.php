@@ -41,8 +41,38 @@ function find_insurance_rule($emp, $rules)
     return null;
 }
 
-/** วันมีผลออกจากประกันกลุ่ม — null ถ้ายังไม่พ้นสภาพ */
+/**
+ * วันที่อายุครบ N ปี (วันเกิดปีที่ N) — 29 ก.พ. ปีไม่อธิกสุรทินเลื่อนเป็น 1 มี.ค. เหมือนฝั่ง JS
+ * คิดจากตัวเลขตรง ๆ ไม่ผ่าน timestamp: PHP 5.2 บน Windows ใช้ timestamp 32 บิต
+ * วันเกิดปีที่ 65 ของคนที่เกิดหลังปี 2516 เลยปี 2038 ไปแล้ว gmmktime จะคืนค่าผิด
+ */
+function birthday_at($birthDate, $years)
+{
+    $p = explode('-', $birthDate);
+    $y = (int)$p[0] + (int)$years;
+    $m = (int)$p[1];
+    $d = (int)$p[2];
+    if ($m === 2 && $d === 29 && !(($y % 4 === 0 && $y % 100 !== 0) || $y % 400 === 0)) { $m = 3; $d = 1; }
+    return sprintf('%04d-%02d-%02d', $y, $m, $d);
+}
+
+/**
+ * วันมีผลออกจากประกันกลุ่ม — null ถ้ายังไม่พ้นสภาพและอายุยังไม่ครบ
+ * อายุครบ insuranceMaxAge ระหว่างเป็นสมาชิก → แจ้งออกรอบถัดไป (exitReason = 'AGE')
+ * ถ้ามีทั้งพ้นสภาพและอายุครบ ใช้วันที่มาก่อน
+ */
 function insurance_exit($emp, $settings)
+{
+    $job = employment_exit($emp, $settings);
+    $ageDate = birthday_at($emp['birthDate'], $settings['insuranceMaxAge']);
+    if ($job && strcmp($job['exitDate'], $ageDate) <= 0) { return $job; }
+    if (!$job && $emp['status'] === 'INACTIVE') { return null; }
+    return array('exitDate' => $ageDate, 'exitCycleDate' => next_cycle_date($ageDate, cycle_day_of($emp, $settings)),
+                 'exitUrgent' => false, 'exitReason' => 'AGE');
+}
+
+/** วันมีผลออกเพราะพ้นสภาพ — null ถ้ายังไม่พ้นสภาพ */
+function employment_exit($emp, $settings)
 {
     if (!$emp['endReason'] && !$emp['endDate']) { return null; }
     $day = cycle_day_of($emp, $settings);
@@ -51,17 +81,20 @@ function insurance_exit($emp, $settings)
         case 'MISCONDUCT':
             $exitDate = $emp['endDate'] !== null ? $emp['endDate'] : $emp['lastWorkingDate'];
             if (!$exitDate) { return null; }
-            return array('exitDate' => $exitDate, 'exitCycleDate' => $exitDate, 'exitUrgent' => true);
+            return array('exitDate' => $exitDate, 'exitCycleDate' => $exitDate, 'exitUrgent' => true,
+                         'exitReason' => $emp['endReason']);
         case 'ABSENT_3D':
             $base = $emp['lastWorkingDate'] !== null ? $emp['lastWorkingDate'] : $emp['endDate'];
             if (!$base) { return null; }
             $exitDate = add_days($base, $settings['absentExtraDays']);
-            return array('exitDate' => $exitDate, 'exitCycleDate' => next_cycle_date($exitDate, $day), 'exitUrgent' => false);
+            return array('exitDate' => $exitDate, 'exitCycleDate' => next_cycle_date($exitDate, $day), 'exitUrgent' => false,
+                         'exitReason' => $emp['endReason']);
         default:
             // RESIGN หรือพ้นสภาพโดยไม่ระบุเหตุผล
             $exitDate = $emp['endDate'] !== null ? $emp['endDate'] : $emp['lastWorkingDate'];
             if (!$exitDate) { return null; }
-            return array('exitDate' => $exitDate, 'exitCycleDate' => next_cycle_date($exitDate, $day), 'exitUrgent' => false);
+            return array('exitDate' => $exitDate, 'exitCycleDate' => next_cycle_date($exitDate, $day), 'exitUrgent' => false,
+                         'exitReason' => $emp['endReason'] ? $emp['endReason'] : null);
     }
 }
 
@@ -75,6 +108,7 @@ function insurance_none($reason, $partial = array())
         'exitDate' => null,
         'exitCycleDate' => null,
         'exitUrgent' => false,
+        'exitReason' => null,
         'ruleId' => null,
     );
     foreach ($partial as $k => $v) { $r[$k] = $v; }
@@ -92,16 +126,17 @@ function insurance_status($emp, $site, $rules)
     if ($rule['requireSiteInsurance'] && !($site && $site['hasGroupInsurance'])) {
         return insurance_none('หน่วยงานนี้ไม่ได้รับประกันกลุ่ม', array('ruleId' => $rule['id']));
     }
-    $eligibleDate = add_days($emp['startDate'], $rule['waitDays']);
+    // นับวันเริ่มงานเป็นวันที่ 1 (HR ยืนยัน) — ทำงานครบ 30 วัน = วันเริ่มงาน + 29
+    $eligibleDate = add_days($emp['startDate'], $rule['waitDays'] - 1);
     $enrollCycleDate = next_cycle_date($eligibleDate, cycle_day_of($emp, $settings));
+    if (strcmp(birthday_at($emp['birthDate'], $settings['insuranceMaxAge']), $enrollCycleDate) <= 0) {
+        return insurance_none('อายุครบ ' . $settings['insuranceMaxAge'] . ' ปีก่อนถึงรอบแจ้งเข้า',
+            array('ruleId' => $rule['id'], 'eligibleDate' => $eligibleDate));
+    }
     $exit = insurance_exit($emp, $settings);
     if ($exit && strcmp($exit['exitDate'], $enrollCycleDate) < 0) {
         return insurance_none('พ้นสภาพก่อนถึงรอบแจ้งเข้า — ไม่ต้องแจ้งเข้า/ออก', array(
             'ruleId' => $rule['id'], 'eligibleDate' => $eligibleDate, 'enrollCycleDate' => $enrollCycleDate));
-    }
-    if (age_at($emp['birthDate'], $enrollCycleDate) > $settings['insuranceMaxAge']) {
-        return insurance_none('อายุเกิน ' . $settings['insuranceMaxAge'] . ' ปี ณ รอบแจ้งเข้า',
-            array('ruleId' => $rule['id'], 'eligibleDate' => $eligibleDate));
     }
     return array(
         'eligible' => true,
@@ -111,6 +146,7 @@ function insurance_status($emp, $site, $rules)
         'exitDate' => $exit ? $exit['exitDate'] : null,
         'exitCycleDate' => $exit ? $exit['exitCycleDate'] : null,
         'exitUrgent' => $exit ? $exit['exitUrgent'] : false,
+        'exitReason' => $exit ? $exit['exitReason'] : null,
         'ruleId' => $rule['id'],
     );
 }

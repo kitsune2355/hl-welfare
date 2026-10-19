@@ -1,7 +1,7 @@
 // หน้า: รายละเอียดพนักงาน (employee.html?id=)
 import { api } from '../app/api.js';
 import { initPage, refreshCounts } from '../app/shell.js';
-import { todayISO } from '../domain/date.js';
+import { diffDays, todayISO } from '../domain/date.js';
 import { formatThaiId } from '../domain/thaiId.js';
 import { $, getParam, html, on, raw, render } from '../shared/dom.js';
 import { money, relativeDays, tenure, thaiDate } from '../shared/format.js';
@@ -37,11 +37,16 @@ function timeline(steps) {
   </ol>`;
 }
 
+/** วันครบอายุ 65 อยู่ไกลเกินนี้ = ยังไม่นับว่า "กำลังจะออก" (แสดงเป็นวันในไทม์ไลน์อย่างเดียว) */
+const AGE_EXIT_SOON_DAYS = 60;
+
 function insuranceCard(emp, st) {
+  const ageExit = st.exitReason === 'AGE';
+  const leaving = !!st.exitDate && (!ageExit || diffDays(today, st.exitCycleDate) <= AGE_EXIT_SOON_DAYS);
   let b = badge('ไม่มีสิทธิ', 'danger', { lg: true });
   if (st.eligible) {
     if (st.exitUrgent) b = badge('แจ้งออกทันที', 'danger', { lg: true });
-    else if (st.exitDate) b = badge('แจ้งออก', 'warning', { lg: true });
+    else if (leaving) b = badge(ageExit ? 'แจ้งออก (อายุครบ)' : 'แจ้งออก', 'warning', { lg: true });
     else if (st.eligibleDate && st.eligibleDate > today) b = badge('รอครบสิทธิ', 'info', { lg: true });
     else b = badge('มีสิทธิ', 'success', { lg: true });
   }
@@ -51,12 +56,12 @@ function insuranceCard(emp, st) {
     { label: 'รอบแจ้งเข้า', date: st.enrollCycleDate },
   ];
   if (st.exitDate) {
-    steps.push({ label: 'วันมีผลออก', date: st.exitDate, tone: st.exitUrgent ? 'danger' : 'warning' });
-    if (!st.exitUrgent) steps.push({ label: 'รอบแจ้งออก', date: st.exitCycleDate, tone: 'warning' });
+    steps.push({ label: ageExit ? 'อายุครบ 65 ปี' : 'วันมีผลออก', date: st.exitDate, tone: st.exitUrgent ? 'danger' : leaving ? 'warning' : '' });
+    if (!st.exitUrgent) steps.push({ label: 'รอบแจ้งออก', date: st.exitCycleDate, tone: leaving ? 'warning' : '' });
   }
   const body = st.eligible
     ? html`<div style="display:grid;gap:16px">
-        ${st.enrollCycleDate && st.enrollCycleDate >= today && !st.exitDate
+        ${st.enrollCycleDate && st.enrollCycleDate >= today && !leaving
           ? html`<p class="small muted">แจ้งเข้า <b style="color:var(--fg)">${thaiDate(st.enrollCycleDate)}</b> · ${relativeDays(st.enrollCycleDate, today)}</p>`
           : ''}
         ${st.exitUrgent ? alertBox({ tone: 'danger', title: 'ต้องแจ้งออกทันที', body: 'เลิกจ้าง/กระทำผิด — ไม่รอรอบวันที่ 5' }) : ''} ${timeline(steps)}

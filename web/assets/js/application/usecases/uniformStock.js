@@ -4,8 +4,12 @@
 /** รหัสอ้างอิงสิทธิ์ที่ระบบสต็อกใช้กันส่งซ้ำ — หนึ่งสิทธิ์มีใบที่มีผลได้ใบเดียว */
 export const stockRef = (employeeId, entitlementKey) => `${employeeId}:${entitlementKey}`;
 
-/** จำนวนตั้งต้นต่อรายการ: รองเท้า 1 คู่ นอกนั้นตามจำนวนของสิทธิ์ (แก้ได้ในหน้าส่งเบิก) */
-export const defaultLineQty = (itemCode, qty) => (itemCode === 'SAFETY_SHOES' ? 1 : qty);
+/**
+ * จำนวนตั้งต้นต่อรายการ = จำนวนต่อรายการของสิทธิ์ (ent.itemQty — ตามกฎหรือที่หน่วยงานตั้งทับ)
+ * สิทธิ์รุ่นก่อนที่ไม่มี itemQty: รองเท้า 1 คู่ นอกนั้นตามจำนวนรวม · แก้ได้ในหน้าส่งเบิก
+ */
+export const defaultLineQty = (itemCode, qty, itemQty = null) =>
+  itemQty?.[itemCode] ?? (itemCode === 'SAFETY_SHOES' ? 1 : qty);
 
 /** แบบที่ควรเลือกให้ก่อน — แบบชาย/หญิงตามเพศของพนักงาน ถ้ามีข้อมูล */
 function preferredVariant(variants, gender) {
@@ -29,7 +33,7 @@ export function buildStockOptions(ent, catalog, emp) {
       name: v.sub_category_name,
       products: v.products.map((p) => ({ productId: p.product_id, code: p.product_code, name: p.product_name, size: p.size, onHand: p.on_hand })),
     }));
-    return { itemCode: code, qty: defaultLineQty(code, ent.qty), variants, variantIndex: preferredVariant(variants, emp.gender) };
+    return { itemCode: code, qty: defaultLineQty(code, ent.qty, ent.itemQty), variants, variantIndex: preferredVariant(variants, emp.gender) };
   });
   const d = catalog.department;
   return {

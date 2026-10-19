@@ -30,7 +30,7 @@ INSERT INTO `sites` (`id`, `company_code`, `name`, `has_group_insurance`, `polo_
 INSERT INTO `insurance_rules` (`id`, `employee_type`, `companies`, `wait_days`, `exclude_contracts`, `require_site_insurance`, `note`, `created_at`, `created_by`, `updated_by`) VALUES
   (1, 'CENTRAL', NULL, 30, '[]', 0, 'พนักงานส่วนกลางทุกบริษัท', '2026-10-19 00:00:00', 'system', 'system'),
   (2, 'PRO_SITE', '["PRO"]', 30, '["SHORT_3PCT"]', 0, 'สัญญา 3% ระยะสั้น ไม่ได้รับประกันกลุ่ม', '2026-10-19 00:00:00', 'system', 'system'),
-  (3, 'DAILY', '["HL","AS"]', 120, '[]', 0, 'พนักงานรายวัน HL, AS', '2026-10-19 00:00:00', 'system', 'system'),
+  (3, 'DAILY', '["HL","AS","CNS","CIC","PRO"]', 120, '[]', 0, 'พนักงานรายวันทุกบริษัท (HR ยืนยัน CNS / CIC / PRO ได้ด้วย)', '2026-10-19 00:00:00', 'system', 'system'),
   (4, 'MAID_CNS', '["CNS"]', 120, '[]', 1, 'เฉพาะหน่วยงานที่ระบุว่าได้รับประกันกลุ่ม', '2026-10-19 00:00:00', 'system', 'system');
 
 INSERT INTO `uniform_items` (`code`, `name`, `sort_order`, `created_at`, `created_by`, `updated_by`) VALUES
@@ -42,23 +42,24 @@ INSERT INTO `uniform_items` (`code`, `name`, `sort_order`, `created_at`, `create
 
 INSERT INTO `uniform_rules` (`id`, `employee_type`, `companies`, `dept_groups`, `position`, `level_min`, `level_max`, `style`, `logo`, `items`, `polo_by_site`, `qty_start`, `qty_start_label`, `qty_probation`, `qty_annual`, `note`, `created_at`, `created_by`, `updated_by`) VALUES
   (1, 'CENTRAL', '["HL","PRO","CNS","CIC"]', '["Support Line"]', NULL, 1, 5, 'โปโลสีดำ โลโก้ HL', 'HL', '["POLO_BLACK"]', 0, 0, NULL, 4, 2, '', '2026-10-19 00:00:00', 'system', 'system'),
-  (2, 'CENTRAL', '["HL","PRO","CNS","CIC"]', '["Support Line"]', NULL, 6, NULL, 'โปโลสีดำ โลโก้ HL', 'HL', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
+  (2, 'CENTRAL', '["HL","PRO","CNS","CIC"]', '["Support Line"]', NULL, 6, 9, 'โปโลสีดำ โลโก้ HL', 'HL', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
   (3, 'CENTRAL', '["HL","PRO","CNS","CIC"]', '["การตลาด"]', NULL, NULL, NULL, 'โปโลสีดำ โลโก้ HL', 'HL', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
   (4, 'CENTRAL', '["PRO"]', '["BU ส่วนกลาง"]', NULL, 1, 5, 'โปโลสีดำ โลโก้ PRO', 'PRO', '["POLO_BLACK"]', 0, 0, NULL, 4, 2, '', '2026-10-19 00:00:00', 'system', 'system'),
-  (5, 'CENTRAL', '["PRO"]', '["BU ส่วนกลาง"]', NULL, 6, NULL, 'โปโลสีดำ โลโก้ PRO', 'PRO', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
+  (5, 'CENTRAL', '["PRO"]', '["BU ส่วนกลาง"]', NULL, 6, 9, 'โปโลสีดำ โลโก้ PRO', 'PRO', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
   (6, 'CENTRAL', '["PRO"]', '["ฝ่ายขาย"]', NULL, NULL, NULL, 'โปโลสีดำ โลโก้ PRO', 'PRO', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
   (7, 'CENTRAL', '["CNS"]', '["BU ส่วนกลาง"]', NULL, 1, 5, 'โปโลสีดำ โลโก้ CNS', 'CNS', '["POLO_BLACK"]', 0, 0, NULL, 4, 2, '', '2026-10-19 00:00:00', 'system', 'system'),
-  (8, 'CENTRAL', '["CNS"]', '["BU ส่วนกลาง"]', NULL, 6, NULL, 'โปโลสีดำ โลโก้ CNS', 'CNS', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
+  (8, 'CENTRAL', '["CNS"]', '["BU ส่วนกลาง"]', NULL, 6, 9, 'โปโลสีดำ โลโก้ CNS', 'CNS', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
   (9, 'CENTRAL', '["CNS"]', '["ฝ่ายขาย"]', NULL, NULL, NULL, 'โปโลสีดำ โลโก้ CNS', 'CNS', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
   (10, 'CENTRAL', '["AS"]', '["BU ส่วนกลาง"]', NULL, 1, 5, 'โปโลสีดำ โลโก้ AS', 'AS', '["POLO_BLACK"]', 0, 0, NULL, 4, 2, '', '2026-10-19 00:00:00', 'system', 'system'),
-  (11, 'CENTRAL', '["AS"]', '["BU ส่วนกลาง"]', NULL, 6, NULL, 'โปโลสีดำ โลโก้ AS', 'AS', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
+  (11, 'CENTRAL', '["AS"]', '["BU ส่วนกลาง"]', NULL, 6, 9, 'โปโลสีดำ โลโก้ AS', 'AS', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
   (12, 'CENTRAL', '["AS"]', '["ฝ่ายขาย"]', NULL, NULL, NULL, 'โปโลสีดำ โลโก้ AS', 'AS', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
   (13, 'CENTRAL', '["AS"]', '["วิศวกรรมและการออกแบบ"]', NULL, NULL, NULL, 'โปโลสีดำ โลโก้ AS', 'AS', '["POLO_BLACK"]', 0, 0, NULL, 2, 1, '', '2026-10-19 00:00:00', 'system', 'system'),
   (14, 'CENTRAL', '["CIC"]', '["BU ส่วนกลาง","บริหารห้องเช่าและพื้นที่เช่า"]', NULL, 1, 5, 'โปโลสีดำ โลโก้ HL', 'HL', '["POLO_BLACK"]', 0, 3, NULL, 1, 2, '', '2026-10-19 00:00:00', 'system', 'system'),
-  (15, 'PRO_SITE', '["PRO"]', NULL, 'ช่างเทคนิค', NULL, NULL, 'ชุดช่าง + รองเท้า Safety', 'PRO', '["TECH_SHIRT","TECH_PANTS","SAFETY_SHOES"]', 0, 2, NULL, 1, 2, '', '2026-10-19 00:00:00', 'system', 'system'),
-  (16, 'PRO_SITE', '["PRO"]', NULL, 'ช่างทีมโมบาย', NULL, NULL, 'ชุดช่าง + โปโล + รองเท้า Safety', 'PRO', '["POLO_BLACK","TECH_SHIRT","TECH_PANTS","SAFETY_SHOES"]', 1, 3, '2+1', 1, 2, '', '2026-10-19 00:00:00', 'system', 'system'),
-  (17, 'PRO_SITE', '["PRO"]', NULL, 'หัวหน้าช่างเทคนิค, วิศวกร', NULL, NULL, 'โปโล + รองเท้า Safety', 'PRO', '["POLO_BLACK","SAFETY_SHOES"]', 1, 3, NULL, 1, 2, '', '2026-10-19 00:00:00', 'system', 'system'),
-  (18, 'PRO_SITE', '["PRO"]', NULL, 'ตำแหน่งอื่นๆ', NULL, NULL, 'ชุดช่าง + โปโล', 'PRO', '["TECH_SHIRT","TECH_PANTS","POLO_NAVY"]', 1, 3, NULL, 1, 2, '', '2026-10-19 00:00:00', 'system', 'system');
+  (15, 'PRO_SITE', '["PRO"]', NULL, 'ช่างเทคนิค', NULL, NULL, 'ชุดช่าง + รองเท้า Safety', 'PRO', '["TECH_SHIRT","TECH_PANTS","SAFETY_SHOES"]', 0, 5, NULL, 3, 5, '', '2026-10-19 00:00:00', 'system', 'system'),
+  (16, 'PRO_SITE', '["PRO"]', NULL, 'ช่างทีมโมบาย', NULL, NULL, 'ชุดช่าง + โปโล + รองเท้า Safety', 'PRO', '["POLO_BLACK","TECH_SHIRT","TECH_PANTS","SAFETY_SHOES"]', 1, 6, NULL, 4, 7, '', '2026-10-19 00:00:00', 'system', 'system'),
+  (17, 'PRO_SITE', '["PRO"]', NULL, 'หัวหน้าช่างเทคนิค, วิศวกร', NULL, NULL, 'โปโล + รองเท้า Safety', 'PRO', '["POLO_BLACK","SAFETY_SHOES"]', 1, 4, NULL, 2, 3, '', '2026-10-19 00:00:00', 'system', 'system'),
+  (18, 'PRO_SITE', '["PRO"]', NULL, 'ตำแหน่งอื่นๆ', NULL, NULL, 'ชุดช่าง + โปโล', 'PRO', '["TECH_SHIRT","TECH_PANTS","POLO_NAVY"]', 1, 9, NULL, 3, 6, '', '2026-10-19 00:00:00', 'system', 'system'),
+  (19, 'CENTRAL', '["CIC"]', '["BU ส่วนกลาง","บริหารห้องเช่าและพื้นที่เช่า"]', NULL, 6, 9, 'โปโลสีดำ โลโก้ HL', 'HL', '["POLO_BLACK"]', 0, 0, NULL, 1, 1, '', '2026-10-19 00:00:00', 'system', 'system');
 
 INSERT INTO `settings` (`key`, `value`, `created_at`, `created_by`, `updated_by`) VALUES
   ('insuranceMaxAge', '65', '2026-10-19 00:00:00', 'system', 'system'),

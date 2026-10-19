@@ -30,16 +30,51 @@ const emp = (p = {}) => ({
   ...p,
 });
 describe('ประกันกลุ่ม', () => {
-  it('ส่วนกลาง ครบ 30 วัน → รอบวันที่ 5 ถัดไป', () => {
+  it('ส่วนกลาง ครบ 30 วัน (นับวันเริ่มงานเป็นวันที่ 1) → รอบวันที่ 5 ถัดไป', () => {
     const s = insuranceStatus(emp({ startDate: '2026-10-10' }), site(), rules);
     expect(s.eligible).toBe(true);
-    expect(s.eligibleDate).toBe('2026-11-09');
+    expect(s.eligibleDate).toBe('2026-11-08');
     expect(s.enrollCycleDate).toBe('2026-12-05');
   });
   it('ครบสิทธิวันที่ 5 พอดี → เข้ารอบนั้นเลย', () => {
-    const s = insuranceStatus(emp({ startDate: '2026-10-06' }), site(), rules);
+    const s = insuranceStatus(emp({ startDate: '2026-10-07' }), site(), rules);
     expect(s.eligibleDate).toBe('2026-11-05');
     expect(s.enrollCycleDate).toBe('2026-11-05');
+  });
+  it('ครบสิทธิหลังวันที่ 5 → รอบเดือนถัดไป', () => {
+    const s = insuranceStatus(emp({ startDate: '2026-10-08' }), site(), rules);
+    expect(s.eligibleDate).toBe('2026-11-06');
+    expect(s.enrollCycleDate).toBe('2026-12-05');
+  });
+  it('อายุครบ 65 ระหว่างเป็นสมาชิก → แจ้งออกรอบถัดไป', () => {
+    const s = insuranceStatus(emp({ startDate: '2020-01-01', birthDate: '1961-11-20' }), site(), rules);
+    expect(s.eligible).toBe(true);
+    expect(s.exitReason).toBe('AGE');
+    expect(s.exitDate).toBe('2026-11-20');
+    expect(s.exitCycleDate).toBe('2026-12-05');
+  });
+  it('อายุครบ 65 ก่อนรอบแจ้งเข้า → ไม่มีสิทธิ', () => {
+    const s = insuranceStatus(emp({ startDate: '2026-10-10', birthDate: '1961-11-20' }), site(), rules);
+    expect(s.eligible).toBe(false);
+  });
+  it('ขาดงานแล้วกลับมาทำงาน (ตั้งวันเริ่มงานใหม่) → แจ้งเข้าใหม่ แม้เคยแจ้งเข้า/ออกไปแล้ว', () => {
+    const e = emp({ id: 7, startDate: '2026-09-07' });
+    const old = [
+      { id: 1, cycleDate: '2026-03-05', items: [{ employeeId: 7, type: 'IN' }] },
+      { id: 2, cycleDate: '2026-08-05', items: [{ employeeId: 7, type: 'OUT' }] },
+    ];
+    const row = buildInsuranceCycle('2026-11-05', [e], [site()], rules, old).rows.find((r) => r.type === 'IN');
+    expect(row.submitted).toBe(false);
+    expect(row.effectiveDate).toBe('2026-10-06');
+  });
+  it('พ้นสภาพก่อนอายุครบ 65 → ใช้วันพ้นสภาพ', () => {
+    const s = insuranceStatus(
+      emp({ startDate: '2020-01-01', birthDate: '1961-11-20', status: 'INACTIVE', endReason: 'RESIGN', endDate: '2026-10-31', lastWorkingDate: '2026-10-30' }),
+      site(),
+      rules,
+    );
+    expect(s.exitReason).toBe('RESIGN');
+    expect(s.exitDate).toBe('2026-10-31');
   });
   it('Pro Site สัญญา 3% → ไม่มีสิทธิ', () => {
     const s = insuranceStatus(
@@ -58,10 +93,14 @@ describe('ประกันกลุ่ม', () => {
     );
     expect(s.eligible).toBe(false);
   });
-  it('รายวัน CNS ไม่อยู่ในเงื่อนไข', () => {
-    expect(insuranceStatus(emp({ companyCode: 'CNS', employeeType: 'DAILY' }), site(), rules).eligible).toBe(false);
+  it('รายวัน CNS / CIC / PRO ได้ประกันกลุ่มเมื่อครบ 120 วัน', () => {
+    for (const companyCode of ['CNS', 'CIC', 'PRO']) {
+      const s = insuranceStatus(emp({ companyCode, employeeType: 'DAILY', startDate: '2026-01-01' }), site(), rules);
+      expect(s.eligible).toBe(true);
+      expect(s.eligibleDate).toBe('2026-04-30');
+    }
   });
-  it('อายุ 66 ณ รอบแจ้งเข้า → ไม่มีสิทธิ / อายุ 65 ยังได้', () => {
+  it('อายุครบ 65 ก่อนรอบแจ้งเข้า → ไม่มีสิทธิ / ยังไม่ครบ 65 ณ รอบแจ้งเข้า → ได้', () => {
     expect(insuranceStatus(emp({ birthDate: '1960-01-01' }), site(), rules).eligible).toBe(false);
     expect(insuranceStatus(emp({ birthDate: '1961-03-01' }), site(), rules).eligible).toBe(true);
   });
@@ -100,15 +139,16 @@ describe('ชุดฟอร์ม', () => {
   it('Support Line ระดับ 7 → rule 2 (2/1)', () => {
     expect(matchUniformRule(emp({ level: 7 }), rules.uniform)?.id).toBe(2);
   });
-  it('CIC BU ส่วนกลาง ระดับ 7 → ไม่พบกฎ', () => {
-    expect(matchUniformRule(emp({ companyCode: 'CIC', deptGroup: 'BU ส่วนกลาง', level: 7 }), rules.uniform)).toBeNull();
+  it('CIC BU ส่วนกลาง ระดับ 7 → กฎ 19 (1 ตัว) · ระดับ 10 → ไม่พบกฎ (สูงสุดระดับ 9)', () => {
+    expect(matchUniformRule(emp({ companyCode: 'CIC', deptGroup: 'BU ส่วนกลาง', level: 7 }), rules.uniform)?.id).toBe(19);
+    expect(matchUniformRule(emp({ companyCode: 'CIC', deptGroup: 'BU ส่วนกลาง', level: 10 }), rules.uniform)).toBeNull();
   });
   it('Pro Site ตำแหน่งไม่อยู่ในรายการ → ตำแหน่งอื่นๆ / วิศวกร → rule 17', () => {
     const pro = { companyCode: 'PRO', employeeType: 'PRO_SITE', deptGroup: null, level: null };
     expect(matchUniformRule(emp({ ...pro, position: 'ธุรการ' }), rules.uniform)?.id).toBe(18);
     expect(matchUniformRule(emp({ ...pro, position: 'วิศวกร' }), rules.uniform)?.id).toBe(17);
   });
-  it('ช่างทีมโมบาย site สีน้ำเงิน → POLO_NAVY, จำนวน "2+1"', () => {
+  it('ช่างทีมโมบาย site สีน้ำเงิน → POLO_NAVY, เริ่มงาน = ชุดช่าง 2 + โปโล 1 + รองเท้า 1', () => {
     const e = emp({
       companyCode: 'PRO',
       employeeType: 'PRO_SITE',
@@ -119,7 +159,18 @@ describe('ชุดฟอร์ม', () => {
     });
     const u = uniformStatus(e, site({ poloColor: 'NAVY' }), rules, [], TODAY);
     expect(u.entitlements[0].items).toContain('POLO_NAVY');
-    expect(u.entitlements[0].qtyLabel).toBe('2+1');
+    expect(u.entitlements[0].itemQty).toEqual({ POLO_NAVY: 1, TECH_SHIRT: 2, TECH_PANTS: 2, SAFETY_SHOES: 1 });
+  });
+  it('หน่วยงานตั้งชุดฟอร์มทับกฎ → ใช้จำนวนของหน่วยงานแทนทั้งชุด', () => {
+    const e = emp({ companyCode: 'PRO', employeeType: 'PRO_SITE', deptGroup: null, level: null, position: 'ช่างทีมโมบาย', startDate: '2026-10-10' });
+    const s = site({
+      poloColor: 'NAVY',
+      uniformOverrides: [{ ruleId: 16, quantities: { START: { POLO_BLACK: 3, TECH_SHIRT: 0 }, PROBATION: {}, ANNUAL: {} } }],
+    });
+    const u = uniformStatus(e, s, rules, [], TODAY);
+    expect(u.siteOverride).toBe(true);
+    expect(u.entitlements.length).toBe(1);
+    expect(u.entitlements[0].itemQty).toEqual({ POLO_NAVY: 3 });
   });
   it('ประจำปี: ทุก 1 ม.ค. หลังผ่านทดลองงาน ย้อนหลังไม่เกิน 3 ปี', () => {
     const u = uniformStatus(

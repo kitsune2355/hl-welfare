@@ -12,10 +12,39 @@ function map_company($r)
     return array('code' => $r['code'], 'name' => $r['name'], 'legalName' => $r['legal_name']);
 }
 
-function map_site($r)
+function map_site($r, $overrides = array())
 {
     return array('id' => (int)$r['id'], 'companyCode' => $r['company_code'], 'name' => $r['name'],
-        'hasGroupInsurance' => (bool)$r['has_group_insurance'], 'poloColor' => $r['polo_color']);
+        'hasGroupInsurance' => (bool)$r['has_group_insurance'], 'poloColor' => $r['polo_color'],
+        'uniformOverrides' => $overrides);
+}
+
+/** มีตารางนี้ไหม (จำผลไว้ต่อคำขอ) — ใช้กับตารางของ migration ที่อาจยังไม่ได้รัน */
+function db_table_exists($table)
+{
+    static $seen = array();
+    if (!isset($seen[$table])) {
+        $seen[$table] = db_value('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+            array($table)) > 0;
+    }
+    return $seen[$table];
+}
+
+/**
+ * ชุดฟอร์มที่หน่วยงานตั้งทับกฎ: site_id => [{ruleId, quantities}] เรียงตามกฎ
+ * ยังไม่ได้รัน migration 007 (ไม่มีตาราง) → ไม่มีของหน่วยงาน
+ */
+function repo_site_overrides($siteId = null)
+{
+    if (!db_table_exists('site_uniform_overrides')) { return array(); }
+    $rows = $siteId === null
+        ? db_all('SELECT * FROM site_uniform_overrides ORDER BY site_id, rule_id')
+        : db_all('SELECT * FROM site_uniform_overrides WHERE site_id = ? ORDER BY rule_id', array((int)$siteId));
+    $out = array();
+    foreach ($rows as $o) {
+        $out[(int)$o['site_id']][] = array('ruleId' => (int)$o['rule_id'], 'quantities' => json_in($o['quantities'], array()));
+    }
+    return $out;
 }
 
 function map_employee($r)
@@ -57,15 +86,20 @@ function repo_companies()
 
 function repo_sites()
 {
+    $over = repo_site_overrides();
     $out = array();
-    foreach (db_all('SELECT * FROM sites ORDER BY id') as $r) { $out[] = map_site($r); }
+    foreach (db_all('SELECT * FROM sites ORDER BY id') as $r) {
+        $out[] = map_site($r, isset($over[(int)$r['id']]) ? $over[(int)$r['id']] : array());
+    }
     return $out;
 }
 
 function repo_site($id)
 {
     $r = db_one('SELECT * FROM sites WHERE id = ?', array((int)$id));
-    return $r ? map_site($r) : null;
+    if (!$r) { return null; }
+    $over = repo_site_overrides((int)$id);
+    return map_site($r, isset($over[(int)$id]) ? $over[(int)$id] : array());
 }
 
 function repo_employees()
@@ -81,12 +115,29 @@ function repo_employee($id)
     return $r ? map_employee($r) : null;
 }
 
-/** RuleSet = { insurance, uniform, uniformItems, settings } */
-function repo_rules()
+/**
+ * ฉบับ (revision) ของกฎ — id = รหัสกฎ (rule_key) คงที่ทุกฉบับ · ยังไม่ได้รัน 007 = 1 แถว 1 ฉบับ (id ของแถว)
+ * ดู domain/rule_versions.php
+ */
+function map_rule_revision($r, $rule)
+{
+    $versioned = array_key_exists('rule_key', $r);
+    $head = array(
+        'id' => $versioned ? (int)$r['rule_key'] : (int)$r['id'],
+        'revisionId' => (int)$r['id'],
+        'effectiveFrom' => $versioned ? $r['effective_from'] : RULE_EPOCH,
+        'deleted' => $versioned ? (bool)$r['is_deleted'] : false,
+    );
+    unset($rule['id']);
+    return array_merge($head, $rule);
+}
+
+/** ฉบับทั้งหมดของกฎ { insurance, uniform, settings } — หน้าเงื่อนไขสวัสดิการ (ประวัติ + รอมีผล) */
+function repo_rule_revisions()
 {
     $ins = array();
     foreach (db_all('SELECT * FROM insurance_rules ORDER BY id') as $r) {
-        $ins[] = array(
+        $ins[] = map_rule_revision($r, array(
             'id' => (int)$r['id'],
             'employeeType' => $r['employee_type'],
             'companies' => json_in($r['companies'], null),
@@ -94,39 +145,69 @@ function repo_rules()
             'excludeContracts' => json_in($r['exclude_contracts'], array()),
             'requireSiteInsurance' => (bool)$r['require_site_insurance'],
             'note' => $r['note'],
-        );
+            'updatedBy' => $r['updated_by'],
+        ));
     }
     $uni = array();
     foreach (db_all('SELECT * FROM uniform_rules ORDER BY id') as $r) {
-        $u = array(
-            'id' => (int)$r['id'],
-            'employeeType' => $r['employee_type'],
-            'companies' => json_in($r['companies'], array()),
-            'deptGroups' => json_in($r['dept_groups'], null),
-            'position' => $r['position'],
-            'levelMin' => int_or_null($r['level_min']),
-            'levelMax' => int_or_null($r['level_max']),
-            'style' => $r['style'],
-            'logo' => $r['logo'],
-            'items' => json_in($r['items'], array()),
-            'poloBySite' => (bool)$r['polo_by_site'],
-            'qtyStart' => (int)$r['qty_start'],
-            'qtyStartLabel' => $r['qty_start_label'],
-            'qtyProbation' => (int)$r['qty_probation'],
-            'qtyAnnual' => (int)$r['qty_annual'],
-            'note' => $r['note'],
+        $uni[] = map_rule_revision($r, map_uniform_rule_row($r));
+    }
+    $settings = array();
+    foreach (db_all('SELECT * FROM settings') as $r) {
+        $settings[] = array(
+            'key' => $r['key'],
+            'value' => is_numeric($r['value']) ? num($r['value']) : $r['value'],
+            'effectiveFrom' => array_key_exists('effective_from', $r) ? $r['effective_from'] : RULE_EPOCH,
+            'updatedBy' => $r['updated_by'],
         );
-        $uni[] = $u;
+    }
+    return array('insurance' => $ins, 'uniform' => $uni, 'settings' => $settings);
+}
+
+/** RuleSet = { insurance, uniform, uniformItems, settings } ที่มีผล ณ วันนี้ (ไม่ส่ง updatedBy — หน้าตาเดียวกับ MockApi) */
+function repo_rules()
+{
+    $rev = repo_rule_revisions();
+    $today = today_iso();
+    $strip = array();
+    foreach (array('insurance', 'uniform') as $k) {
+        $strip[$k] = array();
+        foreach (active_rules($rev[$k], $today) as $r) {
+            unset($r['updatedBy']);
+            $strip[$k][] = $r;
+        }
     }
     $items = array();
     foreach (db_all('SELECT * FROM uniform_items ORDER BY sort_order, code') as $r) {
         $items[] = array('code' => $r['code'], 'name' => $r['name']);
     }
-    $settings = array();
-    foreach (db_all('SELECT * FROM settings') as $r) {
-        $settings[$r['key']] = is_numeric($r['value']) ? num($r['value']) : $r['value'];
-    }
-    return array('insurance' => $ins, 'uniform' => $uni, 'uniformItems' => $items, 'settings' => $settings);
+    return array('insurance' => $strip['insurance'], 'uniform' => $strip['uniform'], 'uniformItems' => $items,
+        'settings' => active_settings($rev['settings'], $today));
+}
+
+function map_uniform_rule_row($r)
+{
+    return array(
+        'id' => (int)$r['id'],
+        'employeeType' => $r['employee_type'],
+        'companies' => json_in($r['companies'], array()),
+        'deptGroups' => json_in($r['dept_groups'], null),
+        'position' => $r['position'],
+        'levelMin' => int_or_null($r['level_min']),
+        'levelMax' => int_or_null($r['level_max']),
+        'style' => $r['style'],
+        'logo' => $r['logo'],
+        'items' => json_in($r['items'], array()),
+        'poloBySite' => (bool)$r['polo_by_site'],
+        // จำนวนต่อรายการต่อรอบ (migration 007) — ยังไม่มีคอลัมน์ = null → domain แปลงจากจำนวนรวม
+        'quantities' => array_key_exists('quantities', $r) ? json_in($r['quantities'], null) : null,
+        'qtyStart' => (int)$r['qty_start'],
+        'qtyStartLabel' => $r['qty_start_label'],
+        'qtyProbation' => (int)$r['qty_probation'],
+        'qtyAnnual' => (int)$r['qty_annual'],
+        'note' => $r['note'],
+        'updatedBy' => $r['updated_by'],
+    );
 }
 
 /** InsuranceBatch[] เรียงตาม id (items เรียงตาม seq) */

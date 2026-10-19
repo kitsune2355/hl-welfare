@@ -79,6 +79,67 @@ function is_handed_out($issue)
     return !is_stock_issue($issue) || in_array($issue['stock']['stage'], array('ISSUED', 'RECEIVED'), true);
 }
 
+/** รอบแจกชุดฟอร์ม เรียงตามลำดับเวลา */
+function uniform_events() { return array('START', 'PROBATION', 'ANNUAL'); }
+
+/**
+ * จำนวนต่อรายการต่อรอบของกฎ: { START: { TECH_SHIRT: 2, POLO_BLACK: 1 }, PROBATION: {...}, ANNUAL: {...} }
+ * กฎรุ่นก่อนที่ไม่มี quantities: ทุกรายการได้ตามจำนวนของรอบ ยกเว้นรองเท้า 1 คู่
+ */
+function rule_quantities($rule)
+{
+    if (isset($rule['quantities']) && $rule['quantities'] !== null) { return $rule['quantities']; }
+    $legacy = array('START' => 'qtyStart', 'PROBATION' => 'qtyProbation', 'ANNUAL' => 'qtyAnnual');
+    $out = array();
+    foreach (uniform_events() as $ev) {
+        $n = isset($rule[$legacy[$ev]]) ? (int)$rule[$legacy[$ev]] : 0;
+        $m = array();
+        foreach ($rule['items'] as $c) { $m[$c] = $n > 0 ? ($c === 'SAFETY_SHOES' ? 1 : $n) : 0; }
+        $out[$ev] = $m;
+    }
+    return $out;
+}
+
+/** หน่วยงานตั้งชุดฟอร์มทับกฎข้อนี้ไว้ไหม — คืน quantities ของหน่วยงาน หรือ null */
+function site_override($rule, $site)
+{
+    if (!$site || !isset($site['uniformOverrides'])) { return null; }
+    foreach ($site['uniformOverrides'] as $o) {
+        if ((int)$o['ruleId'] === (int)$rule['id']) { return $o['quantities']; }
+    }
+    return null;
+}
+
+/**
+ * จำนวนที่ใช้จริงที่หน่วยงานนี้ — หน่วยงานตั้งทับกฎไว้ = ใช้ของหน่วยงานแทนทั้งชุด
+ * ตัดรายการที่เป็น 0 ออก และแทนโปโลด้วยสีของหน่วยงานถ้ากฎระบุ poloBySite
+ */
+function site_quantities($rule, $site)
+{
+    $over = site_override($rule, $site);
+    $base = $over !== null ? $over : rule_quantities($rule);
+    $polo = ($site && $site['poloColor'] === 'NAVY') ? 'POLO_NAVY' : 'POLO_BLACK';
+    $out = array();
+    foreach (uniform_events() as $ev) {
+        $m = array();
+        $src = isset($base[$ev]) && is_array($base[$ev]) ? $base[$ev] : array();
+        foreach ($src as $code => $n) {
+            if (!($n > 0)) { continue; }
+            $c = ($rule['poloBySite'] && strpos($code, 'POLO') === 0) ? $polo : $code;
+            $m[$c] = (isset($m[$c]) ? $m[$c] : 0) + (int)$n;
+        }
+        $out[$ev] = $m;
+    }
+    return $out;
+}
+
+function sum_qty($m)
+{
+    $s = 0;
+    foreach ($m as $n) { $s += $n; }
+    return $s;
+}
+
 function uniform_status($emp, $site, $rules, $issues, $today)
 {
     $rule = match_uniform_rule($emp, $rules['uniform']);
@@ -91,13 +152,14 @@ function uniform_status($emp, $site, $rules, $issues, $today)
             'ruleId' => null,
             'style' => null,
             'logo' => null,
+            'siteOverride' => false,
             'reasons' => array($typeCovered
                 ? 'ไม่พบกฎชุดฟอร์มที่ตรงกับบริษัท/กลุ่ม/ระดับของพนักงาน (รอ HR ยืนยัน)'
                 : 'ประเภทพนักงานนี้ไม่อยู่ในเงื่อนไขชุดฟอร์ม'),
             'entitlements' => array(),
         );
     }
-    $items = resolve_items($rule, $site);
+    $quantities = site_quantities($rule, $site);
     $style = resolve_style($rule, $site);
     $limit = min_date($emp['endDate'], $today);
     $mine = array();
@@ -105,22 +167,22 @@ function uniform_status($emp, $site, $rules, $issues, $today)
         if ($i['employeeId'] === $emp['id']) { $mine[] = $i; }
     }
     $ents = array();
-    $add = array();   // [key, event, dueDate, qty, qtyLabel]
-    if ($rule['qtyStart'] > 0 && strcmp($emp['startDate'], $limit) <= 0) {
-        $add[] = array('START', 'START', $emp['startDate'], $rule['qtyStart'],
-            $rule['qtyStartLabel'] !== null ? $rule['qtyStartLabel'] : (string)$rule['qtyStart']);
+    $add = array();   // [key, event, dueDate]
+    if (sum_qty($quantities['START']) > 0 && strcmp($emp['startDate'], $limit) <= 0) {
+        $add[] = array('START', 'START', $emp['startDate']);
     }
+    // ผ่านทดลองงานก่อนเสมอ ถึงจะได้รอบผ่านโปรและรอบประจำปี (HR ยืนยัน)
     $pass = $emp['probationPassDate'];
-    if ($pass && strcmp($pass, $limit) <= 0 && $rule['qtyProbation'] > 0) {
-        $add[] = array('PROBATION', 'PROBATION', $pass, $rule['qtyProbation'], (string)$rule['qtyProbation']);
+    if ($pass && strcmp($pass, $limit) <= 0 && sum_qty($quantities['PROBATION']) > 0) {
+        $add[] = array('PROBATION', 'PROBATION', $pass);
     }
-    if ($pass && $rule['qtyAnnual'] > 0) {
+    if ($pass && sum_qty($quantities['ANNUAL']) > 0) {
         $month = str_pad2($rules['settings']['uniformAnnualMonth']);
         $lastYear = year_of($limit);
         for ($y = max(year_of($pass), $lastYear - ANNUAL_LOOKBACK_YEARS + 1); $y <= $lastYear; $y++) {
             $due = $y . '-' . $month . '-01';
             if (strcmp($due, $pass) > 0 && strcmp($due, $limit) <= 0) {
-                $add[] = array('ANNUAL-' . $y, 'ANNUAL', $due, $rule['qtyAnnual'], (string)$rule['qtyAnnual']);
+                $add[] = array('ANNUAL-' . $y, 'ANNUAL', $due);
             }
         }
     }
@@ -130,13 +192,15 @@ function uniform_status($emp, $site, $rules, $issues, $today)
             if ($i['entitlementKey'] === $a[0]) { $issue = $i; break; }
         }
         $stock = ($issue && isset($issue['stock'])) ? $issue['stock'] : null;
+        $itemQty = $quantities[$a[1]];
         $ents[] = array(
             'key' => $a[0],
             'event' => $a[1],
             'dueDate' => $a[2],
-            'qty' => $a[3],
-            'qtyLabel' => $a[4],
-            'items' => $items,
+            'qty' => sum_qty($itemQty),
+            'qtyLabel' => (string)sum_qty($itemQty),
+            'items' => array_keys($itemQty),
+            'itemQty' => $itemQty,
             'style' => $style,
             'issued' => $issue !== null && is_handed_out($issue),
             'requested' => $issue !== null && !is_handed_out($issue),
@@ -145,8 +209,8 @@ function uniform_status($emp, $site, $rules, $issues, $today)
             'stock' => $stock,
         );
     }
-    return array('ruleId' => $rule['id'], 'style' => $style, 'logo' => uniform_logo($rule, $emp), 'reasons' => array(),
-        'entitlements' => $ents);
+    return array('ruleId' => $rule['id'], 'style' => $style, 'logo' => uniform_logo($rule, $emp),
+        'siteOverride' => site_override($rule, $site) !== null, 'reasons' => array(), 'entitlements' => $ents);
 }
 
 /** สิทธิสวัสดิการทั้งหมดของพนักงาน 1 คน (= benefitsOf ใน eligibility.js) */

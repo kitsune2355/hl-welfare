@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="assets/css/app.css" />
+    <link rel="stylesheet" href="assets/css/rules.css" />
     <script>
       // ธีม + ตรวจการเข้าสู่ระบบก่อนแสดงหน้า (ยังไม่ login → ไปหน้า login.html)
       try {
@@ -19,32 +20,23 @@
     </script>
   </head>
   <body>
-    <!-- rules.html?tab=insurance|uniform|settings|open -->
-    <main id="page" class="page">
+    <!-- rules.html?tab=insurance|uniform|settings|pending -->
+    <main id="page" class="page fit">
       <div class="page-head">
         <div>
           <h1>เงื่อนไขสวัสดิการ</h1>
-          <p>อ้างอิงไฟล์ “เงื่อนไขสวัสดิการ 15.10.69” — ดูอย่างเดียว (แก้ไขผ่านหน้าจอในเฟส 3)</p>
+          <p>แก้กฎได้ทันที หรือตั้งล่วงหน้าด้วย “วันที่มีผล” — การแจ้งประกันและการแจกชุดที่ทำไปแล้วไม่เปลี่ยนตาม</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary" id="add" style="display:none"><i data-icon="plus"></i> <span id="add-label">เพิ่มกฎ</span></button>
         </div>
       </div>
 
+      <div id="notice"></div>
       <div id="tabs"></div>
-      <div id="content"><div class="skeleton sk-block"></div></div>
-
-      <!-- ประเด็นที่ต้องยืนยันกับ HR — แก้ข้อความในไฟล์นี้ได้โดยตรง -->
-      <template id="open-questions">
-        <li>“ทำงานครบ 30/120 วัน” นับวันปฏิทินหรือวันทำงาน? นับวันเริ่มงานเป็นวันที่ 1 ไหม? (ระบบตอนนี้: วันเริ่มงาน + N วันปฏิทิน)</li>
-        <li>ครบสิทธิหลังวันที่ 5 → เข้ารอบเดือนถัดไปใช่ไหม?</li>
-        <li>อายุ 65 ตรวจเฉพาะตอนแจ้งเข้า หรือต้องแจ้งออกเมื่ออายุครบ 65 ระหว่างเป็นสมาชิกด้วย?</li>
-        <li>ขาดงาน 3 วันแล้วกลับมาทำงาน → แจ้งเข้าใหม่ + นับอายุงานใหม่ไหม?</li>
-        <li>พนักงานรายวัน CNS / CIC / PRO ได้ประกันกลุ่มไหม (ไฟล์ระบุแค่ HL, AS)?</li>
-        <li>ชุดฟอร์มส่วนกลาง: ช่อง “วันเริ่มงาน” ว่าง = ไม่ได้จนกว่าจะผ่านทดลองงาน ใช่ไหม?</li>
-        <li>ช่างทีมโมบาย “2+1” = ชุดช่าง 2 + โปโล 1 ใช่ไหม?</li>
-        <li>แจกชุดประจำปีเดือนไหน และต้องทำงานครบกี่เดือนก่อนรอบแจก?</li>
-        <li>CIC ระดับ 6 ขึ้นไป ได้ชุดฟอร์มกี่ตัว?</li>
-        <li>แม่บ้าน CNS และพนักงานรายวัน ได้ชุดฟอร์มไหม?</li>
-        <li>ระดับพนักงาน “6 ขึ้นไป” สูงสุดถึงระดับเท่าไร?</li>
-      </template>
+      <section class="card fill" id="panel">
+        <div id="content" class="fill-body"><div class="skeleton sk-block"></div></div>
+      </section>
     </main>
     <script type="module" src="assets/js/pages/rules.js"></script>
   </body>

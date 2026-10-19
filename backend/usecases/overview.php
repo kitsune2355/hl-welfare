@@ -25,6 +25,7 @@ function build_uniform_pending($employees, $sites, $rules, $issues, $today)
                 'event' => $e['event'],
                 'dueDate' => $e['dueDate'],
                 'qtyLabel' => $e['qtyLabel'],
+                'itemQty' => $e['itemQty'],
                 'style' => $e['style'],
             );
         }
@@ -113,7 +114,7 @@ function __cmp_task($a, $b)
 function build_work_queue($today, $employees, $sites, $rules, $batches, $issues)
 {
     $siteById = by_key($sites, 'id');
-    $sent = sent_index($batches);
+    $sent = sent_index($batches, $employees);
     $tasks = array();
     foreach ($employees as $e) {
         $st = insurance_status($e, isset($siteById[$e['siteId']]) ? $siteById[$e['siteId']] : null, $rules);
@@ -131,7 +132,7 @@ function build_work_queue($today, $employees, $sites, $rules, $batches, $issues)
             );
         }
         if ($st['eligible'] && $st['exitDate'] && $st['exitCycleDate'] && !isset($sent['OUT'][$e['id']])) {
-            $reason = $e['endReason'] ? label_end_reason($e['endReason']) : 'พ้นสภาพ';
+            $reason = insurance_exit_reason_text($e, $st, $rules['settings']);
             if ($st['exitUrgent']) {
                 $tasks[] = array(
                     'id' => 'INSURANCE_URGENT:' . $e['id'],

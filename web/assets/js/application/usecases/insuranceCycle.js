@@ -13,10 +13,21 @@ export function batchCounts(b) {
   return { in: n('IN'), out: n('OUT'), urgent: n('URGENT'), total: b.items.length };
 }
 
-/** employeeId → batch ที่แจ้งไปแล้ว แยกตามทิศทาง (URGENT นับเป็น OUT) */
-export function sentIndex(batches) {
+/**
+ * employeeId → batch ที่แจ้งไปแล้ว แยกตามทิศทาง (URGENT นับเป็น OUT)
+ * ส่ง employees มาด้วย = นับเฉพาะการแจ้งของการจ้างงานรอบปัจจุบัน (รอบส่ง >= วันเริ่มงาน)
+ * พนักงานที่ขาดงานแล้วกลับมาทำงาน HR ตั้งวันเริ่มงานใหม่ → ต้องแจ้งเข้าใหม่ได้ ประวัติเดิมยังอยู่
+ */
+export function sentIndex(batches, employees = null) {
+  const startOf = employees ? new Map(employees.map((e) => [e.id, e.startDate])) : null;
   const idx = { IN: new Map(), OUT: new Map() };
-  for (const b of batches) for (const it of b.items) idx[directionOf(it.type)].set(it.employeeId, b);
+  for (const b of batches) {
+    for (const it of b.items) {
+      const start = startOf?.get(it.employeeId);
+      if (start && b.cycleDate < start) continue;
+      idx[directionOf(it.type)].set(it.employeeId, b);
+    }
+  }
   return idx;
 }
 
@@ -27,7 +38,7 @@ export function sentIndex(batches) {
  * - พนักงานรายวันอยู่ในรอบของตัวเอง (วันที่ 6) แยกจากประเภทอื่น (วันที่ 5)
  */
 export function buildInsuranceCycle(cycleDate, employees, sites, rules, batches) {
-  const sent = sentIndex(batches);
+  const sent = sentIndex(batches, employees);
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const rows = [];
   for (const emp of employees) {
@@ -54,7 +65,7 @@ export function buildInsuranceCycle(cycleDate, employees, sites, rules, batches)
         employee: emp,
         type,
         effectiveDate: st.exitDate,
-        reason: emp.endReason ? END_REASON_LABEL[emp.endReason] : 'พ้นสภาพ',
+        reason: st.exitReason === 'AGE' ? `อายุครบ ${rules.settings.insuranceMaxAge} ปี` : emp.endReason ? END_REASON_LABEL[emp.endReason] : 'พ้นสภาพ',
         submitted: !!outBatch,
       });
     }

@@ -19,7 +19,7 @@ function __company_name_map($companies)
 /** รายชื่อที่ต้องอยู่ในไฟล์ของบริษัทประกัน รอบ cycleDate = ยังไม่ส่งออก + ส่งออกให้บริษัทนี้ในรอบนี้แล้ว */
 function build_insurer_export($cycleDate, $insurer, $employees, $sites, $rules, $batches, $companies)
 {
-    $sent = sent_index($batches);
+    $sent = sent_index($batches, $employees);
     $siteById = by_key($sites, 'id');
     $codes = array();
     foreach ($insurer['companies'] as $c) { $codes[] = $c['companyCode']; }

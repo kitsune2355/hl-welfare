@@ -44,13 +44,20 @@ function age_at($birth, $at)
     return $ay - $by - (($am < $bm || ($am === $bm && $ad < $bd)) ? 1 : 0);
 }
 
-/** วันที่ `day` แรกของเดือนที่ >= d (รอบแจ้งประกัน) */
+/**
+ * วันที่ `day` แรกของเดือนที่ >= d (รอบแจ้งประกัน)
+ * คิดจากตัวเลขตรง ๆ ไม่ผ่าน timestamp — รอบแจ้งออกเพราะอายุครบ 65 อาจเลยปี 2038
+ * ซึ่ง timestamp 32 บิตของ PHP 5.2 บน Windows เก็บไม่ได้ (day ไม่เกิน 28 จึงมีทุกเดือน)
+ */
 function next_cycle_date($d, $day = 5)
 {
     $p = explode('-', $d);
     $y = (int)$p[0]; $m = (int)$p[1]; $dd = (int)$p[2];
-    $target = $dd <= $day ? gmmktime(0, 0, 0, $m, $day, $y) : gmmktime(0, 0, 0, $m + 1, $day, $y);
-    return date_to_iso($target);
+    if ($dd > $day) {
+        $m++;
+        if ($m > 12) { $m = 1; $y++; }
+    }
+    return sprintf('%04d-%02d-%02d', $y, $m, (int)$day);
 }
 
 function min_date($a, $b)

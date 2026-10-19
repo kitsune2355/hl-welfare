@@ -349,7 +349,7 @@ function api_batch_submit($req, $params)
         if (!isset($byId[(int)$id])) { throw new ApiError('ไม่พบพนักงาน', 404); }
         $items[] = array('employeeId' => (int)$id, 'type' => $type);
     }
-    $sent = sent_index(repo_batches());
+    $sent = sent_index(repo_batches(), array_values($byId));
     $already = 0;
     foreach ($items as $it) {
         if (isset($sent[$type === 'IN' ? 'IN' : 'OUT'][$it['employeeId']])) { $already++; }

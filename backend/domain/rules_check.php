@@ -48,7 +48,11 @@ function validate_employee($e)
     $type = arr_get($e, 'employeeType');
     if ($type === 'CENTRAL') {
         if (!arr_get($e, 'deptGroup')) { $x['deptGroup'] = 'กรุณาเลือกกลุ่ม/ฝ่าย'; }
-        if (!(is_numeric(arr_get($e, 'level')) && (float)$e['level'] >= 1)) { $x['level'] = 'ระดับต้องเป็นตัวเลข ≥ 1'; }
+        // ระดับพนักงาน 1–9 (HR ยืนยันสูงสุดระดับ 9)
+        $lv = arr_get($e, 'level');
+        if (!(is_numeric($lv) && (float)$lv === floor((float)$lv) && (float)$lv >= 1 && (float)$lv <= 9)) {
+            $x['level'] = 'ระดับต้องเป็นตัวเลข 1–9';
+        }
     }
     if ($type === 'PRO_SITE' && str_trim(arr_get($e, 'position', '')) === '') { $x['position'] = 'กรุณาระบุตำแหน่ง'; }
     if (arr_get($e, 'status') === 'INACTIVE') {

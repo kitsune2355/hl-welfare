@@ -116,6 +116,31 @@ export class HttpApi {
   cancelUniformIssue(id) {
     return this.del(`/uniform/issues/${id}`);
   }
+  // ---------- แก้เงื่อนไขสวัสดิการ (มีวันที่มีผล) · backend/api/rules_edit.php ----------
+  getRuleHistory() {
+    return this.req('/rules/history');
+  }
+  createRule(kind, rule) {
+    return this.send('POST', `/rules/${kind}`, rule);
+  }
+  updateRule(kind, id, rule) {
+    return this.send('PUT', `/rules/${kind}/${id}`, rule);
+  }
+  retireRule(kind, id, effectiveFrom) {
+    return this.req(`/rules/${kind}/${id}?effectiveFrom=${encodeURIComponent(effectiveFrom)}`, { method: 'DELETE' });
+  }
+  cancelRuleRevision(kind, revisionId) {
+    return this.req(`/rules/${kind}/revisions/${revisionId}`, { method: 'DELETE' });
+  }
+  saveRuleSettings(input) {
+    return this.send('PUT', '/rules/settings', input);
+  }
+  cancelSettingChange(key, date) {
+    return this.req(`/rules/settings/${encodeURIComponent(key)}/${date}`, { method: 'DELETE' });
+  }
+  saveSiteUniform(siteId, overrides) {
+    return this.send('PUT', `/sites/${siteId}/uniform`, { overrides });
+  }
   // ---------- ส่งเบิกผ่านระบบสต็อก Uniform (PHP เป็นคนเซ็นคำขอและคุยกับ stock_hr) ----------
   getUniformStockOptions(employeeId, entitlementKey) {
     return this.req(`/uniform/stock-options?employeeId=${employeeId}&entitlementKey=${encodeURIComponent(entitlementKey)}`);

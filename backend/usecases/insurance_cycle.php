@@ -29,14 +29,34 @@ function batch_counts($b)
     return $c;
 }
 
-/** employeeId → batch ที่แจ้งไปแล้ว แยกตามทิศทาง (URGENT นับเป็น OUT) — batch หลังทับ batch ก่อน (เหมือน Map.set) */
-function sent_index($batches)
+/**
+ * employeeId → batch ที่แจ้งไปแล้ว แยกตามทิศทาง (URGENT นับเป็น OUT) — batch หลังทับ batch ก่อน (เหมือน Map.set)
+ * ส่ง employees มาด้วย = นับเฉพาะการแจ้งของการจ้างงานรอบปัจจุบัน (รอบส่ง >= วันเริ่มงาน)
+ * พนักงานที่ขาดงานแล้วกลับมาทำงาน HR ตั้งวันเริ่มงานใหม่ → ต้องแจ้งเข้าใหม่ได้ ประวัติเดิมยังอยู่
+ */
+function sent_index($batches, $employees = null)
 {
+    $startOf = null;
+    if ($employees !== null) {
+        $startOf = array();
+        foreach ($employees as $e) { $startOf[$e['id']] = $e['startDate']; }
+    }
     $idx = array('IN' => array(), 'OUT' => array());
     foreach ($batches as $b) {
-        foreach ($b['items'] as $it) { $idx[direction_of($it['type'])][$it['employeeId']] = $b; }
+        foreach ($b['items'] as $it) {
+            if ($startOf !== null && isset($startOf[$it['employeeId']])
+                && strcmp($b['cycleDate'], $startOf[$it['employeeId']]) < 0) { continue; }
+            $idx[direction_of($it['type'])][$it['employeeId']] = $b;
+        }
     }
     return $idx;
+}
+
+/** เหตุผลของแถวแจ้งออก — อายุครบ / เหตุผลพ้นสภาพ */
+function insurance_exit_reason_text($emp, $st, $settings)
+{
+    if ($st['exitReason'] === 'AGE') { return 'อายุครบ ' . $settings['insuranceMaxAge'] . ' ปี'; }
+    return $emp['endReason'] ? label_end_reason($emp['endReason']) : 'พ้นสภาพ';
 }
 
 function __cmp_effective($a, $b) { return str_cmp($a['effectiveDate'], $b['effectiveDate']); }
@@ -44,7 +64,7 @@ function __cmp_effective($a, $b) { return str_cmp($a['effectiveDate'], $b['effec
 /** รายการแจ้งประกันของรอบ cycleDate */
 function build_insurance_cycle($cycleDate, $employees, $sites, $rules, $batches)
 {
-    $sent = sent_index($batches);
+    $sent = sent_index($batches, $employees);
     $siteById = by_key($sites, 'id');
     $rows = array();
     foreach ($employees as $emp) {
@@ -71,7 +91,7 @@ function build_insurance_cycle($cycleDate, $employees, $sites, $rules, $batches)
                 'employee' => $emp,
                 'type' => $type,
                 'effectiveDate' => $st['exitDate'],
-                'reason' => $emp['endReason'] ? label_end_reason($emp['endReason']) : 'พ้นสภาพ',
+                'reason' => insurance_exit_reason_text($emp, $st, $rules['settings']),
                 'submitted' => $outBatch !== null,
             );
         }

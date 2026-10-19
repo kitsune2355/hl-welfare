@@ -22,7 +22,7 @@ const RANK = { critical: 0, warning: 1, info: 2 };
  */
 export function buildWorkQueue(today, employees, sites, rules, batches, issues) {
   const siteById = new Map(sites.map((s) => [s.id, s]));
-  const sent = sentIndex(batches);
+  const sent = sentIndex(batches, employees);
   const tasks = [];
   const overdue = (due) => Math.max(0, diffDays(due, today));
   const cycleSeverity = (due) =>
@@ -43,7 +43,7 @@ export function buildWorkQueue(today, employees, sites, rules, batches, issues) 
       });
     }
     if (st.eligible && st.exitDate && st.exitCycleDate && !sent.OUT.has(e.id)) {
-      const reason = e.endReason ? END_REASON_LABEL[e.endReason] : 'พ้นสภาพ';
+      const reason = st.exitReason === 'AGE' ? `อายุครบ ${rules.settings.insuranceMaxAge} ปี` : e.endReason ? END_REASON_LABEL[e.endReason] : 'พ้นสภาพ';
       if (st.exitUrgent) {
         tasks.push({
           id: `INSURANCE_URGENT:${e.id}`,

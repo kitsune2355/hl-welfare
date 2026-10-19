@@ -1,4 +1,4 @@
-import { addDays, ageAt, nextCycleDate } from './date.js';
+import { addDays, addMonths, nextCycleDate } from './date.js';
 
 /** วันที่รอบแจ้งประกันของพนักงาน — รายวันส่งแยกทุกวันที่ 6 (ตั้งค่าได้) · ประเภทอื่นทุกวันที่ 5 */
 export function cycleDayOf(emp, settings) {
@@ -21,8 +21,24 @@ export function findInsuranceRule(emp, rules) {
   );
 }
 
-/** วันมีผลออกจากประกันกลุ่ม — null ถ้ายังไม่พ้นสภาพ */
+/** วันที่อายุครบ N ปี (วันเกิดปีที่ N) — 29 ก.พ. ปีไม่อธิกสุรทินเลื่อนเป็น 1 มี.ค. ทั้งสองฝั่ง */
+export const birthdayAt = (birthDate, years) => addMonths(birthDate, years * 12);
+
+/**
+ * วันมีผลออกจากประกันกลุ่ม — null ถ้ายังไม่พ้นสภาพและอายุยังไม่ครบ
+ * อายุครบ insuranceMaxAge ระหว่างเป็นสมาชิก → แจ้งออกรอบถัดไป (exitReason = 'AGE')
+ * ถ้ามีทั้งพ้นสภาพและอายุครบ ใช้วันที่มาก่อน
+ */
 export function insuranceExit(emp, settings) {
+  const job = employmentExit(emp, settings);
+  const ageDate = birthdayAt(emp.birthDate, settings.insuranceMaxAge);
+  if (job && job.exitDate <= ageDate) return job;
+  if (!job && emp.status === 'INACTIVE') return null;
+  return { exitDate: ageDate, exitCycleDate: nextCycleDate(ageDate, cycleDayOf(emp, settings)), exitUrgent: false, exitReason: 'AGE' };
+}
+
+/** วันมีผลออกเพราะพ้นสภาพ — null ถ้ายังไม่พ้นสภาพ */
+function employmentExit(emp, settings) {
   if (!emp.endReason && !emp.endDate) return null;
   const day = cycleDayOf(emp, settings);
   switch (emp.endReason) {
@@ -30,19 +46,19 @@ export function insuranceExit(emp, settings) {
     case 'MISCONDUCT': {
       const exitDate = emp.endDate ?? emp.lastWorkingDate;
       if (!exitDate) return null;
-      return { exitDate, exitCycleDate: exitDate, exitUrgent: true };
+      return { exitDate, exitCycleDate: exitDate, exitUrgent: true, exitReason: emp.endReason };
     }
     case 'ABSENT_3D': {
       const base = emp.lastWorkingDate ?? emp.endDate;
       if (!base) return null;
       const exitDate = addDays(base, settings.absentExtraDays);
-      return { exitDate, exitCycleDate: nextCycleDate(exitDate, day), exitUrgent: false };
+      return { exitDate, exitCycleDate: nextCycleDate(exitDate, day), exitUrgent: false, exitReason: emp.endReason };
     }
     default: {
       // RESIGN หรือพ้นสภาพโดยไม่ระบุเหตุผล
       const exitDate = emp.endDate ?? emp.lastWorkingDate;
       if (!exitDate) return null;
-      return { exitDate, exitCycleDate: nextCycleDate(exitDate, day), exitUrgent: false };
+      return { exitDate, exitCycleDate: nextCycleDate(exitDate, day), exitUrgent: false, exitReason: emp.endReason ?? null };
     }
   }
 }
@@ -57,6 +73,7 @@ export function insuranceStatus(emp, site, rules) {
     exitDate: null,
     exitCycleDate: null,
     exitUrgent: false,
+    exitReason: null,
     ruleId: null,
     ...partial,
   });
@@ -68,8 +85,12 @@ export function insuranceStatus(emp, site, rules) {
   if (rule.requireSiteInsurance && !site?.hasGroupInsurance) {
     return none('หน่วยงานนี้ไม่ได้รับประกันกลุ่ม', { ruleId: rule.id });
   }
-  const eligibleDate = addDays(emp.startDate, rule.waitDays);
+  // นับวันเริ่มงานเป็นวันที่ 1 (HR ยืนยัน) — ทำงานครบ 30 วัน = วันเริ่มงาน + 29
+  const eligibleDate = addDays(emp.startDate, rule.waitDays - 1);
   const enrollCycleDate = nextCycleDate(eligibleDate, cycleDayOf(emp, settings));
+  if (birthdayAt(emp.birthDate, settings.insuranceMaxAge) <= enrollCycleDate) {
+    return none(`อายุครบ ${settings.insuranceMaxAge} ปีก่อนถึงรอบแจ้งเข้า`, { ruleId: rule.id, eligibleDate });
+  }
   const exit = insuranceExit(emp, settings);
   if (exit && exit.exitDate < enrollCycleDate) {
     return none('พ้นสภาพก่อนถึงรอบแจ้งเข้า — ไม่ต้องแจ้งเข้า/ออก', {
@@ -77,9 +98,6 @@ export function insuranceStatus(emp, site, rules) {
       eligibleDate,
       enrollCycleDate,
     });
-  }
-  if (ageAt(emp.birthDate, enrollCycleDate) > settings.insuranceMaxAge) {
-    return none(`อายุเกิน ${settings.insuranceMaxAge} ปี ณ รอบแจ้งเข้า`, { ruleId: rule.id, eligibleDate });
   }
   return {
     eligible: true,
@@ -89,6 +107,7 @@ export function insuranceStatus(emp, site, rules) {
     exitDate: exit?.exitDate ?? null,
     exitCycleDate: exit?.exitCycleDate ?? null,
     exitUrgent: exit?.exitUrgent ?? false,
+    exitReason: exit?.exitReason ?? null,
     ruleId: rule.id,
   };
 }

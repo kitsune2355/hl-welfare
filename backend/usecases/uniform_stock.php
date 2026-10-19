@@ -9,9 +9,13 @@ function stock_ref($employeeId, $entitlementKey)
     return $employeeId . ':' . $entitlementKey;
 }
 
-/** จำนวนตั้งต้นต่อรายการ: รองเท้า 1 คู่ นอกนั้นตามจำนวนของสิทธิ์ */
-function default_line_qty($itemCode, $qty)
+/**
+ * จำนวนตั้งต้นต่อรายการ = จำนวนต่อรายการของสิทธิ์ (ent.itemQty — ตามกฎหรือที่หน่วยงานตั้งทับ)
+ * สิทธิ์รุ่นก่อนที่ไม่มี itemQty: รองเท้า 1 คู่ นอกนั้นตามจำนวนรวม
+ */
+function default_line_qty($itemCode, $qty, $itemQty = null)
 {
+    if (is_array($itemQty) && isset($itemQty[$itemCode])) { return $itemQty[$itemCode]; }
     return $itemCode === 'SAFETY_SHOES' ? 1 : $qty;
 }
 
@@ -44,7 +48,7 @@ function build_stock_options($ent, $catalog, $emp)
             $variants[] = array('subCategoryId' => $v['sub_category_id'], 'label' => $v['variant_label'],
                 'name' => $v['sub_category_name'], 'products' => $products);
         }
-        $items[] = array('itemCode' => $code, 'qty' => default_line_qty($code, $ent['qty']), 'variants' => $variants,
+        $items[] = array('itemCode' => $code, 'qty' => default_line_qty($code, $ent['qty'], arr_get($ent, 'itemQty')), 'variants' => $variants,
             'variantIndex' => __preferred_variant($variants, arr_get($emp, 'gender')));
     }
     $d = arr_get($catalog, 'department');

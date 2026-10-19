@@ -55,6 +55,52 @@ export const STOCK_HANDED_OUT = ['ISSUED', 'RECEIVED'];
 export const isStockIssue = (issue) => issue.source === 'STOCK';
 export const isHandedOut = (issue) => !isStockIssue(issue) || STOCK_HANDED_OUT.includes(issue.stock.stage);
 
+/** รอบแจกชุดฟอร์ม เรียงตามลำดับเวลา */
+export const UNIFORM_EVENTS = ['START', 'PROBATION', 'ANNUAL'];
+const LEGACY_QTY = { START: 'qtyStart', PROBATION: 'qtyProbation', ANNUAL: 'qtyAnnual' };
+
+/**
+ * จำนวนต่อรายการต่อรอบของกฎ: { START: { TECH_SHIRT: 2, POLO_BLACK: 1 }, PROBATION: {...}, ANNUAL: {...} }
+ * กฎรุ่นก่อนที่ไม่มี quantities: ทุกรายการได้ตามจำนวนของรอบ ยกเว้นรองเท้า 1 คู่
+ */
+export function ruleQuantities(rule) {
+  if (rule.quantities) return rule.quantities;
+  const out = {};
+  for (const ev of UNIFORM_EVENTS) {
+    const n = rule[LEGACY_QTY[ev]] ?? 0;
+    out[ev] = Object.fromEntries(rule.items.map((c) => [c, n > 0 ? (c === 'SAFETY_SHOES' ? 1 : n) : 0]));
+  }
+  return out;
+}
+
+/** หน่วยงานตั้งชุดฟอร์มทับกฎข้อนี้ไว้ไหม — คืน quantities ของหน่วยงาน หรือ null */
+export function siteOverride(rule, site) {
+  return site?.uniformOverrides?.find((o) => o.ruleId === rule.id)?.quantities ?? null;
+}
+
+/**
+ * จำนวนที่ใช้จริงที่หน่วยงานนี้ — หน่วยงานตั้งทับกฎไว้ = ใช้ของหน่วยงานแทนทั้งชุด
+ * ตัดรายการที่เป็น 0 ออก และแทนโปโลด้วยสีของหน่วยงานถ้ากฎระบุ poloBySite
+ * @returns {{START: Object<string, number>, PROBATION: Object<string, number>, ANNUAL: Object<string, number>}}
+ */
+export function siteQuantities(rule, site) {
+  const base = siteOverride(rule, site) ?? ruleQuantities(rule);
+  const polo = site?.poloColor === 'NAVY' ? 'POLO_NAVY' : 'POLO_BLACK';
+  const out = {};
+  for (const ev of UNIFORM_EVENTS) {
+    const m = {};
+    for (const [code, n] of Object.entries(base[ev] ?? {})) {
+      if (!(n > 0)) continue;
+      const c = rule.poloBySite && code.startsWith('POLO') ? polo : code;
+      m[c] = (m[c] ?? 0) + n;
+    }
+    out[ev] = m;
+  }
+  return out;
+}
+
+const sumQty = (m) => Object.values(m).reduce((s, n) => s + n, 0);
+
 export function uniformStatus(emp, site, rules, issues, today) {
   const rule = matchUniformRule(emp, rules.uniform);
   if (!rule) {
@@ -63,6 +109,7 @@ export function uniformStatus(emp, site, rules, issues, today) {
       ruleId: null,
       style: null,
       logo: null,
+      siteOverride: false,
       reasons: [
         typeCovered
           ? 'ไม่พบกฎชุดฟอร์มที่ตรงกับบริษัท/กลุ่ม/ระดับของพนักงาน (รอ HR ยืนยัน)'
@@ -71,20 +118,22 @@ export function uniformStatus(emp, site, rules, issues, today) {
       entitlements: [],
     };
   }
-  const items = resolveItems(rule, site);
+  const quantities = siteQuantities(rule, site);
   const style = resolveStyle(rule, site);
   const limit = minDate(emp.endDate, today);
   const mine = issues.filter((i) => i.employeeId === emp.id);
   const ents = [];
-  const push = (key, event, dueDate, qty, qtyLabel) => {
+  const push = (key, event, dueDate) => {
     const issue = mine.find((i) => i.entitlementKey === key);
+    const itemQty = quantities[event];
     ents.push({
       key,
       event,
       dueDate,
-      qty,
-      qtyLabel,
-      items,
+      qty: sumQty(itemQty),
+      qtyLabel: String(sumQty(itemQty)),
+      items: Object.keys(itemQty),
+      itemQty,
       style,
       issued: !!issue && isHandedOut(issue),
       requested: !!issue && !isHandedOut(issue),
@@ -93,20 +142,28 @@ export function uniformStatus(emp, site, rules, issues, today) {
       stock: issue?.stock ?? null,
     });
   };
-  if (rule.qtyStart > 0 && emp.startDate <= limit) {
-    push('START', 'START', emp.startDate, rule.qtyStart, rule.qtyStartLabel ?? String(rule.qtyStart));
+  if (sumQty(quantities.START) > 0 && emp.startDate <= limit) {
+    push('START', 'START', emp.startDate);
   }
+  // ผ่านทดลองงานก่อนเสมอ ถึงจะได้รอบผ่านโปรและรอบประจำปี (HR ยืนยัน)
   const pass = emp.probationPassDate;
-  if (pass && pass <= limit && rule.qtyProbation > 0) {
-    push('PROBATION', 'PROBATION', pass, rule.qtyProbation, String(rule.qtyProbation));
+  if (pass && pass <= limit && sumQty(quantities.PROBATION) > 0) {
+    push('PROBATION', 'PROBATION', pass);
   }
-  if (pass && rule.qtyAnnual > 0) {
+  if (pass && sumQty(quantities.ANNUAL) > 0) {
     const month = String(rules.settings.uniformAnnualMonth).padStart(2, '0');
     const lastYear = yearOf(limit);
     for (let y = Math.max(yearOf(pass), lastYear - ANNUAL_LOOKBACK_YEARS + 1); y <= lastYear; y++) {
       const due = `${y}-${month}-01`;
-      if (due > pass && due <= limit) push(`ANNUAL-${y}`, 'ANNUAL', due, rule.qtyAnnual, String(rule.qtyAnnual));
+      if (due > pass && due <= limit) push(`ANNUAL-${y}`, 'ANNUAL', due);
     }
   }
-  return { ruleId: rule.id, style, logo: uniformLogo(rule, emp), reasons: [], entitlements: ents };
+  return {
+    ruleId: rule.id,
+    style,
+    logo: uniformLogo(rule, emp),
+    siteOverride: siteOverride(rule, site) !== null,
+    reasons: [],
+    entitlements: ents,
+  };
 }

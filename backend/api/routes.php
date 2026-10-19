@@ -34,6 +34,15 @@ function api_routes()
     router_add($r, 'DELETE', '/employees/{id}', 'api_employee_delete');
     router_add($r, 'GET', '/employees/{id}/benefits', 'api_employee_benefits');
     router_add($r, 'GET', '/rules', 'api_rules');
+    /* แก้เงื่อนไขสวัสดิการแบบมีวันที่มีผล · api/rules_edit.php (สิทธิ์ rules.edit — ตรวจใน handler) */
+    router_add($r, 'GET', '/rules/history', 'api_rules_history');
+    router_add($r, 'PUT', '/rules/settings', 'api_rule_settings_save');
+    router_add($r, 'DELETE', '/rules/settings/{key}/{date}', 'api_rule_setting_cancel');
+    router_add($r, 'DELETE', '/rules/{kind}/revisions/{revisionId}', 'api_rule_revision_cancel');
+    router_add($r, 'POST', '/rules/{kind}', 'api_rule_create');
+    router_add($r, 'PUT', '/rules/{kind}/{id}', 'api_rule_update');
+    router_add($r, 'DELETE', '/rules/{kind}/{id}', 'api_rule_delete');
+    router_add($r, 'PUT', '/sites/{id}/uniform', 'api_site_uniform_save');
 
     router_add($r, 'GET', '/insurance/cycles/{date}', 'api_insurance_cycle');
     router_add($r, 'GET', '/insurance/batches', 'api_batches');

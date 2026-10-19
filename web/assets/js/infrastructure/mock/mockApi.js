@@ -9,6 +9,10 @@ import { buildWorkQueue } from '../../application/usecases/workQueue.js';
 import { todayISO } from '../../domain/date.js';
 import { benefitsOf, uniformStatus } from '../../domain/eligibility.js';
 import { isHandedOut, isStockIssue } from '../../domain/uniform.js';
+import { activeRules, activeSettings, RULE_EPOCH, ruleTimeline, toRevisions } from '../../domain/ruleVersions.js';
+import { UNIFORM_EVENTS } from '../../domain/uniform.js';
+import { quantitiesError, validateInsuranceRule, validateSettings, validateUniformRule } from '../../application/ruleRules.js';
+import { withTotals } from './rules.js';
 import { CONFIG } from '../../config.js';
 import { StockGateway } from '../http/stockGateway.js';
 import { BATCH_TYPE_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
@@ -33,7 +37,7 @@ function load(today) {
         }
         s.db.batches = mergeLegacyBatches(s.db.batches ?? []);
         // พนักงานรายวันส่งแจ้งแยกทุกวันที่ 6
-        s.db.rules.settings.insuranceCycleDayDaily ??= 6;
+        if (!s.db.ruleHistory) s.db.rules.settings.insuranceCycleDayDaily ??= 6;
         return s.db;
       }
     }
@@ -44,6 +48,16 @@ function load(today) {
 }
 
 const nextId = (xs) => Math.max(0, ...xs.map((x) => x.id)) + 1;
+const nextIdBy = (xs, key) => Math.max(0, ...xs.map((x) => x[key])) + 1;
+
+/** ฉบับของกฎ (มีวันที่มีผล) จากกฎชุดเดียว — seed / ข้อมูลรุ่นก่อนที่ยังไม่มีประวัติ */
+function ruleHistoryOf(rules) {
+  return {
+    insurance: toRevisions(rules.insurance),
+    uniform: toRevisions(rules.uniform),
+    settings: Object.entries(rules.settings).map(([key, value]) => ({ key, value, effectiveFrom: RULE_EPOCH })),
+  };
+}
 
 /** ข้อมูลเดิม: ประวัติแยกตามประเภท ({type, employeeIds}) → รวมเป็นการส่งออกครั้งเดียว (รอบ + บริษัทประกัน + เวลาเดียวกัน) */
 function mergeLegacyBatches(list) {
@@ -83,15 +97,32 @@ export class MockApi {
     this.today = today;
     this.stock = stock;
     this.db = load(this.today());
+    this.db.ruleHistory ??= ruleHistoryOf(this.db.rules);
+    this.syncRules();
   }
   // ---------- helpers ----------
+  /** db.rules = กฎที่มีผล ณ วันนี้ จากฉบับทั้งหมด (= repo_rules ฝั่ง PHP) — เรียกก่อนทุกคำสั่ง เพราะกฎที่ตั้งล่วงหน้าถึงวันมีผลได้ */
+  syncRules() {
+    // db ที่ถูกแทนทั้งก้อน (เช่น scripts/export-seed.mjs ใส่ buildSeed() ตรง ๆ) ยังไม่มีประวัติ
+    this.db.ruleHistory ??= ruleHistoryOf(this.db.rules);
+    const h = this.db.ruleHistory;
+    const today = this.today();
+    this.db.rules = {
+      insurance: activeRules(h.insurance, today),
+      uniform: activeRules(h.uniform, today),
+      uniformItems: this.db.rules.uniformItems,
+      settings: activeSettings(h.settings, today),
+    };
+  }
   async run(fn) {
     await new Promise((r) => setTimeout(r, LATENCY_MS));
+    this.syncRules();
     return structuredClone(fn());
   }
   /** แบบ run สำหรับคำสั่งที่ต้องรอระบบสต็อก */
   async runAsync(fn) {
     await new Promise((r) => setTimeout(r, LATENCY_MS));
+    this.syncRules();
     return structuredClone(await fn());
   }
   persist() {
@@ -160,7 +191,7 @@ export class MockApi {
       if (this.db.sites.some((s) => s.companyCode === input.companyCode && s.name === input.name.trim())) {
         throw new ApiError('มีหน่วยงานชื่อนี้ในบริษัทแล้ว', 409);
       }
-      const site = { ...input, name: input.name.trim(), id: nextId(this.db.sites) };
+      const site = { ...input, name: input.name.trim(), id: nextId(this.db.sites), uniformOverrides: [] };
       this.db.sites.push(site);
       this.log('SITE', 'CREATE', site.id, `เพิ่มหน่วยงาน “${site.name}” (${site.companyCode})`);
       this.persist();
@@ -259,6 +290,130 @@ export class MockApi {
   getRules() {
     return this.run(() => this.db.rules);
   }
+  // ---------- แก้เงื่อนไขสวัสดิการ (มีวันที่มีผล) = backend/api/rules_edit.php ----------
+  ruleHistoryPayload() {
+    const h = this.db.ruleHistory;
+    const today = this.today();
+    return {
+      today,
+      insurance: ruleTimeline(h.insurance, today),
+      uniform: ruleTimeline(h.uniform, today),
+      settings: h.settings,
+      uniformItems: this.db.rules.uniformItems,
+    };
+  }
+  getRuleHistory() {
+    return this.run(() => this.ruleHistoryPayload());
+  }
+  /** ตรวจ + จัดรูปกฎ (items/จำนวนรวมของกฎชุดฟอร์มคำนวณจาก quantities) */
+  cleanRule(kind, rule) {
+    const ctx = { companies: this.db.companies.map((c) => c.code), items: this.db.rules.uniformItems.map((i) => i.code) };
+    const x = kind === 'insurance' ? validateInsuranceRule(rule, ctx) : validateUniformRule(rule, ctx);
+    if (Object.keys(x).length) throw new ApiError('ข้อมูลกฎไม่ถูกต้อง', 422, x);
+    const { effectiveFrom: _e, id: _i, revisionId: _r, deleted: _d, updatedBy: _u, ...r } = rule;
+    if (kind === 'insurance') return { ...r, waitDays: Number(r.waitDays), note: (r.note ?? '').trim() };
+    const items = [...new Set(UNIFORM_EVENTS.flatMap((ev) => Object.keys(r.quantities[ev] ?? {})))];
+    return withTotals({ ...r, items, note: (r.note ?? '').trim(), style: r.style.trim() });
+  }
+  /** เพิ่ม/แก้ฉบับ — ฉบับของกฎเดียวกันวันเดียวกันมีอยู่แล้ว = แก้ฉบับนั้น */
+  writeRevision(kind, id, effectiveFrom, rule, deleted) {
+    const list = this.db.ruleHistory[kind];
+    const same = list.find((r) => r.id === id && r.effectiveFrom === effectiveFrom);
+    if (same) Object.assign(same, rule, { id, effectiveFrom, deleted, updatedBy: this.actor });
+    else list.push({ ...rule, id, revisionId: nextIdBy(list, 'revisionId'), effectiveFrom, deleted, updatedBy: this.actor });
+  }
+  createRule(kind, rule) {
+    return this.run(() => {
+      const r = this.cleanRule(kind, rule);
+      const id = nextId(this.db.ruleHistory[kind]);
+      const from = rule.effectiveFrom || this.today();
+      this.writeRevision(kind, id, from, r, false);
+      this.log('RULE', 'CREATE', `${kind}-${id}`, `เพิ่ม${kind === 'insurance' ? 'กฎประกันกลุ่ม' : 'กฎชุดฟอร์ม'} #${id} มีผล ${from}`);
+      this.persist();
+      return this.ruleHistoryPayload();
+    });
+  }
+  updateRule(kind, id, rule) {
+    return this.run(() => {
+      if (!this.db.ruleHistory[kind].some((r) => r.id === id)) throw new ApiError('ไม่พบกฎ', 404);
+      const from = rule.effectiveFrom || this.today();
+      this.writeRevision(kind, id, from, this.cleanRule(kind, rule), false);
+      this.log('RULE', 'UPDATE', `${kind}-${id}`, `แก้${kind === 'insurance' ? 'กฎประกันกลุ่ม' : 'กฎชุดฟอร์ม'} #${id} มีผล ${from}`);
+      this.persist();
+      return this.ruleHistoryPayload();
+    });
+  }
+  retireRule(kind, id, effectiveFrom) {
+    return this.run(() => {
+      const mine = this.db.ruleHistory[kind].filter((r) => r.id === id);
+      if (!mine.length) throw new ApiError('ไม่พบกฎ', 404);
+      const last = mine.reduce((a, b) => (b.effectiveFrom > a.effectiveFrom || (b.effectiveFrom === a.effectiveFrom && b.revisionId > a.revisionId) ? b : a));
+      const { id: _i, revisionId: _r, effectiveFrom: _e, deleted: _d, updatedBy: _u, ...values } = last;
+      const from = effectiveFrom || this.today();
+      this.writeRevision(kind, id, from, values, true);
+      this.log('RULE', 'DELETE', `${kind}-${id}`, `เลิกใช้${kind === 'insurance' ? 'กฎประกันกลุ่ม' : 'กฎชุดฟอร์ม'} #${id} ตั้งแต่ ${from}`);
+      this.persist();
+      return this.ruleHistoryPayload();
+    });
+  }
+  cancelRuleRevision(kind, revisionId) {
+    return this.run(() => {
+      const list = this.db.ruleHistory[kind];
+      const rev = list.find((r) => r.revisionId === revisionId);
+      if (!rev) throw new ApiError('ไม่พบการเปลี่ยนแปลงนี้', 404);
+      if (rev.effectiveFrom <= this.today()) throw new ApiError('ฉบับนี้มีผลแล้ว ยกเลิกไม่ได้ — แก้กฎเป็นฉบับใหม่แทน', 409);
+      this.db.ruleHistory[kind] = list.filter((r) => r !== rev);
+      this.log('RULE', 'CANCEL', `${kind}-${rev.id}`, `ยกเลิกการเปลี่ยนกฎ #${rev.id} ที่จะมีผล ${rev.effectiveFrom}`);
+      this.persist();
+      return this.ruleHistoryPayload();
+    });
+  }
+  saveRuleSettings({ effectiveFrom, values }) {
+    return this.run(() => {
+      const x = validateSettings(values ?? {});
+      if (Object.keys(x).length) throw new ApiError('ค่าตั้งค่าไม่ถูกต้อง', 422, x);
+      const from = effectiveFrom || this.today();
+      const rows = this.db.ruleHistory.settings;
+      for (const [key, v] of Object.entries(values)) {
+        if (from <= this.today() && Number(this.db.rules.settings[key]) === Number(v)) continue;
+        const same = rows.find((s) => s.key === key && s.effectiveFrom === from);
+        if (same) same.value = Number(v);
+        else rows.push({ key, value: Number(v), effectiveFrom: from, updatedBy: this.actor });
+      }
+      this.log('RULE', 'UPDATE', 'SETTINGS', `แก้ค่าตั้งค่า (มีผล ${from})`);
+      this.persist();
+      return this.ruleHistoryPayload();
+    });
+  }
+  cancelSettingChange(key, date) {
+    return this.run(() => {
+      if (date <= this.today()) throw new ApiError('ค่านี้มีผลแล้ว ยกเลิกไม่ได้ — ตั้งค่าใหม่แทน', 409);
+      const rows = this.db.ruleHistory.settings;
+      if (!rows.some((s) => s.key === key && s.effectiveFrom === date)) throw new ApiError('ไม่พบการเปลี่ยนแปลงนี้', 404);
+      this.db.ruleHistory.settings = rows.filter((s) => !(s.key === key && s.effectiveFrom === date));
+      this.persist();
+      return this.ruleHistoryPayload();
+    });
+  }
+  saveSiteUniform(siteId, overrides) {
+    return this.run(() => {
+      const s = this.db.sites.find((x) => x.id === siteId);
+      if (!s) throw new ApiError('ไม่พบหน่วยงาน', 404);
+      const items = this.db.rules.uniformItems.map((i) => i.code);
+      const x = {};
+      overrides.forEach((o, i) => {
+        const rule = this.db.rules.uniform.find((r) => r.id === o.ruleId);
+        if (!rule) x[`overrides.${i}`] = 'ไม่พบกฎชุดฟอร์ม';
+        else if (!rule.companies.includes(s.companyCode)) x[`overrides.${i}`] = `กฎ #${rule.id} ไม่ใช่ของบริษัท ${s.companyCode}`;
+        else if (quantitiesError(o.quantities, items)) x[`overrides.${i}`] = quantitiesError(o.quantities, items);
+      });
+      if (Object.keys(x).length) throw new ApiError('ข้อมูลชุดฟอร์มของหน่วยงานไม่ถูกต้อง', 422, x);
+      s.uniformOverrides = overrides.map((o) => ({ ruleId: o.ruleId, quantities: o.quantities }));
+      this.log('SITE', 'UPDATE', s.id, `ตั้งชุดฟอร์มของหน่วยงาน “${s.name}”: ${overrides.length ? `${overrides.length} กฎ` : 'ใช้ตามกฎกลางทั้งหมด'}`);
+      this.persist();
+      return s;
+    });
+  }
   // ---------- Insurance ----------
   getInsuranceCycle(cycleDate) {
     return this.run(() => {
@@ -298,7 +453,7 @@ export class MockApi {
     return this.run(() => {
       if (input.employeeIds.length === 0) throw new ApiError('ไม่มีรายการที่เลือก', 422);
       input.employeeIds.forEach((id) => this.employee(id));
-      const sent = sentIndex(this.db.batches)[input.type === 'IN' ? 'IN' : 'OUT'];
+      const sent = sentIndex(this.db.batches, this.db.employees)[input.type === 'IN' ? 'IN' : 'OUT'];
       const already = input.employeeIds.filter((id) => sent.has(id)).length;
       if (already > 0) throw new ApiError(`มีพนักงานที่ถูกแจ้งไปแล้ว ${already} ราย`, 409);
       const batch = {

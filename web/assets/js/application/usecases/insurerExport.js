@@ -19,7 +19,7 @@ const byCode = (a, b) => a.employee.empCode.localeCompare(b.employee.empCode);
  * = รายการที่ยังไม่ส่งออก (รวมที่ตกค้างจากรอบก่อน) + ที่ส่งออกให้บริษัทประกันนี้ในรอบนี้แล้ว (ส่งออกซ้ำได้)
  */
 export function buildInsurerExport({ cycleDate, insurer, employees, sites, rules, batches, companies = [] }) {
-  const sent = sentIndex(batches);
+  const sent = sentIndex(batches, employees);
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const companyName = new Map(companies.map((c) => [c.code, c.legalName ?? c.name]));
   const codes = new Set(insurer.companies.map((c) => c.companyCode));
