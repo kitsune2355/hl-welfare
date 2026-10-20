@@ -4,6 +4,7 @@
 // คอลัมน์ที่ไม่ต้องการให้กรอง: ใส่ filter: false ในนิยามคอลัมน์
 // ค่าที่ใช้กรอง: text(row) ถ้ามี · ไม่มี = ข้อความที่แสดงในเซลล์
 // ค่าที่ใช้เรียง: sort(row) ถ้ามี (เช่น วันที่ ISO, ตัวเลข) · ไม่มี = ค่าที่ใช้กรอง
+// เรียง: คลิกชื่อหัวคอลัมน์ (headerLabel) วน น้อย→มาก → มาก→น้อย → ไม่เรียง · ลูกศรข้างชื่อ = เรียงอยู่
 // ตัวกรองที่ใช้อยู่: chip เหนือตาราง (filterChips) — กด × ที่ chip = เอาตัวกรองนั้นออก
 // ตรึงคอลัมน์ไว้ด้านซ้าย: ชี้ที่หัวคอลัมน์ → ไอคอนหมุด (headerPinButton) · จำแยกต่อตาราง/ต่อเครื่อง (localStorage hl-pins:<หน้า>#<id ตาราง>)
 // ปรับความกว้างคอลัมน์: ลากขอบขวาของหัวคอลัมน์ (resizeHandle + wireColumnResize) · ดับเบิลคลิกขอบ = กลับเป็นความกว้างเดิม
@@ -152,6 +153,12 @@ export class FilterState {
     this.sort = null;
   }
 
+  /** คลิกชื่อหัวคอลัมน์: ไม่เรียง → น้อย→มาก → มาก→น้อย → ไม่เรียง */
+  cycleSort(key) {
+    const dir = this.sort?.key === key ? this.sort.dir : 0;
+    this.sort = dir === 0 ? { key, dir: 1 } : dir === 1 ? { key, dir: -1 } : null;
+  }
+
   /**
    * @param {any[]} rows
    * @param {(row:any, key:string)=>string} textOf
@@ -171,14 +178,30 @@ export class FilterState {
   }
 }
 
-/** ปุ่มกรวยในหัวคอลัมน์ */
+/** ปุ่มกรวยในหัวคอลัมน์ (สีหลัก = กรองคอลัมน์นี้อยู่ · การเรียงแสดงที่ลูกศรข้างชื่อแทน) */
 export function headerFilterButton(key, label, state) {
   const on = state.filters.has(key);
-  const sorted = state.sort?.key === key ? state.sort.dir : 0;
-  const ic = sorted === 1 ? 'arrow-up-narrow-wide' : sorted === -1 ? 'arrow-down-wide-narrow' : 'funnel';
-  return html`<button type="button" class="th-filter${on || sorted ? ' on' : ''}" data-col-filter="${key}" aria-label="กรอง/เรียง ${label}" title="กรอง / เรียง">
-    ${raw(icon(on && sorted ? 'funnel' : ic))}
+  return html`<button type="button" class="th-filter${on ? ' on' : ''}" data-col-filter="${key}" aria-label="กรอง/เรียง ${label}" title="กรอง / เรียง">
+    ${raw(icon('funnel'))}
   </button>`;
+}
+
+/** สถานะการเรียงของคอลัมน์สำหรับ aria-sort ของ <th> */
+export const ariaSort = (key, state) => (state.sort?.key === key ? (state.sort.dir === 1 ? 'ascending' : 'descending') : 'none');
+
+/**
+ * ชื่อหัวคอลัมน์ที่คลิกแล้วเรียงได้ (ตารางต้องจัดการคลิก [data-col-sort] → state.cycleSort)
+ * @param {string} key @param {any} label ชื่อ (HTML ได้) @param {FilterState} state
+ * @param {{sortable?: boolean, align?: string}} [o] sortable: false = แสดงชื่ออย่างเดียว
+ */
+export function headerLabel(key, label, state, { sortable = true, align = '' } = {}) {
+  const just = align === 'right' ? 'flex-end' : align === 'center' ? 'center' : 'flex-start';
+  if (!sortable) return html`<span class="th-label" style="justify-content:${just}"><span class="truncate">${label}</span></span>`;
+  const dir = state.sort?.key === key ? state.sort.dir : 0;
+  const next = dir === 0 ? 'เรียงน้อย → มาก' : dir === 1 ? 'เรียงมาก → น้อย' : 'ยกเลิกการเรียง';
+  return html`<button type="button" class="th-label th-sort${dir ? ' on' : ''}" style="justify-content:${just}" data-col-sort="${key}" title="คลิกเพื่อ${next}"
+    ><span class="truncate">${label}</span><span class="th-sort-ic" aria-hidden="true">${raw(icon(dir === 1 ? 'arrow-up' : dir === -1 ? 'arrow-down' : 'chevrons-up-down'))}</span></button
+  >`;
 }
 
 /** รายการค่าแบบย่อ: 2 ค่าแรก + "+N" */

@@ -5686,3 +5686,49 @@ body.col-resizing * {
   background: var(--danger-soft);
   color: var(--danger);
 }
+
+/* ชื่อหัวคอลัมน์ = ปุ่มเรียง (คลิกวน น้อย→มาก → มาก→น้อย → ไม่เรียง) — ลูกศรจาง ๆ ตอนชี้ · เรียงอยู่ = ลูกศรสีหลัก */
+.th-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.th-sort {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.th-sort:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.th-sort-ic {
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--th-fg) 55%, transparent);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.th-sort:hover .th-sort-ic,
+.th-sort:focus-visible .th-sort-ic {
+  opacity: 1;
+}
+.th-sort:hover {
+  color: var(--primary);
+}
+.th-sort.on,
+.th-sort.on .th-sort-ic {
+  color: var(--primary);
+  opacity: 1;
+}
+@media (hover: none) {
+  .th-sort-ic {
+    opacity: 0.5;
+  }
+}

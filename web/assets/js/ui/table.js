@@ -16,9 +16,11 @@
 import { html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import {
+  ariaSort,
   filterChips,
   FilterState,
   headerFilterButton,
+  headerLabel,
   headerPinButton,
   loadPins,
   loadWidths,
@@ -175,6 +177,12 @@ export class DataTable {
       if (fb) return this.openFilter(fb);
       const pb = e.target.closest('[data-col-pin]');
       if (pb) return this.togglePin(pb.dataset.colPin);
+      const sb = e.target.closest('[data-col-sort]');
+      if (sb) {
+        this.filter.cycleSort(sb.dataset.colSort);
+        this.page = 1;
+        return this.render();
+      }
       const cf = e.target.closest('[data-clear-filter]');
       if (cf) {
         this.filter.filters.delete(cf.dataset.clearFilter);
@@ -343,11 +351,10 @@ export class DataTable {
             ${columns.map((c) => {
               const named = typeof c.header === 'string' && c.header !== '';
               const sz = this.sizeOf(c.key);
-              return html`<th class="${align(c)} ${c.cls ?? ''}${sz.cls}" style="${sz.style}" data-col="${c.key}">
+              return html`<th class="${align(c)} ${c.cls ?? ''}${sz.cls}" style="${sz.style}" data-col="${c.key}" aria-sort="${ariaSort(c.key, this.filter)}">
                 ${named && !loading
                   ? html`<span class="th-inner"
-                      ><span class="th-label">${c.header}</span
-                      ><span class="th-acts">${headerPinButton(c.key, c.header, this.pins.has(c.key))}${this.canFilter(c) ? headerFilterButton(c.key, c.header, this.filter) : ''}</span></span
+                      >${headerLabel(c.key, c.header, this.filter, { sortable: this.canFilter(c), align: c.align })}<span class="th-acts">${headerPinButton(c.key, c.header, this.pins.has(c.key))}${this.canFilter(c) ? headerFilterButton(c.key, c.header, this.filter) : ''}</span></span
                     >${resizeHandle(c.key)}`
                   : c.header}
               </th>`;

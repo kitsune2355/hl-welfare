@@ -31,8 +31,10 @@ import { esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import {
   FilterState,
+  ariaSort,
   filterChips,
   headerFilterButton,
+  headerLabel,
   headerPinButton,
   loadPins,
   loadWidths,
@@ -502,6 +504,11 @@ export class ExcelGrid {
       if (fb) return this.openFilter(fb);
       const pb = e.target.closest('[data-col-pin]');
       if (pb) return this.togglePin(pb.dataset.colPin);
+      const sb = e.target.closest('[data-col-sort]');
+      if (sb) {
+        this.filter.cycleSort(sb.dataset.colSort);
+        return this.afterFilterChange();
+      }
       const cf = e.target.closest('[data-clear-filter]');
       if (cf) {
         this.filter.filters.delete(cf.dataset.clearFilter);
@@ -748,9 +755,9 @@ export class ExcelGrid {
               <th class="stick-left">#</th>
               ${this.cols.map(
                 (c) =>
-                  html`<th class="${pinCls(c)}" style="${pinStyle(c, 4)}" data-col="${c.key}">
+                  html`<th class="${pinCls(c)}" style="${pinStyle(c, 4)}" data-col="${c.key}" aria-sort="${ariaSort(c.key, this.filter)}">
                     <span class="th-inner"
-                      ><span class="truncate th-label" style="text-align:${c.align === 'right' ? 'right' : c.align === 'center' ? 'center' : 'left'}">${c.header}${c.required ? html`<span class="req">*</span>` : ''}</span>${!loading && c.header
+                      >${headerLabel(c.key, html`${c.header}${c.required ? html`<span class="req">*</span>` : ''}`, this.filter, { sortable: this.canFilter(c) && !loading && !!c.header, align: c.align })}${!loading && c.header
                         ? html`<span class="th-acts">${headerPinButton(c.key, c.header, this.pins.has(c.key))}${this.canFilter(c) ? headerFilterButton(c.key, c.header, this.filter) : ''}</span>`
                         : ''}</span
                     >${c.header ? resizeHandle(c.key) : ''}
