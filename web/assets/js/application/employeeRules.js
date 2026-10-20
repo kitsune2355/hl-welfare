@@ -1,3 +1,4 @@
+import { probationDueDate } from '../domain/employee.js';
 import { digitsOnly, isValidThaiId } from '../domain/thaiId.js';
 
 /** กฎตรวจข้อมูลพนักงาน — ใช้ร่วมกันทั้งฟอร์มและตาราง Excel */
@@ -30,9 +31,13 @@ export function validateEmployee(e) {
   }
   return x;
 }
-/** ทำให้ field ที่ขึ้นกับบริษัท/ประเภทสอดคล้องกัน (เช่น เปลี่ยนบริษัท → เลือกหน่วยงานแรกของบริษัท) */
+/**
+ * ทำให้ field ที่ขึ้นกับบริษัท/ประเภทสอดคล้องกัน (เช่น เปลี่ยนบริษัท → เลือกหน่วยงานแรกของบริษัท)
+ * วันผ่านทดลองงานว่าง → คำนวณให้ = วันเริ่มงาน + 119 วัน
+ */
 export function normalizeEmployee(e, sites) {
   const n = { ...e };
+  if (!n.probationPassDate && n.startDate) n.probationPassDate = probationDueDate(n.startDate);
   if (n.employeeType === 'PRO_SITE' && n.companyCode !== 'PRO') n.employeeType = 'CENTRAL';
   const site = sites.find((s) => s.id === n.siteId);
   if (!site || site.companyCode !== n.companyCode)

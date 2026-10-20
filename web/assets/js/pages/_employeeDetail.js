@@ -7,6 +7,7 @@
 import { api } from '../app/api.js';
 import { refreshCounts } from '../app/shell.js';
 import { diffDays, todayISO } from '../domain/date.js';
+import { ageOf } from '../domain/employee.js';
 import { formatThaiId } from '../domain/thaiId.js';
 import { html, on, raw, render } from '../shared/dom.js';
 import { money, relativeDays, tenure, thaiDate } from '../shared/format.js';
@@ -197,7 +198,7 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
           { label: 'ผ่านทดลองงาน', value: thaiDate(e.probationPassDate) },
           { label: 'อายุงาน', value: tenure(e.startDate, e.endDate ?? today) },
           { label: 'เงินเดือน', value: html`<span class="num">${money(e.salary)} ฿</span>` },
-          { label: 'วันเกิด', value: thaiDate(e.birthDate) },
+          { label: 'วันเกิด / อายุ', value: e.birthDate ? `${thaiDate(e.birthDate)} · ${ageOf(e.birthDate, today)} ปี` : '–' },
           { label: 'คำนำหน้า / เพศ', value: [e.title, GENDER_LABEL[e.gender]].filter(Boolean).join(' · ') || missing() },
           { label: 'เลขบัตรประชาชน', value: e.nationalId ? html`<span class="num">${formatThaiId(e.nationalId)}</span>` : missing() },
           { label: 'โทร / อีเมล', value: [e.phone, e.email].filter(Boolean).join(' · ') || '–' },

@@ -1,11 +1,10 @@
-import { addDays, diffDays, nextCycleDate } from '../../domain/date.js';
+import { diffDays, nextCycleDate } from '../../domain/date.js';
+import { PROBATION_DAYS, probationDueDate } from '../../domain/employee.js';
 import { cycleDayOf, insuranceStatus } from '../../domain/insurance.js';
 import { END_REASON_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
 import { matchUniformRule } from '../../domain/uniform.js';
 import { sentIndex } from './insuranceCycle.js';
 import { buildUniformPending } from './uniformPending.js';
-
-const PROBATION_DAYS = 119;
 
 const UNIFORM_CRITICAL_DAYS = 30;
 
@@ -69,7 +68,7 @@ export function buildWorkQueue(today, employees, sites, rules, batches, issues) 
       }
     }
     if (e.status !== 'ACTIVE') continue;
-    const passDue = addDays(e.startDate, PROBATION_DAYS);
+    const passDue = probationDueDate(e.startDate);
     if (!e.probationPassDate && passDue < today) {
       tasks.push({
         id: `PROBATION_MISSING:${e.id}`,

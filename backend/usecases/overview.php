@@ -88,7 +88,6 @@ function build_dashboard($today, $employees, $sites, $rules, $batches, $issues)
     );
 }
 
-define('PROBATION_DAYS', 119);
 define('UNIFORM_CRITICAL_DAYS', 30);
 define('CYCLE_SOON_DAYS', 7);
 
@@ -158,7 +157,7 @@ function build_work_queue($today, $employees, $sites, $rules, $batches, $issues)
             }
         }
         if ($e['status'] !== 'ACTIVE') { continue; }
-        $passDue = add_days($e['startDate'], PROBATION_DAYS);
+        $passDue = probation_due_date($e['startDate']);
         if (!$e['probationPassDate'] && strcmp($passDue, $today) < 0) {
             $tasks[] = array(
                 'id' => 'PROBATION_MISSING:' . $e['id'],

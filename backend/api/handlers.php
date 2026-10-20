@@ -250,6 +250,7 @@ function api_employee_save($req, $params)
     $u = auth_require($req);
     $id = isset($params['id']) ? param_id($params) : 0;
     $in = employee_input(req_json($req));
+    if (!$in['probationPassDate'] && $in['startDate']) { $in['probationPassDate'] = probation_due_date($in['startDate']); }
     if (!in_array($in['employeeType'], array('CENTRAL', 'PRO_SITE', 'DAILY', 'MAID_CNS'), true)) {
         throw new ApiError('ประเภทพนักงานไม่ถูกต้อง', 422, array('employeeType' => 'ประเภทพนักงานไม่ถูกต้อง'));
     }

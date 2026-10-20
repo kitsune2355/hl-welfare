@@ -4,6 +4,7 @@ import { can, companyChoices, myCompany } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
 import { normalizeEmployee, validateEmployee } from '../application/employeeRules.js';
 import { todayISO } from '../domain/date.js';
+import { ageOf, probationDueDate } from '../domain/employee.js';
 import { digitsOnly, formatThaiId } from '../domain/thaiId.js';
 import { $, debounce, getParam, html, setParams } from '../shared/dom.js';
 import { thaiDate } from '../shared/format.js';
@@ -76,7 +77,14 @@ function fillFilterForm() {
 }
 
 /** แก้ค่า 1 field แล้วจัด field ที่เกี่ยวข้องให้สอดคล้อง (เช่น เปลี่ยนบริษัท → หน่วยงานแรกของบริษัท) */
+const today = todayISO();
 const setField = (key, conv) => (row, v) => normalizeEmployee({ ...row, [key]: conv(v) }, sites);
+/** เปลี่ยนวันเริ่มงาน → วันผ่านทดลองงานเลื่อนตาม (เฉพาะที่ยังเป็นค่าที่ระบบคำนวณ — ที่แก้เองเช่นขยายทดลองงานไม่ถูกทับ) */
+const setStartDate = (row, v) => {
+  const start = str(v);
+  const auto = !row.probationPassDate || row.probationPassDate === probationDueDate(row.startDate);
+  return normalizeEmployee({ ...row, startDate: start, probationPassDate: auto ? probationDueDate(start) : row.probationPassDate }, sites);
+};
 
 const columns = [
   { key: 'empCode', header: 'รหัส', width: 110, required: true, editor: 'text', value: (e) => e.empCode, set: setField('empCode', (v) => str(v).trim()) },
@@ -157,8 +165,11 @@ const columns = [
     set: setField('contractType', str),
   },
   { key: 'birthDate', header: 'วันเกิด', width: 110, required: true, editor: 'date', value: (e) => e.birthDate, display: (e) => (e.birthDate ? thaiDate(e.birthDate) : ''), set: setField('birthDate', str) },
-  { key: 'startDate', header: 'วันเริ่มงาน', width: 110, required: true, editor: 'date', value: (e) => e.startDate, display: (e) => thaiDate(e.startDate), set: setField('startDate', str) },
+  // อายุ: คำนวณจากวันเกิด ณ วันนี้ (แก้ไม่ได้)
+  { key: 'age', header: 'อายุ', width: 70, align: 'right', value: (e) => ageOf(e.birthDate, today), display: (e) => (e.birthDate ? `${ageOf(e.birthDate, today)} ปี` : '') },
+  { key: 'startDate', header: 'วันเริ่มงาน', width: 110, required: true, editor: 'date', value: (e) => e.startDate, display: (e) => thaiDate(e.startDate), set: setStartDate },
   {
+    // คำนวณให้ = วันเริ่มงาน + 119 วัน · แก้เองได้ (เช่น ขยายทดลองงาน) · ล้างค่า = คำนวณใหม่
     key: 'probationPassDate',
     header: 'ผ่านทดลองงาน',
     width: 120,
@@ -254,8 +265,8 @@ function blankEmployee() {
       level: null,
       salary: 0,
       birthDate: '',
-      startDate: todayISO(),
-      probationPassDate: null,
+      startDate: today,
+      probationPassDate: probationDueDate(today),
       status: 'ACTIVE',
       lastWorkingDate: null,
       endDate: null,

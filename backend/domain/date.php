@@ -34,6 +34,15 @@ function diff_days($a, $b)
     return (int)round((date_parse_iso($b) - date_parse_iso($a)) / DAY_SECONDS);
 }
 
+/** ทดลองงาน 119 วัน — วันผ่านทดลองงาน = วันเริ่มงาน + 119 วัน (คู่กับ web/assets/js/domain/employee.js) */
+define('PROBATION_DAYS', 119);
+
+/** วันผ่านทดลองงานที่คำนวณจากวันเริ่มงาน (ไม่มีวันเริ่มงาน = null) */
+function probation_due_date($start)
+{
+    return $start ? add_days($start, PROBATION_DAYS) : null;
+}
+
 /** อายุเต็มปี ณ วันที่ at */
 function age_at($birth, $at)
 {

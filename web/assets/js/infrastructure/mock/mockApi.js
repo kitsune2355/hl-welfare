@@ -7,6 +7,7 @@ import { buildStockOptions, stockChange, stockRef, stockSizes, stockSubmitPayloa
 import { validateBindings, validateInsurerForm } from '../../application/insurerFormRules.js';
 import { buildWorkQueue } from '../../application/usecases/workQueue.js';
 import { todayISO } from '../../domain/date.js';
+import { probationDueDate } from '../../domain/employee.js';
 import { benefitsOf, uniformStatus } from '../../domain/eligibility.js';
 import { isHandedOut, isStockIssue } from '../../domain/uniform.js';
 import { activeRules, activeSettings, RULE_EPOCH, ruleTimeline, toRevisions } from '../../domain/ruleVersions.js';
@@ -249,6 +250,8 @@ export class MockApi {
   }
   saveEmployee(input) {
     return this.run(() => {
+      // วันผ่านทดลองงานว่าง → วันเริ่มงาน + 119 วัน (เหมือน backend)
+      if (!input.probationPassDate && input.startDate) input = { ...input, probationPassDate: probationDueDate(input.startDate) };
       const dup = this.db.employees.find((e) => e.empCode === input.empCode && e.id !== input.id);
       if (dup) throw new ApiError('รหัสพนักงานซ้ำ', 409);
       const site = this.site(input.siteId);
