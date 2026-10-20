@@ -698,7 +698,7 @@ on($('#devices'), 'click', '[data-device]', async (_e, b) => {
 // ===================== สถานะระบบ =====================
 const CHECK_TONE = { ok: 'success', warn: 'warning', error: 'danger' };
 const CHECK_ICON = { ok: 'circle-check', warn: 'alert-triangle', error: 'alert-octagon' };
-const STAGE_LABEL = { REQUESTED: 'รอคลังจ่าย', ISSUED: 'จ่ายแล้ว รอเซ็นรับ', RECEIVED: 'เซ็นรับแล้ว' };
+const STAGE_LABEL = { WAITING: 'รอผู้อนุมัติ', REQUESTED: 'รอคลังจ่าย', ISSUED: 'จ่ายแล้ว รอเซ็นรับ', RECEIVED: 'เซ็นรับแล้ว' };
 
 const stuck = new DataTable($('#stuck'), {
   rowKey: (s) => s.id,

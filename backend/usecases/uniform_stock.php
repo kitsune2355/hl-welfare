@@ -146,11 +146,14 @@ function stock_sizes($stock)
     return count($sizes) ? implode(' · ', $sizes) : '–';
 }
 
-/** 'NONE' | 'UPDATE' | 'ISSUED' | 'RECEIVED' | 'CANCELLED' */
+/** 'NONE' | 'UPDATE' | 'APPROVED' | 'ISSUED' | 'RECEIVED' | 'CANCELLED' (APPROVED = ผู้อนุมัติในสต็อกกดอนุมัติแล้ว) */
 function stock_change($prev, $next)
 {
     if (!$next) { return 'NONE'; }
     if ($next['stage'] === 'CANCELLED') { return 'CANCELLED'; }
-    if ($next['stage'] !== $prev['stage']) { return $next['stage'] === 'REQUESTED' ? 'UPDATE' : $next['stage']; }
+    if ($next['stage'] !== $prev['stage']) {
+        if ($next['stage'] === 'REQUESTED') { return $prev['stage'] === 'WAITING' ? 'APPROVED' : 'UPDATE'; }
+        return $next['stage'] === 'WAITING' ? 'UPDATE' : $next['stage'];
+    }
     return json_encode($next['items']) === json_encode($prev['items']) ? 'NONE' : 'UPDATE';
 }

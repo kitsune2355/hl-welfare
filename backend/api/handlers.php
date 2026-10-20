@@ -703,7 +703,7 @@ function api_stock_request($req, $params)
     $ref = stock_ref($e['id'], $ent['key']);
     $res = stock_call(stock_submit_payload($e, $o['site'], $ent, $o['st']['logo'], $lines, $u));
     $stock = (isset($res['status'][$ref]) && is_array($res['status'][$ref])) ? to_stock_request($ref, $res['status'][$ref])
-        : array('ref' => $ref, 'docId' => arr_get($res, 'doc_id'), 'docNo' => arr_get($res, 'doc_no'), 'stage' => 'REQUESTED',
+        : array('ref' => $ref, 'docId' => arr_get($res, 'doc_id'), 'docNo' => arr_get($res, 'doc_no'), 'stage' => 'WAITING',
             'issuedAt' => null, 'receivedAt' => null, 'cancelNote' => '', 'items' => array());
     $qty = 0;
     foreach ($lines as $l) { $qty += (int)$l['qty']; }
@@ -713,7 +713,7 @@ function api_stock_request($req, $params)
     $id = issue_insert(array('employeeId' => $e['id'], 'entitlementKey' => $ent['key'], 'event' => $ent['event'], 'qty' => $qty,
         'size' => stock_sizes($stock), 'issuedAt' => today_iso(), 'source' => 'STOCK', 'stock' => $stock), $u);
     audit_write('UNIFORM_ISSUE', $id, 'CREATE', 'ส่งเบิกชุดฟอร์ม (' . label_uniform_event($ent['event']) . ') ใบ ' . $stock['docNo']
-        . ' ให้ ' . full_name($e) . ' — รอคลังจ่าย', $e['id'], $u);
+        . ' ให้ ' . full_name($e) . ' — รอผู้อนุมัติในระบบสต็อก', $e['id'], $u);
     db_commit();
     return http_data(repo_issue($id), 201);
 }
@@ -743,7 +743,9 @@ function api_stock_sync($req, $params)
         if ($kind === 'CANCELLED') {
             db_exec('DELETE FROM uniform_issues WHERE id = ?', array($i['id']));
             $why = $next['cancelNote'] ? ' (' . $next['cancelNote'] . ')' : '';
-            audit_write('UNIFORM_ISSUE', $i['id'], 'CANCEL', 'คลังยกเลิกใบ ' . $i['stock']['docNo'] . $why . ' — ชุดฟอร์มของ ' . $who . ' กลับเป็นค้างแจก',
+            /* ไม่อนุมัติ: สต็อกส่ง cancel_note ขึ้นต้นด้วย "ไม่อนุมัติ:" */
+            $what = strpos((string)$next['cancelNote'], 'ไม่อนุมัติ') === 0 ? 'ผู้อนุมัติในระบบสต็อกไม่อนุมัติใบ ' : 'คลังยกเลิกใบ ';
+            audit_write('UNIFORM_ISSUE', $i['id'], 'CANCEL', $what . $i['stock']['docNo'] . $why . ' — ชุดฟอร์มของ ' . $who . ' กลับเป็นค้างแจก',
                 $i['employeeId'], $u);
             continue;
         }
@@ -754,6 +756,9 @@ function api_stock_sync($req, $params)
                  stock_received_at = ?, stock_cancel_note = ?, stock_items = ?, updated_by = ? WHERE id = ?',
             array(stock_sizes($next), $qty ? $qty : $i['qty'], $issuedAt, $next['docNo'], $next['stage'], $next['issuedAt'],
                 $next['receivedAt'], $next['cancelNote'], json_encode($next['items']), $u['username'], $i['id']));
+        if ($kind === 'APPROVED') {
+            audit_write('UNIFORM_ISSUE', $i['id'], 'UPDATE', 'ผู้อนุมัติในระบบสต็อกอนุมัติใบ ' . $next['docNo'] . ' ของ ' . $who . ' แล้ว — รอคลังจ่าย', $i['employeeId'], $u);
+        }
         if ($kind === 'ISSUED') {
             audit_write('UNIFORM_ISSUE', $i['id'], 'UPDATE', 'คลังจ่ายชุดฟอร์มตามใบ ' . $next['docNo'] . ' ให้ ' . $who . ' แล้ว', $i['employeeId'], $u);
         }

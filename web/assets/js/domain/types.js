@@ -132,7 +132,7 @@
  * @property {StockRequest} [stock]      มีเมื่อ source = 'STOCK'
  */
 
-/** @typedef {'REQUESTED'|'ISSUED'|'RECEIVED'|'CANCELLED'} StockStage */
+/** @typedef {'WAITING'|'REQUESTED'|'ISSUED'|'RECEIVED'|'CANCELLED'} StockStage  WAITING = รอผู้อนุมัติในสต็อก */
 
 /**
  * ใบเบิกในระบบสต็อก Uniform ของการแจกหนึ่งรายการ

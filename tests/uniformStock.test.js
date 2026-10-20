@@ -141,4 +141,12 @@ describe('uniformStock use-case', () => {
     expect(stockChange(prev, { stage: 'ISSUED', items: [] })).toBe('ISSUED');
     expect(stockChange(prev, { stage: 'CANCELLED', items: [] })).toBe('CANCELLED');
   });
+  it('รอผู้อนุมัติในสต็อก: อนุมัติ → APPROVED · ไม่อนุมัติ → CANCELLED', () => {
+    const waiting = { stage: 'WAITING', items: [] };
+    expect(stockChange(waiting, { stage: 'WAITING', items: [] })).toBe('NONE');
+    expect(stockChange(waiting, { stage: 'REQUESTED', items: [] })).toBe('APPROVED');
+    expect(stockChange(waiting, { stage: 'ISSUED', items: [] })).toBe('ISSUED'); // อนุมัติแล้วจ่ายเลยก่อนซิงก์รอบถัดไป
+    expect(stockChange(waiting, { stage: 'CANCELLED', items: [] })).toBe('CANCELLED');
+    expect(stockChange({ stage: 'REQUESTED', items: [] }, { stage: 'WAITING', items: [] })).toBe('UPDATE'); // ถูกส่งกลับไปรออนุมัติ
+  });
 });

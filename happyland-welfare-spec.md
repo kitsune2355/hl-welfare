@@ -801,8 +801,8 @@ export interface WelfareApi {
 | POST | `/api/uniform/issues` | `{employeeId, entitlementKey, event, qty, size, issuedAt}` | `UniformIssue` (201) |
 | GET | `/api/uniform/pending` | – | `UniformPendingRow[]` |
 | GET | `/api/uniform/stock-options` | `?employeeId=&entitlementKey=` | แบบ/ไซซ์/ยอดคงเหลือจากระบบสต็อก Uniform (409 ถ้าแจกหรือส่งเบิกแล้ว) |
-| POST | `/api/uniform/stock-requests` | `{employeeId, entitlementKey, lines: [{itemCode, productId, qty}]}` | `UniformIssue` (201, `source: STOCK`) — ออกใบเบิก WRQ (รอบเริ่มงาน = NRQ) ที่อนุมัติแล้วใน stock_hr · HR_ADMIN/HR_COMPANY · `requested_by_*` จาก session |
-| POST | `/api/uniform/stock-sync` | – | `{changed}` — ดึงสถานะใบเบิกจาก stock_hr (คลังยกเลิก → สิทธิ์กลับเป็นค้างแจก) |
+| POST | `/api/uniform/stock-requests` | `{employeeId, entitlementKey, lines: [{itemCode, productId, qty}]}` | `UniformIssue` (201, `source: STOCK`) — ออกใบเบิก WRQ (รอบเริ่มงาน = NRQ) ใน stock_hr สถานะ**รออนุมัติ** — ผู้อนุมัติของหน่วยงานในระบบสต็อกต้องกดอนุมัติเอง (หน้ารายการใบเบิก / ลิงก์ในอีเมล) แล้วคลังจึงได้แจ้งเตือนให้จ่าย · HR_ADMIN/HR_COMPANY · `requested_by_*` จาก session |
+| POST | `/api/uniform/stock-sync` | – | `{changed}` — ดึงสถานะใบเบิกจาก stock_hr — ขั้น `WAITING` รอผู้อนุมัติ → `REQUESTED` รอคลังจ่าย → `ISSUED` คลังจ่ายแล้ว → `RECEIVED` เซ็นรับแล้ว · **ไม่อนุมัติ** / คลังยกเลิก → `CANCELLED` สิทธิ์กลับเป็นค้างแจก พร้อมเหตุผล (`cancel_note` = "ไม่อนุมัติ: …") · บันทึกกิจกรรมเมื่ออนุมัติ / ไม่อนุมัติ / จ่าย / เซ็นรับ · ยกเลิกจากระบบนี้ได้ทั้งตอนรออนุมัติและรอคลังจ่าย |
 | POST | `/api/sites` | `{companyCode, name, hasGroupInsurance, poloColor}` | `Site` (201) |
 | DELETE | `/api/sites/{id}` | – | 204 / 409 |
 | DELETE | `/api/employees/{id}` | – | 204 / 409 |
@@ -1350,7 +1350,7 @@ scripts/export-seed.mjs      ← สร้าง sql/002, 003 และ golden.j
 | `insurance_rules`, `uniform_rules`, `uniform_items`, `settings` | กฎข้อ 7 | อาร์เรย์เก็บเป็น JSON ใน TEXT |
 | `insurer_forms` | แบบฟอร์มบริษัทประกัน (`name`, `short_name`, `active` + `form_json` LONGTEXT = ส่วนที่เหลือรวมไฟล์ .xlsx base64) | MySQL 5.0 `max_allowed_packet` ค่าเริ่มต้น 1 MB — ไฟล์แบบฟอร์มใหญ่ต้องเพิ่มค่า |
 | `insurance_batches` + `insurance_batch_items` | การส่งออกไฟล์แจ้งประกัน 1 ครั้ง = 1 batch · items มี `seq`, `type`, `direction` (แอปคำนวณ: URGENT = OUT) | `uq_emp_direction` กันแจ้งซ้ำ · ลบ batch → items ลบตาม (CASCADE) · `submitted_by_user_id` + `submitted_by_name` |
-| `uniform_issues` | แจกชุด: `MANUAL` (บันทึกเอง) หรือ `STOCK` (ส่งเบิกคลัง — `stock_ref`, `stock_doc_id/no`, `stock_stage`, `stock_items` JSON …) | `uq_emp_ent` · `issued_by_user_id` + `issued_by_name` |
+| `uniform_issues` | แจกชุด: `MANUAL` (บันทึกเอง) หรือ `STOCK` (ส่งเบิกคลัง — `stock_ref`, `stock_doc_id/no`, `stock_stage` ENUM WAITING/REQUESTED/ISSUED/RECEIVED/CANCELLED (WAITING เพิ่มใน 011), `stock_items` JSON …) | `uq_emp_ent` · `issued_by_user_id` + `issued_by_name` |
 | `users` | ผู้ใช้ (`password_hash` PBKDF2, `emp_code`, `role`, `is_active`, `session_version`) | ข้อ 10.9.1 |
 | `auth_sessions`, `auth_refresh_tokens`, `auth_login_attempts` | session / จดจำฉัน / จำกัดการเดา | เก็บเฉพาะ SHA-256 ของค่าลับ |
 | `audit_log` | = ActivityLog (ห้ามแก้/ลบ) · `entity` เพิ่ม `INSURER_FORM`, `STOCK_REQUEST`, `USER` · `action` เพิ่ม `LOGIN`, `LOGOUT`, `PASSWORD_CHANGE`, `TOKEN_REUSE` | `user_id` + `user_name` (ชื่อ ณ ตอนนั้น) |

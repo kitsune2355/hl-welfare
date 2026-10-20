@@ -94,11 +94,14 @@ export const stockSizes = (stock) => [...new Set(uniformLines(stock).map((i) => 
 
 /**
  * เทียบสถานะเดิมกับที่ระบบสต็อกตอบ → การเปลี่ยนแปลงที่ต้องบันทึก
- * @returns {'NONE'|'UPDATE'|'ISSUED'|'RECEIVED'|'CANCELLED'}
+ * @returns {'NONE'|'UPDATE'|'APPROVED'|'ISSUED'|'RECEIVED'|'CANCELLED'}  APPROVED = ผู้อนุมัติในสต็อกกดอนุมัติแล้ว
  */
 export function stockChange(prev, next) {
   if (!next) return 'NONE';
   if (next.stage === 'CANCELLED') return 'CANCELLED';
-  if (next.stage !== prev.stage) return next.stage === 'REQUESTED' ? 'UPDATE' : next.stage;
+  if (next.stage !== prev.stage) {
+    if (next.stage === 'REQUESTED') return prev.stage === 'WAITING' ? 'APPROVED' : 'UPDATE';
+    return next.stage === 'WAITING' ? 'UPDATE' : next.stage;
+  }
   return JSON.stringify(next.items) === JSON.stringify(prev.items) ? 'NONE' : 'UPDATE';
 }

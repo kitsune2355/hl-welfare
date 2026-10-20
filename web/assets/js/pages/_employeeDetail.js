@@ -83,7 +83,7 @@ function renderUniform(box, emp, st) {
       : pending
         ? badge(`ค้างแจก ${pending}`, 'warning', { lg: true })
         : waiting
-          ? badge(`รอคลังจ่าย ${waiting}`, 'info', { lg: true })
+          ? badge(`ส่งเบิกแล้ว ${waiting}`, 'info', { lg: true })
           : badge('ครบแล้ว', 'success', { lg: true });
   render(
     box,

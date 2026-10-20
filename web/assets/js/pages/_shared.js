@@ -52,6 +52,7 @@ export const stockDocLink = (stock) =>
 
 /** ป้ายสถานะใบเบิกในคลัง */
 export const STOCK_STAGE = {
+  WAITING: { label: 'รอผู้อนุมัติ', tone: 'warning' },
   REQUESTED: { label: 'รอคลังจ่าย', tone: 'warning' },
   ISSUED: { label: 'คลังจ่ายแล้ว', tone: 'info' },
   RECEIVED: { label: 'เซ็นรับแล้ว', tone: 'success' },
@@ -152,7 +153,7 @@ async function openStockRequest({ employeeId, entitlementKey, event, name, onDon
           : alertBox({
               tone: 'info',
               // <strong> ไม่ใช่ <b> — .alert-body b เป็นหัวข้อ (display: block)
-              body: html`${newStaff ? html`ออกเป็น<strong>ใบเบิกพนักงานใหม่</strong> (อยู่ใน “รายการใบเบิก” ของระบบสต็อก) ` : 'ใบเบิก'}ลงหน่วยงาน <strong>${d.name}</strong>${d.company ? ` (${d.company})` : ''} และ<strong>อนุมัติอัตโนมัติ</strong> — เมื่อคลังจ่ายแล้ว สถานะในระบบนี้จะอัปเดตเอง`,
+              body: html`${newStaff ? html`ออกเป็น<strong>ใบเบิกพนักงานใหม่</strong> (อยู่ใน “รายการใบเบิก” ของระบบสต็อก) ` : 'ใบเบิก'}ลงหน่วยงาน <strong>${d.name}</strong>${d.company ? ` (${d.company})` : ''} แล้วรอ<strong>ผู้อนุมัติของหน่วยงานในระบบสต็อกกดอนุมัติ</strong> — อนุมัติแล้วคลังจ่าย สถานะในระบบนี้อัปเดตเอง · ไม่อนุมัติ = กลับเป็นค้างแจก พร้อมเหตุผล`,
             })}
         <p class="small muted" style="margin:12px 0 0">${opt.style} · สิทธิ์ ${opt.qtyLabel} ตัว · ของไม่พอก็ส่งเบิกได้ คลังจะจ่ายเมื่อมีของ</p>
         <div>${opt.items.map(lineHtml)}</div>
@@ -186,7 +187,7 @@ async function openStockRequest({ employeeId, entitlementKey, event, name, onDon
     try {
       const lines = opt.items.map((it, i) => ({ itemCode: it.itemCode, productId: picks[i].productId, qty: picks[i].qty }));
       const issue = await api.requestUniformFromStock({ employeeId, entitlementKey, lines });
-      toast.success(`ส่งเบิกแล้ว ใบ ${issue.stock.docNo} — รอคลังจ่าย`);
+      toast.success(`ส่งเบิกแล้ว ใบ ${issue.stock.docNo} — ${STOCK_STAGE[issue.stock.stage]?.label ?? 'รอผู้อนุมัติ'}`);
       m.busy(false, ok);
       m.close();
       refreshCounts();

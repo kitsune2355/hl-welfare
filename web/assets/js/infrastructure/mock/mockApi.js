@@ -680,7 +680,7 @@ export class MockApi {
       }
       const ref = stockRef(e.id, ent.key);
       const res = await this.stock.submit(stockSubmitPayload(e, site, ent, st.logo, lines, this.actor));
-      const stock = res.status?.[ref] ? toStockRequest(ref, res.status[ref]) : { ref, docId: res.doc_id, docNo: res.doc_no, stage: 'REQUESTED', issuedAt: null, receivedAt: null, items: [] };
+      const stock = res.status?.[ref] ? toStockRequest(ref, res.status[ref]) : { ref, docId: res.doc_id, docNo: res.doc_no, stage: 'WAITING', issuedAt: null, receivedAt: null, items: [] };
       // คำขอก่อนหน้าหลุดระหว่างทาง (ระบบสต็อกออกใบไปแล้ว) — ใช้ใบเดิม ไม่ซ้อนรายการ
       this.db.issues = this.db.issues.filter((i) => !(i.employeeId === e.id && i.entitlementKey === ent.key));
       const issue = {
@@ -696,7 +696,7 @@ export class MockApi {
         stock,
       };
       this.db.issues.push(issue);
-      this.log('UNIFORM_ISSUE', 'CREATE', issue.id, `ส่งเบิกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[ent.event]}) ใบ ${stock.docNo} ให้ ${fullName(e)} — รอคลังจ่าย`, e.id);
+      this.log('UNIFORM_ISSUE', 'CREATE', issue.id, `ส่งเบิกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[ent.event]}) ใบ ${stock.docNo} ให้ ${fullName(e)} — รอผู้อนุมัติในระบบสต็อก`, e.id);
       this.persist();
       return issue;
     });
@@ -723,13 +723,15 @@ export class MockApi {
         if (kind === 'CANCELLED') {
           this.db.issues = this.db.issues.filter((x) => x.id !== i.id);
           const why = next.cancelNote ? ` (${next.cancelNote})` : '';
-          this.log('UNIFORM_ISSUE', 'CANCEL', i.id, `คลังยกเลิกใบ ${i.stock.docNo}${why} — ชุดฟอร์มของ ${who} กลับเป็นค้างแจก`, i.employeeId);
+          const what = next.cancelNote?.startsWith('ไม่อนุมัติ') ? 'ผู้อนุมัติในระบบสต็อกไม่อนุมัติใบ' : 'คลังยกเลิกใบ';
+          this.log('UNIFORM_ISSUE', 'CANCEL', i.id, `${what} ${i.stock.docNo}${why} — ชุดฟอร์มของ ${who} กลับเป็นค้างแจก`, i.employeeId);
           continue;
         }
         i.stock = next;
         i.size = stockSizes(next);
         i.qty = uniformLines(next).reduce((s2, x) => s2 + x.qty, 0) || i.qty;
         if (next.issuedAt) i.issuedAt = next.issuedAt.slice(0, 10);
+        if (kind === 'APPROVED') this.log('UNIFORM_ISSUE', 'UPDATE', i.id, `ผู้อนุมัติในระบบสต็อกอนุมัติใบ ${next.docNo} ของ ${who} แล้ว — รอคลังจ่าย`, i.employeeId);
         if (kind === 'ISSUED') this.log('UNIFORM_ISSUE', 'UPDATE', i.id, `คลังจ่ายชุดฟอร์มตามใบ ${next.docNo} ให้ ${who} แล้ว`, i.employeeId);
         if (kind === 'RECEIVED') this.log('UNIFORM_ISSUE', 'UPDATE', i.id, `${who} เซ็นรับชุดฟอร์มตามใบ ${next.docNo} แล้ว`, i.employeeId);
       }

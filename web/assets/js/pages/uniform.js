@@ -25,7 +25,7 @@ const TABS = ['pending', 'waiting', 'history'];
 let tab = TABS.includes(getParam('tab')) ? getParam('tab') : 'pending';
 let pending = null;
 let issues = null; // แจกแล้ว (บันทึกเอง + คลังจ่ายแล้ว)
-let waiting = null; // ส่งเบิกคลังแล้ว รอคลังจ่าย
+let waiting = null; // ส่งเบิกคลังแล้ว (รอผู้อนุมัติ / รอคลังจ่าย / รอเซ็นรับ)
 let employees = new Map();
 const pieces = (label) => label.split('+').reduce((s, x) => s + Number(x), 0); // "2+1" → 3
 const annualYear = (key) => ` ${Number(key.slice(7)) + 543}`;
@@ -91,7 +91,7 @@ const waitingTable = new DataTable($('#waiting'), {
         !canCancelIssue(true) ? '' : html`<button class="btn-icon sm danger" data-cancel-issue="${i.id}" title="ยกเลิกการส่งเบิก" aria-label="ยกเลิกการส่งเบิก">${raw(icon('undo-2'))}</button>`,
     },
   ],
-  empty: emptyState({ iconName: 'package-check', title: 'ไม่มีใบที่รอคลังจ่าย', description: 'กด “ส่งเบิกคลัง” ที่แท็บค้างแจก แล้วใบจะมารออยู่ที่นี่' }),
+  empty: emptyState({ iconName: 'package-check', title: 'ไม่มีใบเบิกที่ค้างอยู่', description: 'กด “ส่งเบิกคลัง” ที่แท็บค้างแจก แล้วใบจะมาอยู่ที่นี่ จนพนักงานเซ็นรับ' }),
 });
 
 const historyTable = new DataTable($('#history'), {
@@ -134,7 +134,7 @@ function drawTabs() {
     tabs(
       [
         { value: 'pending', label: 'ค้างแจก', count: pending?.length },
-        { value: 'waiting', label: 'รอคลังจ่าย', count: waiting?.length },
+        { value: 'waiting', label: 'ส่งเบิกแล้ว', count: waiting?.length },
         { value: 'history', label: 'ประวัติการแจก', count: issues?.length },
       ],
       tab,

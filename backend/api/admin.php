@@ -509,14 +509,14 @@ function admin_stock_ping($url = null, $secret = null)
 /** ใบเบิกชุดฟอร์มในสต็อก: จำนวนตามขั้น + ที่ค้างนาน */
 function admin_stock_monitor()
 {
-    $byStage = array('REQUESTED' => 0, 'ISSUED' => 0, 'RECEIVED' => 0);
+    $byStage = array('WAITING' => 0, 'REQUESTED' => 0, 'ISSUED' => 0, 'RECEIVED' => 0);
     foreach (db_all("SELECT stock_stage, COUNT(*) AS n FROM uniform_issues WHERE source = 'STOCK' GROUP BY stock_stage") as $r) {
         $byStage[(string)$r['stock_stage']] = (int)$r['n'];
     }
     $todayTs = strtotime(today_iso());
     $stuck = array();
     foreach (db_all("SELECT i.*, e.emp_code, e.first_name, e.last_name FROM uniform_issues i JOIN employees e ON e.id = i.employee_id
-            WHERE i.source = 'STOCK' AND i.stock_stage IN ('REQUESTED', 'ISSUED') ORDER BY i.issued_at, i.id") as $r) {
+            WHERE i.source = 'STOCK' AND i.stock_stage IN ('WAITING', 'REQUESTED', 'ISSUED') ORDER BY i.issued_at, i.id") as $r) {
         $since = $r['stock_stage'] === 'ISSUED' && $r['stock_issued_at'] ? substr($r['stock_issued_at'], 0, 10) : $r['issued_at'];
         $days = (int)floor(($todayTs - strtotime($since)) / 86400);
         if ($days < sys_setting('stock_stuck_days')) { continue; }
@@ -551,13 +551,14 @@ function api_admin_health($req, $params)
         '007_uniform_quantities' => admin_column_type('uniform_rules', 'rule_key') !== null,
         '008_role_capabilities' => admin_column_type('role_capabilities', 'allowed') !== null,
         '009_must_change_password' => admin_column_type('users', 'must_change_password') !== null,
+        '011_stock_waiting_stage' => strpos((string)admin_column_type('uniform_issues', 'stock_stage'), 'WAITING') !== false,
     );
     $pending = array();
     foreach ($migrations as $m => $ok) {
         if (!$ok) { $pending[] = $m; }
     }
     $checks[] = admin_check('migrations', 'Migration (backend/sql)', count($pending) ? 'error' : 'ok',
-        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 009');
+        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 011');
 
     $cfgIssues = array();
     $cfgError = false;
