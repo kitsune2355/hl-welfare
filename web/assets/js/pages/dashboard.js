@@ -1,7 +1,6 @@
-// หน้า: ภาพรวม & ติดตามงาน (index.html) — หน้าเดียว ไม่มีแท็บ เรียงจากบนลงล่าง
-//   สรุป (bento) = รอบแจ้งประกัน, แจ้งออกทันที, ชุดฟอร์มค้าง, พนักงาน, คิวงานย่อ, จะครบสิทธิใน 30 วัน
-//   คิวงาน (#queue)    = ทุกเรื่องที่ต้องทำ กรองระดับ ด่วน/ต้องทำ/ติดตาม + ประเภท
-//   กิจกรรม (#activity) = บันทึกกิจกรรม (audit log)
+// หน้า: ภาพรวม & ติดตามงาน (index.html) — หน้าเดียว ไม่มีแท็บ ทั้งหน้าเป็น bento dashboard
+//   ช่อง: รอบแจ้งประกัน (ใหญ่) · แจ้งออกทันที · ชุดฟอร์มค้าง · พนักงาน · จะครบสิทธิใน 30 วัน
+//         · คิวงาน (#queue — กรองระดับ ด่วน/ต้องทำ/ติดตาม + ประเภท) · บันทึกกิจกรรม (#activity)
 //   ลิงก์เก่า ?tab=queue|activity → เลื่อนไปส่วนนั้น
 // รีเฟรชอัตโนมัติทุก 60 วินาที + เมื่อกลับมาที่แท็บของเบราว์เซอร์
 import { api } from '../app/api.js';
@@ -49,7 +48,7 @@ function scrollToSection(id) {
 // ===================== สรุป =====================
 const upcoming = new DataTable($('#upcoming'), {
   rowKey: (r) => `${r.employee.id}-${r.benefit}`,
-  pageSize: 10,
+  pageSize: 5, // ช่อง bento 1/3 แถว — 5 คนต่อหน้า
   columns: [
     { key: 'emp', header: 'พนักงาน', text: (r) => `${r.employee.firstName} ${r.employee.lastName}`, cell: (r) => employeeCell(r.employee, { link: true }) },
     {
@@ -127,32 +126,8 @@ function drawSummary(d) {
       </ul>`,
   );
   upcoming.setRows(d.upcomingEligible);
-  drawQueueTile();
 }
 
-/** ช่องคิวงาน: จำนวนตามระดับ + 3 เรื่องด่วนสุด */
-function drawQueueTile() {
-  const tasks = state.tasks;
-  if (!tasks) return;
-  const n = (sev) => tasks.filter((t) => t.severity === sev).length;
-  render(
-    $('#t-queue'),
-    html`${tileHead('clipboard-list', 'คิวงาน', 'เรื่องที่ต้องทำ เรียงด่วนก่อน', { href: '#queue', label: 'ดูทั้งหมด', tab: 'queue' })}
-      <div class="sev-row">
-        ${['critical', 'warning', 'info'].map(
-          (sev) => html`<a class="sev-pill tone-${SEVERITY_TONE[sev]}" href="#queue" data-goto-tab="queue" data-goto-sev="${sev}"><b class="num">${n(sev)}</b><span>${SEVERITY_LABEL[sev]}</span></a>`,
-        )}
-      </div>
-      ${tasks.length
-        ? html`<ol class="mini-list">
-            ${tasks.slice(0, 3).map((t) => {
-              const l = taskLink(t);
-              return html`<li><span class="dot tone-${SEVERITY_TONE[t.severity]}"></span><a href="${l.href}"><b>${t.title}</b><span>${t.employee.firstName} ${t.employee.lastName}${t.overdueDays > 0 ? ` · เลยมา ${t.overdueDays} วัน` : ''}</span></a></li>`;
-            })}
-          </ol>`
-        : html`<p class="tile-ok">${raw(icon('circle-check'))} ไม่มีงานค้าง</p>`}`,
-  );
-}
 
 
 // ===================== คิวงาน =====================
@@ -232,15 +207,20 @@ function drawQueue() {
       (!term || `${t.employee.empCode} ${t.employee.firstName} ${t.employee.lastName} ${t.title}`.toLowerCase().includes(term)),
   );
   const count = (s) => all.filter((t) => t.severity === s).length;
+  const SEV_HINT = { critical: 'เลยกำหนด / ทำทันที', warning: 'ภายใน 7 วัน', info: 'รอรอบ / รอยืนยัน' };
+  render(
+    $('#sev-row'),
+    html`${['critical', 'warning', 'info'].map(
+      (sv) => html`<button type="button" class="sev-pill tone-${SEVERITY_TONE[sv]}${state.severity === sv ? ' active' : ''}" data-severity="${sv}" aria-pressed="${state.severity === sv ? 'true' : 'false'}" title="กดเพื่อกรอง · กดซ้ำ = ยกเลิก">
+        <b class="num">${count(sv)}</b><span>${SEVERITY_LABEL[sv]} · ${SEV_HINT[sv]}</span>
+      </button>`,
+    )}`,
+  );
   const kindCounts = {};
   for (const t of all) if (!state.severity || t.severity === state.severity) kindCounts[t.kind] = (kindCounts[t.kind] ?? 0) + 1;
   render(
     $('#kinds'),
-    html`${['critical', 'warning', 'info'].map(
-        (sv) => html`<button class="chip sev-chip tone-${SEVERITY_TONE[sv]}${state.severity === sv ? ' active' : ''}" data-severity="${sv}" aria-pressed="${state.severity === sv ? 'true' : 'false'}">${SEVERITY_LABEL[sv]} <span class="n num">${count(sv)}</span></button>`,
-      )}
-      <span class="chips-sep" aria-hidden="true"></span>
-      <button class="chip${!state.kind ? ' active' : ''}" data-kind="">ทุกประเภท</button>
+    html`<button class="chip${!state.kind ? ' active' : ''}" data-kind="">ทุกประเภท</button>
       ${Object.keys(TASK_KIND_LABEL).map((k) =>
         kindCounts[k] || state.kind === k
           ? html`<button class="chip${state.kind === k ? ' active' : ''}" data-kind="${k}">${TASK_KIND_LABEL[k]} <span class="n num">${kindCounts[k] ?? 0}</span></button>`
@@ -258,17 +238,7 @@ function drawQueue() {
   taskTable.setRows(shown);
 }
 
-// ลิงก์ในช่อง bento → เลื่อนลงไปส่วนนั้นของหน้าเดียวกัน (ตัวเลขระดับ = กรองระดับนั้นด้วย)
-on($('#bento'), 'click', '[data-goto-tab]', (e, a) => {
-  e.preventDefault();
-  if (a.dataset.gotoSev) {
-    state.severity = a.dataset.gotoSev;
-    setParams({ severity: state.severity });
-    drawQueue();
-  }
-  scrollToSection(a.dataset.gotoTab);
-});
-on($('#kinds'), 'click', '[data-severity]', (_e, b) => {
+on($('#sev-row'), 'click', '[data-severity]', (_e, b) => {
   state.severity = state.severity === b.dataset.severity ? '' : b.dataset.severity;
   setParams({ severity: state.severity });
   drawQueue();
@@ -294,7 +264,7 @@ async function loadActivity() {
     $('#more-wrap').classList.toggle('hidden', items.length < state.limit);
     const all = state.entity ? await api.listActivity({ limit: 500 }) : items;
     state.todayCount = all.filter((a) => a.at.startsWith(today)).length;
-    render($('#today-count'), badge(`วันนี้ ${state.todayCount} รายการ`, 'primary'));
+    render($('#today-count'), `ใคร ทำอะไร เมื่อไร · วันนี้ ${state.todayCount} รายการ`);
   } catch {
     render($('#feed'), html`<p class="small text-danger" style="padding:16px">โหลดบันทึกกิจกรรมไม่สำเร็จ</p>`);
   }
