@@ -69,6 +69,8 @@ export function openModal({ title, description = '', body = '', footer, onClose,
     onClose?.();
   };
   const onKey = (e) => {
+    // popup ซ้อนกัน (เช่น บันทึกแจกจากในรายละเอียดพนักงาน) → ปุ่มลัดทำงานกับอันบนสุดเท่านั้น
+    if (layer !== [...document.querySelectorAll('.modal-layer')].pop()) return;
     if (e.key === 'Escape' && !locked) close();
     if (e.key !== 'Tab') return;
     const els = [...layer.querySelectorAll('button:not([disabled]), [href], input, select, textarea')];

@@ -192,6 +192,8 @@ on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
   startTourIfNew(tourId());
 });
 wireIssueActions($('#pending'), { today, onDone: load });
+// แจก/ส่งเบิกจาก popup รายละเอียดพนักงาน → รายการค้างแจกเปลี่ยน
+document.addEventListener('employee:changed', () => load());
 on($('#waiting'), 'click', '[data-cancel-issue]', (_e, b) => {
   const i = waiting.find((x) => x.id === Number(b.dataset.cancelIssue));
   confirmAction({

@@ -248,6 +248,28 @@ export function initPage(active, { tour = active } = {}) {
   progress.quiet(refreshSessionUser).then((changed) => changed && location.reload(), () => {});
   initTour(tour, document.getElementById('help-btn')); // แนะนำการใช้งาน (driver.js)
   installNavigationProgress(); // คลิกลิงก์ → แถบ loading วิ่งทันที
+  installEmployeePopup();
+}
+
+/**
+ * ลิงก์ employee.html?id= ทุกหน้า → เปิดรายละเอียดเป็น popup แทนเปลี่ยนหน้า
+ * ฟังแบบ capture จึงทำงานก่อน loading ของการเปลี่ยนหน้า · Ctrl/⌘/กลางเมาส์/target=_blank/data-page = เปิดหน้าเต็มตามปกติ
+ */
+function installEmployeePopup() {
+  document.addEventListener(
+    'click',
+    (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.target.closest?.('a[href]');
+      if (!a || a.target === '_blank' || a.hasAttribute('data-page')) return;
+      const url = new URL(a.href, location.href);
+      const id = Number(url.searchParams.get('id'));
+      if (url.origin !== location.origin || !url.pathname.endsWith('/employee.html') || !id) return;
+      e.preventDefault();
+      import('../pages/_employeeDetail.js').then((m) => m.openEmployeeDetail(id));
+    },
+    true,
+  );
 }
 
 /** อัปเดตตัวนับงานค้างในเมนู (เรียกซ้ำหลังบันทึกข้อมูลได้) */

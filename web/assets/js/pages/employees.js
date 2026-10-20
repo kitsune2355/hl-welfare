@@ -23,6 +23,7 @@ import {
 import { badge, emptyState, errorState } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { toast } from '../ui/overlay.js';
+import { openEmployeeDetail } from './_employeeDetail.js';
 
 const URGENT = ['TERMINATED', 'MISCONDUCT'];
 
@@ -286,7 +287,7 @@ const grid = new ExcelGrid($('#grid'), {
     }
     return saved;
   },
-  onOpen: (e) => (location.href = `employee.html?id=${e.id}`),
+  onOpen: (e) => openEmployeeDetail(e.id),
   // มือถือก็ใช้ตารางเดียวกัน (เลื่อนแนวนอน) — เพิ่ม/แก้ได้ในตารางทุกขนาดจอ
   // ลบ = ทำเครื่องหมายไว้ ลบจริงตอนกดบันทึก (มีกล่องยืนยันรายชื่อก่อน)
   // ลบได้เฉพาะข้อมูลที่บันทึกผิด — ถ้ามีประวัติแจ้งประกัน/แจกชุดแล้ว API ไม่ให้ลบ (ใช้ "พ้นสภาพ" แทน)

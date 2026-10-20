@@ -5467,3 +5467,24 @@ html {
   outline: 2px solid var(--primary);
   outline-offset: -2px;
 }
+
+/* รายละเอียดพนักงาน — หน้าเต็ม (employee.html) และ popup (ลิงก์ employee.html?id= จากทุกหน้า) */
+.emp-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.emp-detail > .page-head {
+  margin-bottom: 0;
+}
+.emp-detail.in-modal > .page-head h2 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+.modal-emp .modal-body {
+  background: var(--bg);
+  padding-top: 16px;
+}
