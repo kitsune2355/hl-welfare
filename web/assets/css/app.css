@@ -5739,20 +5739,27 @@ body.col-resizing * {
 .noti-btn {
   position: relative;
 }
+/* มีตัวเลข = เว้นที่ทางขวา ให้ตัวเลขหลายหลัก (12, 99+) ไม่ทับปุ่มถัดไป */
+.noti-btn:has(.noti-badge:not([hidden])) {
+  margin-right: 8px;
+}
+/* เกาะมุมขวาบนของไอคอน (ไม่ใช่มุมปุ่ม) — ทับแค่ขอบโค้งบนของกระดิ่ง ตัวกระดิ่งยังเห็นชัด
+   ตัวเลขหลายหลักยืดออกไปทางขวา ไม่ทับกระดิ่งเพิ่ม */
 .noti-badge {
   position: absolute;
-  top: 2px;
-  right: 0;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+  top: -3px;
+  left: calc(50% + 3px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  pointer-events: none;
   border: 2px solid var(--surface);
   border-radius: 999px;
   background: var(--danger);
   color: #fff;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
-  line-height: 14px;
+  line-height: 12px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
