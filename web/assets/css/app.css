@@ -2673,6 +2673,20 @@ ol.questions {
     max-height: none;
   }
 }
+/* ปุ่มไปทำงานในคิวงาน (หน้าภาพรวม) — กว้างเท่ากันทุกแถว ไม่ว่าข้อความยาวสั้น
+   จอแคบที่ข้อความถูกซ่อน (label-xl) = ปุ่มไอคอนสี่เหลี่ยมเท่ากัน */
+.task-go {
+  justify-content: center;
+  width: 128px;
+}
+@media (max-width: 1439px) {
+  .btn.task-go {
+    width: auto;
+    aspect-ratio: 1;
+    padding: 0;
+  }
+}
+
 /* ข้อความบนปุ่มที่ซ่อนเมื่อจอแคบกว่า 1440px (เหลือแค่ไอคอน + tooltip) */
 @media (max-width: 1439px) {
   .label-xl {

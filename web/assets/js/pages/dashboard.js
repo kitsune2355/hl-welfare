@@ -188,7 +188,7 @@ const taskTable = new DataTable($('#tasks'), {
       cls: 'nowrap',
       cell: (t) => {
         const l = taskLink(t);
-        return html`<a class="btn btn-sm ${t.severity === 'critical' ? 'btn-primary' : ''}" href="${l.href}" title="${l.label}" aria-label="${l.label}"
+        return html`<a class="btn btn-sm task-go ${t.severity === 'critical' ? 'btn-primary' : ''}" href="${l.href}" title="${l.label}" aria-label="${l.label}"
           >${raw(icon('arrow-right'))}<span class="label-xl">${l.label}</span></a
         >`;
       },
