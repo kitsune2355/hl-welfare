@@ -22,7 +22,7 @@
     </script>
   </head>
   <body>
-    <!-- index.html?tab=summary|queue|activity  (คิวงานรับ &severity= &kind= เพิ่มได้) -->
+    <!-- หน้าเดียว ไม่มีแท็บ: สรุป (bento) → คิวงาน (#queue) → บันทึกกิจกรรม (#activity) · ลิงก์เก่า ?tab=queue|activity = เลื่อนไปส่วนนั้น · คิวงานรับ ?severity= &kind= -->
     <main id="page" class="page">
       <div class="page-head">
         <div>
@@ -39,17 +39,14 @@
         </div>
       </div>
 
-      <div id="tabs"></div>
-
-      <!-- ===== แท็บ: สรุป (bento — ช่องขนาดต่างกันตามความสำคัญ · ไม่บังคับสูงพอดีจอ) ===== -->
-      <div class="panel" id="tab-summary">
+      <!-- ===== สรุป (bento — ช่องขนาดต่างกันตามความสำคัญ · ไม่บังคับสูงพอดีจอ) ===== -->
+      <div class="dash-section" id="summary">
         <div class="bento" id="bento">
           <section class="tile t-cycle" id="t-cycle" aria-label="รอบแจ้งประกันถัดไป"><div class="skeleton sk-block"></div></section>
           <section class="tile t-urgent" id="t-urgent" aria-label="แจ้งออกทันทีค้าง"><div class="skeleton sk-line"></div></section>
           <section class="tile t-uniform" id="t-uniform" aria-label="ชุดฟอร์มค้างแจก"><div class="skeleton sk-line"></div></section>
           <section class="tile t-people" id="t-people" aria-label="พนักงานปัจจุบัน"><div class="skeleton sk-block"></div></section>
           <section class="tile t-queue" id="t-queue" aria-label="คิวงาน"><div class="skeleton sk-block"></div></section>
-          <section class="tile t-recent" id="t-recent" aria-label="กิจกรรมล่าสุด"><div class="skeleton sk-block"></div></section>
           <section class="tile t-upcoming" aria-label="จะครบสิทธิใน 30 วัน">
             <header class="tile-head">
               <span class="tile-ic"><i data-icon="calendar-clock"></i></span>
@@ -60,10 +57,9 @@
         </div>
       </div>
 
-      <!-- ===== แท็บ: คิวงาน ===== -->
-      <div class="panel fill hidden" id="tab-queue">
-        <div id="sev-stats" class="grid grid-3 stats mb"></div>
-        <section class="card fill">
+      <!-- ===== คิวงาน ===== -->
+      <div class="dash-section" id="queue">
+        <section class="card">
           <header class="card-head">
             <div class="card-title">
               <span class="card-icon"><i data-icon="clipboard-list"></i></span>
@@ -77,14 +73,14 @@
               <input class="input" id="q" placeholder="ค้นหาพนักงาน หรือ ชื่องาน" aria-label="ค้นหางาน" />
             </div>
           </header>
-          <div class="chips" id="kinds" role="group" aria-label="กรองตามประเภทงาน" style="padding:12px 16px;border-bottom:1px solid var(--border)"></div>
-          <div id="tasks" class="fill-body"></div>
+          <div class="chips" id="kinds" role="group" aria-label="กรองตามระดับและประเภทงาน" style="padding:12px 16px;border-bottom:1px solid var(--border)"></div>
+          <div id="tasks"></div>
         </section>
       </div>
 
-      <!-- ===== แท็บ: บันทึกกิจกรรม ===== -->
-      <div class="panel fill hidden" id="tab-activity">
-        <section class="card fill">
+      <!-- ===== บันทึกกิจกรรม ===== -->
+      <div class="dash-section" id="activity">
+        <section class="card">
           <header class="card-head">
             <div class="card-title">
               <span class="card-icon"><i data-icon="activity"></i></span>
@@ -101,7 +97,7 @@
               <option value="UNIFORM_ISSUE">ชุดฟอร์ม</option>
             </select>
           </header>
-          <div id="feed" class="fill-body scroll"></div>
+          <div id="feed" class="card-body"></div>
           <div class="card-foot hidden" id="more-wrap" style="text-align:center">
             <button class="btn btn-ghost btn-sm" id="more">โหลดเพิ่ม</button>
           </div>

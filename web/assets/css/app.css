@@ -6080,9 +6080,8 @@ body.col-resizing * {
   grid-column: span 5;
 }
 .t-people,
-.t-queue,
-.t-recent {
-  grid-column: span 4;
+.t-queue {
+  grid-column: span 6;
 }
 .t-upcoming {
   grid-column: 1 / -1;
@@ -6425,9 +6424,6 @@ body.col-resizing * {
   .t-queue {
     grid-column: span 6;
   }
-  .t-recent {
-    grid-column: span 12;
-  }
 }
 @media (max-width: 767px) {
   .bento {
@@ -6438,8 +6434,7 @@ body.col-resizing * {
     grid-column: span 6;
   }
   .t-people,
-  .t-queue,
-  .t-recent {
+  .t-queue {
     grid-column: 1 / -1;
   }
   .tile {
@@ -6460,4 +6455,24 @@ body.col-resizing * {
   .t-uniform {
     grid-column: 1 / -1;
   }
+}
+
+/* หน้าภาพรวม: หน้าเดียวไม่มีแท็บ — ส่วนสรุป / คิวงาน / บันทึกกิจกรรม เรียงลงมา */
+.dash-section + .dash-section {
+  margin-top: 24px;
+}
+.dash-section {
+  scroll-margin-top: 80px; /* เลื่อนมาแล้วไม่ถูกแถบบนบัง */
+}
+.chips-sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  background: var(--border);
+}
+.chip.sev-chip {
+  border-color: transparent;
+}
+.chip.sev-chip.active {
+  box-shadow: inset 0 0 0 2px currentColor;
 }
