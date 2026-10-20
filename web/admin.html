@@ -152,15 +152,19 @@
               <div class="card-title">
                 <span class="card-icon"><i data-icon="info"></i></span>
                 <div>
-                  <h2>ข้อมูลระบบ & ล้างข้อมูลเก่า</h2>
-                  <p>ไม่ลบบันทึกการใช้งาน — ตั้งเวลาล้างอัตโนมัติด้วย backend/bin/cleanup.php</p>
+                  <h2>ข้อมูลระบบ & ฐานข้อมูล</h2>
+                  <p>เวอร์ชัน ค่าการเข้าสู่ระบบ ข้อมูลแต่ละตาราง และล้างข้อมูลเก่า</p>
                 </div>
               </div>
             </header>
             <div class="fill-body scroll">
-              <div id="cleanup" class="admin-block"></div>
               <h3 class="admin-subhead">ข้อมูลระบบ</h3>
               <div id="info"></div>
+              <h3 class="admin-subhead">ข้อมูลในฐานข้อมูล</h3>
+              <div id="db-tables"></div>
+              <h3 class="admin-subhead">ล้างข้อมูลเก่า</h3>
+              <p class="small muted admin-note">ไม่ลบบันทึกการใช้งาน · ตั้งเวลาล้างอัตโนมัติด้วย <code>backend/bin/cleanup.php</code></p>
+              <div id="cleanup" class="admin-block"></div>
             </div>
           </section>
         </div>

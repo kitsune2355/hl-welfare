@@ -747,7 +747,8 @@ function drawHealth(h) {
   const e = c.eligible;
   render(
     $('#cleanup'),
-    html`${infoList(
+    html`<p class="small muted">ข้อมูลที่ใช้ไม่ได้แล้ว (หมดอายุ / ถูกเพิกถอน) ในตารางที่มีป้าย “ล้างได้” — ไม่กระทบผู้ที่ใช้งานอยู่</p>
+      ${infoList(
         [
           { label: 'session', value: int(e.sessions) },
           { label: 'refresh token', value: int(e.tokens) },
@@ -755,7 +756,7 @@ function drawHealth(h) {
         ],
         3,
       )}
-      <p class="small muted">ที่เก่ากว่า ${c.days} วัน (หมดอายุ / ถูกเพิกถอนแล้ว) · ครั้งล่าสุด:
+      <p class="small muted">จำนวนที่เก่ากว่า ${c.days} วัน · ล้างครั้งล่าสุด:
         ${c.lastRunAt ? html`${thaiDateTime(c.lastRunAt)} โดย ${c.lastRunBy}` : 'ยังไม่เคยล้าง'}</p>
       <div class="row" style="gap:8px">
         <label class="row small">เก่ากว่า <input class="input num" type="number" id="cleanup-days" min="${c.minDays}" max="3650" value="${c.days}" style="width:90px" /> วัน</label>
@@ -778,13 +779,64 @@ function drawHealth(h) {
           { label: 'วันนี้ของระบบ', value: thaiDate(i.today) },
         ],
         2,
-      )}
-      <table class="table mt" style="width:100%">
-        <thead><tr><th>ตาราง</th><th style="text-align:right">แถว</th></tr></thead>
-        <tbody>${h.tables.map((t) => html`<tr><td class="num">${t.name}</td><td class="num" style="text-align:right">${int(t.rows)}</td></tr>`)}</tbody>
-      </table>`,
+      )}`,
   );
+  render($('#db-tables'), tablesTable(h.tables));
   drawTabs();
+}
+
+/** ตารางในฐานข้อมูล → ชื่อที่คนอ่านเข้าใจ + เก็บอะไร (กลุ่มตามหน้าที่) · clean = ล้างของเก่าได้ด้วยปุ่ม "ล้างตอนนี้" */
+const TABLE_GROUPS = [
+  {
+    label: 'ข้อมูลหลัก',
+    tables: {
+      employees: { name: 'พนักงาน', desc: 'ทะเบียนพนักงานทุกบริษัทในเครือ — ข้อมูลส่วนตัว วันเริ่มงาน สถานะ ใช้คำนวณสิทธิทั้งหมด' },
+      sites: { name: 'หน่วยงาน', desc: 'หน่วยงาน / ไซต์งาน — ได้ประกันกลุ่มไหม สีโปโล และจำนวนชุดที่หน่วยงานตั้งเอง' },
+      insurer_forms: { name: 'แบบฟอร์มประกัน', desc: 'บริษัทประกัน + ไฟล์แบบฟอร์ม Excel (ล้างรายชื่อแล้ว) และบริษัทในเครือที่ผูกไว้' },
+    },
+  },
+  {
+    label: 'งานสวัสดิการ',
+    tables: {
+      insurance_batches: { name: 'ประวัติส่งออกไฟล์ประกัน', desc: '1 แถว = ส่งออกไฟล์แจ้งบริษัทประกัน 1 ครั้ง (รายชื่อในครั้งนั้นอยู่ในตารางย่อย)' },
+      uniform_issues: { name: 'การแจกชุดฟอร์ม', desc: 'แจกเอง / ส่งเบิกคลัง ทีละรอบสิทธิ — ไซซ์ จำนวน เลขใบเบิกในสต็อก สถานะ' },
+    },
+  },
+  {
+    label: 'ผู้ใช้ & ความปลอดภัย',
+    tables: {
+      users: { name: 'ผู้ใช้ระบบ', desc: 'บัญชีที่เข้าระบบได้ — ชื่อผู้ใช้ บทบาท บริษัทที่ดูแล เปิด/ปิดใช้งาน' },
+      audit_log: { name: 'บันทึกการใช้งาน', desc: 'ใครเพิ่ม/แก้/ลบอะไร เมื่อไร — เก็บถาวร ไม่ถูกล้าง' },
+      auth_sessions: { name: 'การเข้าสู่ระบบ', desc: 'session ที่เปิดอยู่ของแต่ละเครื่อง — หมดอายุแล้วไม่มีประโยชน์', clean: true },
+      auth_refresh_tokens: { name: 'กุญแจ “จดจำฉัน”', desc: 'ให้เบราว์เซอร์เข้าระบบต่อได้โดยไม่ต้องพิมพ์รหัสใหม่ — หมดอายุ/เพิกถอนแล้วล้างได้', clean: true },
+      auth_login_attempts: { name: 'ประวัติพยายามเข้าระบบ', desc: 'สำเร็จ/ไม่สำเร็จ ใช้ล็อกบัญชีเมื่อเดารหัสผิดหลายครั้ง', clean: true },
+    },
+  },
+];
+
+function tablesTable(tables) {
+  const rows = new Map(tables.map((t) => [t.name, t.rows]));
+  const known = new Set(TABLE_GROUPS.flatMap((g) => Object.keys(g.tables)));
+  const groups = [...TABLE_GROUPS, { label: 'อื่น ๆ', tables: Object.fromEntries(tables.filter((t) => !known.has(t.name)).map((t) => [t.name, { name: t.name, desc: '' }])) }];
+  return html`<div class="table-wrap db-tables">
+    <table class="table">
+      <thead><tr><th>ข้อมูล</th><th class="db-desc">เก็บอะไร</th><th class="right">แถว</th></tr></thead>
+      ${groups.map((g) => {
+        const list = Object.entries(g.tables).filter(([k]) => rows.has(k));
+        if (!list.length) return '';
+        return html`<tbody>
+          <tr class="db-group"><th colspan="3">${g.label}</th></tr>
+          ${list.map(
+            ([k, t]) => html`<tr>
+              <td><b>${t.name}</b><code class="db-name">${k}</code><span class="db-desc-m">${t.desc} ${t.clean ? badge('ล้างได้', 'neutral', { dot: false }) : ''}</span></td>
+              <td class="muted db-desc">${t.desc} ${t.clean ? badge('ล้างได้', 'neutral', { dot: false }) : ''}</td>
+              <td class="num right">${int(rows.get(k))}</td>
+            </tr>`,
+          )}
+        </tbody>`;
+      })}
+    </table>
+  </div>`;
 }
 
 async function loadHealth() {

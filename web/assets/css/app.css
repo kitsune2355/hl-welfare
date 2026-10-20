@@ -5488,3 +5488,53 @@ html {
   background: var(--bg);
   padding-top: 16px;
 }
+
+/* admin › สถานะระบบ: ตารางในฐานข้อมูล (ชื่อไทย + ชื่อตาราง + เก็บอะไร) จัดกลุ่มตามหน้าที่ */
+.db-tables {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.db-tables td {
+  vertical-align: top;
+}
+.db-tables td:first-child {
+  white-space: nowrap;
+}
+.db-tables .db-name {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.db-tables td.muted {
+  min-width: 220px;
+  line-height: 1.5;
+}
+.db-tables tr.db-group th {
+  padding-block: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: left;
+}
+.db-tables .db-desc-m {
+  display: none;
+}
+/* จอแคบ: คำอธิบายไปอยู่ใต้ชื่อ (ไม่ต้องเลื่อนตารางแนวนอน) */
+@media (max-width: 639px) {
+  .db-tables .db-desc {
+    display: none;
+  }
+  .db-tables td:first-child {
+    white-space: normal;
+  }
+  .db-tables .db-desc-m {
+    display: block;
+    margin-top: 4px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+}
