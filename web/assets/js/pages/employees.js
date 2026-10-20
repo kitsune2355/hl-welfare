@@ -10,14 +10,12 @@ import { $, debounce, getParam, html, setParams } from '../shared/dom.js';
 import { thaiDate } from '../shared/format.js';
 import {
   COMPANY_CODES,
-  CONTRACT_LABEL,
   DEPT_GROUPS,
   EMPLOYEE_TYPE_LABEL,
   EMPLOYEE_TYPE_TONE,
   END_REASON_LABEL,
   GENDER_LABEL,
   TITLES,
-  PRO_POSITIONS,
   STATUS_LABEL,
   STATUS_TONE,
 } from '../shared/labels.js';
@@ -25,7 +23,7 @@ import { badge, emptyState, errorState } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { toast } from '../ui/overlay.js';
 import { openEmployeeDetail } from './_employeeDetail.js';
-import { importButton, pickExcelFile, runEmployeeImport } from './_employeeImport.js';
+import { importButton, openTemplateDialog, pickExcelFile, runEmployeeImport } from './_employeeImport.js';
 
 const URGENT = ['TERMINATED', 'MISCONDUCT'];
 
@@ -142,28 +140,6 @@ const columns = [
     editable: (e) => e.employeeType === 'CENTRAL',
     value: (e) => e.level,
     set: setField('level', (v) => (v === null ? null : Number(v))),
-  },
-  {
-    key: 'position',
-    header: 'ตำแหน่ง',
-    width: 150,
-    editor: 'select',
-    creatable: true,
-    editable: (e) => e.employeeType === 'PRO_SITE',
-    value: (e) => e.position,
-    options: () => PRO_POSITIONS.map((p) => ({ value: p, label: p })),
-    set: setField('position', (v) => str(v) || null),
-  },
-  {
-    key: 'contractType',
-    header: 'สัญญา',
-    width: 150,
-    editor: 'select',
-    editable: (e) => e.employeeType === 'PRO_SITE',
-    value: (e) => e.contractType,
-    display: (e) => (e.employeeType === 'PRO_SITE' ? CONTRACT_LABEL[e.contractType] : ''),
-    options: () => opts(CONTRACT_LABEL),
-    set: setField('contractType', str),
   },
   { key: 'birthDate', header: 'วันเกิด', width: 110, required: true, editor: 'date', value: (e) => e.birthDate, display: (e) => (e.birthDate ? thaiDate(e.birthDate) : ''), set: setField('birthDate', str) },
   // อายุ: คำนวณจากวันเกิด ณ วันนี้ (แก้ไม่ได้)
@@ -284,9 +260,9 @@ const grid = new ExcelGrid($('#grid'), {
   readOnly: !can('employees.edit'), // ไม่มีสิทธิ์แก้ = ดูอย่างเดียว
   // นำเข้า Excel (ไฟล์เข้าใหม่ / ลาออกประจำเดือนของ HR) — ใส่เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก
   toolbar: can('employees.edit') ? importButton() : '',
-  // ไม่มีช่องเงินเดือนในระบบ (ไม่ต้องกรอก) → ไม่ตรวจเงินเดือน
+  // ไม่มีช่องเงินเดือน / ตำแหน่งในตาราง → ไม่ตรวจสองค่านี้ (ตำแหน่งยังเก็บไว้ — มาจากไฟล์นำเข้า ใช้จับคู่ชุดฟอร์ม Pro Site)
   validate: (e) => {
-    const { salary: _salary, ...errors } = validateEmployee(e);
+    const { salary: _salary, position: _position, ...errors } = validateEmployee(e);
     return errors;
   },
   newRow: blankEmployee,
@@ -358,6 +334,10 @@ async function showAll() {
   await load();
 }
 $('#grid').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-template-excel]')) {
+    if (!sites.length) sites = await api.listSites();
+    return openTemplateDialog({ sites });
+  }
   if (!e.target.closest('[data-import-excel]')) return;
   const file = await pickExcelFile();
   if (!file) return;

@@ -9,7 +9,12 @@
 //     IN : เพิ่มแถวใหม่ (รหัสซ้ำในระบบ = ข้าม) · เดาประเภท/หน่วยงาน/ฝ่าย — ที่เดาไม่ได้ปล่อยว่างให้ HR เลือก (ช่องแดง)
 //     OUT: แก้พนักงานเดิมตามรหัส → พ้นสภาพ + วันพ้นสภาพ + เหตุผล (พ้นสภาพแล้ว = ข้าม)
 //          ไม่พบในระบบ = ข้าม · หรือ addMissing: true = เพิ่มเป็นพนักงานที่พ้นสภาพแล้ว (ข้อมูลในไฟล์ครบ)
-import { COMPANY_CODES, TITLES } from '../../domain/labels.js';
+//   planWorkbookImport(parsedList, …)  หลายชีตในไฟล์เดียว (template 2 ชีต "เข้าใหม่" + "ลาออก") → รวมเป็นแผนเดียว
+//     คนที่อยู่ทั้งสองชีต (เข้าแล้วออกในเดือนเดียวกัน) = เพิ่มแถวเดียวเป็นพ้นสภาพ ไม่ซ้ำ
+//
+//   Template (TEMPLATE_SHEETS) — คอลัมน์ชุดเดียวกับไฟล์ของ HR + "ประเภทพนักงาน" (ไม่บังคับ — ว่าง = เดาให้)
+//   monthlyTemplateRows(employees, sites, month)  ส่งออกเข้า-ออกประจำเดือนในรูปแบบ template (นำเข้ากลับได้)
+import { COMPANY_CODES, EMPLOYEE_TYPE_LABEL, END_REASON_LABEL, TITLES } from '../../domain/labels.js';
 import { probationDueDate } from '../../domain/employee.js';
 import { DEPT_GROUPS } from '../../shared/labels.js';
 
@@ -26,6 +31,7 @@ const HEAD = {
   level: ['ระดับ'],
   nationalId: ['เลขบัตรประชาชน', 'เลขประจำตัวประชาชน'],
   note: ['หมายเหตุ'],
+  employeeType: ['ประเภทพนักงาน', 'ประเภท'],
 };
 const norm = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
 
@@ -120,6 +126,7 @@ export function parseEmployeeSheet(rows) {
       level: level ? Number(level[0]) : null,
       nationalId: norm(get(r, 'nationalId')).replace(/\D/g, '') || null,
       note: norm(get(r, 'note')),
+      typeLabel: norm(get(r, 'employeeType')),
     });
   });
   return { kind, items };
@@ -147,7 +154,10 @@ export function matchSite(unit, companyCode, sites) {
 
 /** ประเภทพนักงานจากไฟล์ (เดา — แก้ในตารางได้) */
 export function guessEmployeeType(item) {
-  if (item.companyCode === 'PRO' && /^PRO\/FM\//i.test(item.unit)) return 'PRO_SITE';
+  // กรอกคอลัมน์ "ประเภทพนักงาน" มา (template) = ใช้ค่านั้น
+  const given = Object.keys(EMPLOYEE_TYPE_LABEL).find((k) => EMPLOYEE_TYPE_LABEL[k] === item.typeLabel || k === item.typeLabel);
+  if (given && (given !== 'PRO_SITE' || item.companyCode === 'PRO')) return given;
+  if (item.companyCode === 'PRO' && /^(PRO\/FM\/|pro site)/i.test(item.unit ?? '')) return 'PRO_SITE';
   if (item.companyCode === 'CNS' && /แม่บ้าน/.test(item.position)) return 'MAID_CNS';
   return 'CENTRAL';
 }
@@ -258,4 +268,101 @@ function newEmployee(it, sites) {
       email: null,
     },
   };
+}
+
+/**
+ * หลายชีตในไฟล์เดียว → แผนเดียว (template: ชีตเข้าใหม่ + ชีตลาออก · ไฟล์ HR ชีตเดียวก็ใช้ได้)
+ * คนในชีตลาออกที่เพิ่งอยู่ในชีตเข้าใหม่ของไฟล์เดียวกัน = แถวเพิ่มเดียวกัน เปลี่ยนเป็นพ้นสภาพ (ไม่เพิ่มซ้ำ)
+ * @param {{kind: 'IN'|'OUT', items: object[], sheet?: string}[]} parsedList
+ * @returns {{kinds: {kind: string, sheet?: string, count: number}[], add: object[], update: object[], skip: object[]}}
+ */
+export function planWorkbookImport(parsedList, employees, sites, opts = {}) {
+  const out = { kinds: [], add: [], update: [], skip: [] };
+  const ins = parsedList.filter((p) => p.kind === 'IN');
+  const outs = parsedList.filter((p) => p.kind === 'OUT');
+  for (const p of [...ins, ...outs]) out.kinds.push({ kind: p.kind, sheet: p.sheet, count: p.items.length });
+  for (const p of ins) {
+    const plan = planEmployeeImport(p, employees, sites, opts);
+    out.add.push(...plan.add.map((a) => ({ ...a, sheet: p.sheet })));
+    out.skip.push(...plan.skip.map((x) => ({ ...x, sheet: p.sheet })));
+  }
+  const addedByCode = new Map(out.add.map((a) => [a.row.empCode, a]));
+  for (const p of outs) {
+    const sameFile = p.items.filter((it) => addedByCode.has(it.empCode));
+    for (const it of sameFile) {
+      const a = addedByCode.get(it.empCode);
+      if (!it.endDate) {
+        out.skip.push({ rowNo: it.rowNo, sheet: p.sheet, empCode: it.empCode, name: `${it.firstName} ${it.lastName}`.trim(), reason: 'ไม่มีวันพ้นสภาพ / อ่านวันที่ไม่ได้' });
+        continue;
+      }
+      a.row = { ...a.row, status: 'INACTIVE', endDate: it.endDate, lastWorkingDate: it.endDate, endReason: endReasonOf(it.note) };
+      a.issues = [...a.issues, 'เข้าและออกในไฟล์เดียวกัน — เพิ่มเป็นพนักงานที่พ้นสภาพแล้ว'];
+    }
+    const rest = { ...p, items: p.items.filter((it) => !addedByCode.has(it.empCode)) };
+    const plan = planEmployeeImport(rest, employees, sites, opts);
+    out.add.push(...plan.add.map((a) => ({ ...a, sheet: p.sheet })));
+    out.update.push(...plan.update.map((u) => ({ ...u, sheet: p.sheet })));
+    out.skip.push(...plan.skip.map((x) => ({ ...x, sheet: p.sheet })));
+  }
+  return out;
+}
+
+// ---------- Template Excel 2 ชีต ----------
+const IN_HEAD = ['ลำดับ', 'รหัสพนักงาน', 'บริษัท', 'ชื่อพนักงาน', 'ชื่อตำแหน่ง', 'ชื่อหน่วยงาน', 'ฝ่าย', 'วันเริ่มงาน', 'วันเกิด', 'ระดับ', 'เลขบัตรประชาชน', 'ประเภทพนักงาน', 'หมายเหตุ'];
+const OUT_HEAD = ['ลำดับ', 'รหัสพนักงาน', 'บริษัท', 'ชื่อพนักงาน', 'ชื่อตำแหน่ง', 'ชื่อหน่วยงาน', 'ฝ่าย', 'วันเข้างาน', 'วันพ้นสภาพ', 'วันเกิด', 'เลขบัตรประชาชน', 'ระดับ', 'ประเภทพนักงาน', 'หมายเหตุ'];
+
+/** ชีตของ template — ชื่อชีต / หัวตาราง (แถว 2 ใต้ชื่อเรื่อง — แบบไฟล์ของ HR) / คอลัมน์วันที่ */
+export const TEMPLATE_SHEETS = {
+  IN: { name: 'เข้าใหม่', title: 'พนักงานเข้าใหม่', head: IN_HEAD, dates: ['วันเริ่มงาน', 'วันเกิด'] },
+  OUT: { name: 'ลาออก', title: 'พนักงานลาออก / พ้นสภาพ', head: OUT_HEAD, dates: ['วันเข้างาน', 'วันพ้นสภาพ', 'วันเกิด'] },
+};
+
+/** หมายเหตุที่แนะนำในชีตลาออก (ระบบอ่านเหตุผลจากคำในหมายเหตุ — ดู endReasonOf) */
+export const OUT_NOTE_HINTS = ['ลาออก', 'ลาออก (ผิดกฎ ขาดงานเกิน 3 วัน)', 'เลิกจ้าง', 'กระทำผิด', 'สิ้นสุดระยะการจ้าง'];
+
+const fullNameOf = (e) => `${e.title ?? ''}${e.firstName} ${e.lastName}`.trim();
+/** ชื่อหน่วยงานแบบไฟล์ HR — Pro Site เขียนเป็น "PRO/FM/<ชื่อ>" (นำเข้ากลับแล้วเดาประเภทได้) */
+function unitName(e, site) {
+  if (!site) return '';
+  return e.employeeType === 'PRO_SITE' ? `PRO/FM/${site.name.replace(/^pro site\s*[—-]\s*/i, '')}` : site.name;
+}
+
+/**
+ * พนักงานเข้า-ออกของเดือน (YYYY-MM) → แถวของ template (ค่าวันที่เป็น YYYY-MM-DD — ผู้เขียนไฟล์แปลงเป็นวันที่ Excel)
+ * เข้าใหม่ = วันเริ่มงานอยู่ในเดือนนั้น · ลาออก = พ้นสภาพ และวันพ้นสภาพอยู่ในเดือนนั้น
+ * @returns {{IN: any[][], OUT: any[][]}}
+ */
+export function monthlyTemplateRows(employees, sites, month) {
+  const siteOf = new Map(sites.map((x) => [x.id, x]));
+  const inMonth = (d) => !!d && d.slice(0, 7) === month;
+  const byCode = (a, b) => a.empCode.localeCompare(b.empCode);
+  const common = (e) => {
+    const site = siteOf.get(e.siteId);
+    return {
+      code: e.empCode,
+      company: e.companyCode,
+      name: fullNameOf(e),
+      position: e.position ?? '',
+      unit: unitName(e, site),
+      division: e.deptGroup ?? '',
+      level: e.level ? `ระดับ ${e.level}` : '',
+      nid: e.nationalId ?? '',
+      type: EMPLOYEE_TYPE_LABEL[e.employeeType] ?? '',
+    };
+  };
+  const IN = employees
+    .filter((e) => inMonth(e.startDate))
+    .sort(byCode)
+    .map((e, i) => {
+      const c = common(e);
+      return [i + 1, c.code, c.company, c.name, c.position, c.unit, c.division, e.startDate, e.birthDate || null, c.level, c.nid, c.type, ''];
+    });
+  const OUT = employees
+    .filter((e) => e.status === 'INACTIVE' && inMonth(e.endDate))
+    .sort(byCode)
+    .map((e, i) => {
+      const c = common(e);
+      return [i + 1, c.code, c.company, c.name, c.position, c.unit, c.division, e.startDate, e.endDate, e.birthDate || null, c.nid, c.level, c.type, END_REASON_LABEL[e.endReason] ?? ''];
+    });
+  return { IN, OUT };
 }

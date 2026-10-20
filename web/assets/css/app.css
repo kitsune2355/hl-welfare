@@ -6008,6 +6008,55 @@ body.col-resizing * {
   color: var(--muted);
   font-size: 12px;
 }
+/* Template / ส่งออกรายเดือน (openTemplateDialog) */
+.tpl-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tpl-opt {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.tpl-opt .tile-ic .icon {
+  color: #107c41;
+}
+.tpl-opt .grow {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-size: 13.5px;
+}
+.tpl-opt small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tpl-month {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.tpl-month .input {
+  width: auto;
+}
+@media (max-width: 560px) {
+  .tpl-opt {
+    flex-wrap: wrap;
+  }
+  .tpl-opt .btn {
+    width: 100%;
+  }
+}
 .imp-sum + .alert,
 .imp-missing + .alert {
   margin-bottom: 12px;
