@@ -25,6 +25,7 @@ import { badge, emptyState, errorState } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { toast } from '../ui/overlay.js';
 import { openEmployeeDetail } from './_employeeDetail.js';
+import { importButton, pickExcelFile, runEmployeeImport } from './_employeeImport.js';
 
 const URGENT = ['TERMINATED', 'MISCONDUCT'];
 
@@ -257,7 +258,8 @@ function blankEmployee() {
       firstName: '',
       lastName: '',
       companyCode: f.companyCode || myCompany() || 'HL',
-      siteId: 0,
+      // แถวใหม่: หน่วยงานแรกของบริษัทไว้ก่อน (เปลี่ยนได้)
+      siteId: sites.find((s) => s.companyCode === (f.companyCode || myCompany() || 'HL'))?.id ?? 0,
       employeeType: f.employeeType && (f.employeeType !== 'PRO_SITE' || f.companyCode === 'PRO') ? f.employeeType : 'CENTRAL',
       contractType: 'REGULAR',
       deptGroup: null,
@@ -280,6 +282,8 @@ const grid = new ExcelGrid($('#grid'), {
   columns,
   rowKey: (e) => e.id,
   readOnly: !can('employees.edit'), // ไม่มีสิทธิ์แก้ = ดูอย่างเดียว
+  // นำเข้า Excel (ไฟล์เข้าใหม่ / ลาออกประจำเดือนของ HR) — ใส่เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก
+  toolbar: can('employees.edit') ? importButton() : '',
   // ไม่มีช่องเงินเดือนในระบบ (ไม่ต้องกรอก) → ไม่ตรวจเงินเดือน
   validate: (e) => {
     const { salary: _salary, ...errors } = validateEmployee(e);
@@ -343,6 +347,22 @@ $('#quick-tags').addEventListener('click', (e) => {
     return applyFilter({ [param]: getParam(param) === value ? '' : value }); // กดซ้ำ = ยกเลิก
   }
   if (e.target.closest('[data-clear-tags]')) applyFilter(Object.fromEntries(TAG_GROUPS.map((g) => [g.param, ''])));
+});
+
+// ----- นำเข้า Excel -----
+/** ล้างคำค้น/แท็กแล้วโหลดพนักงานทั้งหมด — แถวที่จะบันทึกพ้นสภาพต้องอยู่ในตาราง */
+async function showAll() {
+  setParams({ q: '', ...Object.fromEntries(TAG_GROUPS.map((g) => [g.param, ''])), page: '' });
+  grid.page = 1;
+  fillFilterForm();
+  await load();
+}
+$('#grid').addEventListener('click', async (e) => {
+  if (!e.target.closest('[data-import-excel]')) return;
+  const file = await pickExcelFile();
+  if (!file) return;
+  if (!sites.length) sites = await api.listSites();
+  runEmployeeImport(file, { sites, prepareGrid: showAll, stage: (o) => grid.stage(o) });
 });
 
 fillFilterForm();

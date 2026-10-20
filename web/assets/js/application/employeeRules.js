@@ -39,8 +39,10 @@ export function normalizeEmployee(e, sites) {
   const n = { ...e };
   if (!n.probationPassDate && n.startDate) n.probationPassDate = probationDueDate(n.startDate);
   if (n.employeeType === 'PRO_SITE' && n.companyCode !== 'PRO') n.employeeType = 'CENTRAL';
+  // เลือกหน่วยงานไว้แต่คนละบริษัท (เพิ่งเปลี่ยนบริษัท) → หน่วยงานแรกของบริษัท
+  // ยังไม่ได้เลือก (0 — เช่น นำเข้า Excel แล้วหาหน่วยงานไม่เจอ) = ปล่อยว่างให้เลือกเอง ไม่เดาให้เงียบ ๆ
   const site = sites.find((s) => s.id === n.siteId);
-  if (!site || site.companyCode !== n.companyCode)
+  if (n.siteId && (!site || site.companyCode !== n.companyCode))
     n.siteId = sites.find((s) => s.companyCode === n.companyCode)?.id ?? 0;
   if (n.employeeType === 'CENTRAL') {
     n.deptGroup ??= 'Support Line';

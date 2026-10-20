@@ -1,0 +1,261 @@
+// นำเข้ารายชื่อพนักงานจาก Excel ของ HR (ไม่เรียกเครือข่าย — ทดสอบได้ด้วยข้อมูลสมมติ)
+//
+//   parseEmployeeSheet(rows)   ตาราง (แถว × คอลัมน์ จาก SheetJS header:1) → { kind, items } หรือ { error }
+//     - หาแถวหัวตารางเอง (แถวที่มี "รหัสพนักงาน") · จับคอลัมน์ตามชื่อหัว ไม่ขึ้นกับลำดับ
+//     - มีคอลัมน์ "วันพ้นสภาพ" = ไฟล์ลาออก (OUT) · ไม่มี = ไฟล์เข้าใหม่ (IN)
+//     - วันที่: เลขวันที่ของ Excel / Date / "วว/ดด/ปปปป" · ปี พ.ศ. (> 2400) แปลงเป็น ค.ศ.
+//     - ชื่อ: "นายสมชาย ใจดี" → คำนำหน้า / ชื่อ / นามสกุล · เพศจากคำนำหน้า
+//   planEmployeeImport(parsed, employees, sites)  → สิ่งที่จะใส่ในตาราง
+//     IN : เพิ่มแถวใหม่ (รหัสซ้ำในระบบ = ข้าม) · เดาประเภท/หน่วยงาน/ฝ่าย — ที่เดาไม่ได้ปล่อยว่างให้ HR เลือก (ช่องแดง)
+//     OUT: แก้พนักงานเดิมตามรหัส → พ้นสภาพ + วันพ้นสภาพ + เหตุผล (พ้นสภาพแล้ว = ข้าม)
+//          ไม่พบในระบบ = ข้าม · หรือ addMissing: true = เพิ่มเป็นพนักงานที่พ้นสภาพแล้ว (ข้อมูลในไฟล์ครบ)
+import { COMPANY_CODES, TITLES } from '../../domain/labels.js';
+import { probationDueDate } from '../../domain/employee.js';
+import { DEPT_GROUPS } from '../../shared/labels.js';
+
+const HEAD = {
+  empCode: ['รหัสพนักงาน', 'รหัส'],
+  companyCode: ['บริษัท'],
+  name: ['ชื่อพนักงาน', 'ชื่อ-นามสกุล', 'ชื่อ - นามสกุล', 'ชื่อ-สกุล', 'ชื่อ'],
+  position: ['ชื่อตำแหน่ง', 'ตำแหน่ง'],
+  unit: ['ชื่อหน่วยงาน', 'หน่วยงาน'],
+  division: ['ฝ่าย'],
+  startDate: ['วันเริ่มงาน', 'วันเข้างาน'],
+  endDate: ['วันพ้นสภาพ', 'วันลาออก', 'วันที่ลาออก'],
+  birthDate: ['วันเกิด'],
+  level: ['ระดับ'],
+  nationalId: ['เลขบัตรประชาชน', 'เลขประจำตัวประชาชน'],
+  note: ['หมายเหตุ'],
+};
+const norm = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
+
+/** ค่าในเซลล์ → YYYY-MM-DD (ปี พ.ศ. → ค.ศ.) · อ่านไม่ได้ = null */
+export function toIsoDate(v) {
+  if (v === null || v === undefined || v === '') return null;
+  let y, m, d;
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    [y, m, d] = [v.getUTCFullYear(), v.getUTCMonth() + 1, v.getUTCDate()];
+  } else if (typeof v === 'number' && v > 0) {
+    // เลขวันที่ของ Excel (นับจาก 30 ธ.ค. 1899)
+    const t = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86_400_000);
+    [y, m, d] = [t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()];
+  } else {
+    const s = norm(v);
+    let x = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (x) [y, m, d] = [+x[1], +x[2], +x[3]];
+    else if ((x = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/))) {
+      [d, m, y] = [+x[1], +x[2], +x[3]];
+      if (y < 100) y += 2500; // ปี 2 หลักในไฟล์ HR = พ.ศ. 25xx (69 = 2569)
+    } else return null;
+  }
+  if (y > 2400) y -= 543;
+  if (!(m >= 1 && m <= 12 && d >= 1 && d <= 31)) return null;
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+const TITLE_RE = /^(นางสาว|น\.ส\.|นาง|นาย|ว่าที่\s?ร\.ต\.(?:หญิง)?|ดร\.)\s*/;
+/** "นายสมชาย ใจดี" → { title, firstName, lastName, gender } */
+export function splitThaiName(full) {
+  const s = norm(full);
+  const m = s.match(TITLE_RE);
+  let title = m ? m[1].replace(/\s/g, '') : null;
+  if (title === 'น.ส.') title = 'นางสาว';
+  const rest = (m ? s.slice(m[0].length) : s).split(' ').filter(Boolean);
+  const gender = title === 'นาย' ? 'M' : title === 'นาง' || title === 'นางสาว' ? 'F' : null;
+  return {
+    title: TITLES.includes(title) ? title : null,
+    rawTitle: title,
+    firstName: rest[0] ?? '',
+    lastName: rest.slice(1).join(' '),
+    gender,
+  };
+}
+
+/** หมายเหตุในไฟล์ลาออก → เหตุผลพ้นสภาพในระบบ */
+export function endReasonOf(note) {
+  const s = norm(note);
+  if (/ขาดงาน|ขางาน/.test(s)) return 'ABSENT_3D';
+  if (/ทุจริต|กระทำผิด|ไล่ออก/.test(s)) return 'MISCONDUCT';
+  if (/เลิกจ้าง/.test(s)) return 'TERMINATED';
+  return 'RESIGN';
+}
+
+/**
+ * @param {any[][]} rows  แถวจาก SheetJS (header: 1, raw: true)
+ * @returns {{kind: 'IN'|'OUT', items: object[]} | {error: string}}
+ */
+export function parseEmployeeSheet(rows) {
+  const h = rows.slice(0, 15).findIndex((r) => (r ?? []).some((c) => HEAD.empCode.includes(norm(c))));
+  if (h < 0) return { error: 'ไม่พบหัวตาราง "รหัสพนักงาน" ใน 15 แถวแรก — ตรวจว่าเป็นไฟล์รายชื่อพนักงานเข้าใหม่/ลาออก' };
+  const head = rows[h].map(norm);
+  const col = {};
+  for (const [k, names] of Object.entries(HEAD)) {
+    const i = head.findIndex((x) => names.includes(x));
+    if (i >= 0) col[k] = i;
+  }
+  const need = ['empCode', 'companyCode', 'name'];
+  const miss = need.filter((k) => col[k] === undefined).map((k) => HEAD[k][0]);
+  if (miss.length) return { error: `ไม่พบคอลัมน์ ${miss.join(', ')}` };
+  const kind = col.endDate !== undefined ? 'OUT' : 'IN';
+  if (kind === 'IN' && col.startDate === undefined) return { error: 'ไฟล์เข้าใหม่ต้องมีคอลัมน์ "วันเริ่มงาน"' };
+  const get = (r, k) => (col[k] === undefined ? null : r[col[k]]);
+  const items = [];
+  rows.slice(h + 1).forEach((r, i) => {
+    if (!r) return;
+    const empCode = norm(get(r, 'empCode'));
+    if (!empCode) return;
+    const name = splitThaiName(get(r, 'name'));
+    const level = norm(get(r, 'level')).match(/\d+/);
+    items.push({
+      rowNo: h + 2 + i, // เลขแถวใน Excel (นับจาก 1)
+      empCode,
+      companyCode: norm(get(r, 'companyCode')).toUpperCase(),
+      ...name,
+      position: norm(get(r, 'position')),
+      unit: norm(get(r, 'unit')),
+      division: norm(get(r, 'division')),
+      startDate: toIsoDate(get(r, 'startDate')),
+      endDate: toIsoDate(get(r, 'endDate')),
+      birthDate: toIsoDate(get(r, 'birthDate')),
+      level: level ? Number(level[0]) : null,
+      nationalId: norm(get(r, 'nationalId')).replace(/\D/g, '') || null,
+      note: norm(get(r, 'note')),
+    });
+  });
+  return { kind, items };
+}
+
+/** ชื่อหน่วยงานในไฟล์ → หน่วยงานในระบบ (บริษัทเดียวกัน · ตัด "PRO/FM/" นำหน้า · ตรงทั้งชื่อ หรือชื่อหนึ่งอยู่ในอีกชื่อ) */
+export function matchSite(unit, companyCode, sites) {
+  const clean = (x) =>
+    norm(x)
+      .replace(/^[A-Z]+\/[A-Z]+\//i, '') // PRO/FM/…
+      .replace(/^pro site\s*[—-]\s*/i, '') // Pro Site — …
+      .toLowerCase();
+  const u = clean(unit);
+  if (!u) return null;
+  const mine = sites.filter((s) => s.companyCode === companyCode);
+  return (
+    mine.find((s) => clean(s.name) === u) ??
+    mine.find((s) => {
+      const n = clean(s.name);
+      return u.length >= 4 && n.length >= 4 && (n.includes(u) || u.includes(n));
+    }) ??
+    null
+  );
+}
+
+/** ประเภทพนักงานจากไฟล์ (เดา — แก้ในตารางได้) */
+export function guessEmployeeType(item) {
+  if (item.companyCode === 'PRO' && /^PRO\/FM\//i.test(item.unit)) return 'PRO_SITE';
+  if (item.companyCode === 'CNS' && /แม่บ้าน/.test(item.position)) return 'MAID_CNS';
+  return 'CENTRAL';
+}
+
+/** ฝ่ายในไฟล์ → กลุ่มฝ่ายของระบบ (DEPT_GROUPS) · ไม่ตรงอันไหน = null ให้ HR เลือก */
+export function matchDeptGroup(division) {
+  const d = norm(division);
+  if (!d) return null;
+  return DEPT_GROUPS.find((g) => d.includes(g)) ?? null;
+}
+
+/**
+ * @param {{kind: 'IN'|'OUT', items: object[]}} parsed
+ * @param {object[]} employees  พนักงานทั้งหมดในระบบ
+ * @param {object[]} sites
+ * @param {{addMissing?: boolean}} [opts]  ไฟล์ลาออก: คนที่ไม่มีในระบบ → เพิ่มเป็นพนักงานที่พ้นสภาพ
+ * @returns {{kind: 'IN'|'OUT', add: {rowNo:number, row:object, issues:string[]}[], update: {rowNo:number, id:number, row:object, issues:string[]}[], skip: {rowNo:number, empCode:string, name:string, reason:string}[]}}
+ */
+export function planEmployeeImport(parsed, employees, sites, { addMissing = false } = {}) {
+  const byCode = new Map(employees.map((e) => [e.empCode, e]));
+  const out = { kind: parsed.kind, add: [], update: [], skip: [] };
+  const seen = new Set();
+  for (const it of parsed.items) {
+    const name = `${it.firstName} ${it.lastName}`.trim();
+    const skip = (reason) => out.skip.push({ rowNo: it.rowNo, empCode: it.empCode, name, reason });
+    if (seen.has(it.empCode)) {
+      skip('รหัสซ้ำในไฟล์');
+      continue;
+    }
+    seen.add(it.empCode);
+    const existing = byCode.get(it.empCode);
+
+    if (parsed.kind === 'OUT') {
+      if (!existing && !addMissing) skip('ไม่พบรหัสนี้ในระบบ');
+      else if (!existing) {
+        if (!it.endDate) skip('ไม่มีวันพ้นสภาพ / อ่านวันที่ไม่ได้');
+        else if (!COMPANY_CODES.includes(it.companyCode)) skip(`ไม่รู้จักบริษัท "${it.companyCode}"`);
+        else {
+          const a = newEmployee(it, sites);
+          const endReason = endReasonOf(it.note);
+          out.add.push({ rowNo: it.rowNo, issues: a.issues, row: { ...a.row, status: 'INACTIVE', endDate: it.endDate, lastWorkingDate: it.endDate, endReason } });
+        }
+      } else if (existing.status === 'INACTIVE') skip('พ้นสภาพในระบบแล้ว');
+      else if (!it.endDate) skip('ไม่มีวันพ้นสภาพ / อ่านวันที่ไม่ได้');
+      else {
+        const endReason = endReasonOf(it.note);
+        const issues = [];
+        if (endReason === 'ABSENT_3D') issues.push('ขาดงาน 3 วัน — ตรวจ "ทำงานวันสุดท้าย" (ใส่เท่าวันพ้นสภาพไว้ก่อน)');
+        out.update.push({
+          rowNo: it.rowNo,
+          id: existing.id,
+          row: { ...existing, status: 'INACTIVE', endDate: it.endDate, lastWorkingDate: it.endDate, endReason },
+          issues,
+        });
+      }
+      continue;
+    }
+
+    if (existing) {
+      skip(`มีรหัสนี้ในระบบแล้ว (${existing.firstName} ${existing.lastName})`);
+      continue;
+    }
+    if (!COMPANY_CODES.includes(it.companyCode)) {
+      skip(`ไม่รู้จักบริษัท "${it.companyCode}"`);
+      continue;
+    }
+    out.add.push({ rowNo: it.rowNo, ...newEmployee(it, sites) });
+  }
+  return out;
+}
+
+/** แถวพนักงานใหม่จาก 1 แถวในไฟล์ + สิ่งที่ HR ต้องตรวจ */
+function newEmployee(it, sites) {
+  const type = guessEmployeeType(it);
+  const site = matchSite(it.unit, it.companyCode, sites);
+  const deptGroup = type === 'CENTRAL' ? matchDeptGroup(it.division) : null;
+  const issues = [];
+  if (!site) issues.push(`ไม่พบหน่วยงาน "${it.unit || '–'}" — เลือกในตาราง`);
+  if (type === 'CENTRAL' && !deptGroup) issues.push(`ฝ่าย "${it.division || '–'}" — เลือกกลุ่ม/ฝ่ายในตาราง`);
+  if (!it.title && it.rawTitle) issues.push(`คำนำหน้า "${it.rawTitle}" ไม่มีในระบบ — เลือกในตาราง`);
+  if (!it.birthDate) issues.push('ไม่มีวันเกิด');
+  return {
+    issues,
+    row: {
+      id: 0,
+      empCode: it.empCode,
+      firstName: it.firstName,
+      lastName: it.lastName,
+      companyCode: it.companyCode,
+      siteId: site?.id ?? 0,
+      employeeType: type,
+      contractType: 'REGULAR',
+      deptGroup,
+      position: type === 'PRO_SITE' ? it.position || null : null,
+      level: type === 'CENTRAL' ? it.level : null,
+      salary: 0,
+      birthDate: it.birthDate ?? '',
+      startDate: it.startDate ?? '',
+      probationPassDate: probationDueDate(it.startDate),
+      status: 'ACTIVE',
+      lastWorkingDate: null,
+      endDate: null,
+      endReason: null,
+      title: it.title,
+      gender: it.gender,
+      nationalId: it.nationalId,
+      phone: null,
+      email: null,
+    },
+  };
+}

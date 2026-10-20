@@ -165,7 +165,34 @@ export class ExcelGrid {
 
   filtered() {
     if (!this.rows) return [];
-    return this.filter.apply(this.rows, this.textOf, this.sortOf, (r) => this.pinned.has(String(this.o.rowKey(r))));
+    const rows = this.filter.apply(this.rows, this.textOf, this.sortOf, (r) => this.pinned.has(String(this.o.rowKey(r))));
+    // "แสดงเฉพาะที่ยังไม่บันทึก" (แถวใหม่อยู่บนสุดเสมออยู่แล้ว)
+    if (!this.onlyPending || !this.hasPending()) return rows;
+    return rows.filter((r) => {
+      const k = String(this.o.rowKey(r));
+      return this.drafts.has(k) || this.deleted.has(k);
+    });
+  }
+
+  /**
+   * ใส่การเปลี่ยนแปลงจากภายนอก (เช่น นำเข้า Excel) เป็น "ยังไม่บันทึก" — ผู้ใช้ตรวจ/แก้ในตารางแล้วกดบันทึกเอง
+   * @param {{add?: object[], edits?: {key: string|number, row: object}[], onlyPending?: boolean}} o
+   *   add = แถวใหม่ (สีเขียว ด้านบน) · edits = แก้แถวที่มีอยู่ตาม rowKey (สีเหลือง เห็นค่าเดิม)
+   */
+  stage({ add = [], edits = [], onlyPending = true } = {}) {
+    if (this.editing) return;
+    const added = add.map((row) => ({ key: `new:${++this.seq}`, row }));
+    this.newRows = [...added, ...this.newRows];
+    for (const { key, row } of edits) {
+      const k = String(key);
+      const orig = this.rowByKey(k);
+      if (orig && !this.sameRow(row, orig)) this.drafts.set(k, row);
+    }
+    this.onlyPending = onlyPending && this.hasPending();
+    this.filter.clear();
+    this.page = 1;
+    this.active = null;
+    this.render();
   }
 
   openFilter(btn) {
@@ -533,6 +560,12 @@ export class ExcelGrid {
         if (act === 'add') return this.addRow(this.root.querySelector('[data-add-count]')?.value);
         if (act === 'save-all') return this.saveAll();
         if (act === 'discard-all') return this.discardAll();
+        if (act === 'only-pending') {
+          this.onlyPending = !this.onlyPending;
+          this.page = 1;
+          this.active = null;
+          return this.render();
+        }
         const entry = this.entries().find((x) => x.key === btn.dataset.key);
         if (!entry || this.saving) return;
         if (act === 'discard') {
@@ -649,6 +682,9 @@ export class ExcelGrid {
       ${p.edited ? html`<span class="chg-tag edit">แก้ไข ${p.edited}</span>` : ''}
       ${p.deleted ? html`<span class="chg-tag del">ลบ ${p.deleted}</span>` : ''}
       ${errors ? html`<span class="gp-error">${raw(icon('alert-triangle'))} มีปัญหา ${errors} แถว</span>` : ''}
+      ${p.edited || p.deleted
+        ? html`<button type="button" class="btn btn-sm btn-ghost gp-only${this.onlyPending ? ' on' : ''}" data-grid-act="only-pending" aria-pressed="${this.onlyPending ? 'true' : 'false'}" title="ซ่อนแถวที่ไม่ได้แก้ — ตรวจเฉพาะที่จะบันทึก">${raw(icon(this.onlyPending ? 'eye' : 'funnel'))} ${this.onlyPending ? 'แสดงทุกแถว' : 'เฉพาะที่ยังไม่บันทึก'}</button>`
+        : ''}
       <span class="gp-actions">
         <button type="button" class="btn btn-sm btn-ghost" data-grid-act="discard-all" ${this.saving ? 'disabled' : ''}>ยกเลิกทั้งหมด</button>
         <button type="button" class="btn btn-sm btn-primary" data-grid-act="save-all" ${this.saving ? 'disabled' : ''} title="Ctrl + S">${this.saving ? spinner({ size: 'sm', onColor: true }) : raw(icon('save'))} บันทึก (${p.total})</button>

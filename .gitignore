@@ -12,3 +12,7 @@ backend/vendor/
 # backend PHP 5.2: ค่าเชื่อมต่อฐานข้อมูล + กุญแจสต็อก
 backend/config.php
 backend/LOCAL_ACCOUNTS.txt
+
+# ไฟล์ Excel ของ HR ที่วางไว้ที่โฟลเดอร์โปรเจกต์ (มีข้อมูลบุคคล) — ห้ามขึ้น repo
+/*.xlsx
+/*.xls

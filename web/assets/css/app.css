@@ -5956,3 +5956,96 @@ body.col-resizing * {
   font-size: 11.5px;
   line-height: 1.45;
 }
+
+/* นำเข้า Excel พนักงาน (pages/_employeeImport.js) — สรุปก่อนนำเข้า */
+.imp-sum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.imp-file {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-right: auto;
+  color: var(--fg);
+}
+.imp-file .icon {
+  color: #107c41;
+}
+.imp-skip-tag {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.imp-missing {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.imp-missing input {
+  margin-top: 3px;
+}
+.imp-missing span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.imp-missing small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.imp-sum + .alert,
+.imp-missing + .alert {
+  margin-bottom: 12px;
+}
+.imp-table {
+  max-height: min(48vh, 420px);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.imp-table th {
+  position: sticky;
+  top: 0;
+}
+.imp-skipped td {
+  color: var(--muted);
+}
+.imp-issue {
+  color: var(--warning);
+}
+.imp-note {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin-top: 10px;
+}
+.imp-note .icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.imp-g {
+  color: var(--chg-add);
+}
+.imp-y {
+  color: var(--chg-edit);
+}
+/* แถบยังไม่บันทึก: ปุ่ม "เฉพาะที่ยังไม่บันทึก" */
+.gp-only.on {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
