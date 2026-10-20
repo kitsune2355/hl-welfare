@@ -6153,6 +6153,25 @@ body.col-resizing * {
 .t-upcoming,
 .t-activity {
   grid-column: span 4;
+  /* สูงคงที่ — เปลี่ยนหน้าตาราง (หน้าสุดท้ายแถวน้อยกว่า) / โหลดกิจกรรมเพิ่ม แล้วกล่องไม่ย่อ-ขยาย
+     เนื้อหาที่ยาวกว่าเลื่อนดูในกล่อง · แถบแบ่งหน้า / "โหลดเพิ่ม" อยู่ล่างสุดเสมอ */
+  height: 460px;
+}
+/* ตารางจะครบสิทธิ: เต็มความสูงที่เหลือ ตารางเลื่อนในตัว แถบแบ่งหน้าชิดล่าง */
+#upcoming {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+}
+#upcoming > .table-wrap,
+#upcoming > .cards {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+}
+#upcoming > .pager {
+  margin-top: auto;
 }
 .t-tasks {
   grid-column: 1 / -1;
@@ -6180,8 +6199,7 @@ body.col-resizing * {
 }
 .activity-scroll {
   flex: 1 1 0;
-  min-height: 200px;
-  max-height: 520px;
+  min-height: 0;
   overflow-y: auto;
   padding: 4px 20px 16px;
   border-top: 1px solid var(--border);
@@ -6540,9 +6558,6 @@ button.sev-pill {
   .t-activity {
     grid-column: 1 / -1;
   }
-  .activity-scroll {
-    max-height: 420px;
-  }
 }
 @media (max-width: 767px) {
   .bento {
@@ -6556,6 +6571,17 @@ button.sev-pill {
   .t-upcoming,
   .t-activity {
     grid-column: 1 / -1;
+  }
+  /* มือถือ (เรียงกล่องเดียวต่อแถว): ช่องพนักงาน / ตารางจะครบสิทธิ (แสดงเป็นการ์ด) สูงตามเนื้อหา
+     ไม่ให้การ์ดเลื่อนซ้อนในกล่องขณะเลื่อนหน้าจอ — ช่องกิจกรรมยังสูงคงที่ เลื่อนดูในกล่อง */
+  .t-people,
+  .t-upcoming {
+    height: auto;
+  }
+  #upcoming,
+  #upcoming > .cards {
+    flex: none;
+    overflow: visible;
   }
   .t-flush > .tile-head {
     flex-wrap: wrap;
