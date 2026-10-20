@@ -152,7 +152,7 @@ async function openStockRequest({ employeeId, entitlementKey, event, name, onDon
           : alertBox({
               tone: 'info',
               // <strong> ไม่ใช่ <b> — .alert-body b เป็นหัวข้อ (display: block)
-              body: html`${newStaff ? html`ออกเป็น<strong>ใบเบิกพนักงานใหม่</strong> ` : 'ใบเบิก'}ลงหน่วยงาน <strong>${d.name}</strong>${d.company ? ` (${d.company})` : ''} และ<strong>อนุมัติอัตโนมัติ</strong> — เมื่อคลังจ่ายแล้ว สถานะในระบบนี้จะอัปเดตเอง`,
+              body: html`${newStaff ? html`ออกเป็น<strong>ใบเบิกพนักงานใหม่</strong> (อยู่ใน “รายการใบเบิก” ของระบบสต็อก) ` : 'ใบเบิก'}ลงหน่วยงาน <strong>${d.name}</strong>${d.company ? ` (${d.company})` : ''} และ<strong>อนุมัติอัตโนมัติ</strong> — เมื่อคลังจ่ายแล้ว สถานะในระบบนี้จะอัปเดตเอง`,
             })}
         <p class="small muted" style="margin:12px 0 0">${opt.style} · สิทธิ์ ${opt.qtyLabel} ตัว · ของไม่พอก็ส่งเบิกได้ คลังจะจ่ายเมื่อมีของ</p>
         <div>${opt.items.map(lineHtml)}</div>
