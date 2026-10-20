@@ -8,12 +8,12 @@ import { myCompany } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
 import { progress } from '../ui/loading.js';
 import { startTourIfNew } from '../app/tour.js';
-import { todayISO } from '../domain/date.js';
+import { diffDays, todayISO } from '../domain/date.js';
 import { $, debounce, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { clock, int, relativeDays, thaiDate, thaiDateLong } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import { SEVERITY_LABEL, SEVERITY_TONE, TASK_KIND_LABEL } from '../shared/labels.js';
-import { alertBox, badge, emptyState, employeeCell, errorState, skeletonCards, skeletonLines, statCard, tabs } from '../ui/components.js';
+import { badge, emptyState, employeeCell, errorState, skeletonCards, skeletonLines, tabs } from '../ui/components.js';
 import { DataTable } from '../ui/table.js';
 import { activityFeed } from './_shared.js';
 
@@ -41,7 +41,6 @@ const state = {
 
 const h = new Date().getHours();
 render($('#greeting'), `${h < 12 ? 'สวัสดีตอนเช้า' : h < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น'} 👋`);
-render($('#stats'), skeletonCards(4));
 render($('#sev-stats'), skeletonCards(3));
 render($('#feed'), skeletonLines(6));
 
@@ -88,55 +87,103 @@ const upcoming = new DataTable($('#upcoming'), {
   empty: emptyState({ iconName: 'calendar-clock', title: 'ไม่มีพนักงานที่จะครบสิทธิใน 30 วัน' }),
 });
 
+/** หัวของช่อง bento: ไอคอน + ชื่อ + ลิงก์ (ถ้ามี) */
+const tileHead = (iconName, title, sub = '', link = null) => html`<header class="tile-head">
+  <span class="tile-ic">${raw(icon(iconName))}</span>
+  <div class="grow"><h2>${title}</h2>${sub ? html`<p>${sub}</p>` : ''}</div>
+  ${link ? html`<a class="tile-link" href="${link.href}" ${link.tab ? raw(`data-goto-tab="${link.tab}"`) : ''}>${link.label} ${raw(icon('chevron-right'))}</a>` : ''}
+</header>`;
+
 function drawSummary(d) {
   render($('#today'), `ภาพรวมสวัสดิการ ณ ${thaiDateLong(d.today)}`);
-  const box = $('#urgent-alert');
-  box.classList.toggle('hidden', d.urgentPending === 0);
-  if (d.urgentPending > 0) {
-    render(
-      box,
-      alertBox({
-        tone: 'danger',
-        title: `มีพนักงาน ${d.urgentPending} รายที่ต้องแจ้งออกจากประกันกลุ่มทันที`,
-        body: 'กรณีเลิกจ้าง / กระทำผิด ต้องแจ้งบริษัทประกันโดยไม่รอรอบวันที่ 5',
-        action: html`<a class="btn btn-danger btn-sm" href="insurance.html?tab=urgent">ไปส่งออกไฟล์</a>`,
-      }),
-    );
-  }
+  const days = diffDays(d.today, d.nextCycleDate);
+  // ช่องใหญ่: รอบแจ้งประกันถัดไป (นับถอยหลัง + จำนวนเข้า/ออก)
   render(
-    $('#stats'),
-    html`${statCard({ label: 'พนักงานปัจจุบัน', value: int(d.activeTotal), hint: myCompany() ? `บริษัท ${myCompany()}` : 'ทุกบริษัทในเครือ', iconName: 'users', href: 'employees.html?status=ACTIVE' })}
-    ${statCard({
-      label: `รอบแจ้งประกัน ${thaiDate(d.nextCycleDate)}`,
-      value: html`${d.nextCycleIn}<small>เข้า</small>${d.nextCycleOut}<small>ออก</small>`,
-      hint: relativeDays(d.nextCycleDate, d.today),
-      iconName: 'shield-plus',
-      tone: 'info',
-      href: 'insurance.html',
-    })}
-    ${statCard({
-      label: 'แจ้งออกทันทีค้าง',
-      value: d.urgentPending,
-      hint: d.urgentPending ? 'ต้องดำเนินการวันนี้' : 'ไม่มีรายการค้าง',
-      iconName: 'shield-alert',
-      tone: d.urgentPending ? 'danger' : 'success',
-      href: 'insurance.html?tab=urgent',
-    })}
-    ${statCard({ label: 'ชุดฟอร์มค้างแจก', value: d.uniformPending, hint: 'รายการที่ถึงกำหนดแล้ว', iconName: 'shirt', tone: 'warning', href: 'uniform.html' })}`,
+    $('#t-cycle'),
+    html`<div class="cycle-top">
+        <span class="tile-kicker">${raw(icon('shield-plus'))} รอบแจ้งประกันกลุ่มถัดไป</span>
+        <span class="cycle-date">${thaiDateLong(d.nextCycleDate)}</span>
+      </div>
+      <div class="cycle-main">
+        <div class="cycle-count"><b class="num">${days <= 0 ? 'วันนี้' : days}</b>${days > 0 ? html`<span>วัน<br />ถึงรอบ</span>` : ''}</div>
+        <div class="cycle-io">
+          <a href="insurance.html?tab=in" class="io-tile"><span class="num">${int(d.nextCycleIn)}</span><small>แจ้งเข้า</small></a>
+          <a href="insurance.html?tab=out" class="io-tile"><span class="num">${int(d.nextCycleOut)}</span><small>แจ้งออก</small></a>
+        </div>
+      </div>
+      <div class="cycle-actions">
+        <a class="btn btn-sm cycle-btn" href="insurance.html">${raw(icon('file-spreadsheet'))} ไปส่งออกไฟล์แจ้งประกัน</a>
+        <span class="cycle-note">${relativeDays(d.nextCycleDate, d.today)} · ส่งออกครั้งเดียวได้ไฟล์ของทุกบริษัทประกัน</span>
+      </div>`,
   );
-  const max = Math.max(1, ...d.activeByCompany.map((c) => c.count));
+  // แจ้งออกทันที (แดงเมื่อมีค้าง)
+  const urgent = $('#t-urgent');
+  urgent.classList.toggle('is-alert', d.urgentPending > 0);
   render(
-    $('#by-company'),
-    html`<ul class="bars">
-      ${d.activeByCompany.map(
-        (c) => html`<li>
-          <div class="bar-head"><b>${c.companyCode}</b><span class="muted num">${int(c.count)} คน</span></div>
-          <div class="track"><div class="fill" style="width:${(c.count / max) * 100}%;background:${COMPANY_COLOR[c.companyCode]}"></div></div>
-        </li>`,
-      )}
-    </ul>`,
+    urgent,
+    html`${tileHead('shield-alert', 'แจ้งออกทันทีค้าง', 'เลิกจ้าง / กระทำผิด — ไม่รอรอบวันที่ 5')}
+      <div class="tile-big"><b class="num">${int(d.urgentPending)}</b><span>${d.urgentPending ? 'ราย ต้องแจ้งวันนี้' : 'ไม่มีรายการค้าง'}</span></div>
+      ${d.urgentPending
+        ? html`<a class="btn btn-danger btn-sm" href="insurance.html?tab=urgent">ไปส่งออกไฟล์ ${raw(icon('chevron-right'))}</a>`
+        : html`<span class="tile-ok">${raw(icon('circle-check'))} เรียบร้อย</span>`}`,
+  );
+  // ชุดฟอร์มค้างแจก
+  render(
+    $('#t-uniform'),
+    html`${tileHead('shirt', 'ชุดฟอร์มค้างแจก', 'ถึงกำหนดแล้ว ยังไม่ได้แจก / ส่งเบิก')}
+      <div class="tile-big"><b class="num">${int(d.uniformPending)}</b><span>รายการ</span></div>
+      <a class="btn btn-sm" href="uniform.html">${d.uniformPending ? 'ไปแจก / ส่งเบิกคลัง' : 'ดูหน้าชุดฟอร์ม'} ${raw(icon('chevron-right'))}</a>`,
+  );
+  // พนักงานปัจจุบัน + สัดส่วนแยกบริษัท (แถบเดียวต่อกัน + ตัวเลขรายบริษัท)
+  const total = Math.max(1, d.activeTotal);
+  render(
+    $('#t-people'),
+    html`${tileHead('users', 'พนักงานปัจจุบัน', myCompany() ? `บริษัท ${myCompany()}` : 'ทุกบริษัทในเครือ', { href: 'employees.html?status=ACTIVE', label: 'ดูทั้งหมด' })}
+      <div class="tile-big"><b class="num">${int(d.activeTotal)}</b><span>คน</span></div>
+      <div class="stack-bar" role="img" aria-label="สัดส่วนพนักงานแยกบริษัท">
+        ${d.activeByCompany.filter((c) => c.count).map((c) => html`<i style="width:${(c.count / total) * 100}%;background:${COMPANY_COLOR[c.companyCode]}" title="${c.companyCode} ${c.count} คน"></i>`)}
+      </div>
+      <ul class="co-list">
+        ${d.activeByCompany.map(
+          (c) => html`<li><a href="employees.html?status=ACTIVE&company=${c.companyCode}"><i style="background:${COMPANY_COLOR[c.companyCode]}"></i><b>${c.companyCode}</b><span class="num">${int(c.count)}</span></a></li>`,
+        )}
+      </ul>`,
   );
   upcoming.setRows(d.upcomingEligible);
+  drawQueueTile();
+}
+
+/** ช่องคิวงาน: จำนวนตามระดับ + 3 เรื่องด่วนสุด */
+function drawQueueTile() {
+  const tasks = state.tasks;
+  if (!tasks) return;
+  const n = (sev) => tasks.filter((t) => t.severity === sev).length;
+  render(
+    $('#t-queue'),
+    html`${tileHead('clipboard-list', 'คิวงาน', 'เรื่องที่ต้องทำ เรียงด่วนก่อน', { href: 'index.html?tab=queue', label: 'ดูทั้งหมด', tab: 'queue' })}
+      <div class="sev-row">
+        ${['critical', 'warning', 'info'].map(
+          (sev) => html`<a class="sev-pill tone-${SEVERITY_TONE[sev]}" href="index.html?tab=queue&severity=${sev}" data-goto-tab="queue" data-goto-sev="${sev}"><b class="num">${n(sev)}</b><span>${SEVERITY_LABEL[sev]}</span></a>`,
+        )}
+      </div>
+      ${tasks.length
+        ? html`<ol class="mini-list">
+            ${tasks.slice(0, 3).map((t) => {
+              const l = taskLink(t);
+              return html`<li><span class="dot tone-${SEVERITY_TONE[t.severity]}"></span><a href="${l.href}"><b>${t.title}</b><span>${t.employee.firstName} ${t.employee.lastName}${t.overdueDays > 0 ? ` · เลยมา ${t.overdueDays} วัน` : ''}</span></a></li>`;
+            })}
+          </ol>`
+        : html`<p class="tile-ok">${raw(icon('circle-check'))} ไม่มีงานค้าง</p>`}`,
+  );
+}
+
+/** ช่องกิจกรรมล่าสุด (5 รายการ) */
+function drawRecentTile(items) {
+  render(
+    $('#t-recent'),
+    html`${tileHead('activity', 'กิจกรรมล่าสุด', 'ใคร ทำอะไร เมื่อไร', { href: 'index.html?tab=activity', label: 'ดูทั้งหมด', tab: 'activity' })}
+      <div class="recent-feed">${activityFeed(items.slice(0, 5))}</div>`,
+  );
 }
 
 // ===================== คิวงาน =====================
@@ -253,6 +300,19 @@ function drawQueue() {
   taskTable.setRows(shown);
 }
 
+// ลิงก์ในช่อง bento ที่ชี้แท็บอื่นของหน้านี้ → สลับแท็บทันที (ไม่โหลดหน้าใหม่)
+on($('#bento'), 'click', '[data-goto-tab]', (e, a) => {
+  e.preventDefault();
+  tab = a.dataset.gotoTab;
+  if (a.dataset.gotoSev) {
+    state.severity = a.dataset.gotoSev;
+    drawQueue();
+  }
+  setParams({ tab, severity: a.dataset.gotoSev ?? (tab === 'queue' ? state.severity : '') });
+  drawTabs();
+  scrollTo({ top: 0, behavior: 'smooth' });
+  startTourIfNew(tourId());
+});
 on($('#sev-stats'), 'click', '[data-severity]', (_e, b) => {
   state.severity = state.severity === b.dataset.severity ? '' : b.dataset.severity;
   setParams({ severity: state.severity });
@@ -278,6 +338,7 @@ async function loadActivity() {
     render($('#feed'), activityFeed(items));
     $('#more-wrap').classList.toggle('hidden', items.length < state.limit);
     const all = state.entity ? await api.listActivity({ limit: 500 }) : items;
+    drawRecentTile(all);
     state.todayCount = all.filter((a) => a.at.startsWith(today)).length;
     render($('#today-count'), badge(`วันนี้ ${state.todayCount} รายการ`, 'primary'));
     drawTabs();
@@ -307,7 +368,7 @@ async function refresh() {
     drawTabs();
     render($('#updated'), `อัปเดต ${clock(new Date())}`);
   } catch (e) {
-    render($('#stats'), errorState(e));
+    render($('#t-cycle'), errorState(e));
   }
   await loadActivity();
   $('#refresh').disabled = false;

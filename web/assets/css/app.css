@@ -6049,3 +6049,415 @@ body.col-resizing * {
   background: var(--primary-soft);
   color: var(--primary);
 }
+
+/* =====================================================================
+   ภาพรวม › แท็บสรุป — bento dashboard (ช่องขนาดต่างกันตามความสำคัญ · สูงตามเนื้อหา ไม่บีบให้พอดีจอ)
+   12 คอลัมน์: รอบแจ้งประกัน (ใหญ่ 7×2) · แจ้งออกทันที / ชุดฟอร์ม (5) · พนักงาน / คิวงาน / กิจกรรม (4) · จะครบสิทธิ (12)
+   ===================================================================== */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-flow: dense;
+  gap: 16px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.t-cycle {
+  grid-column: span 7;
+  grid-row: span 2;
+}
+.t-urgent,
+.t-uniform {
+  grid-column: span 5;
+}
+.t-people,
+.t-queue,
+.t-recent {
+  grid-column: span 4;
+}
+.t-upcoming {
+  grid-column: 1 / -1;
+  padding: 0;
+  overflow: hidden;
+}
+.t-upcoming > .tile-head {
+  padding: 18px 20px 4px;
+}
+.tile-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.tile-head .grow {
+  min-width: 0;
+}
+.tile-head h2 {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.tile-head p {
+  color: var(--muted);
+  font-size: 12px;
+}
+.tile-ic {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 18px;
+}
+.tile-link {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  margin-left: auto;
+  color: var(--primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tile-link:hover {
+  text-decoration: underline;
+}
+.tile-big {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.tile-big b {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.tile-big span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.tile > .btn {
+  align-self: flex-start;
+  margin-top: auto;
+}
+.tile-ok {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: auto;
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 600;
+}
+/* แจ้งออกทันที: มีค้าง = แดงทั้งช่อง */
+.t-urgent .tile-ic {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.t-urgent.is-alert {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  background: color-mix(in srgb, var(--danger-soft) 70%, var(--surface));
+}
+.t-urgent.is-alert .tile-ic {
+  background: var(--danger);
+  color: #fff;
+}
+.t-urgent.is-alert .tile-big b {
+  color: var(--danger);
+}
+.t-uniform .tile-ic {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* ช่องใหญ่: รอบแจ้งประกันถัดไป */
+.t-cycle {
+  position: relative;
+  overflow: hidden;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 26px;
+  border: 0;
+  background: var(--grad);
+  color: #fff;
+}
+.t-cycle::after {
+  /* วงแหวนจาง ๆ มุมขวาล่าง */
+  content: '';
+  position: absolute;
+  right: -80px;
+  bottom: -120px;
+  width: 320px;
+  height: 320px;
+  border: 40px solid rgb(255 255 255 / 0.08);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.cycle-top {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tile-kicker {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+.cycle-date {
+  font-size: 24px;
+  font-weight: 700;
+}
+.cycle-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+  align-items: flex-end;
+}
+.cycle-count {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.cycle-count b {
+  font-size: 84px;
+  font-weight: 800;
+  line-height: 0.85;
+  letter-spacing: -0.03em;
+}
+.cycle-count span {
+  padding-bottom: 4px;
+  font-size: 14px;
+  line-height: 1.3;
+  opacity: 0.9;
+}
+.cycle-io {
+  display: flex;
+  gap: 10px;
+}
+.io-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 96px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.16);
+  color: #fff;
+  transition: background 0.15s;
+}
+.io-tile:hover {
+  background: rgb(255 255 255 / 0.26);
+}
+.io-tile .num {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.io-tile small {
+  font-size: 12px;
+  opacity: 0.9;
+}
+.cycle-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+}
+.cycle-btn {
+  border-color: transparent;
+  background: #fff;
+  color: var(--primary);
+  font-weight: 600;
+}
+.cycle-btn:hover {
+  background: rgb(255 255 255 / 0.9);
+}
+.cycle-note {
+  font-size: 12.5px;
+  opacity: 0.9;
+}
+
+/* พนักงาน: แถบสัดส่วนต่อกัน + รายบริษัท */
+.stack-bar {
+  display: flex;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.stack-bar i {
+  height: 100%;
+}
+.stack-bar i + i {
+  border-left: 2px solid var(--surface);
+}
+.co-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.co-list a {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: var(--fg);
+  font-size: 12.5px;
+}
+.co-list a:hover {
+  background: var(--surface-2);
+}
+.co-list i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.co-list .num {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+/* คิวงาน: จำนวนตามระดับ + เรื่องด่วนสุด */
+.sev-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.sev-pill {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 12px;
+  transition: filter 0.15s;
+}
+.sev-pill:hover {
+  filter: brightness(0.97);
+}
+.sev-pill b {
+  font-size: 22px;
+  line-height: 1.2;
+}
+.sev-pill span {
+  font-size: 12px;
+}
+.mini-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mini-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.mini-list .dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.mini-list a {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 3px 6px;
+  border-radius: 8px;
+  color: var(--fg);
+}
+.mini-list a:hover {
+  background: var(--surface-2);
+}
+.mini-list b {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mini-list a span {
+  color: var(--muted);
+  font-size: 12px;
+}
+/* กิจกรรมล่าสุด: feed แบบกะทัดรัดในช่อง */
+.recent-feed .feed {
+  padding: 0;
+}
+.recent-feed .feed li {
+  padding-inline: 0;
+}
+
+@media (max-width: 1279px) {
+  .t-cycle {
+    grid-column: span 12;
+    grid-row: auto;
+  }
+  .t-urgent,
+  .t-uniform {
+    grid-column: span 6;
+  }
+  .t-people,
+  .t-queue {
+    grid-column: span 6;
+  }
+  .t-recent {
+    grid-column: span 12;
+  }
+}
+@media (max-width: 767px) {
+  .bento {
+    gap: 12px;
+  }
+  .t-urgent,
+  .t-uniform {
+    grid-column: span 6;
+  }
+  .t-people,
+  .t-queue,
+  .t-recent {
+    grid-column: 1 / -1;
+  }
+  .tile {
+    padding: 16px;
+  }
+  .tile-big b {
+    font-size: 32px;
+  }
+  .t-cycle {
+    padding: 20px;
+  }
+  .cycle-count b {
+    font-size: 64px;
+  }
+}
+@media (max-width: 479px) {
+  .t-urgent,
+  .t-uniform {
+    grid-column: 1 / -1;
+  }
+}

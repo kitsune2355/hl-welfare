@@ -23,7 +23,7 @@
   </head>
   <body>
     <!-- index.html?tab=summary|queue|activity  (คิวงานรับ &severity= &kind= เพิ่มได้) -->
-    <main id="page" class="page fit">
+    <main id="page" class="page">
       <div class="page-head">
         <div>
           <h1 id="greeting">สวัสดี 👋</h1>
@@ -39,38 +39,23 @@
         </div>
       </div>
 
-      <!-- แจ้งเตือนแจ้งออกทันที (แสดงเมื่อมีรายการค้าง) -->
-      <div id="urgent-alert" class="mb hidden"></div>
-
       <div id="tabs"></div>
 
-      <!-- ===== แท็บ: สรุป ===== -->
-      <div class="panel fill" id="tab-summary">
-        <div id="stats" class="grid grid-4"></div>
-        <div class="grid grid-3 mt fill">
-          <section class="card">
-            <header class="card-head">
-              <div class="card-title">
-                <span class="card-icon"><i data-icon="building-2"></i></span>
-                <div>
-                  <h2>พนักงานแยกบริษัท</h2>
-                  <p>เฉพาะที่ทำงานอยู่</p>
-                </div>
-              </div>
+      <!-- ===== แท็บ: สรุป (bento — ช่องขนาดต่างกันตามความสำคัญ · ไม่บังคับสูงพอดีจอ) ===== -->
+      <div class="panel" id="tab-summary">
+        <div class="bento" id="bento">
+          <section class="tile t-cycle" id="t-cycle" aria-label="รอบแจ้งประกันถัดไป"><div class="skeleton sk-block"></div></section>
+          <section class="tile t-urgent" id="t-urgent" aria-label="แจ้งออกทันทีค้าง"><div class="skeleton sk-line"></div></section>
+          <section class="tile t-uniform" id="t-uniform" aria-label="ชุดฟอร์มค้างแจก"><div class="skeleton sk-line"></div></section>
+          <section class="tile t-people" id="t-people" aria-label="พนักงานปัจจุบัน"><div class="skeleton sk-block"></div></section>
+          <section class="tile t-queue" id="t-queue" aria-label="คิวงาน"><div class="skeleton sk-block"></div></section>
+          <section class="tile t-recent" id="t-recent" aria-label="กิจกรรมล่าสุด"><div class="skeleton sk-block"></div></section>
+          <section class="tile t-upcoming" aria-label="จะครบสิทธิใน 30 วัน">
+            <header class="tile-head">
+              <span class="tile-ic"><i data-icon="calendar-clock"></i></span>
+              <div class="grow"><h2>จะครบสิทธิประกันกลุ่มใน 30 วัน</h2><p>แจ้งเข้าในรอบถัดไปหลังครบสิทธิ</p></div>
             </header>
-            <div class="card-body fill-body scroll" id="by-company"></div>
-          </section>
-          <section class="card span-2">
-            <header class="card-head">
-              <div class="card-title">
-                <span class="card-icon"><i data-icon="calendar-clock"></i></span>
-                <div>
-                  <h2>จะครบสิทธิใน 30 วัน</h2>
-                  <p>ประกันกลุ่ม</p>
-                </div>
-              </div>
-            </header>
-            <div id="upcoming" class="fill-body"></div>
+            <div id="upcoming"></div>
           </section>
         </div>
       </div>
