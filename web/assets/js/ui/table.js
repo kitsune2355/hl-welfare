@@ -9,22 +9,27 @@
 //
 // กรองคอลัมน์ที่หัวตาราง: เปิดอัตโนมัติทุกคอลัมน์ที่มีชื่อหัว · ปิดด้วย filter: false
 // text(row) = ข้อความที่ใช้กรอง · sort(row) = ค่าที่ใช้เรียง (เช่น วันที่ ISO) เมื่อค่าที่แสดงเรียงไม่ถูก
+// ตัวกรองที่ใช้อยู่แสดงเป็น chip เหนือตาราง · ชี้หัวคอลัมน์ = ปุ่มหมุดตรึงคอลัมน์ · ลากขอบหัวคอลัมน์ = ปรับความกว้าง (ui/columnFilter.js)
 //
 // ปุ่มในเซลล์: ใส่ data-action="..." แล้วดักด้วย on(container, 'click', '[data-action="..."]', fn)
 // ปุ่ม "Excel" มุมขวาบนของทุกตาราง: ส่งออกทุกแถวตามตัวกรอง · ปิดด้วย exportable: false · ชื่อไฟล์ exportName (ไม่ใส่ = ชื่อหน้า)
 import { html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import {
+  filterChips,
   FilterState,
-  filterSummary,
   headerFilterButton,
+  headerPinButton,
   loadPins,
+  loadWidths,
   openColumnFilter,
   orderByPins,
-  pinMark,
+  resizeHandle,
   savePins,
+  saveWidths,
   stripHtml,
   tableId,
+  wireColumnResize,
 } from './columnFilter.js';
 import { enhanceSelects } from './combobox.js';
 import { exportButton, wireExport } from './exportExcel.js';
@@ -164,9 +169,22 @@ export class DataTable {
     this.filter = new FilterState();
     this.tid = tableId(root, opts);
     this.pins = loadPins(this.tid); // คอลัมน์ที่ผู้ใช้ตรึงไว้ด้านซ้าย
+    this.widths = loadWidths(this.tid); // ความกว้างที่ผู้ใช้ลากไว้
     root.addEventListener('click', (e) => {
       const fb = e.target.closest('[data-col-filter]');
       if (fb) return this.openFilter(fb);
+      const pb = e.target.closest('[data-col-pin]');
+      if (pb) return this.togglePin(pb.dataset.colPin);
+      const cf = e.target.closest('[data-clear-filter]');
+      if (cf) {
+        this.filter.filters.delete(cf.dataset.clearFilter);
+        this.page = 1;
+        return this.render();
+      }
+      if (e.target.closest('[data-clear-sort]')) {
+        this.filter.sort = null;
+        return this.render();
+      }
       if (e.target.closest('[data-clear-col-filters]')) {
         this.filter.clear();
         this.page = 1;
@@ -184,7 +202,36 @@ export class DataTable {
       columns: this.o.columns.filter((c) => typeof c.header === 'string' && c.header !== '' && c.export !== false).map((c) => ({ header: c.header, text: (r) => this.textOf(r, c.key) })),
       rows: this.filtered(),
     }));
+    // ลากขอบหัวคอลัมน์: ระหว่างลากตั้งความกว้างให้ทุกเซลล์ของคอลัมน์ · ปล่อย = จำไว้ · ดับเบิลคลิก = กลับเป็นอัตโนมัติ
+    wireColumnResize(root, {
+      onMove: (key, w) => {
+        this.root.querySelectorAll(`.table [data-col="${key}"]`).forEach((el) => {
+          el.style.cssText += `;width:${w}px;min-width:${w}px;max-width:${w}px`;
+          el.classList.add('sized');
+        });
+        this.applyPins();
+      },
+      onDone: (key, w) => {
+        if (w) this.widths[key] = w;
+        else delete this.widths[key];
+        saveWidths(this.tid, this.widths);
+        this.render();
+      },
+    });
     this.render();
+  }
+
+  togglePin(key) {
+    if (this.pins.has(key)) this.pins.delete(key);
+    else this.pins.add(key);
+    savePins(this.tid, this.pins);
+    this.render();
+  }
+
+  /** style + class ของเซลล์ในคอลัมน์ที่ผู้ใช้ตั้งความกว้างไว้ */
+  sizeOf(key) {
+    const w = this.widths[key];
+    return w ? { style: `width:${w}px;min-width:${w}px;max-width:${w}px`, cls: ' sized' } : { style: '', cls: '' };
   }
 
   setRows(rows) {
@@ -210,6 +257,9 @@ export class DataTable {
     const c = this.col(key);
     return c.text ? String(c.text(row) ?? '') : stripHtml(c.cell(row));
   };
+
+  /** ค่าทั้งหมดของคอลัมน์ (ก่อนกรอง) — ใช้เขียน chip แบบ "ไม่รวม …" */
+  allValues = (key) => (this.rows ?? []).map((r) => this.textOf(r, key));
 
   sortOf = (row, key) => {
     const c = this.col(key);
@@ -237,13 +287,6 @@ export class DataTable {
         if (sortDir) this.filter.sort = { key, dir: sortDir };
         else if (this.filter.sort?.key === key) this.filter.sort = null;
         this.page = 1;
-        this.render();
-      },
-      pinned: this.pins.has(key),
-      onPin: () => {
-        if (this.pins.has(key)) this.pins.delete(key);
-        else this.pins.add(key);
-        savePins(this.tid, this.pins);
         this.render();
       },
     });
@@ -297,14 +340,18 @@ export class DataTable {
         <thead>
           <tr>
             ${rowNumbers ? html`<th class="rownum">#</th>` : ''}
-            ${columns.map(
-              (c) =>
-                html`<th class="${align(c)} ${c.cls ?? ''}" data-col="${c.key}">
-                  ${this.canFilter(c) && !loading
-                    ? html`<span class="th-inner"><span>${pinMark(this.pins.has(c.key))}${c.header}</span>${headerFilterButton(c.key, c.header, this.filter)}</span>`
-                    : c.header}
-                </th>`,
-            )}
+            ${columns.map((c) => {
+              const named = typeof c.header === 'string' && c.header !== '';
+              const sz = this.sizeOf(c.key);
+              return html`<th class="${align(c)} ${c.cls ?? ''}${sz.cls}" style="${sz.style}" data-col="${c.key}">
+                ${named && !loading
+                  ? html`<span class="th-inner"
+                      ><span class="th-label">${c.header}</span
+                      ><span class="th-acts">${headerPinButton(c.key, c.header, this.pins.has(c.key))}${this.canFilter(c) ? headerFilterButton(c.key, c.header, this.filter) : ''}</span></span
+                    >${resizeHandle(c.key)}`
+                  : c.header}
+              </th>`;
+            })}
           </tr>
         </thead>
         <tbody>
@@ -312,13 +359,13 @@ export class DataTable {
             ? Array.from(
                 { length: 6 },
                 () => html`<tr>
-                  ${rowNumbers ? html`<td class="rownum"></td>` : ''} ${columns.map((c) => html`<td data-col="${c.key}"><div class="skeleton sk-line"></div></td>`)}
+                  ${rowNumbers ? html`<td class="rownum"></td>` : ''} ${columns.map((c) => html`<td data-col="${c.key}" class="${this.sizeOf(c.key).cls}" style="${this.sizeOf(c.key).style}"><div class="skeleton sk-line"></div></td>`)}
                 </tr>`,
               )
             : rows.map(
                 (r, i) => html`<tr data-key="${rowKey(r)}" class="${onRowClick ? 'clickable' : ''} ${rowClass?.(r) ?? ''}">
                   ${rowNumbers ? html`<td class="rownum num">${offset + i + 1}</td>` : ''}
-                  ${columns.map((c) => html`<td class="${align(c)} ${c.cls ?? ''}" data-col="${c.key}">${c.cell(r)}</td>`)}
+                  ${columns.map((c) => html`<td class="${align(c)} ${c.cls ?? ''}${this.sizeOf(c.key).cls}" style="${this.sizeOf(c.key).style}" data-col="${c.key}">${c.cell(r)}</td>`)}
                 </tr>`,
               )}
         </tbody>
@@ -350,8 +397,8 @@ export class DataTable {
     const noMatch = !loading && this.rows.length > 0 && total === 0;
     this.root.innerHTML = String(
       html`${this.o.exportable
-        ? html`<div class="tbl-tools">${filterSummary(this.filter, (k) => this.col(k).header)}<span class="tbl-tools-end">${exportButton(loading || !total)}</span></div>`
-        : filterSummary(this.filter, (k) => this.col(k).header)}${table}${cards}${noMatch
+        ? html`<div class="tbl-tools">${filterChips(this.filter, (k) => this.col(k).header, this.allValues)}<span class="tbl-tools-end">${exportButton(loading || !total)}</span></div>`
+        : filterChips(this.filter, (k) => this.col(k).header, this.allValues)}${table}${cards}${noMatch
         ? html`<div class="empty" style="padding:32px"><b>ไม่มีแถวที่ตรงกับตัวกรองคอลัมน์</b></div>`
         : !loading && rows.length === 0
           ? (empty ?? '')

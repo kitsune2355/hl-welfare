@@ -4,7 +4,10 @@
 // คอลัมน์ที่ไม่ต้องการให้กรอง: ใส่ filter: false ในนิยามคอลัมน์
 // ค่าที่ใช้กรอง: text(row) ถ้ามี · ไม่มี = ข้อความที่แสดงในเซลล์
 // ค่าที่ใช้เรียง: sort(row) ถ้ามี (เช่น วันที่ ISO, ตัวเลข) · ไม่มี = ค่าที่ใช้กรอง
-// ตรึงคอลัมน์ไว้ด้านซ้าย: ปุ่มในกล่องเดียวกัน · จำแยกต่อตาราง/ต่อเครื่อง (localStorage hl-pins:<หน้า>#<id ตาราง>)
+// ตัวกรองที่ใช้อยู่: chip เหนือตาราง (filterChips) — กด × ที่ chip = เอาตัวกรองนั้นออก
+// ตรึงคอลัมน์ไว้ด้านซ้าย: ชี้ที่หัวคอลัมน์ → ไอคอนหมุด (headerPinButton) · จำแยกต่อตาราง/ต่อเครื่อง (localStorage hl-pins:<หน้า>#<id ตาราง>)
+// ปรับความกว้างคอลัมน์: ลากขอบขวาของหัวคอลัมน์ (resizeHandle + wireColumnResize) · ดับเบิลคลิกขอบ = กลับเป็นความกว้างเดิม
+//   จำต่อตาราง/ต่อเครื่อง (localStorage hl-colw:<หน้า>#<id ตาราง>)
 import { cssRect, esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 
@@ -46,8 +49,80 @@ export function savePins(id, pins) {
 /** เรียงคอลัมน์: ที่ตรึงไว้มาก่อน (คงลำดับเดิม) */
 export const orderByPins = (columns, pins) => [...columns.filter((c) => pins.has(c.key)), ...columns.filter((c) => !pins.has(c.key))];
 
-/** ไอคอนหมุดเล็ก ๆ หน้าชื่อคอลัมน์ที่ตรึงไว้ */
-export const pinMark = (pinned) => (pinned ? raw(`<span class="th-pin" title="ตรึงไว้ด้านซ้าย">${icon('pin')}</span>`) : '');
+/** ปุ่มหมุดที่หัวคอลัมน์ — แสดงเมื่อชี้ที่หัวคอลัมน์ · ตรึงอยู่ = แสดงตลอด (สีหลัก) */
+export function headerPinButton(key, label, pinned) {
+  const t = pinned ? `เลิกตรึง ${label}` : `ตรึง ${label} ไว้ด้านซ้าย`;
+  return html`<button type="button" class="th-pinbtn${pinned ? ' on' : ''}" data-col-pin="${key}" aria-pressed="${pinned ? 'true' : 'false'}" aria-label="${t}" title="${t}">${raw(icon('pin'))}</button>`;
+}
+
+// ----- ความกว้างคอลัมน์ที่ผู้ใช้ลากไว้ -----
+export const MIN_COL_WIDTH = 48;
+
+/** @returns {Record<string, number>} key คอลัมน์ → ความกว้าง (px) */
+export function loadWidths(id) {
+  try {
+    const w = JSON.parse(localStorage.getItem(`hl-colw:${id}`) ?? '{}');
+    return w && typeof w === 'object' ? w : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveWidths(id, widths) {
+  try {
+    if (Object.keys(widths).length) localStorage.setItem(`hl-colw:${id}`, JSON.stringify(widths));
+    else localStorage.removeItem(`hl-colw:${id}`);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** ที่จับลากขอบขวาของหัวคอลัมน์ (วางใน <th> — th เป็น position: sticky อยู่แล้ว) */
+export const resizeHandle = (key) =>
+  html`<span class="th-resize" data-col-resize="${key}" title="ลากเพื่อปรับความกว้าง · ดับเบิลคลิก = ความกว้างเดิม" aria-hidden="true"></span>`;
+
+/**
+ * ลากที่จับ → onMove(key, width) ระหว่างลาก · ปล่อย → onDone(key, width) · ดับเบิลคลิก → onDone(key, null) (คืนค่าเดิม)
+ * @param {HTMLElement} root
+ * @param {{onMove: (key:string, w:number)=>void, onDone: (key:string, w:number|null)=>void}} o
+ */
+export function wireColumnResize(root, { onMove, onDone }) {
+  root.addEventListener('pointerdown', (e) => {
+    const h = e.target.closest?.('[data-col-resize]');
+    if (!h || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const th = h.closest('th');
+    const key = h.dataset.colResize;
+    const w0 = th.offsetWidth;
+    // ขนาดตัวอักษรของระบบ (zoom) ทำให้ระยะเมาส์ ≠ px ของ CSS → แปลงด้วยอัตราส่วนจริง
+    const scale = th.getBoundingClientRect().width / (w0 || 1) || 1;
+    const x0 = e.clientX;
+    let w = w0;
+    h.setPointerCapture?.(e.pointerId);
+    document.body.classList.add('col-resizing');
+    const move = (ev) => {
+      w = Math.max(MIN_COL_WIDTH, Math.round(w0 + (ev.clientX - x0) / scale));
+      onMove(key, w);
+    };
+    const up = () => {
+      h.removeEventListener('pointermove', move);
+      h.removeEventListener('pointerup', up);
+      h.removeEventListener('pointercancel', up);
+      document.body.classList.remove('col-resizing');
+      if (w !== w0) onDone(key, w);
+    };
+    h.addEventListener('pointermove', move);
+    h.addEventListener('pointerup', up);
+    h.addEventListener('pointercancel', up);
+  });
+  root.addEventListener('dblclick', (e) => {
+    const h = e.target.closest?.('[data-col-resize]');
+    if (!h) return;
+    e.stopPropagation();
+    onDone(h.dataset.colResize, null);
+  });
+}
 const collator = new Intl.Collator('th', { numeric: true, sensitivity: 'base' });
 
 export function compareValues(a, b) {
@@ -106,28 +181,54 @@ export function headerFilterButton(key, label, state) {
   </button>`;
 }
 
-/** แถบสรุปตัวกรองที่ใช้อยู่ + ปุ่มล้าง (แสดงเหนือตาราง) */
-export function filterSummary(state, labelOf) {
+/** รายการค่าแบบย่อ: 2 ค่าแรก + "+N" */
+const short = (list) => list.slice(0, 2).join(', ') + (list.length > 2 ? ` +${list.length - 2}` : '');
+
+/**
+ * ข้อความใน chip: ค่าที่เลือก หรือ "ไม่รวม …" เมื่อค่าที่ตัดออกมีน้อยกว่า (เช่น เอาออกค่าเดียวจาก 40 ค่า)
+ * @param {Set<string>} set ค่าที่แสดง · @param {string[]} [all] ค่าทั้งหมดของคอลัมน์ (ไม่ส่ง = แสดงค่าที่เลือก)
+ */
+function chipValues(set, all) {
+  const kept = [...set];
+  const dropped = all ? [...new Set(all.map((v) => v || EMPTY))].filter((v) => !set.has(v)) : [];
+  if (dropped.length && dropped.length < kept.length) return { text: `ไม่รวม ${short(dropped)}`, title: `ไม่รวม ${dropped.join(', ')}` };
+  return { text: short(kept), title: kept.join(', ') };
+}
+
+/**
+ * chip ตัวกรอง/การเรียงที่ใช้อยู่ (แสดงเหนือตาราง) — × ที่ chip = เอาออกทีละอัน · มีหลายอัน = ปุ่ม "ล้างทั้งหมด"
+ * ตารางที่ใช้ต้องจัดการคลิก [data-clear-filter], [data-clear-sort], [data-clear-col-filters]
+ * @param {FilterState} state @param {(key:string)=>string} labelOf @param {(key:string)=>string[]} [valuesOf] ค่าทั้งหมดของคอลัมน์ (ก่อนกรอง)
+ */
+export function filterChips(state, labelOf, valuesOf) {
   if (!state.active) return '';
-  const parts = [...state.filters.keys()].map((k) => labelOf(k));
-  return html`<div class="filter-bar">
-    ${raw(icon('funnel'))}
-    <span
-      >${parts.length ? html`กรอง: <b>${parts.join(', ')}</b>` : ''}${parts.length && state.sort ? ' · ' : ''}${state.sort
-        ? html`เรียง: <b>${labelOf(state.sort.key)} ${state.sort.dir === 1 ? '↑' : '↓'}</b>`
-        : ''}</span
-    >
-    <button type="button" class="btn btn-ghost btn-sm" data-clear-col-filters>ล้างตัวกรองคอลัมน์</button>
+  return html`<div class="filter-bar" role="region" aria-label="ตัวกรองที่ใช้อยู่">
+    <span class="fb-label">${raw(icon('funnel'))} ${state.filters.size ? 'กรองอยู่' : 'เรียงอยู่'}</span>
+    ${[...state.filters].map(([k, set]) => {
+      const label = labelOf(k);
+      const v = chipValues(set, valuesOf?.(k));
+      return html`<span class="fchip" title="${label}: ${v.title}">
+        <span class="fchip-k">${label}</span><span class="fchip-v">${v.text}</span>
+        <button type="button" class="fchip-x" data-clear-filter="${k}" aria-label="เอาตัวกรอง ${label} ออก" title="เอาตัวกรองนี้ออก">${raw(icon('x'))}</button>
+      </span>`;
+    })}
+    ${state.sort
+      ? html`<span class="fchip sort">
+          ${raw(icon(state.sort.dir === 1 ? 'arrow-up-narrow-wide' : 'arrow-down-wide-narrow'))}
+          <span class="fchip-k">เรียง</span><span class="fchip-v">${labelOf(state.sort.key)} ${state.sort.dir === 1 ? 'น้อย → มาก' : 'มาก → น้อย'}</span>
+          <button type="button" class="fchip-x" data-clear-sort aria-label="ยกเลิกการเรียง" title="ยกเลิกการเรียง">${raw(icon('x'))}</button>
+        </span>`
+      : ''}
+    ${state.filters.size + (state.sort ? 1 : 0) > 1 ? html`<button type="button" class="btn btn-ghost btn-sm" data-clear-col-filters>ล้างทั้งหมด</button>` : ''}
   </div>`;
 }
 
 /**
  * เปิดกล่องกรองใต้หัวคอลัมน์
  * @param {{anchor: HTMLElement, label: string, values: string[], selected: Set<string>|null,
- *   sortDir: 0|1|-1, onApply: (r: {selected: Set<string>|null, sortDir: 0|1|-1}) => void,
- *   pinned?: boolean, onPin?: () => void}} o
+ *   sortDir: 0|1|-1, onApply: (r: {selected: Set<string>|null, sortDir: 0|1|-1}) => void}} o
  */
-export function openColumnFilter({ anchor, label, values, selected, sortDir, onApply, pinned = false, onPin }) {
+export function openColumnFilter({ anchor, label, values, selected, sortDir, onApply }) {
   document.querySelector('.popover.col-filter')?.remove();
   const counts = new Map();
   for (const v of values) counts.set(v || EMPTY, (counts.get(v || EMPTY) ?? 0) + 1);
@@ -139,9 +240,6 @@ export function openColumnFilter({ anchor, label, values, selected, sortDir, onA
   pop.setAttribute('role', 'dialog');
   pop.setAttribute('aria-label', `กรองคอลัมน์ ${label}`);
   pop.innerHTML = String(html`<div class="cf-sort">
-      ${onPin
-        ? html`<button type="button" class="cf-btn${pinned ? ' on' : ''}" data-pin>${raw(icon(pinned ? 'pin-off' : 'pin'))} ${pinned ? 'เลิกตรึงคอลัมน์' : 'ตรึงคอลัมน์ไว้ด้านซ้าย'}</button>`
-        : ''}
       <button type="button" class="cf-btn${sortDir === 1 ? ' on' : ''}" data-sort="1">${raw(icon('arrow-up-narrow-wide'))} เรียงน้อย → มาก</button>
       <button type="button" class="cf-btn${sortDir === -1 ? ' on' : ''}" data-sort="-1">${raw(icon('arrow-down-wide-narrow'))} เรียงมาก → น้อย</button>
     </div>
@@ -223,10 +321,6 @@ export function openColumnFilter({ anchor, label, values, selected, sortDir, onA
         apply(sortDir === d ? 0 : d); // กดซ้ำ = ยกเลิกการเรียง
       }),
   );
-  pop.querySelector('[data-pin]')?.addEventListener('click', () => {
-    close();
-    onPin?.();
-  });
   pop.querySelector('[data-reset]').onclick = () => {
     onApply({ selected: null, sortDir: 0 });
     close();

@@ -3266,13 +3266,6 @@ input[type='radio'] {
 .xgrid td.pinned.active {
   box-shadow: inset 0 0 0 2px var(--primary);
 }
-.th-pin {
-  display: inline-flex;
-  margin-right: 4px;
-  color: var(--primary);
-  font-size: 12px;
-  vertical-align: -1px;
-}
 
 /* =====================================================================
    Topbar 3 ส่วน + เมนูด้านล่าง (มือถือ)
@@ -5537,4 +5530,159 @@ html {
     line-height: 1.5;
     color: var(--muted);
   }
+}
+
+/* หัวตาราง (DataTable + ExcelGrid): ชื่อ · ปุ่มหมุด (ชี้แล้วแสดง) · ปุ่มกรอง · ที่จับลากปรับความกว้าง — ui/columnFilter.js */
+.th-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.th-acts {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 1px;
+}
+/* ปุ่มหมุดตอนชี้: ลอยทับท้ายชื่อคอลัมน์ ไม่ดันความกว้างคอลัมน์ (ตารางที่กว้างตามเนื้อหาจะไม่ขยับ) · ตรึงอยู่ = อยู่ในแถวปกติ */
+.th-pinbtn {
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 13px;
+  color: color-mix(in srgb, var(--th-fg) 60%, transparent);
+  background: var(--th-bg);
+  box-shadow: -6px 0 6px var(--th-bg);
+  transform: translateY(-50%);
+  transition: background 0.15s;
+}
+th:hover .th-pinbtn,
+th:focus-within .th-pinbtn,
+.th-pinbtn.on {
+  display: inline-flex;
+}
+.th-pinbtn:hover {
+  background: var(--border);
+  color: var(--fg);
+}
+.th-pinbtn.on {
+  position: static;
+  box-shadow: none;
+  transform: none;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.th-pinbtn.on:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+@media (hover: none) {
+  .th-pinbtn {
+    position: static; /* จอสัมผัสไม่มี hover — แสดงจาง ๆ ตลอด */
+    display: inline-flex;
+    box-shadow: none;
+    transform: none;
+    opacity: 0.6;
+  }
+  .th-pinbtn.on {
+    opacity: 1;
+  }
+}
+.th-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+.th-resize::after {
+  content: '';
+  position: absolute;
+  top: 22%;
+  bottom: 22%;
+  right: 2px;
+  width: 3px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.15s;
+}
+th:hover .th-resize::after {
+  background: color-mix(in srgb, var(--th-fg) 25%, transparent);
+}
+.th-resize:hover::after,
+.col-resizing .th-resize::after {
+  background: var(--primary);
+}
+body.col-resizing,
+body.col-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+.table th.sized,
+.table td.sized {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* chip ตัวกรองที่ใช้อยู่ (เหนือตาราง) */
+.filter-bar .fb-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary);
+  font-weight: 600;
+}
+.fchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: min(340px, 100%);
+  height: 26px;
+  padding: 0 3px 0 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 12px;
+}
+.fchip > .icon {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+.fchip-k {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.fchip-k::after {
+  content: ':';
+}
+.fchip-v {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.fchip-x {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 12px;
+  color: var(--muted);
+}
+.fchip-x:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
 }

@@ -23,6 +23,7 @@
 // editor: 'text' | 'number' | 'date' | 'select' | 'switch' · ไม่ใส่ = อ่านอย่างเดียว
 // options(row) สำหรับ select · editable(row) = แก้ได้เฉพาะบางแถว · display(row) = HTML ที่แสดง
 // กรองคอลัมน์ที่หัวตาราง: เปิดอัตโนมัติ · filter: false = ปิด · text(row) = ข้อความที่ใช้กรอง (ไม่ใส่ = ข้อความที่แสดง)
+// ตัวกรองที่ใช้อยู่แสดงเป็น chip · ชี้หัวคอลัมน์ = ปุ่มหมุดตรึงคอลัมน์ · ลากขอบหัวคอลัมน์ = ปรับความกว้าง (width = ค่าเริ่มต้น)
 // มือถือ (<768px): ใส่ mobileCard(row) => HTML เพื่อแสดงเป็นการ์ดแทนตาราง (แตะการ์ด = onOpen)
 //   และ mobileAddHref = ลิงก์ของปุ่ม "เพิ่ม" บนมือถือ เพราะการกรอกในเซลล์บนจอเล็กไม่สะดวก
 // readOnly: true = ดูอย่างเดียว (ไม่มีสิทธิ์แก้ — เช่น !can('employees.edit')) · ไม่มีปุ่มเพิ่ม/ลบ แก้เซลล์ไม่ได้ · ปุ่มเปิดรายละเอียดยังอยู่
@@ -30,15 +31,19 @@ import { esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import {
   FilterState,
-  filterSummary,
+  filterChips,
   headerFilterButton,
+  headerPinButton,
   loadPins,
+  loadWidths,
   openColumnFilter,
   orderByPins,
-  pinMark,
+  resizeHandle,
   savePins,
+  saveWidths,
   stripHtml,
   tableId,
+  wireColumnResize,
 } from './columnFilter.js';
 import { openPicker } from './combobox.js';
 import { spinner } from './loading.js';
@@ -60,7 +65,8 @@ export class ExcelGrid {
     this.allCols = opts.columns;
     this.tid = tableId(root, opts);
     this.pins = loadPins(this.tid); // คอลัมน์ที่ผู้ใช้ตรึงไว้ด้านซ้าย
-    this.cols = orderByPins(this.allCols, this.pins);
+    this.widths = loadWidths(this.tid); // ความกว้างที่ผู้ใช้ลากไว้ (ทับ width ของคอลัมน์)
+    this.layoutCols();
     this.rows = null;
     this.drafts = new Map(); // key → แถวที่แก้แล้วแต่ยังไม่บันทึก
     this.newRows = []; // { key, row } — แถวใหม่ที่ยังไม่บันทึก
@@ -150,6 +156,9 @@ export class ExcelGrid {
     return fmt(v);
   };
 
+  /** ค่าทั้งหมดของคอลัมน์ (ก่อนกรอง) — ใช้เขียน chip แบบ "ไม่รวม …" */
+  allValues = (key) => (this.rows ?? []).map((r) => this.textOf(r, key));
+
   sortOf = (row, key) => this.colByKey(key).value(row);
 
   filtered() {
@@ -174,16 +183,21 @@ export class ExcelGrid {
         else if (this.filter.sort?.key === key) this.filter.sort = null;
         this.afterFilterChange();
       },
-      pinned: this.pins.has(key),
-      onPin: () => {
-        if (this.pins.has(key)) this.pins.delete(key);
-        else this.pins.add(key);
-        savePins(this.tid, this.pins);
-        this.cols = orderByPins(this.allCols, this.pins);
-        this.active = null;
-        this.render();
-      },
     });
+  }
+
+  /** ลำดับ (ที่ตรึงมาก่อน) + ความกว้างที่ผู้ใช้ลากไว้ */
+  layoutCols() {
+    this.cols = orderByPins(this.allCols, this.pins).map((c) => (this.widths[c.key] ? { ...c, width: this.widths[c.key] } : c));
+  }
+
+  togglePin(key) {
+    if (this.pins.has(key)) this.pins.delete(key);
+    else this.pins.add(key);
+    savePins(this.tid, this.pins);
+    this.layoutCols();
+    this.active = null;
+    this.render();
   }
 
   /** ตำแหน่ง sticky ของคอลัมน์ที่ตรึง: ถัดจากคอลัมน์เลขแถว (52px) เรียงตามความกว้าง */
@@ -465,9 +479,38 @@ export class ExcelGrid {
       if (!td || this.editing) return;
       this.setActive(Number(td.dataset.r), Number(td.dataset.c));
     });
+    // ลากขอบหัวคอลัมน์: ระหว่างลากปรับ <col> + ความกว้างตาราง · ปล่อย = จำไว้แล้ววาดใหม่ (ตำแหน่งคอลัมน์ที่ตรึง) · ดับเบิลคลิก = ค่าเริ่มต้น
+    wireColumnResize(root, {
+      onMove: (key, w) => {
+        const i = this.cols.findIndex((c) => c.key === key);
+        const col = root.querySelectorAll('.xgrid colgroup col')[i + 1];
+        if (!col) return;
+        col.style.width = `${w}px`;
+        const table = root.querySelector('.xgrid');
+        table.style.width = `${[...root.querySelectorAll('.xgrid colgroup col')].reduce((s, el) => s + parseFloat(el.style.width || 0), 0)}px`;
+      },
+      onDone: (key, w) => {
+        if (w) this.widths[key] = w;
+        else delete this.widths[key];
+        saveWidths(this.tid, this.widths);
+        this.layoutCols();
+        this.render();
+      },
+    });
     root.addEventListener('click', (e) => {
       const fb = e.target.closest('[data-col-filter]');
       if (fb) return this.openFilter(fb);
+      const pb = e.target.closest('[data-col-pin]');
+      if (pb) return this.togglePin(pb.dataset.colPin);
+      const cf = e.target.closest('[data-clear-filter]');
+      if (cf) {
+        this.filter.filters.delete(cf.dataset.clearFilter);
+        return this.afterFilterChange();
+      }
+      if (e.target.closest('[data-clear-sort]')) {
+        this.filter.sort = null;
+        return this.afterFilterChange();
+      }
       const card = e.target.closest('[data-card-key]');
       if (card) {
         const entry = this.entries().find((x) => x.key === card.dataset.cardKey);
@@ -693,7 +736,7 @@ export class ExcelGrid {
         ${this.pendingBar()}
         ${exportButton(loading || !this.filtered().length)}
       </div>
-      ${filterSummary(this.filter, (k) => this.colByKey(k).header)}
+      ${filterChips(this.filter, (k) => this.colByKey(k).header, this.allValues)}
       <div class="xgrid-wrap" tabindex="0" role="grid" aria-rowcount="${entries.length}">
         <table class="xgrid" style="width:${width}px">
           <colgroup>
@@ -706,11 +749,11 @@ export class ExcelGrid {
               ${this.cols.map(
                 (c) =>
                   html`<th class="${pinCls(c)}" style="${pinStyle(c, 4)}" data-col="${c.key}">
-                    <span class="th-inner" style="justify-content:${c.align === 'right' ? 'flex-end' : c.align === 'center' ? 'center' : 'space-between'}"
-                      ><span class="truncate">${pinMark(this.pins.has(c.key))}${c.header}${c.required ? html`<span class="req">*</span>` : ''}</span>${this.canFilter(c) && !loading
-                        ? headerFilterButton(c.key, c.header, this.filter)
+                    <span class="th-inner"
+                      ><span class="truncate th-label" style="text-align:${c.align === 'right' ? 'right' : c.align === 'center' ? 'center' : 'left'}">${c.header}${c.required ? html`<span class="req">*</span>` : ''}</span>${!loading && c.header
+                        ? html`<span class="th-acts">${headerPinButton(c.key, c.header, this.pins.has(c.key))}${this.canFilter(c) ? headerFilterButton(c.key, c.header, this.filter) : ''}</span>`
                         : ''}</span
-                    >
+                    >${c.header ? resizeHandle(c.key) : ''}
                   </th>`,
               )}
               ${hasActions ? html`<th class="stick-right" aria-label="การทำงาน"></th>` : ''}
