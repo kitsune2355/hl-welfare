@@ -31,7 +31,7 @@ $admin = mysqli_connect($c['db_host'], $c['db_user'], $c['db_pass'], '', (int)$c
 mysqli_query($admin, 'DROP DATABASE IF EXISTS `' . $c['db_name'] . '`');
 mysqli_query($admin, 'CREATE DATABASE `' . $c['db_name'] . '` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci');
 mysqli_select_db($admin, $c['db_name']);
-foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage') as $f) {
+foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications') as $f) {
     $sql = file_get_contents($root . '/backend/sql/' . $f . '.sql');
     if (!mysqli_multi_query($admin, $sql)) { die("$f: " . mysqli_error($admin) . "\n"); }
     do {
@@ -456,6 +456,41 @@ $GLOBALS['stock_status'] = array($ref => array('doc_id' => 77, 'doc_no' => 'WRQ-
 $r = $hr->req('POST', '/uniform/stock-sync', array());
 check('sync: คลังยกเลิก → ลบ issue สิทธิ์กลับเป็นค้างแจก', $r['json']['data']['changed'] === 1
     && db_value('SELECT id FROM uniform_issues WHERE id = ?', array($sid2)) === null);
+
+section('การแจ้งเตือน (กระดิ่ง · migration 013)');
+$hrId = (int)db_value("SELECT id FROM users WHERE username = 'hr'");
+$r = $hr->req('GET', '/notifications?limit=10');
+$types = array();
+foreach ($r['json']['data']['items'] as $n) { $types[] = $n['type']; }
+check('ผู้ส่งเบิกได้แจ้งเตือน คลังจ่าย + คลังยกเลิก (ใหม่สุดก่อน)', $r['status'] === 200 && $types === array('stock_cancelled', 'stock_issued')
+    && $r['json']['data']['unread'] === 2 && $r['json']['data']['items'][0]['link'] === 'employee.html?id=' . $p['employee']['id'], json_encode($r['json']));
+check('ข้อความยกเลิกมีเหตุผลจากคลัง', strpos($r['json']['data']['items'][0]['message'], 'ของหมด') !== false);
+$r2 = $pay->req('GET', '/notifications');
+check('คนอื่นไม่เห็นแจ้งเตือนของผู้ส่ง', $r2['status'] === 200 && count($r2['json']['data']['items']) === 0);
+$r2 = $hr->req('GET', '/notifications?limit=1');
+$r3 = $hr->req('GET', '/notifications?limit=1&before=' . $r2['json']['data']['nextBefore']);
+check('เลื่อนโหลดเพิ่ม: limit=1 → hasMore · หน้าถัดไปได้เรื่องเก่ากว่า', $r2['json']['data']['hasMore'] === true && $r2['json']['data']['total'] === 2
+    && $r3['json']['data']['items'][0]['type'] === 'stock_issued' && $r3['json']['data']['hasMore'] === false);
+$nid = $r['json']['data']['items'][0]['id'];
+check('อ่านของคนอื่นไม่ได้ (ไม่เปลี่ยน)', $pay->req('POST', '/notifications/' . $nid . '/read', array()) && (int)db_value('SELECT is_read FROM notifications WHERE id = ?', array($nid)) === 0);
+$r = $hr->req('POST', '/notifications/' . $nid . '/read', array());
+check('อ่านแล้ว 1 เรื่อง → เหลือ 1', $r['status'] === 200 && $r['json']['data']['unread'] === 1 && S($hr->req('GET', '/notifications/unread')) === 200);
+$r = $hr->req('POST', '/notifications/read-all', array());
+check('อ่านทั้งหมด → 0', $r['json']['data']['unread'] === 0 && $hr->req('GET', '/notifications/unread') && notify_unread_count($hrId) === 0);
+/* พ้นสภาพแบบเลิกจ้าง → คนอื่นที่มีสิทธิ์ insurance.submit (ค่าเริ่มต้นทุกบทบาท) · ไม่รวมคนที่บันทึก และบัญชีที่ถูกปิด (victim) */
+$emp = db_one("SELECT id FROM employees WHERE status = 'ACTIVE' ORDER BY id LIMIT 1");
+$cur = $hr->req('GET', '/employees/' . $emp['id'] . '/benefits');
+$body = $cur['json']['data']['employee'];
+$body['status'] = 'INACTIVE'; $body['endReason'] = 'TERMINATED'; $body['endDate'] = '2026-10-19'; $body['lastWorkingDate'] = '2026-10-19';
+$before = (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent'");
+$r = $hr->req('PUT', '/employees/' . $emp['id'], $body);
+$victimId = (int)db_value("SELECT id FROM users WHERE username = 'victim'");
+$payId = (int)db_value("SELECT id FROM users WHERE username = 'payroll'");
+check('เลิกจ้าง → แจ้งคนอื่นที่แจ้งประกันได้ (ไม่แจ้งคนที่บันทึก · ไม่แจ้งบัญชีที่ปิด)', $r['status'] === 200
+    && (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent' AND user_id = ?", array($payId)) === 1
+    && (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent' AND user_id = ?", array($victimId)) === 0
+    && (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent' AND user_id = ?", array($hrId)) === 0
+    && (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent'") > $before, json_encode($r['json']));
 
 section('ตัวกลาง /stock/bridge (หน้าเว็บโหมด mock)');
 check('ไม่ login → 401', S($anon->req('POST', '/stock/bridge', array('action' => 'catalog'))) === 401);

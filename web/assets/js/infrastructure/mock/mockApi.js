@@ -8,6 +8,7 @@ import { validateBindings, validateInsurerForm } from '../../application/insurer
 import { buildWorkQueue } from '../../application/usecases/workQueue.js';
 import { todayISO } from '../../domain/date.js';
 import { probationDueDate } from '../../domain/employee.js';
+import { insuranceUrgentNotice, stockChangeNotice } from '../../application/usecases/notifications.js';
 import { benefitsOf, uniformStatus } from '../../domain/eligibility.js';
 import { isHandedOut, isStockIssue } from '../../domain/uniform.js';
 import { activeRules, activeSettings, RULE_EPOCH, ruleTimeline, toRevisions } from '../../domain/ruleVersions.js';
@@ -16,7 +17,7 @@ import { quantitiesError, validateInsuranceRule, validateSettings, validateUnifo
 import { withTotals } from './rules.js';
 import { CONFIG } from '../../config.js';
 import { StockGateway } from '../http/stockGateway.js';
-import { BATCH_TYPE_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
+import { BATCH_TYPE_LABEL, END_REASON_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
 import { buildSeed } from './seed.js';
 import { MOCK_USERS } from './users.js';
 
@@ -146,6 +147,15 @@ export class MockApi {
       employeeId,
     });
   }
+  /**
+   * = notify_users ฝั่ง PHP — โหมด mock มีผู้ใช้คนเดียว แจ้งทุกเรื่องถึงผู้ใช้ปัจจุบัน
+   * (PHP แจ้งเฉพาะผู้ส่งเบิก / HR คนอื่นที่แจ้งประกันได้ ไม่รวมคนที่บันทึก)
+   */
+  notify(notice, employeeId = null) {
+    if (!notice) return;
+    this.db.notifications ??= [];
+    this.db.notifications.push({ id: nextId(this.db.notifications), ...notice, employeeId, read: false, at: nowStamp() });
+  }
   site(id) {
     return this.db.sites.find((s) => s.id === id) ?? null;
   }
@@ -262,6 +272,9 @@ export class MockApi {
         const wasActive = e.status === 'ACTIVE';
         Object.assign(e, input);
         const terminated = wasActive && e.status === 'INACTIVE';
+        if (terminated && (e.endReason === 'TERMINATED' || e.endReason === 'MISCONDUCT')) {
+          this.notify(insuranceUrgentNotice(e, END_REASON_LABEL[e.endReason]), e.id);
+        }
         this.log(
           'EMPLOYEE',
           'UPDATE',
@@ -723,6 +736,7 @@ export class MockApi {
         changed++;
         const e = this.db.employees.find((x) => x.id === i.employeeId);
         const who = e ? fullName(e) : `#${i.employeeId}`;
+        this.notify(stockChangeNotice(kind, e, i.stock, next), i.employeeId);
         if (kind === 'CANCELLED') {
           this.db.issues = this.db.issues.filter((x) => x.id !== i.id);
           const why = next.cancelNote ? ` (${next.cancelNote})` : '';
@@ -740,6 +754,41 @@ export class MockApi {
       }
       if (changed) this.persist();
       return { changed };
+    });
+  }
+  // ---------- การแจ้งเตือน (กระดิ่ง) ----------
+  listNotifications({ before, limit = 10 } = {}) {
+    return this.run(() => {
+      const all = [...(this.db.notifications ?? [])].sort((a, b) => b.id - a.id);
+      const rows = all.filter((n) => !before || n.id < before);
+      const items = rows.slice(0, Math.max(1, Math.min(limit, 30)));
+      return {
+        items,
+        unread: all.filter((n) => !n.read).length,
+        total: all.length,
+        hasMore: rows.length > items.length,
+        nextBefore: items.length ? items[items.length - 1].id : null,
+      };
+    });
+  }
+  notificationUnread() {
+    return this.run(() => ({ unread: (this.db.notifications ?? []).filter((n) => !n.read).length }));
+  }
+  readNotification(id) {
+    return this.run(() => {
+      const n = (this.db.notifications ?? []).find((x) => x.id === id);
+      if (n && !n.read) {
+        n.read = true;
+        this.persist();
+      }
+      return { unread: (this.db.notifications ?? []).filter((x) => !x.read).length };
+    });
+  }
+  readAllNotifications() {
+    return this.run(() => {
+      for (const n of this.db.notifications ?? []) n.read = true;
+      this.persist();
+      return { unread: 0 };
     });
   }
   listUniformPending() {

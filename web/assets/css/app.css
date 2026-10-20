@@ -5732,3 +5732,227 @@ body.col-resizing * {
     opacity: 0.5;
   }
 }
+
+/* =====================================================================
+   กระดิ่งแจ้งเตือน (app/notifications.js) — ปุ่มบนแถบบน + กล่องรายการ (เลื่อนลงโหลดเพิ่ม) + สวิตช์แจ้งเตือนนอกหน้าเว็บ
+   ===================================================================== */
+.noti-btn {
+  position: relative;
+}
+.noti-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.noti-panel {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  width: min(400px, calc(100vw - 24px));
+  max-height: min(560px, calc(100dvh - 96px));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.16);
+  animation: pop 0.15s ease-out;
+}
+.noti-panel[hidden] {
+  display: none;
+}
+.noti-head {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 12px 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.noti-head > b {
+  font-size: 15px;
+}
+.noti-new {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.noti-head .btn {
+  margin-left: auto;
+}
+.noti-list {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.noti-day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 5px 16px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.noti-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+  text-decoration: none;
+  transition: background 0.12s;
+}
+.noti-row:hover,
+.noti-row:focus-visible {
+  background: var(--surface-2);
+}
+.noti-row.unread {
+  background: color-mix(in srgb, var(--primary-soft) 45%, var(--surface));
+}
+.noti-row.unread:hover {
+  background: var(--primary-soft);
+}
+.noti-ic {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 17px;
+}
+.noti-ic.tone-success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.noti-ic.tone-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.noti-ic.tone-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.noti-ic.tone-info {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.noti-txt {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.noti-txt b {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.noti-txt span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.noti-txt time {
+  color: var(--muted);
+  font-size: 11px;
+}
+.noti-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.noti-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  padding: 36px 24px;
+  color: var(--muted);
+  text-align: center;
+}
+.noti-empty > .icon {
+  font-size: 26px;
+}
+.noti-empty b {
+  color: var(--fg);
+  font-size: 13.5px;
+}
+.noti-empty small,
+.noti-msg {
+  font-size: 12px;
+}
+.noti-msg {
+  padding: 28px 16px;
+  color: var(--muted);
+  text-align: center;
+}
+.noti-msg.error {
+  color: var(--danger);
+}
+.noti-foot {
+  flex: none;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.noti-more {
+  padding: 6px 16px 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+.noti-desk {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 16px 12px;
+}
+.noti-desk .switch {
+  margin-top: 2px;
+}
+.noti-desk .switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.noti-desk > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.noti-desk b {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.noti-desk small {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}

@@ -40,6 +40,10 @@
  * @property {() => Promise<{changed: number}>} syncUniformStock                 ดึงสถานะใบเบิกจากระบบสต็อก
  * @property {() => Promise<import('../domain/types.js').MonitorTask[]>} getWorkQueue
  * @property {(filter?: {entity?: string, employeeId?: number, limit?: number}) => Promise<import('../domain/types.js').ActivityLog[]>} listActivity
+ * @property {(q?: {before?: number, limit?: number}) => Promise<import('../domain/types.js').NotificationPage>} listNotifications  กระดิ่ง: เก่ากว่า id before (เลื่อนลงโหลดเพิ่ม)
+ * @property {() => Promise<{unread: number}>} notificationUnread              ตัวเลขบนกระดิ่ง (PHP ดึงสถานะสต็อกให้ด้วยเป็นระยะ)
+ * @property {(id: number) => Promise<{unread: number}>} readNotification
+ * @property {() => Promise<{unread: number}>} readAllNotifications
  * @property {(username: string, password: string, remember?: boolean) => Promise<{username: string, name: string, role: string}>} login   401 ถ้าไม่ถูกต้อง · 429 ถ้าผิดหลายครั้ง (http: remember = refresh cookie)
  * @property {() => Promise<void>} logout
  * @property {(name: string) => void} setActor                                ชื่อผู้ใช้ที่บันทึกในกิจกรรม (mock)

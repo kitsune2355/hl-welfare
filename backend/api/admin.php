@@ -552,13 +552,14 @@ function api_admin_health($req, $params)
         '008_role_capabilities' => admin_column_type('role_capabilities', 'allowed') !== null,
         '009_must_change_password' => admin_column_type('users', 'must_change_password') !== null,
         '011_stock_waiting_stage' => strpos((string)admin_column_type('uniform_issues', 'stock_stage'), 'WAITING') !== false,
+        '013_notifications' => admin_column_type('notifications', 'is_read') !== null,
     );
     $pending = array();
     foreach ($migrations as $m => $ok) {
         if (!$ok) { $pending[] = $m; }
     }
     $checks[] = admin_check('migrations', 'Migration (backend/sql)', count($pending) ? 'error' : 'ok',
-        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 011');
+        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 013');
 
     $cfgIssues = array();
     $cfgError = false;
@@ -588,8 +589,10 @@ function api_admin_health($req, $params)
         $admins . ' คน' . ($admins < 2 ? ' — ควรมีอย่างน้อย 2 คน กันลืมรหัสผ่าน' : ''));
 
     $tables = array();
-    foreach (array('users', 'employees', 'sites', 'uniform_issues', 'insurance_batches', 'insurer_forms', 'audit_log',
-        'auth_sessions', 'auth_refresh_tokens', 'auth_login_attempts') as $t) {
+    $tableNames = array('users', 'employees', 'sites', 'uniform_issues', 'insurance_batches', 'insurer_forms', 'audit_log',
+        'auth_sessions', 'auth_refresh_tokens', 'auth_login_attempts');
+    if (notify_ready()) { $tableNames[] = 'notifications'; }   // มีหลังรัน 013
+    foreach ($tableNames as $t) {
         $tables[] = array('name' => $t, 'rows' => (int)db_value('SELECT COUNT(*) FROM `' . $t . '`'));
     }
     $last = db_one("SELECT at, user_name, summary FROM audit_log WHERE entity = 'SYSTEM' AND action = 'CLEANUP' ORDER BY id DESC LIMIT 1");

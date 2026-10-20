@@ -11,6 +11,7 @@ import { API_MODE, api } from './api.js';
 import { can, isAuthEnabled, logout, refreshSessionUser, requireSession } from './auth.js';
 import { installNavigationProgress, progress } from '../ui/loading.js';
 import { initTour } from './tour.js';
+import { initNotifications } from './notifications.js';
 import { applyFontSize, getFontSize } from './fontSize.js';
 
 const MENU = [
@@ -180,6 +181,7 @@ export function initPage(active, { tour = active } = {}) {
       <a class="topbar-logo" href="index.html" aria-label="HL Welfare หน้าแรก"><img src="favicon.svg" alt="" /><span>HL Welfare</span></a>
     </div>
     <div class="topbar-end">
+      <button class="btn-icon noti-btn" id="noti-btn" aria-label="การแจ้งเตือน" aria-haspopup="dialog" aria-expanded="false" title="การแจ้งเตือน">${raw(icon('bell'))}<span class="noti-badge" hidden></span></button>
       <button class="btn-icon" id="help-btn" aria-label="แนะนำการใช้งาน" title="แนะนำการใช้งาน">${raw(icon('circle-help'))}</button>
       <button class="btn-icon" id="theme-btn"></button>
     </div>
@@ -249,6 +251,7 @@ export function initPage(active, { tour = active } = {}) {
   initTour(tour, document.getElementById('help-btn')); // แนะนำการใช้งาน (driver.js)
   installNavigationProgress(); // คลิกลิงก์ → แถบ loading วิ่งทันที
   installEmployeePopup();
+  initNotifications(document.getElementById('noti-btn')); // กระดิ่งแจ้งเตือน (app/notifications.js)
 }
 
 /**

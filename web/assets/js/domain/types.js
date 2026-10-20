@@ -135,6 +135,20 @@
 /** @typedef {'WAITING'|'REQUESTED'|'ISSUED'|'RECEIVED'|'CANCELLED'} StockStage  WAITING = รอผู้อนุมัติในสต็อก */
 
 /**
+ * แจ้งเตือน 1 เรื่องของผู้ใช้ที่ login อยู่
+ * @typedef {Object} Notice
+ * @property {number} id
+ * @property {'stock_approved'|'stock_rejected'|'stock_cancelled'|'stock_issued'|'stock_received'|'insurance_urgent'} type
+ * @property {string} title
+ * @property {string} message
+ * @property {string} link        หน้าปลายทาง เช่น employee.html?id=5
+ * @property {number|null} employeeId
+ * @property {boolean} read
+ * @property {string} at          เวลาสร้าง (ISO ไม่มีโซน)
+ */
+/** @typedef {{items: Notice[], unread: number, total: number, hasMore: boolean, nextBefore: number|null}} NotificationPage */
+
+/**
  * ใบเบิกในระบบสต็อก Uniform ของการแจกหนึ่งรายการ
  * @typedef {Object} StockRequest
  * @property {string} ref                <employeeId>:<entitlementKey>

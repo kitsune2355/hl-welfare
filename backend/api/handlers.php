@@ -282,6 +282,8 @@ function api_employee_save($req, $params)
                  national_id = ?, phone = ?, email = ?, updated_by = ? WHERE id = ?', $vals);
         $terminated = $old['status'] === 'ACTIVE' && $in['status'] === 'INACTIVE';
         audit_write('EMPLOYEE', $id, 'UPDATE', ($terminated ? 'บันทึกพ้นสภาพ ' : 'แก้ไขข้อมูล ') . full_name($in) . ' (' . $in['empCode'] . ')', $id, $u);
+        /* เลิกจ้าง / กระทำผิด = ต้องแจ้งออกประกันทันที → แจ้ง HR ที่แจ้งประกันของบริษัทนี้ (หลัง commit) */
+        $urgent = $terminated && in_array($in['endReason'], array('TERMINATED', 'MISCONDUCT'), true);
     } else {
         $vals = employee_values($in);
         array_push($vals, db_now(), $u['username'], $u['username']);
@@ -294,6 +296,7 @@ function api_employee_save($req, $params)
     }
     db_commit();
     $e = repo_employee($id);
+    if (!empty($urgent) && $e) { notify_insurance_urgent($e, $u); }
     return isset($params['id']) ? $e : http_data($e, 201);
 }
 
@@ -723,6 +726,15 @@ function api_stock_request($req, $params)
 function api_stock_sync($req, $params)
 {
     $u = auth_require($req);
+    return stock_sync_run($u);
+}
+
+/**
+ * ดึงสถานะใบเบิกที่ยังไม่จบจากสต็อก แล้วบันทึกการเปลี่ยนแปลง + แจ้งเตือนผู้ส่งเบิก
+ * ใช้ทั้ง POST /uniform/stock-sync และตอนหน้าเว็บถามตัวเลขบนกระดิ่ง (usecases/notifications.php)
+ */
+function stock_sync_run($u)
+{
     $open = array();
     foreach (repo_issues() as $i) {
         if (is_stock_issue($i) && $i['stock']['stage'] !== 'RECEIVED') { $open[] = $i; }
@@ -732,6 +744,7 @@ function api_stock_sync($req, $params)
     foreach ($open as $i) { $refs[] = $i['stock']['ref']; }
     $status = stock_status($refs);
     $changed = 0;
+    $notify = array();
     db_begin();
     foreach ($open as $i) {
         $s = isset($status[$i['stock']['ref']]) ? $status[$i['stock']['ref']] : null;
@@ -741,6 +754,11 @@ function api_stock_sync($req, $params)
         $changed++;
         $e = repo_employee($i['employeeId']);
         $who = $e ? full_name($e) : '#' . $i['employeeId'];
+        /* ผู้ส่งเบิก — อ่านก่อน (กรณียกเลิก แถวจะถูกลบ) */
+        $senderId = db_value('SELECT issued_by_user_id FROM uniform_issues WHERE id = ?', array($i['id']));
+        if (in_array($kind, array('APPROVED', 'CANCELLED', 'ISSUED', 'RECEIVED'), true)) {
+            $notify[] = array($kind, $senderId, $e, $i['stock'], $next);
+        }
         if ($kind === 'CANCELLED') {
             db_exec('DELETE FROM uniform_issues WHERE id = ?', array($i['id']));
             $why = $next['cancelNote'] ? ' (' . $next['cancelNote'] . ')' : '';
@@ -768,6 +786,8 @@ function api_stock_sync($req, $params)
         }
     }
     db_commit();
+    /* แจ้งเตือนหลัง commit — สร้างไม่สำเร็จต้องไม่ย้อนการซิงก์ */
+    foreach ($notify as $n) { notify_stock_change($n[0], $n[1], $n[2], $n[3], $n[4], $u); }
     return array('changed' => $changed);
 }
 

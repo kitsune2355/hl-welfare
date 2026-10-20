@@ -22,6 +22,12 @@ function api_routes()
     router_add($r, 'GET', '/monitor/tasks', 'api_work_queue');
     router_add($r, 'GET', '/activity', 'api_activity');
 
+    /* การแจ้งเตือน (กระดิ่ง) — ทุกคนที่ login เห็นเฉพาะของตัวเอง · usecases/notifications.php */
+    router_add($r, 'GET', '/notifications', 'api_notifications');
+    router_add($r, 'GET', '/notifications/unread', 'api_notifications_unread');
+    router_add($r, 'POST', '/notifications/read-all', 'api_notifications_read_all');
+    router_add($r, 'POST', '/notifications/{id}/read', 'api_notification_read');
+
     router_add($r, 'GET', '/companies', 'api_companies');
     router_add($r, 'GET', '/sites', 'api_sites');
     router_add($r, 'POST', '/sites', 'api_site_create');

@@ -206,7 +206,10 @@ async function openStockRequest({ employeeId, entitlementKey, event, name, onDon
 export async function syncStockQuietly() {
   try {
     const { changed } = await api.syncUniformStock();
-    if (changed) refreshCounts();
+    if (changed) {
+      refreshCounts();
+      window.dispatchEvent(new Event('hl:notifications-refresh')); // สถานะเปลี่ยน = อาจมีแจ้งเตือนใหม่
+    }
     return '';
   } catch (err) {
     return `ดึงสถานะจากระบบสต็อกไม่ได้ (${errorMessage(err)}) — แสดงสถานะล่าสุดที่บันทึกไว้`;

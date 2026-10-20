@@ -158,6 +158,21 @@ export class HttpApi {
   getWorkQueue() {
     return this.req('/monitor/tasks');
   }
+  // ---------- การแจ้งเตือน (กระดิ่ง) ----------
+  listNotifications({ before, limit = 10 } = {}) {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    if (before) qs.set('before', String(before));
+    return this.req(`/notifications?${qs}`);
+  }
+  notificationUnread() {
+    return this.req('/notifications/unread');
+  }
+  readNotification(id) {
+    return this.send('POST', `/notifications/${id}/read`, {});
+  }
+  readAllNotifications() {
+    return this.send('POST', '/notifications/read-all', {});
+  }
   listActivity(filter = {}) {
     const qs = new URLSearchParams();
     if (filter.entity) qs.set('entity', filter.entity);
