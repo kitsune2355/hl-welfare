@@ -6648,6 +6648,7 @@ button.sev-pill {
    ===================================================================== */
 .org-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* ตารางกว้างเกิน = เลื่อนในตาราง ไม่ดันทั้งแผง */
   gap: 14px;
   padding: 18px 20px 24px;
 }
@@ -6819,6 +6820,15 @@ button.sev-pill {
 .row-check:disabled {
   cursor: default;
 }
+/* ช่องแก้ไขในตาราง Excel ตั้ง input กว้างเต็มเซลล์ — checkbox เลือกแถวต้องคงขนาดเดิม */
+.xgrid .stick-left .row-check,
+.table .rownum .row-check {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+}
 .table .rownum.has-check {
   width: 72px;
   text-align: left;
@@ -6886,4 +6896,35 @@ button.sev-pill {
   .bulk-bar {
     animation: none;
   }
+}
+
+/* ตั้งค่าองค์กร — ตาราง Excel (pages/_orgSettings.js) */
+.org-hint {
+  max-width: 900px;
+}
+.org-move {
+  display: inline-flex;
+  gap: 2px;
+}
+.org-tone-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--muted);
+  vertical-align: middle;
+}
+.org-tone-dot.tone-primary { background: var(--primary); }
+.org-tone-dot.tone-info { background: var(--info, #0891b2); }
+.org-tone-dot.tone-success { background: var(--success); }
+.org-tone-dot.tone-warning { background: var(--warning); }
+.org-tone-dot.tone-danger { background: var(--danger); }
+.org-color {
+  width: 56px;
+  height: 40px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
 }

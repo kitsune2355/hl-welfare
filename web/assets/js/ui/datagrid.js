@@ -20,7 +20,7 @@
 //   });
 //   grid.setRows(rows);
 //
-// editor: 'text' | 'number' | 'date' | 'select' | 'switch' · ไม่ใส่ = อ่านอย่างเดียว
+// editor: 'text' | 'number' | 'date' | 'select' | 'switch' | 'custom' (edit(row, td) => Promise<ค่า|undefined>) · ไม่ใส่ = อ่านอย่างเดียว
 // options(row) สำหรับ select · editable(row) = แก้ได้เฉพาะบางแถว · display(row) = HTML ที่แสดง
 // กรองคอลัมน์ที่หัวตาราง: เปิดอัตโนมัติ · filter: false = ปิด · text(row) = ข้อความที่ใช้กรอง (ไม่ใส่ = ข้อความที่แสดง)
 // ตัวกรองที่ใช้อยู่แสดงเป็น chip · ชี้หัวคอลัมน์ = ปุ่มหมุดตรึงคอลัมน์ · ลากขอบหัวคอลัมน์ = ปรับความกว้าง (width = ค่าเริ่มต้น)
@@ -551,6 +551,18 @@ export class ExcelGrid {
     }
     this.editing = true;
     td.classList.add('editing');
+
+    // custom: col.edit(row, td) => Promise<ค่าใหม่ | undefined (ยกเลิก)> — เช่น กล่องเลือกหลายค่า
+    if (col.editor === 'custom') {
+      Promise.resolve(col.edit(entry.row, td)).then((v) => {
+        this.editing = false;
+        td.classList.remove('editing');
+        if (v !== undefined) this.commit(r, c, v);
+        this.render();
+        this.focusGrid();
+      });
+      return;
+    }
 
     if (col.editor === 'select') {
       openPicker({
