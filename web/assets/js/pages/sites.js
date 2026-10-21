@@ -4,6 +4,7 @@
 import { api } from '../app/api.js';
 import { can, companyChoices, myCompany } from '../app/auth.js';
 import { initPage } from '../app/shell.js';
+import { startTourIfNew } from '../app/tour.js';
 import { UNIFORM_EVENTS } from '../domain/uniform.js';
 import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
@@ -15,7 +16,9 @@ import { errorMessage, openModal, toast } from '../ui/overlay.js';
 
 import { showOrgTab } from './_orgSettings.js';
 
-initPage('sites');
+/** คู่มือตามแท็บ (tour/steps.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
+const tourId = () => ({ companies: 'sites-companies', types: 'sites-types', groups: 'sites-groups' })[getParam('tab')] ?? 'sites';
+initPage('sites', { tour: tourId });
 
 // ===================== แท็บ =====================
 const TABS = [
@@ -39,6 +42,7 @@ on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
   tab = t.dataset.tab;
   setParams({ tab: tab === 'sites' ? '' : tab });
   drawTab();
+  startTourIfNew(tourId()); // แท็บนี้เปิดครั้งแรก → คู่มือของแท็บนี้
 });
 
 // ตั้งชุดฟอร์มของหน่วยงาน = แก้เงื่อนไขสวัสดิการ (สิทธิ์ rules.edit)
