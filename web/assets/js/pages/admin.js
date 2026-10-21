@@ -138,6 +138,23 @@ $('#refresh').addEventListener('click', () => {
 
 // ===================== ผู้ใช้ =====================
 const isMe = (u) => u.id === me?.id;
+/** ทำรายการกับผู้ใช้ได้ไหม (ไม่ใช่ตัวเอง · ไม่ใช่ผู้ดูแลระบบสูงสุดที่ป้องกันไว้) */
+const editableUser = (u) => !isMe(u) && !isProtected(u.role);
+const names = (rows) => rows.map((u) => u.username).slice(0, 6).join(', ') + (rows.length > 6 ? ` และอีก ${rows.length - 6} คน` : '');
+/** ทีละคน — คนที่ไม่สำเร็จแจ้งรวมท้าย · โหลดรายชื่อใหม่ */
+async function eachUser(rows, fn, label) {
+  const failed = [];
+  for (const u of rows) {
+    try {
+      await fn(u);
+    } catch (e) {
+      failed.push(`${u.username}: ${errorMessage(e)}`);
+    }
+  }
+  reloadAccessToo();
+  if (failed.length) toast.error(`${label}ไม่สำเร็จ ${failed.length} คน — ${failed.join(' · ')}`);
+  return rows.length > failed.length ? `${label}แล้ว ${rows.length - failed.length} คน` : '';
+}
 const users = new DataTable($('#users'), {
   rowKey: (u) => u.id,
   pageSize: 25,
@@ -230,24 +247,6 @@ const users = new DataTable($('#users'), {
   ],
   empty: emptyState({ iconName: 'users', title: 'ยังไม่มีผู้ใช้' }),
 });
-/** ทำรายการกับผู้ใช้ได้ไหม (ไม่ใช่ตัวเอง · ไม่ใช่ผู้ดูแลระบบสูงสุดที่ป้องกันไว้) */
-const editableUser = (u) => !isMe(u) && !isProtected(u.role);
-const names = (rows) => rows.map((u) => u.username).slice(0, 6).join(', ') + (rows.length > 6 ? ` และอีก ${rows.length - 6} คน` : '');
-/** ทีละคน — คนที่ไม่สำเร็จแจ้งรวมท้าย · โหลดรายชื่อใหม่ */
-async function eachUser(rows, fn, label) {
-  const failed = [];
-  for (const u of rows) {
-    try {
-      await fn(u);
-    } catch (e) {
-      failed.push(`${u.username}: ${errorMessage(e)}`);
-    }
-  }
-  reloadAccessToo();
-  if (failed.length) toast.error(`${label}ไม่สำเร็จ ${failed.length} คน — ${failed.join(' · ')}`);
-  return rows.length > failed.length ? `${label}แล้ว ${rows.length - failed.length} คน` : '';
-}
-
 async function loadUsers() {
   render($('#users'), html`<div class="card-body">${raw(String(skeletonLines(5)))}</div>`);
   const d = await adminApi.listUsers();

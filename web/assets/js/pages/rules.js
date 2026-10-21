@@ -148,6 +148,11 @@ function drawRuleTable(kind) {
     rowNumbers: false,
     columns: kind === 'insurance' ? insuranceColumns : uniformColumns,
     exportName: kind === 'insurance' ? 'กฎประกันกลุ่ม' : 'กฎชุดฟอร์ม',
+    // ดับเบิลคลิกแถว = แก้กฎ (ไม่มีสิทธิ์ = ดูประวัติ) — แก้ในตารางตรง ๆ ไม่ได้เพราะต้องเลือกวันที่มีผล
+    onRowDblClick: (t) => (canEdit ? openRuleEditor(kind, t.id, structuredClone(t.current)) : openHistory(kind, t.id)),
+    bulkActions: canEdit
+      ? [{ id: 'retire', label: 'เลิกใช้ที่เลือก', icon: 'ban', tone: 'danger', run: (rows) => openRetire(kind, rows.map((t) => t.id)) }]
+      : [],
     empty: emptyState({
       iconName: 'list-checks',
       title: query ? 'ไม่พบกฎที่ค้นหา' : 'ยังไม่มีกฎ',
@@ -608,11 +613,16 @@ function openHistory(kind, id) {
   });
   wireActions(m.el, () => m.close());
 }
-function openRetire(kind, id) {
-  const t = hist[kind].find((x) => x.id === id);
+/** เลิกใช้กฎ 1 ข้อ (id) หรือหลายข้อ (ids จากแถวที่เลือก) ตั้งแต่วันที่เลือก */
+function openRetire(kind, idOrIds) {
+  const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+  const one = ids.length === 1 ? hist[kind].find((x) => x.id === ids[0]) : null;
+  let resolve;
+  const done = new Promise((r) => (resolve = r));
   const m = openModal({
-    title: `เลิกใช้${KIND_LABEL[kind]} #${id}?`,
-    description: summary(kind, t.current),
+    title: one ? `เลิกใช้${KIND_LABEL[kind]} #${one.id}?` : `เลิกใช้${KIND_LABEL[kind]} ${ids.length} ข้อ?`,
+    description: one ? summary(kind, one.current) : ids.map((id) => `#${id}`).join(', '),
+    onClose: () => resolve(),
     body: html`${alertBox({ tone: 'warning', body: 'ตั้งแต่วันที่เลือก ระบบจะไม่ใช้กฎนี้คำนวณสิทธิอีก — ประวัติและการแจ้ง/แจกที่ทำไปแล้วยังอยู่ครบ' })}
       <div class="effective-bar" style="margin-top:16px">${effectiveField('r-from')}<div class="hint small muted" id="r-hint">${effectiveHint(hist.today)}</div></div>`,
     footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button>
@@ -624,16 +634,23 @@ function openRetire(kind, id) {
   ok.onclick = async () => {
     if (!from.value) return toast.error('กรุณาเลือกวันที่มีผล');
     m.busy(true, ok);
-    try {
-      const h = await api.retireRule(kind, id, from.value);
-      m.busy(false, ok);
-      m.close();
-      applyHistory(h, from.value > hist.today ? `จะเลิกใช้ตั้งแต่ ${thaiDate(from.value)}` : 'เลิกใช้กฎแล้ว');
-    } catch (e) {
-      m.busy(false, ok);
-      toast.error(errorMessage(e));
+    let h = null;
+    const failed = [];
+    for (const id of ids) {
+      try {
+        h = await api.retireRule(kind, id, from.value);
+      } catch (e) {
+        failed.push(`#${id}: ${errorMessage(e)}`);
+      }
     }
+    m.busy(false, ok);
+    if (failed.length) toast.error(`เลิกใช้ไม่สำเร็จ ${failed.length} ข้อ — ${failed.join(' · ')}`);
+    if (!h) return;
+    m.close();
+    const n = ids.length - failed.length;
+    applyHistory(h, from.value > hist.today ? `จะเลิกใช้ ${n} ข้อ ตั้งแต่ ${thaiDate(from.value)}` : `เลิกใช้กฎแล้ว ${n} ข้อ`);
   };
+  return done;
 }
 function openRetired(kind) {
   const list = hist[kind].filter((t) => !t.current);
