@@ -1,12 +1,6 @@
 // ภาษาเดียวกับ HR (ubiquitous language) — ใช้ทั้งในเหตุผลที่คำนวณและบนหน้าจอ
-export const COMPANY_CODES = ['HL', 'PRO', 'CNS', 'CIC', 'AS'];
-
-export const EMPLOYEE_TYPE_LABEL = {
-  CENTRAL: 'ส่วนกลาง',
-  PRO_SITE: 'Pro Site',
-  DAILY: 'รายวัน',
-  MAID_CNS: 'แม่บ้าน CNS',
-};
+// บริษัท / ประเภทพนักงาน ตั้งค่าได้ — รายการจริงอยู่ที่ domain/catalog.js (ตัวเดียวกันทั้งระบบ)
+export { COMPANY_CODES, EMPLOYEE_TYPE_LABEL } from './catalog.js';
 
 export const CONTRACT_LABEL = {
   REGULAR: 'ปกติ',

@@ -20,13 +20,19 @@
 //   });
 //   grid.setRows(rows);
 //
-// editor: 'text' | 'number' | 'date' | 'select' | 'switch' · ไม่ใส่ = อ่านอย่างเดียว
+// editor: 'text' | 'number' | 'date' | 'select' | 'switch' | 'custom' (edit(row, td) => Promise<ค่า|undefined>) · ไม่ใส่ = อ่านอย่างเดียว
 // options(row) สำหรับ select · editable(row) = แก้ได้เฉพาะบางแถว · display(row) = HTML ที่แสดง
 // กรองคอลัมน์ที่หัวตาราง: เปิดอัตโนมัติ · filter: false = ปิด · text(row) = ข้อความที่ใช้กรอง (ไม่ใส่ = ข้อความที่แสดง)
 // ตัวกรองที่ใช้อยู่แสดงเป็น chip · ชี้หัวคอลัมน์ = ปุ่มหมุดตรึงคอลัมน์ · ลากขอบหัวคอลัมน์ = ปรับความกว้าง (width = ค่าเริ่มต้น)
 // มือถือ (<768px): ใส่ mobileCard(row) => HTML เพื่อแสดงเป็นการ์ดแทนตาราง (แตะการ์ด = onOpen)
 //   และ mobileAddHref = ลิงก์ของปุ่ม "เพิ่ม" บนมือถือ เพราะการกรอกในเซลล์บนจอเล็กไม่สะดวก
 // readOnly: true = ดูอย่างเดียว (ไม่มีสิทธิ์แก้ — เช่น !can('employees.edit')) · ไม่มีปุ่มเพิ่ม/ลบ แก้เซลล์ไม่ได้ · ปุ่มเปิดรายละเอียดยังอยู่
+//
+// เลือกหลายแถว (ui/selection.js): checkbox คู่กับเลขแถวช่องหน้าสุด · Shift + คลิก = ช่วง
+//   แถบที่เลือก: "ลบที่เลือก" (ทำเครื่องหมายลบ — ลบจริงตอนกดบันทึก · มีเมื่อ onRemove) + bulkActions ของหน้า + Excel ที่เลือก
+//   bulkActions: [{ id, label, icon?, tone?, when?(row), confirm?(rows), run: async (rows, grid) => msg }] — rows = ค่าล่าสุด (รวมที่แก้ค้าง)
+//   ใช้ grid.stage({ edits }) ใน run เพื่อแก้หลายแถวเป็น "ยังไม่บันทึก" ให้ตรวจก่อนกดบันทึก
+// exporter: async (rows) => {} = ส่งออกแบบของหน้าเอง (ปุ่ม Excel + Excel ที่เลือก) แทนการส่งออกตามที่แสดง
 import { esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import {
@@ -48,14 +54,18 @@ import {
   wireColumnResize,
 } from './columnFilter.js';
 import { openPicker } from './combobox.js';
-import { spinner } from './loading.js';
+import { busy, spinner } from './loading.js';
 import { exportButton, wireExport } from './exportExcel.js';
 import { confirmAction, errorMessage, toast } from './overlay.js';
+import { allCheck, applyIndeterminate, bulkBar, rowCheck, runBulk, Selection } from './selection.js';
 import { pagerHtml, wirePager } from './table.js';
+import { exportTableExcel } from './exportExcel.js';
 
 /** เพิ่มแถวได้ครั้งละไม่เกินนี้ */
 const MAX_ADD = 100;
 const fmt = (v) => (v === null || v === undefined || v === '' ? '' : String(v));
+/** ความกว้างช่องหน้าสุด (checkbox + เลขแถว / สถานะแถว) */
+const HEAD_W = 78;
 
 export class ExcelGrid {
   constructor(root, opts) {
@@ -85,6 +95,7 @@ export class ExcelGrid {
     this.filter = new FilterState();
     this.pinned = new Set(); // แถวที่เพิ่งแก้ — แสดงต่อแม้ไม่ตรงตัวกรอง (ไม่หายระหว่างแก้)
     this.handled = false;
+    this.sel = new Selection();
     if (opts.mobileCard) root.classList.add('has-mobile-cards');
     this.bind();
     // ปิด/ออกจากหน้าขณะมีการเปลี่ยนแปลงที่ยังไม่บันทึก → เบราว์เซอร์ถามก่อน
@@ -92,11 +103,14 @@ export class ExcelGrid {
       if (this.hasPending()) e.preventDefault();
     });
     // ส่งออก Excel: ข้อมูลที่บันทึกแล้ว ทุกแถวตามตัวกรอง/การเรียง (ไม่รวมการเปลี่ยนแปลงที่ยังไม่บันทึก)
-    wireExport(root, () => ({
-      name: this.o.exportName,
-      columns: this.cols.filter((c) => c.header).map((c) => ({ header: c.header, text: (r) => this.textOf(r, c.key) })),
-      rows: this.filtered(),
-    }));
+    if (this.o.exporter) {
+      root.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-export-excel]');
+        if (!btn) return;
+        e.stopPropagation();
+        busy(btn, () => this.o.exporter(this.filtered()), { label: 'Excel' }).catch((err) => toast.error(errorMessage(err)));
+      });
+    } else wireExport(root, () => ({ name: this.o.exportName, columns: this.exportColumns(), rows: this.filtered() }));
     this.render();
   }
 
@@ -113,7 +127,92 @@ export class ExcelGrid {
   // ---------- public ----------
   setRows(rows) {
     this.rows = rows;
+    if (rows) this.sel.prune([...rows.map((r) => this.o.rowKey(r)), ...this.newRows.map((n) => n.key)]);
     this.render();
+  }
+
+  exportColumns() {
+    return this.cols.filter((c) => c.header).map((c) => ({ header: c.header, text: (r) => this.textOf(r, c.key) }));
+  }
+
+  // ----- เลือกหลายแถว -----
+  /** แถวที่เลือก (ทุกหน้า) เป็น entry: { key, row (ค่าล่าสุด), orig, isNew } */
+  selectedEntries() {
+    const news = this.newRows.filter((n) => this.sel.has(n.key)).map((n) => ({ key: n.key, row: n.row, isNew: true }));
+    const olds = this.filtered()
+      .filter((r) => this.sel.has(this.o.rowKey(r)))
+      .map((r) => {
+        const key = String(this.o.rowKey(r));
+        return { key, row: this.drafts.get(key) ?? r, orig: r, isNew: false, isDeleted: this.deleted.has(key) };
+      });
+    return [...news, ...olds];
+  }
+  bulkActions() {
+    const own = (this.o.bulkActions ?? []).map((a) => ({ ...a, when: (e) => !e.isNew && !e.isDeleted && (a.when ? a.when(e.row) : true), run: (es) => a.run(es.map((e) => e.row), this) }));
+    if (this.o.readOnly || !this.o.onRemove) return own;
+    return [
+      ...own,
+      {
+        id: '__delete',
+        label: 'ลบที่เลือก',
+        icon: 'trash-2',
+        tone: 'danger',
+        when: (e) => !e.isDeleted,
+        // ทำเครื่องหมายลบ (แถวใหม่ = ทิ้ง) — ลบจริงตอนกดบันทึก เหมือนปุ่มลบท้ายแถว
+        run: (es) => {
+          for (const e of es) {
+            if (e.isNew) this.newRows = this.newRows.filter((n) => n.key !== e.key);
+            else this.deleted.add(e.key);
+            this.status.delete(e.key);
+          }
+          this.active = null;
+          return `ทำเครื่องหมายลบ ${es.length} รายการ — กด “บันทึก” เพื่อลบจริง`;
+        },
+      },
+    ];
+  }
+  onSelectClick(e) {
+    const one = e.target.closest('[data-row-check]');
+    if (one) {
+      this.sel.toggle(one.dataset.rowCheck, one.checked, { shift: e.shiftKey, order: this.entries().map((x) => x.key) });
+      this.render();
+      return true;
+    }
+    const all = e.target.closest('[data-row-check-all]');
+    if (all) {
+      this.sel.setMany(this.entries().map((x) => x.key), all.checked);
+      this.render();
+      return true;
+    }
+    if (e.target.closest('[data-bulk-all]')) {
+      this.sel.setMany([...this.newRows.map((n) => n.key), ...this.filtered().map((r) => this.o.rowKey(r))], true);
+      this.render();
+      return true;
+    }
+    if (e.target.closest('[data-bulk-clear]')) {
+      this.sel.clear();
+      this.render();
+      return true;
+    }
+    if (e.target.closest('[data-bulk-export]')) {
+      const rows = this.selectedEntries().filter((x) => !x.isNew).map((x) => x.orig);
+      if (this.o.exporter) this.o.exporter(rows).catch((err) => toast.error(errorMessage(err)));
+      else exportTableExcel({ name: this.o.exportName, columns: this.exportColumns(), rows: this.selectedEntries().map((x) => x.row) });
+      return true;
+    }
+    const b = e.target.closest('[data-bulk]');
+    if (b) {
+      const action = this.bulkActions().find((a) => a.id === b.dataset.bulk);
+      if (action && !this.saving) {
+        runBulk(action, this.selectedEntries(), b).then((done) => {
+          if (!done) return;
+          this.sel.clear();
+          this.render();
+        });
+      }
+      return true;
+    }
+    return false;
   }
 
   getRows() {
@@ -256,10 +355,10 @@ export class ExcelGrid {
     this.render();
   }
 
-  /** ตำแหน่ง sticky ของคอลัมน์ที่ตรึง: ถัดจากคอลัมน์เลขแถว (52px) เรียงตามความกว้าง */
+  /** ตำแหน่ง sticky ของคอลัมน์ที่ตรึง: ถัดจากช่องหน้าสุด (HEAD_W) เรียงตามความกว้าง */
   pinOffsets() {
     const out = {};
-    let left = 52;
+    let left = HEAD_W;
     const pinned = this.cols.filter((c) => this.pins.has(c.key));
     pinned.forEach((c, i) => {
       out[c.key] = { left, edge: i === pinned.length - 1 };
@@ -453,6 +552,18 @@ export class ExcelGrid {
     this.editing = true;
     td.classList.add('editing');
 
+    // custom: col.edit(row, td) => Promise<ค่าใหม่ | undefined (ยกเลิก)> — เช่น กล่องเลือกหลายค่า
+    if (col.editor === 'custom') {
+      Promise.resolve(col.edit(entry.row, td)).then((v) => {
+        this.editing = false;
+        td.classList.remove('editing');
+        if (v !== undefined) this.commit(r, c, v);
+        this.render();
+        this.focusGrid();
+      });
+      return;
+    }
+
     if (col.editor === 'select') {
       openPicker({
         anchor: td,
@@ -559,6 +670,7 @@ export class ExcelGrid {
       },
     });
     root.addEventListener('click', (e) => {
+      if (this.onSelectClick(e)) return;
       const fb = e.target.closest('[data-col-filter]');
       if (fb) return this.openFilter(fb);
       const pb = e.target.closest('[data-col-pin]');
@@ -659,6 +771,10 @@ export class ExcelGrid {
         e.preventDefault();
         return this.saveAll();
       }
+      if (e.key === 'Escape' && !this.editing && this.sel.size && !e.target.matches?.('input')) {
+        this.sel.clear();
+        return this.render();
+      }
       if (!e.target.classList?.contains('xgrid-wrap') || this.editing || !this.active) return;
       const k = e.key;
       const ed = this.cols[this.active.c].editor;
@@ -729,7 +845,7 @@ export class ExcelGrid {
     const { rowKey, onOpen, onDelete, newRow, addLabel, toolbar, empty } = this.o;
     const entries = this.entries();
     const hasActions = !!(onOpen || onDelete || this.o.onRemove);
-    const width = 52 + this.cols.reduce((s, c) => s + c.width, 0) + (hasActions ? 76 : 0);
+    const width = HEAD_W + this.cols.reduce((s, c) => s + c.width, 0) + (hasActions ? 76 : 0);
     const offset = this.size ? (this.page - 1) * this.size : 0;
     const loading = this.rows === null;
     const pins = this.pinOffsets();
@@ -750,8 +866,8 @@ export class ExcelGrid {
           // แถวใหม่/แถวที่แก้: ตรวจข้อมูลทันที (เห็นช่องที่ยังไม่ครบก่อนกดบันทึก)
           const errs = !entry.isDeleted && (entry.isNew || entry.isEdited || st?.state === 'error') ? this.errorsOf(entry.row) : {};
           const rowCls = [entry.isNew ? 'is-new' : '', entry.isEdited && !entry.isDeleted ? 'is-edited' : '', entry.isDeleted ? 'is-deleted' : '', st?.state === 'error' ? 'has-error' : ''].join(' ');
-          return html`<tr class="${rowCls}">
-            <td class="stick-left">${this.statusCell(entry, offset + r - this.newRows.length + 1)}</td>
+          return html`<tr class="${rowCls}${this.sel.has(entry.key) ? ' is-selected' : ''}">
+            <td class="stick-left"><span class="rowhead">${rowCheck(entry.key, this.sel.has(entry.key))}${this.statusCell(entry, offset + r - this.newRows.length + 1)}</span></td>
             ${this.cols.map((col, c) => {
               const editable = !entry.isDeleted && this.canEdit(col, entry.row);
               const err = errs[col.key];
@@ -798,6 +914,14 @@ export class ExcelGrid {
     const oldWrap = this.root.querySelector('.xgrid-wrap');
     const keep = oldWrap ? { left: oldWrap.scrollLeft, top: this.scrollReset ? 0 : oldWrap.scrollTop } : null;
     this.scrollReset = false;
+    const picked = loading ? [] : this.selectedEntries();
+    const pageKeys = entries.map((x) => x.key);
+    const bar = bulkBar({
+      rows: picked,
+      actions: this.bulkActions(),
+      totalMatching: this.newRows.length + total,
+      pageAll: pageKeys.length > 0 && this.sel.stateOf(pageKeys) === 'all',
+    });
     this.root.innerHTML = String(html`<div class="grid-toolbar">
         ${newRow
           ? html`<span class="add-group ${this.o.mobileCard ? 'hide-mobile' : ''}">
@@ -811,16 +935,17 @@ export class ExcelGrid {
         ${this.pendingBar()}
         ${exportButton(loading || !this.filtered().length)}
       </div>
+      ${bar}
       ${filterChips(this.filter, (k) => this.colByKey(k).header, this.allValues)}
       <div class="xgrid-wrap" tabindex="0" role="grid" aria-rowcount="${entries.length}">
         <table class="xgrid" style="width:${width}px">
           <colgroup>
-            <col style="width:52px" />
+            <col style="width:${HEAD_W}px" />
             ${this.cols.map((c) => html`<col style="width:${c.width}px" />`)} ${hasActions ? html`<col style="width:76px" />` : ''}
           </colgroup>
           <thead>
             <tr>
-              <th class="stick-left">#</th>
+              <th class="stick-left"><span class="rowhead">${allCheck(this.sel.stateOf(entries.map((x) => x.key)), loading || !entries.length)}<span>#</span></span></th>
               ${this.cols.map(
                 (c) =>
                   html`<th class="${pinCls(c)}" style="${pinStyle(c, 4)}" data-col="${c.key}" aria-sort="${ariaSort(c.key, this.filter)}">
@@ -882,6 +1007,7 @@ export class ExcelGrid {
       wrap.scrollTop = keep.top;
     }
     this.drawErrorBar();
+    applyIndeterminate(this.root);
     if (hadFocus && this.active) this.focusGrid();
     this.fitHeaders();
     void rowKey;

@@ -1,17 +1,45 @@
-// หน้า: หน่วยงาน (sites.html) — ตาราง Excel เพิ่ม/แก้/ลบ
+// หน้า: ตั้งค่าองค์กร (sites.html?tab=companies|sites|types|groups)
+//   หน่วยงาน (ค่าเริ่มต้น) = ตาราง Excel เพิ่ม/แก้/ลบ + ชุดฟอร์มของหน่วยงาน (ไฟล์นี้)
+//   บริษัท / ประเภทพนักงาน / กลุ่ม-ฝ่าย = pages/_orgSettings.js
 import { api } from '../app/api.js';
 import { can, companyChoices, myCompany } from '../app/auth.js';
 import { initPage } from '../app/shell.js';
 import { UNIFORM_EVENTS } from '../domain/uniform.js';
-import { $, html, raw, render } from '../shared/dom.js';
+import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import { COMPANY_CODES, EMPLOYEE_TYPE_LABEL, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
-import { badge, emptyState, errorState } from '../ui/components.js';
+import { badge, emptyState, errorState, tabs } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { loader } from '../ui/loading.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 
+import { showOrgTab } from './_orgSettings.js';
+
 initPage('sites');
+
+// ===================== แท็บ =====================
+const TABS = [
+  { value: 'companies', label: 'บริษัท', hint: 'รหัส ชื่อ ชื่อตามทะเบียน สี และลำดับของบริษัท — ใช้ทั้งระบบ' },
+  { value: 'sites', label: 'หน่วยงาน', hint: 'เพิ่ม / แก้ไข / ลบ ในตาราง แล้วกด “บันทึก” — สวิตช์ประกันกลุ่มใช้กับแม่บ้าน CNS · สีโปโลใช้กับ Pro Site' },
+  { value: 'types', label: 'ประเภทพนักงาน', hint: 'ประเภทและพฤติกรรม (บริษัทที่ใช้ได้ · กลุ่ม/ฝ่าย+ระดับ · ตำแหน่ง · รอบแจ้งรายวัน)' },
+  { value: 'groups', label: 'กลุ่ม / ฝ่าย', hint: 'กลุ่ม / ฝ่ายของพนักงานที่ใช้ระดับ (เช่น ส่วนกลาง)' },
+];
+let tab = TABS.some((t) => t.value === getParam('tab')) ? getParam('tab') : 'sites';
+function drawTab() {
+  render($('#tabs'), tabs(TABS, tab));
+  $('#tab-hint').textContent = TABS.find((t) => t.value === tab).hint;
+  const onSites = tab === 'sites';
+  $('#panel-sites').classList.toggle('hidden', !onSites);
+  $('#panel-org').classList.toggle('hidden', onSites);
+  $('#summary').style.display = onSites ? '' : 'none';
+  if (onSites) grid.render();
+  else showOrgTab($('#org'), tab);
+}
+on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
+  tab = t.dataset.tab;
+  setParams({ tab: tab === 'sites' ? '' : tab });
+  drawTab();
+});
 
 // ตั้งชุดฟอร์มของหน่วยงาน = แก้เงื่อนไขสวัสดิการ (สิทธิ์ rules.edit)
 const canEdit = can('rules.edit');
@@ -31,7 +59,7 @@ function drawSummary() {
 const grid = new ExcelGrid($('#grid'), {
   rowKey: (s) => s.id,
   addLabel: 'เพิ่มหน่วยงาน',
-  newRow: () => ({ id: 0, companyCode: myCompany() || 'HL', name: '', hasGroupInsurance: true, poloColor: 'BLACK' }),
+  newRow: () => ({ id: 0, companyCode: myCompany() || COMPANY_CODES[0], name: '', hasGroupInsurance: true, poloColor: 'BLACK' }),
   validate: (s) => (s.name.trim() ? {} : { name: 'กรุณาระบุชื่อหน่วยงาน' }),
   columns: [
     {
@@ -96,10 +124,25 @@ const grid = new ExcelGrid($('#grid'), {
   },
   // ลบจริงตอนกดบันทึก — ลบได้เฉพาะหน่วยงานที่ไม่มีพนักงานอยู่ (API แจ้งเหตุผลถ้าลบไม่ได้)
   onRemove: (s) => api.deleteSite(s.id),
+  // เลือกหลายหน่วยงาน → ตั้งค่าพร้อมกัน (เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก) · "ลบที่เลือก" มีให้อยู่แล้ว
+  bulkActions: can('sites.edit')
+    ? [
+        { id: 'ins-on', label: 'ได้รับประกันกลุ่ม', icon: 'shield-plus', when: (s) => !s.hasGroupInsurance, run: (rows, g) => stageAll(g, rows, { hasGroupInsurance: true }) },
+        { id: 'ins-off', label: 'ไม่ได้รับประกันกลุ่ม', icon: 'shield-off', when: (s) => s.hasGroupInsurance, run: (rows, g) => stageAll(g, rows, { hasGroupInsurance: false }) },
+        { id: 'polo-black', label: 'โปโลสีดำ', when: (s) => s.poloColor !== 'BLACK', run: (rows, g) => stageAll(g, rows, { poloColor: 'BLACK' }) },
+        { id: 'polo-navy', label: 'โปโลสีน้ำเงิน', when: (s) => s.poloColor !== 'NAVY', run: (rows, g) => stageAll(g, rows, { poloColor: 'NAVY' }) },
+      ]
+    : [],
   rowLabel: (s) => `${s.companyCode} · ${s.name}`,
   onSaved: () => drawSummary(),
   empty: emptyState({ iconName: 'building-2', title: 'ยังไม่มีหน่วยงาน' }),
 });
+
+/** แก้หลายแถวเป็น "ยังไม่บันทึก" (ไม่ซ่อนแถวอื่น) */
+function stageAll(g, rows, patch) {
+  g.stage({ edits: rows.map((s) => ({ key: s.id, row: { ...s, ...patch } })), onlyPending: false });
+  return `แก้ ${rows.length} หน่วยงาน (ยังไม่บันทึก) — ตรวจแล้วกด “บันทึก”`;
+}
 
 // ===================== ชุดฟอร์มของหน่วยงาน (ตั้งทับกฎกลาง) =====================
 let rulesCache = null;
@@ -253,6 +296,7 @@ $('#sync-stock').onclick = async (e) => {
   }
 };
 
+drawTab();
 try {
   grid.setRows(sortSites(await api.listSites()));
   drawSummary();

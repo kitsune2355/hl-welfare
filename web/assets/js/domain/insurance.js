@@ -1,8 +1,9 @@
+import { typeInfo } from './catalog.js';
 import { addDays, addMonths, nextCycleDate } from './date.js';
 
-/** วันที่รอบแจ้งประกันของพนักงาน — รายวันส่งแยกทุกวันที่ 6 (ตั้งค่าได้) · ประเภทอื่นทุกวันที่ 5 */
+/** วันที่รอบแจ้งประกันของพนักงาน — ประเภทที่ตั้ง "รอบรายวัน" ส่งแยกทุกวันที่ 6 (ตั้งค่าได้) · ประเภทอื่นทุกวันที่ 5 */
 export function cycleDayOf(emp, settings) {
-  return emp.employeeType === 'DAILY' ? (settings.insuranceCycleDayDaily ?? settings.insuranceCycleDay) : settings.insuranceCycleDay;
+  return typeInfo(emp.employeeType)?.dailyCycle ? (settings.insuranceCycleDayDaily ?? settings.insuranceCycleDay) : settings.insuranceCycleDay;
 }
 /** วันที่ของรอบทั้งหมดในเดือน เช่น [5, 6] */
 export function cycleDays(settings) {

@@ -3,6 +3,7 @@
 //         · คิวงาน (#queue — กรองระดับ ด่วน/ต้องทำ/ติดตาม + ประเภท) · บันทึกกิจกรรม (#activity)
 //   ลิงก์เก่า ?tab=queue|activity → เลื่อนไปส่วนนั้น
 // รีเฟรชอัตโนมัติทุก 60 วินาที + เมื่อกลับมาที่แท็บของเบราว์เซอร์
+import { companyColor } from '../domain/catalog.js';
 import { api } from '../app/api.js';
 import { myCompany } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
@@ -15,6 +16,7 @@ import { SEVERITY_LABEL, SEVERITY_TONE, TASK_KIND_LABEL } from '../shared/labels
 import { badge, emptyState, employeeCell, errorState, skeletonLines } from '../ui/components.js';
 import { DataTable } from '../ui/table.js';
 import { activityFeed } from './_shared.js';
+import { openEmployeeDetail } from './_employeeDetail.js';
 
 /** ลิงก์เก่าที่ชี้แท็บ (?tab=queue|activity) → เลื่อนไปส่วนนั้นหลังโหลด */
 const jumpTo = ['queue', 'activity'].includes(getParam('tab')) ? getParam('tab') : '';
@@ -23,7 +25,6 @@ initPage('dashboard', { tour: 'dashboard' });
 const REFRESH_MS = 60_000;
 const AUTO_KEY = 'hl-monitor-auto';
 const today = todayISO();
-const COMPANY_COLOR = { HL: '#2563eb', PRO: '#0891b2', CNS: '#10b981', CIC: '#f59e0b', AS: '#8b5cf6' };
 
 const state = {
   dash: null,
@@ -49,6 +50,8 @@ function scrollToSection(id) {
 const upcoming = new DataTable($('#upcoming'), {
   rowKey: (r) => `${r.employee.id}-${r.benefit}`,
   pageSize: 5, // ช่อง bento 1/3 แถว — 5 คนต่อหน้า
+  selectable: false, // ช่องแคบ — ไม่มีที่ให้ช่องเลือก
+  onRowDblClick: (r) => openEmployeeDetail(r.employee.id),
   columns: [
     { key: 'emp', header: 'พนักงาน', text: (r) => `${r.employee.firstName} ${r.employee.lastName}`, cell: (r) => employeeCell(r.employee, { link: true }) },
     {
@@ -117,11 +120,11 @@ function drawSummary(d) {
     html`${tileHead('users', 'พนักงานปัจจุบัน', myCompany() ? `บริษัท ${myCompany()}` : 'ทุกบริษัทในเครือ', { href: 'employees.html?status=ACTIVE', label: 'ดูทั้งหมด' })}
       <div class="tile-big"><b class="num">${int(d.activeTotal)}</b><span>คน</span></div>
       <div class="stack-bar" role="img" aria-label="สัดส่วนพนักงานแยกบริษัท">
-        ${d.activeByCompany.filter((c) => c.count).map((c) => html`<i style="width:${(c.count / total) * 100}%;background:${COMPANY_COLOR[c.companyCode]}" title="${c.companyCode} ${c.count} คน"></i>`)}
+        ${d.activeByCompany.filter((c) => c.count).map((c) => html`<i style="width:${(c.count / total) * 100}%;background:${companyColor(c.companyCode)}" title="${c.companyCode} ${c.count} คน"></i>`)}
       </div>
       <ul class="co-list">
         ${d.activeByCompany.map(
-          (c) => html`<li><a href="employees.html?status=ACTIVE&company=${c.companyCode}"><i style="background:${COMPANY_COLOR[c.companyCode]}"></i><b>${c.companyCode}</b><span class="num">${int(c.count)}</span></a></li>`,
+          (c) => html`<li><a href="employees.html?status=ACTIVE&company=${c.companyCode}"><i style="background:${companyColor(c.companyCode)}"></i><b>${c.companyCode}</b><span class="num">${int(c.count)}</span></a></li>`,
         )}
       </ul>`,
   );
@@ -144,6 +147,9 @@ function taskLink(t) {
 const taskTable = new DataTable($('#tasks'), {
   rowKey: (t) => t.id,
   pageSize: 25,
+  exportName: 'คิวงาน',
+  // ดับเบิลคลิกแถว = ไปทำงานนั้น (เหมือนปุ่มท้ายแถว)
+  onRowDblClick: (t) => (location.href = taskLink(t).href),
   columns: [
     {
       key: 'sev',

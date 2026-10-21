@@ -14,6 +14,7 @@
 //
 //   Template (TEMPLATE_SHEETS) — คอลัมน์ชุดเดียวกับไฟล์ของ HR + "ประเภทพนักงาน" (ไม่บังคับ — ว่าง = เดาให้)
 //   monthlyTemplateRows(employees, sites, month)  ส่งออกเข้า-ออกประจำเดือนในรูปแบบ template (นำเข้ากลับได้)
+import { defaultTypeFor, typeAllows, typeInfo } from '../../domain/catalog.js';
 import { COMPANY_CODES, EMPLOYEE_TYPE_LABEL, END_REASON_LABEL, TITLES } from '../../domain/labels.js';
 import { probationDueDate } from '../../domain/employee.js';
 import { DEPT_GROUPS } from '../../shared/labels.js';
@@ -152,14 +153,18 @@ export function matchSite(unit, companyCode, sites) {
   );
 }
 
-/** ประเภทพนักงานจากไฟล์ (เดา — แก้ในตารางได้) */
+/**
+ * ประเภทพนักงานจากไฟล์ (เดา — แก้ในตารางได้)
+ * กรอกคอลัมน์ "ประเภทพนักงาน" มา (template) = ใช้ค่านั้น ถ้าใช้กับบริษัทได้
+ * ไม่กรอก = เดาจากรูปแบบไฟล์ของ HR (Pro Site / แม่บ้าน CNS — ถ้ายังมีประเภทนั้นในระบบ) · ไม่เข้าเงื่อนไข = ส่วนกลาง / ประเภทแรกที่ใช้กับบริษัทได้
+ */
 export function guessEmployeeType(item) {
-  // กรอกคอลัมน์ "ประเภทพนักงาน" มา (template) = ใช้ค่านั้น
   const given = Object.keys(EMPLOYEE_TYPE_LABEL).find((k) => EMPLOYEE_TYPE_LABEL[k] === item.typeLabel || k === item.typeLabel);
-  if (given && (given !== 'PRO_SITE' || item.companyCode === 'PRO')) return given;
-  if (item.companyCode === 'PRO' && /^(PRO\/FM\/|pro site)/i.test(item.unit ?? '')) return 'PRO_SITE';
-  if (item.companyCode === 'CNS' && /แม่บ้าน/.test(item.position)) return 'MAID_CNS';
-  return 'CENTRAL';
+  if (given && typeAllows(given, item.companyCode)) return given;
+  const usable = (code) => typeAllows(code, item.companyCode);
+  if (item.companyCode === 'PRO' && /^(PRO\/FM\/|pro site)/i.test(item.unit ?? '') && usable('PRO_SITE')) return 'PRO_SITE';
+  if (item.companyCode === 'CNS' && /แม่บ้าน/.test(item.position) && usable('MAID_CNS')) return 'MAID_CNS';
+  return usable('CENTRAL') ? 'CENTRAL' : defaultTypeFor(item.companyCode);
 }
 
 /** ฝ่ายในไฟล์ → กลุ่ม/ฝ่ายของระบบ (groups = ชื่อที่ตั้งค่าไว้ · ไม่ส่ง = รายการตั้งต้น) · ไม่ตรงอันไหน = null ให้ HR เลือก */
@@ -233,11 +238,12 @@ export function planEmployeeImport(parsed, employees, sites, { addMissing = fals
 /** แถวพนักงานใหม่จาก 1 แถวในไฟล์ + สิ่งที่ HR ต้องตรวจ */
 function newEmployee(it, sites, deptGroups) {
   const type = guessEmployeeType(it);
+  const info = typeInfo(type);
   const site = matchSite(it.unit, it.companyCode, sites);
-  const deptGroup = type === 'CENTRAL' ? matchDeptGroup(it.division, deptGroups) : null;
+  const deptGroup = info?.usesDeptGroup ? matchDeptGroup(it.division, deptGroups) : null;
   const issues = [];
   if (!site) issues.push(`ไม่พบหน่วยงาน "${it.unit || '–'}" — เลือกในตาราง`);
-  if (type === 'CENTRAL' && !deptGroup) issues.push(`ฝ่าย "${it.division || '–'}" — เลือกกลุ่ม/ฝ่ายในตาราง`);
+  if (info?.usesDeptGroup && !deptGroup) issues.push(`ฝ่าย "${it.division || '–'}" — เลือกกลุ่ม/ฝ่ายในตาราง`);
   if (!it.title && it.rawTitle) issues.push(`คำนำหน้า "${it.rawTitle}" ไม่มีในระบบ — เลือกในตาราง`);
   if (!it.birthDate) issues.push('ไม่มีวันเกิด');
   return {
@@ -252,8 +258,8 @@ function newEmployee(it, sites, deptGroups) {
       employeeType: type,
       contractType: 'REGULAR',
       deptGroup,
-      position: type === 'PRO_SITE' ? it.position || null : null,
-      level: type === 'CENTRAL' ? it.level : null,
+      position: it.position || null, // มีคอลัมน์ตำแหน่งให้ทุกประเภท (ไม่บังคับ)
+      level: info?.usesDeptGroup ? it.level : null,
       salary: 0,
       birthDate: it.birthDate ?? '',
       startDate: it.startDate ?? '',

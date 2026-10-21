@@ -22,6 +22,7 @@ import { alertBox, badge, emptyState, employeeCell, errorState, tabs } from '../
 import { confirmAction, errorMessage, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 import { busy, loader, progress } from '../ui/loading.js';
+import { openEmployeeDetail } from './_employeeDetail.js';
 
 /** แท็บประวัติการส่งออกมีคำแนะนำของตัวเอง (tour/steps.js) */
 const tourId = () => (getParam('tab') === 'history' ? 'insurance-history' : 'insurance');
@@ -107,6 +108,8 @@ for (const s of SECTIONS) {
   tables[s.type] = new DataTable($(`#sec-${s.id} [data-table]`), {
     rowKey: (r) => r.employee.id,
     pageSize: 25,
+    onRowDblClick: (r) => openEmployeeDetail(r.employee.id),
+    exportName: s.title,
     columns: [
       { key: 'emp', header: 'พนักงาน', mobile: 'title', text: (r) => `${r.employee.firstName} ${r.employee.lastName} ${r.employee.empCode}`, cell: (r) => employeeCell(r.employee, { link: true }) },
       { key: 'co', header: 'บริษัท', hideOnMobile: true, cell: (r) => `${r.employee.companyCode} · ${EMPLOYEE_TYPE_LABEL[r.employee.employeeType]}` },
@@ -167,6 +170,51 @@ const batchTable = new DataTable($('#batches'), {
   rowKey: (b) => b.id,
   pageSize: 25,
   onRowClick: (b) => openBatch(b.id),
+  exportName: 'ประวัติการส่งออก',
+  bulkActions: [
+    ...(can('insurance.export')
+      ? [
+          {
+            id: 'download',
+            label: 'ดาวน์โหลดไฟล์อีกครั้ง',
+            icon: 'download',
+            // ทีละไฟล์ (เบราว์เซอร์อาจถามครั้งแรกว่าอนุญาตให้ดาวน์โหลดหลายไฟล์ไหม)
+            run: async (rows) => {
+              for (const b of rows) await downloadBatchFile(b, null);
+            },
+          },
+        ]
+      : []),
+    ...(can('insurance.submit')
+      ? [
+          {
+            id: 'cancel',
+            label: 'ยกเลิกการส่งออก',
+            icon: 'undo-2',
+            tone: 'danger',
+            confirm: (rows) => ({
+              title: `ยกเลิกการส่งออก ${rows.length} ครั้ง?`,
+              description: rows.map((b) => `#${b.id}`).join(', '),
+              body: 'รายชื่อจะกลับไปเป็น “ยังไม่ส่งออก” และอยู่ในไฟล์รอบถัดไป · ถ้าส่งไฟล์ให้บริษัทประกันแล้ว ต้องแจ้งยกเลิกด้วย',
+            }),
+            run: async (rows) => {
+              let failed = 0;
+              for (const b of rows) {
+                try {
+                  await api.cancelInsuranceBatch(b.id);
+                } catch {
+                  failed++;
+                }
+              }
+              refreshCounts();
+              await Promise.all([loadCycle(), loadBatches()]);
+              if (failed) toast.error(`ยกเลิกไม่สำเร็จ ${failed} ครั้ง`);
+              return rows.length > failed ? `ยกเลิกแล้ว ${rows.length - failed} ครั้ง — รายชื่อกลับไปเป็น “ยังไม่ส่งออก”` : '';
+            },
+          },
+        ]
+      : []),
+  ],
   columns: [
     { key: 'id', header: 'เลขที่', sort: (b) => b.id, cell: (b) => html`<span class="num muted">#${b.id}</span>` },
     { key: 'cycle', header: 'รอบ', sort: (b) => b.cycleDate, cell: (b) => html`<span class="num">${thaiDate(b.cycleDate)}</span>` },

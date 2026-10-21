@@ -554,13 +554,14 @@ function api_admin_health($req, $params)
         '011_stock_waiting_stage' => strpos((string)admin_column_type('uniform_issues', 'stock_stage'), 'WAITING') !== false,
         '013_notifications' => admin_column_type('notifications', 'is_read') !== null,
         '014_dept_groups' => admin_column_type('dept_groups', 'name') !== null,
+        '015_org_settings' => admin_column_type('employee_types', 'daily_cycle') !== null,
     );
     $pending = array();
     foreach ($migrations as $m => $ok) {
         if (!$ok) { $pending[] = $m; }
     }
     $checks[] = admin_check('migrations', 'Migration (backend/sql)', count($pending) ? 'error' : 'ok',
-        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 014');
+        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 015');
 
     $cfgIssues = array();
     $cfgError = false;
@@ -594,6 +595,7 @@ function api_admin_health($req, $params)
         'auth_sessions', 'auth_refresh_tokens', 'auth_login_attempts');
     if (notify_ready()) { $tableNames[] = 'notifications'; }   // มีหลังรัน 013
     if (db_table_exists('dept_groups')) { $tableNames[] = 'dept_groups'; }   // มีหลังรัน 014
+    if (db_table_exists('employee_types')) { $tableNames[] = 'employee_types'; }   // มีหลังรัน 015
     foreach ($tableNames as $t) {
         $tables[] = array('name' => $t, 'rows' => (int)db_value('SELECT COUNT(*) FROM `' . $t . '`'));
     }

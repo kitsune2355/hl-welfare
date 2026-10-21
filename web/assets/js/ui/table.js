@@ -13,6 +13,10 @@
 //
 // ปุ่มในเซลล์: ใส่ data-action="..." แล้วดักด้วย on(container, 'click', '[data-action="..."]', fn)
 // ปุ่ม "Excel" มุมขวาบนของทุกตาราง: ส่งออกทุกแถวตามตัวกรอง · ปิดด้วย exportable: false · ชื่อไฟล์ exportName (ไม่ใส่ = ชื่อหน้า)
+//
+// เลือกหลายแถว (ui/selection.js): checkbox ช่องหน้าสุดทุกตาราง (ปิดด้วย selectable: false)
+//   bulkActions = ปุ่มทำรายการกับแถวที่เลือก · มี "Excel ที่เลือก" ให้เสมอเมื่อ exportable
+// onRowDblClick(row) = ดับเบิลคลิกแถว (เช่น เปิดกล่องแก้ / รายละเอียด)
 import { html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import {
@@ -34,7 +38,8 @@ import {
   wireColumnResize,
 } from './columnFilter.js';
 import { enhanceSelects } from './combobox.js';
-import { exportButton, wireExport } from './exportExcel.js';
+import { exportButton, exportTableExcel, wireExport } from './exportExcel.js';
+import { allCheck, applyIndeterminate, bulkBar, rowCheck, runBulk, Selection } from './selection.js';
 
 export const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -160,11 +165,13 @@ export class DataTable {
    *   filter?: boolean, export?: boolean, text?: (row:any)=>string, sort?: (row:any)=>any}[], rowKey:(row:any)=>any,
    *   onRowClick?: (row:any)=>void, empty?: any, pageSize?: number, page?: number, onPageChange?: (p:number)=>void,
    *   rowNumbers?: boolean, rowClass?: (row:any)=>string, onRender?: (root: HTMLElement)=>void,
-   *   exportable?: boolean, exportName?: string}} opts
+   *   exportable?: boolean, exportName?: string, selectable?: boolean, bulkActions?: object[],
+   *   onRowDblClick?: (row:any)=>void}} opts
    */
   constructor(root, opts) {
     this.root = root;
-    this.o = { rowNumbers: true, exportable: true, ...opts };
+    this.o = { rowNumbers: true, exportable: true, selectable: true, bulkActions: [], ...opts };
+    this.sel = new Selection();
     this.rows = null;
     this.page = opts.page ?? 1;
     this.size = opts.pageSize ?? 0;
@@ -198,18 +205,31 @@ export class DataTable {
         this.page = 1;
         return this.render();
       }
+      if (this.onSelectClick(e)) return;
       if (!this.o.onRowClick) return;
       if (e.target.closest('a, button, input, select, .combo')) return;
       const tr = e.target.closest('[data-key]');
       const row = tr && this.visible().find((r) => String(this.o.rowKey(r)) === tr.dataset.key);
       if (row) this.o.onRowClick(row);
     });
+    root.addEventListener('dblclick', (e) => {
+      if (!this.o.onRowDblClick || e.target.closest('a, button, input, select, .combo, th')) return;
+      const tr = e.target.closest('[data-key]');
+      const row = tr && this.visible().find((r) => String(this.o.rowKey(r)) === tr.dataset.key);
+      if (row) {
+        window.getSelection?.()?.removeAllRanges(); // ดับเบิลคลิกไม่ต้องคลุมข้อความ
+        this.o.onRowDblClick(row);
+      }
+    });
+    // Esc ขณะโฟกัสอยู่ในตาราง = ล้างที่เลือก
+    root.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.sel.size && !e.target.closest('input[type="text"], .combo')) {
+        this.sel.clear();
+        this.render();
+      }
+    });
     // ส่งออก Excel: คอลัมน์ที่มีชื่อหัว (ไม่รวมคอลัมน์ปุ่ม) · ทุกแถวตามตัวกรอง/การเรียง
-    wireExport(root, () => ({
-      name: this.o.exportName,
-      columns: this.o.columns.filter((c) => typeof c.header === 'string' && c.header !== '' && c.export !== false).map((c) => ({ header: c.header, text: (r) => this.textOf(r, c.key) })),
-      rows: this.filtered(),
-    }));
+    wireExport(root, () => ({ name: this.o.exportName, columns: this.exportColumns(), rows: this.filtered() }));
     // ลากขอบหัวคอลัมน์: ระหว่างลากตั้งความกว้างให้ทุกเซลล์ของคอลัมน์ · ปล่อย = จำไว้ · ดับเบิลคลิก = กลับเป็นอัตโนมัติ
     wireColumnResize(root, {
       onMove: (key, w) => {
@@ -229,6 +249,64 @@ export class DataTable {
     this.render();
   }
 
+  exportColumns() {
+    return this.o.columns
+      .filter((c) => typeof c.header === 'string' && c.header !== '' && c.export !== false)
+      .map((c) => ({ header: c.header, text: (r) => this.textOf(r, c.key) }));
+  }
+
+  // ----- เลือกหลายแถว -----
+  get selectable() {
+    return this.o.selectable !== false;
+  }
+  /** แถวที่เลือก (ทุกหน้า) เรียงตามตัวกรอง/การเรียงที่ใช้อยู่ */
+  selected() {
+    return this.filtered().filter((r) => this.sel.has(this.o.rowKey(r)));
+  }
+  clearSelection() {
+    this.sel.clear();
+    this.render();
+  }
+  /** คลิกที่เกี่ยวกับการเลือก — คืน true เมื่อจัดการแล้ว */
+  onSelectClick(e) {
+    const one = e.target.closest('[data-row-check]');
+    if (one) {
+      this.sel.toggle(one.dataset.rowCheck, one.checked, { shift: e.shiftKey, order: this.visible().map((r) => String(this.o.rowKey(r))) });
+      this.render();
+      return true;
+    }
+    const all = e.target.closest('[data-row-check-all]');
+    if (all) {
+      this.sel.setMany(this.visible().map((r) => this.o.rowKey(r)), all.checked);
+      this.render();
+      return true;
+    }
+    if (e.target.closest('[data-bulk-all]')) {
+      this.sel.setMany(this.filtered().map((r) => this.o.rowKey(r)), true);
+      this.render();
+      return true;
+    }
+    if (e.target.closest('[data-bulk-clear]')) {
+      this.clearSelection();
+      return true;
+    }
+    if (e.target.closest('[data-bulk-export]')) {
+      exportTableExcel({ name: this.o.exportName, columns: this.exportColumns(), rows: this.selected() });
+      return true;
+    }
+    const b = e.target.closest('[data-bulk]');
+    if (b) {
+      const action = this.o.bulkActions.find((a) => a.id === b.dataset.bulk);
+      if (action) {
+        runBulk(action, this.selected(), b).then((done) => {
+          if (done) this.clearSelection();
+        });
+      }
+      return true;
+    }
+    return false;
+  }
+
   togglePin(key) {
     if (this.pins.has(key)) this.pins.delete(key);
     else this.pins.add(key);
@@ -244,6 +322,7 @@ export class DataTable {
 
   setRows(rows) {
     this.rows = rows;
+    if (rows) this.sel.prune(rows.map((r) => this.o.rowKey(r)));
     this.render();
   }
 
@@ -334,7 +413,9 @@ export class DataTable {
   }
 
   render() {
-    const { rowKey, onRowClick, rowNumbers, rowClass, empty } = this.o;
+    const { rowKey, onRowClick, rowClass, empty } = this.o;
+    const sel = this.selectable;
+    const rowNumbers = this.o.rowNumbers || sel; // ช่องหน้าสุด = เลขแถว + checkbox
     const columns = orderByPins(this.o.columns, this.pins);
     const rows = this.visible();
     const offset = this.size ? (this.page - 1) * this.size : 0;
@@ -347,7 +428,9 @@ export class DataTable {
       <table class="table">
         <thead>
           <tr>
-            ${rowNumbers ? html`<th class="rownum">#</th>` : ''}
+            ${rowNumbers
+              ? html`<th class="rownum${sel ? ' has-check' : ''}">${sel ? html`<span class="rowhead">${allCheck(this.sel.stateOf(rows.map((r) => String(rowKey(r)))), loading || !rows.length)}${this.o.rowNumbers ? html`<span>#</span>` : ''}</span>` : '#'}</th>`
+              : ''}
             ${columns.map((c) => {
               const named = typeof c.header === 'string' && c.header !== '';
               const sz = this.sizeOf(c.key);
@@ -370,8 +453,10 @@ export class DataTable {
                 </tr>`,
               )
             : rows.map(
-                (r, i) => html`<tr data-key="${rowKey(r)}" class="${onRowClick ? 'clickable' : ''} ${rowClass?.(r) ?? ''}">
-                  ${rowNumbers ? html`<td class="rownum num">${offset + i + 1}</td>` : ''}
+                (r, i) => html`<tr data-key="${rowKey(r)}" class="${onRowClick || this.o.onRowDblClick ? 'clickable' : ''} ${this.sel.has(rowKey(r)) ? 'is-selected' : ''} ${rowClass?.(r) ?? ''}">
+                  ${rowNumbers
+                    ? html`<td class="rownum num${sel ? ' has-check' : ''}">${sel ? html`<span class="rowhead">${rowCheck(rowKey(r), this.sel.has(rowKey(r)))}${this.o.rowNumbers ? html`<span>${offset + i + 1}</span>` : ''}</span>` : offset + i + 1}</td>`
+                    : ''}
                   ${columns.map((c) => html`<td class="${align(c)} ${c.cls ?? ''}${this.sizeOf(c.key).cls}" style="${this.sizeOf(c.key).style}" data-col="${c.key}">${c.cell(r)}</td>`)}
                 </tr>`,
               )}
@@ -383,8 +468,9 @@ export class DataTable {
       ${loading
         ? html`<li><div class="skeleton sk-line"></div><div class="skeleton sk-line"></div></li>`
         : rows.map(
-            (r) => html`<li data-key="${rowKey(r)}" class="${onRowClick ? 'clickable' : ''} ${rowClass?.(r) ?? ''}">
+            (r) => html`<li data-key="${rowKey(r)}" class="${onRowClick ? 'clickable' : ''} ${this.sel.has(rowKey(r)) ? 'is-selected' : ''} ${rowClass?.(r) ?? ''}">
               <div class="card-row">
+                ${sel ? html`<span class="card-check">${rowCheck(rowKey(r), this.sel.has(rowKey(r)))}</span>` : ''}
                 ${by('lead').map((c) => c.cell(r))}
                 <div class="grow">${by('title').map((c) => c.cell(r))}</div>
                 ${by('aside').map((c) => c.cell(r))}
@@ -402,8 +488,17 @@ export class DataTable {
     const total = this.filtered().length;
     const showPager = this.size && this.rows && total > 0;
     const noMatch = !loading && this.rows.length > 0 && total === 0;
+    const picked = sel && !loading ? this.selected() : [];
+    const pageKeys = rows.map((r) => String(rowKey(r)));
+    const bar = bulkBar({
+      rows: picked,
+      actions: this.o.bulkActions,
+      totalMatching: total,
+      pageAll: pageKeys.length > 0 && this.sel.stateOf(pageKeys) === 'all',
+      exportable: this.o.exportable,
+    });
     this.root.innerHTML = String(
-      html`${this.o.exportable
+      html`${bar}${this.o.exportable
         ? html`<div class="tbl-tools">${filterChips(this.filter, (k) => this.col(k).header, this.allValues)}<span class="tbl-tools-end">${exportButton(loading || !total)}</span></div>`
         : filterChips(this.filter, (k) => this.col(k).header, this.allValues)}${table}${cards}${noMatch
         ? html`<div class="empty" style="padding:32px"><b>ไม่มีแถวที่ตรงกับตัวกรองคอลัมน์</b></div>`
@@ -427,6 +522,7 @@ export class DataTable {
       });
     }
     this.applyPins();
+    applyIndeterminate(this.root);
     this.o.onRender?.(this.root); // เช่น แปลง <select data-combobox> ในเซลล์
   }
 }

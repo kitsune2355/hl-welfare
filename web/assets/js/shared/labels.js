@@ -1,12 +1,7 @@
 export * from '../domain/labels.js';
 export const STATUS_TONE = { ACTIVE: 'success', INACTIVE: 'neutral' };
 export const BATCH_TONE = { IN: 'info', OUT: 'warning', URGENT: 'danger' };
-export const EMPLOYEE_TYPE_TONE = {
-  CENTRAL: 'primary',
-  PRO_SITE: 'info',
-  DAILY: 'warning',
-  MAID_CNS: 'neutral',
-};
+export { EMPLOYEE_TYPE_TONE } from '../domain/catalog.js';
 export const UNIFORM_ITEM_LABEL = {
   POLO_BLACK: 'โปโลสีดำ',
   POLO_NAVY: 'โปโลสีน้ำเงิน',
@@ -48,6 +43,8 @@ export const ACTIVITY_ENTITY_LABEL = {
   INSURANCE_BATCH: 'ประกันกลุ่ม',
   INSURER_FORM: 'แบบฟอร์มประกัน',
   DEPT_GROUP: 'กลุ่ม / ฝ่าย',
+  COMPANY: 'บริษัท',
+  EMPLOYEE_TYPE: 'ประเภทพนักงาน',
   UNIFORM_ISSUE: 'ชุดฟอร์ม',
   STOCK_REQUEST: 'ใบเบิกสต็อก',
   USER: 'ผู้ใช้',

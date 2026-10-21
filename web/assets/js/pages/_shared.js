@@ -41,6 +41,26 @@ export function wireIssueActions(root, { today, onDone }) {
   on(root, 'click', '[data-issue-manual]', (_e, btn) => openManualIssue(ctx(btn)));
 }
 
+/**
+ * ทำทีละคนต่อเนื่องกับแถวที่เลือก (ตารางค้างแจก): เปิดกล่องส่งเบิก / บันทึกแจกเอง ของคนถัดไปเมื่อปิดกล่องก่อนหน้า
+ * กดยกเลิก (ปิดโดยไม่บันทึก) = หยุดทั้งชุด · คืนจำนวนที่ทำสำเร็จ
+ * @param {'stock'|'manual'} kind
+ * @param {{employeeId:number, entitlementKey:string, event:string, qty:number, name:string}[]} items
+ */
+export async function issueSequence(kind, items, { today, onDone }) {
+  let done = 0;
+  for (const [i, it] of items.entries()) {
+    let saved = false;
+    await new Promise((resolve) => {
+      const ctx = { ...it, today, step: `${i + 1}/${items.length}`, onDone: () => ((saved = true), done++), onClose: resolve };
+      (kind === 'stock' ? openStockRequest : openManualIssue)(ctx);
+    });
+    if (!saved) break;
+  }
+  if (done) onDone();
+  return done;
+}
+
 /** เรียกหลัง render ตารางที่มี issueAction (ปุ่มไม่มี select แล้ว คงไว้ให้หน้าที่เรียกอยู่) */
 export const enhanceIssueActions = (root) => enhanceSelects(root);
 
@@ -59,9 +79,10 @@ export const STOCK_STAGE = {
 };
 
 /** บันทึกแจกเอง — เลือกไซซ์ แล้วบันทึกว่าแจกแล้ว (ไม่ผ่านคลัง) */
-function openManualIssue({ employeeId, entitlementKey, event, qty, name, today, onDone }) {
+function openManualIssue({ employeeId, entitlementKey, event, qty, name, today, onDone, onClose, step = '' }) {
   const m = openModal({
-    title: 'บันทึกแจกเอง',
+    onClose,
+    title: `บันทึกแจกเอง${step ? ` (${step})` : ''}`,
     description: `${name ? `${name} · ` : ''}${roundLabel(event, entitlementKey)} · ${qty} ตัว`,
     body: html`${alertBox({ tone: 'warning', body: 'ใช้เมื่อแจกนอกระบบสต็อกไปแล้วเท่านั้น — ไม่ออกใบเบิกและไม่ตัดยอดในคลัง ถ้ายังไม่ได้แจก ให้ใช้ “ส่งเบิกคลัง”' })}
       <div class="field" style="margin-top:16px">
@@ -95,9 +116,10 @@ function openManualIssue({ employeeId, entitlementKey, event, qty, name, today, 
 }
 
 /** ส่งเบิกคลัง — เลือกแบบ (ชาย/หญิง) ไซซ์ และจำนวนของแต่ละรายการ จากสินค้าในระบบสต็อก */
-async function openStockRequest({ employeeId, entitlementKey, event, name, onDone }) {
+async function openStockRequest({ employeeId, entitlementKey, event, name, onDone, onClose, step = '' }) {
   const m = openModal({
-    title: 'ส่งเบิกชุดฟอร์มไปคลัง',
+    onClose,
+    title: `ส่งเบิกชุดฟอร์มไปคลัง${step ? ` (${step})` : ''}`,
     description: `${name ? `${name} · ` : ''}${roundLabel(event, entitlementKey)}`,
     body: html`<div data-stock-body>${loader({ text: 'กำลังโหลดรายการจากระบบสต็อก' })}</div>`,
     footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button>
@@ -244,6 +266,8 @@ export const ENTITY_ICON = {
   INSURANCE_BATCH: 'shield-plus',
   INSURER_FORM: 'file-spreadsheet',
   DEPT_GROUP: 'users',
+  COMPANY: 'building-2',
+  EMPLOYEE_TYPE: 'users',
   UNIFORM_ISSUE: 'shirt',
   STOCK_REQUEST: 'package-check',
   USER: 'users',

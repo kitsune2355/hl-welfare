@@ -138,6 +138,23 @@ $('#refresh').addEventListener('click', () => {
 
 // ===================== ผู้ใช้ =====================
 const isMe = (u) => u.id === me?.id;
+/** ทำรายการกับผู้ใช้ได้ไหม (ไม่ใช่ตัวเอง · ไม่ใช่ผู้ดูแลระบบสูงสุดที่ป้องกันไว้) */
+const editableUser = (u) => !isMe(u) && !isProtected(u.role);
+const names = (rows) => rows.map((u) => u.username).slice(0, 6).join(', ') + (rows.length > 6 ? ` และอีก ${rows.length - 6} คน` : '');
+/** ทีละคน — คนที่ไม่สำเร็จแจ้งรวมท้าย · โหลดรายชื่อใหม่ */
+async function eachUser(rows, fn, label) {
+  const failed = [];
+  for (const u of rows) {
+    try {
+      await fn(u);
+    } catch (e) {
+      failed.push(`${u.username}: ${errorMessage(e)}`);
+    }
+  }
+  reloadAccessToo();
+  if (failed.length) toast.error(`${label}ไม่สำเร็จ ${failed.length} คน — ${failed.join(' · ')}`);
+  return rows.length > failed.length ? `${label}แล้ว ${rows.length - failed.length} คน` : '';
+}
 const users = new DataTable($('#users'), {
   rowKey: (u) => u.id,
   pageSize: 25,
@@ -192,9 +209,44 @@ const users = new DataTable($('#users'), {
       </span>`,
     },
   ],
+  // เลือกหลายคน → ทำพร้อมกัน (ข้ามบัญชีของตัวเองและบัญชีผู้ดูแลระบบสูงสุด)
+  bulkActions: [
+    {
+      id: 'disable',
+      label: 'ปิดบัญชี',
+      icon: 'user-x',
+      tone: 'danger',
+      when: (u) => editableUser(u) && u.isActive,
+      confirm: (rows) => ({ title: `ปิดบัญชี ${rows.length} คน?`, description: `${names(rows)} — หลุดจากทุกอุปกรณ์ทันทีและเข้าสู่ระบบไม่ได้ (ประวัติยังอยู่ครบ)` }),
+      run: (rows) => eachUser(rows, (u) => adminApi.updateUser(u.id, { isActive: false }), 'ปิดบัญชี'),
+    },
+    {
+      id: 'enable',
+      label: 'เปิดใช้บัญชี',
+      icon: 'user-plus',
+      when: (u) => editableUser(u) && !u.isActive,
+      run: (rows) => eachUser(rows, (u) => adminApi.updateUser(u.id, { isActive: true }), 'เปิดใช้บัญชี'),
+    },
+    {
+      id: 'signout',
+      label: 'ออกจากระบบทุกอุปกรณ์',
+      icon: 'log-out',
+      when: (u) => editableUser(u) && u.activeSessions + u.devices > 0,
+      confirm: (rows) => ({ title: `ให้ ${rows.length} คนออกจากระบบทุกอุปกรณ์?`, description: `${names(rows)} — ต้องเข้าสู่ระบบใหม่ด้วยรหัสผ่าน`, confirmLabel: 'ออกจากระบบทุกอุปกรณ์' }),
+      run: (rows) => eachUser(rows, (u) => adminApi.signOutEverywhere(u.id), 'ออกจากระบบ'),
+    },
+    {
+      id: 'reset',
+      label: `รีเซ็ตรหัสเป็น ${DEFAULT_PASSWORD}`,
+      icon: 'lock',
+      tone: 'danger',
+      when: editableUser,
+      confirm: (rows) => ({ title: `รีเซ็ตรหัสผ่าน ${rows.length} คนเป็น ${DEFAULT_PASSWORD}?`, description: `${names(rows)} — ออกจากระบบทุกอุปกรณ์ทันที เข้าด้วย ${DEFAULT_PASSWORD} แล้วต้องตั้งรหัสของตัวเอง` }),
+      run: (rows) => eachUser(rows, (u) => adminApi.resetPassword(u.id, ''), 'รีเซ็ตรหัสผ่าน'),
+    },
+  ],
   empty: emptyState({ iconName: 'users', title: 'ยังไม่มีผู้ใช้' }),
 });
-
 async function loadUsers() {
   render($('#users'), html`<div class="card-body">${raw(String(skeletonLines(5)))}</div>`);
   const d = await adminApi.listUsers();
@@ -587,8 +639,33 @@ const sessions = new DataTable($('#sessions'), {
       cell: (s) => (s.current ? '' : isProtected(s.role) ? protectedMark() : html`<button class="btn btn-ghost btn-sm" data-session="${s.id}">${raw(icon('user-minus'))} จบ session</button>`),
     },
   ],
+  bulkActions: [
+    {
+      id: 'revoke',
+      label: 'จบ session ที่เลือก',
+      icon: 'user-minus',
+      tone: 'danger',
+      when: (x) => !x.current && !isProtected(x.role),
+      confirm: (rows) => ({ title: `จบ ${rows.length} session?`, description: 'เครื่องที่เลือก “จดจำฉัน” ไว้ เข้าใหม่ได้เอง — ใช้ “เลิกจดจำ” เพื่อบังคับกรอกรหัส', confirmLabel: 'จบ session' }),
+      run: (rows) => eachAccess(rows, (x) => adminApi.revokeSession(x.id), 'จบ session'),
+    },
+  ],
   empty: emptyState({ iconName: 'log-in', title: 'ไม่มี session ที่ใช้งานอยู่' }),
 });
+/** ทีละรายการ (session / อุปกรณ์) แล้วโหลดแท็บใหม่ */
+async function eachAccess(rows, fn, label) {
+  let failed = 0;
+  for (const x of rows) {
+    try {
+      await fn(x);
+    } catch {
+      failed++;
+    }
+  }
+  load('access', true);
+  if (failed) toast.error(`${label}ไม่สำเร็จ ${failed} รายการ`);
+  return rows.length > failed ? `${label}แล้ว ${rows.length - failed} รายการ` : '';
+}
 
 const devices = new DataTable($('#devices'), {
   rowKey: (d) => d.familyId,
@@ -602,6 +679,17 @@ const devices = new DataTable($('#devices'), {
     { key: 'first', header: 'จดจำตั้งแต่', hideOnMobile: true, sort: (d) => d.firstAt, text: (d) => when(d.firstAt), cell: (d) => when(d.firstAt) },
     { key: 'exp', header: 'หมดอายุ', hideOnMobile: true, sort: (d) => d.expiresAt, text: (d) => when(d.expiresAt), cell: (d) => when(d.expiresAt) },
     { key: 'actions', header: '', filter: false, cell: (d) => (isProtected(d.role) ? protectedMark() : html`<button class="btn btn-ghost btn-sm" data-device="${d.familyId}">${raw(icon('user-minus'))} เลิกจดจำ</button>`) },
+  ],
+  bulkActions: [
+    {
+      id: 'forget',
+      label: 'เลิกจดจำที่เลือก',
+      icon: 'user-minus',
+      tone: 'danger',
+      when: (d) => !isProtected(d.role),
+      confirm: (rows) => ({ title: `เลิกจดจำ ${rows.length} อุปกรณ์?`, description: 'เมื่อ session ปัจจุบันหมด เครื่องเหล่านั้นต้องกรอกรหัสผ่านใหม่', confirmLabel: 'เลิกจดจำ' }),
+      run: (rows) => eachAccess(rows, (d) => adminApi.revokeDevice(d.familyId), 'เลิกจดจำ'),
+    },
   ],
   empty: emptyState({ iconName: 'lock', title: 'ไม่มีอุปกรณ์ที่จดจำไว้' }),
 });
@@ -807,7 +895,8 @@ const TABLE_GROUPS = [
     tables: {
       users: { name: 'ผู้ใช้ระบบ', desc: 'บัญชีที่เข้าระบบได้ — ชื่อผู้ใช้ บทบาท บริษัทที่ดูแล เปิด/ปิดใช้งาน' },
       audit_log: { name: 'บันทึกการใช้งาน', desc: 'ใครเพิ่ม/แก้/ลบอะไร เมื่อไร — เก็บถาวร ไม่ถูกล้าง' },
-      dept_groups: { name: 'กลุ่ม / ฝ่าย', desc: 'กลุ่ม/ฝ่ายของพนักงานส่วนกลาง — ใช้เลือกในตารางพนักงานและแยกจำนวนชุดฟอร์มในกฎ (แก้ที่หน้าเงื่อนไขสวัสดิการ แท็บค่าตั้งค่า)' },
+      employee_types: { name: 'ประเภทพนักงาน', desc: 'ประเภทพนักงานและพฤติกรรม (บริษัทที่ใช้ได้ · กลุ่ม/ฝ่าย+ระดับ · ตำแหน่ง · รอบแจ้งรายวัน) — แก้ที่หน้าตั้งค่าองค์กร' },
+      dept_groups: { name: 'กลุ่ม / ฝ่าย', desc: 'กลุ่ม/ฝ่ายของพนักงานส่วนกลาง — ใช้เลือกในตารางพนักงานและแยกจำนวนชุดฟอร์มในกฎ (แก้ที่หน้าตั้งค่าองค์กร)' },
       notifications: { name: 'การแจ้งเตือน', desc: 'รายการในกระดิ่งของผู้ใช้แต่ละคน — ผลอนุมัติ/คลังจ่ายใบเบิกชุดฟอร์ม, พนักงานที่ต้องแจ้งออกประกันทันที' },
       auth_sessions: { name: 'การเข้าสู่ระบบ', desc: 'session ที่เปิดอยู่ของแต่ละเครื่อง — หมดอายุแล้วไม่มีประโยชน์', clean: true },
       auth_refresh_tokens: { name: 'กุญแจ “จดจำฉัน”', desc: 'ให้เบราว์เซอร์เข้าระบบต่อได้โดยไม่ต้องพิมพ์รหัสใหม่ — หมดอายุ/เพิกถอนแล้วล้างได้', clean: true },

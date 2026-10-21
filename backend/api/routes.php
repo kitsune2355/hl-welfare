@@ -29,6 +29,15 @@ function api_routes()
     router_add($r, 'POST', '/notifications/{id}/read', 'api_notification_read');
 
     router_add($r, 'GET', '/companies', 'api_companies');
+    /* ตั้งค่าองค์กร · api/org.php (แก้ = สิทธิ์ org.edit — ตรวจใน handler) */
+    router_add($r, 'POST', '/companies', 'api_company_save');
+    router_add($r, 'PUT', '/companies/order', 'api_company_order');
+    router_add($r, 'PUT', '/companies/{code}', 'api_company_save');
+    router_add($r, 'DELETE', '/companies/{code}', 'api_company_delete');
+    router_add($r, 'GET', '/employee-types', 'api_employee_types');
+    router_add($r, 'POST', '/employee-types', 'api_employee_type_save');
+    router_add($r, 'PUT', '/employee-types/{code}', 'api_employee_type_save');
+    router_add($r, 'DELETE', '/employee-types/{code}', 'api_employee_type_delete');
     router_add($r, 'GET', '/sites', 'api_sites');
     router_add($r, 'POST', '/sites', 'api_site_create');
     router_add($r, 'PATCH', '/sites/{id}', 'api_site_update');
@@ -49,7 +58,7 @@ function api_routes()
     router_add($r, 'PUT', '/rules/{kind}/{id}', 'api_rule_update');
     router_add($r, 'DELETE', '/rules/{kind}/{id}', 'api_rule_delete');
     router_add($r, 'PUT', '/sites/{id}/uniform', 'api_site_uniform_save');
-    /* กลุ่ม / ฝ่าย · api/dept_groups.php (แก้ = สิทธิ์ rules.edit) */
+    /* กลุ่ม / ฝ่าย · api/dept_groups.php (แก้ = สิทธิ์ org.edit) */
     router_add($r, 'GET', '/dept-groups', 'api_dept_groups');
     router_add($r, 'POST', '/dept-groups', 'api_dept_group_save');
     router_add($r, 'PUT', '/dept-groups/{id}', 'api_dept_group_save');

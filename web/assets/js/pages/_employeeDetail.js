@@ -6,6 +6,7 @@
 // แก้ข้อมูลชุดฟอร์มใน popup แล้ว → ส่ง event 'employee:changed' ให้หน้าที่เปิดอยู่รีเฟรชตัวเอง
 import { api } from '../app/api.js';
 import { refreshCounts } from '../app/shell.js';
+import { typeInfo } from '../domain/catalog.js';
 import { diffDays, todayISO } from '../domain/date.js';
 import { ageOf } from '../domain/employee.js';
 import { formatThaiId } from '../domain/thaiId.js';
@@ -100,6 +101,7 @@ function renderUniform(box, emp, st) {
   if (st.ruleId === null) return;
   const t = new DataTable(box.querySelector('[data-uniform-table]'), {
     rowKey: (e) => e.key,
+    selectable: false, // ตารางเล็กใน popup
     onRender: enhanceIssueActions,
     columns: [
       { key: 'event', header: 'รอบ', cell: (e) => html`<b style="font-weight:500">${UNIFORM_EVENT_LABEL[e.event]}${e.event === 'ANNUAL' ? ` ${Number(e.key.slice(7)) + 543}` : ''}</b>` },
@@ -192,7 +194,7 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
         infoList([
           { label: 'หน่วยงาน', value: b.site?.name ?? '–' },
           { label: 'ประเภท', value: badge(EMPLOYEE_TYPE_LABEL[e.employeeType], EMPLOYEE_TYPE_TONE[e.employeeType], { dot: false }) },
-          { label: e.employeeType === 'PRO_SITE' ? 'ตำแหน่ง' : 'ฝ่าย / ระดับ', value: e.position ?? (e.deptGroup ? `${e.deptGroup} · ระดับ ${e.level ?? '–'}` : '–') },
+          { label: typeInfo(e.employeeType)?.usesPosition ? 'ตำแหน่ง' : 'ฝ่าย / ระดับ', value: e.position ?? (e.deptGroup ? `${e.deptGroup} · ระดับ ${e.level ?? '–'}` : '–') },
           { label: 'สัญญา', value: CONTRACT_LABEL[e.contractType] },
           { label: 'วันเริ่มงาน', value: thaiDate(e.startDate) },
           { label: 'ผ่านทดลองงาน', value: thaiDate(e.probationPassDate) },

@@ -80,7 +80,8 @@ function api_activity($req, $params)
 /* ============================================================
  *  บริษัท / หน่วยงาน
  * ============================================================ */
-function api_companies($req, $params) { return repo_companies(); }
+/** ?usage=1 = พร้อมจำนวนที่ใช้ (หน้าตั้งค่าองค์กร — api/org.php) */
+function api_companies($req, $params) { return req_query($req, 'usage') === '1' ? repo_companies_usage() : repo_companies(); }
 function api_sites($req, $params)
 {
     $out = array();
@@ -251,7 +252,7 @@ function api_employee_save($req, $params)
     $id = isset($params['id']) ? param_id($params) : 0;
     $in = employee_input(req_json($req));
     if (!$in['probationPassDate'] && $in['startDate']) { $in['probationPassDate'] = probation_due_date($in['startDate']); }
-    if (!in_array($in['employeeType'], array('CENTRAL', 'PRO_SITE', 'DAILY', 'MAID_CNS'), true)) {
+    if (!in_array($in['employeeType'], employee_type_codes(), true)) {
         throw new ApiError('ประเภทพนักงานไม่ถูกต้อง', 422, array('employeeType' => 'ประเภทพนักงานไม่ถูกต้อง'));
     }
     if ($in['endReason'] !== null && !in_array($in['endReason'], array('RESIGN', 'ABSENT_3D', 'TERMINATED', 'MISCONDUCT'), true)) {

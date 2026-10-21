@@ -9,7 +9,24 @@
 
 function map_company($r)
 {
-    return array('code' => $r['code'], 'name' => $r['name'], 'legalName' => $r['legal_name']);
+    return array('code' => $r['code'], 'name' => $r['name'], 'legalName' => $r['legal_name'],
+        'color' => isset($r['color']) ? $r['color'] : '', 'sortOrder' => (int)$r['sort_order']);
+}
+
+function map_employee_type($r)
+{
+    return array('code' => $r['code'], 'name' => $r['name'], 'description' => $r['description'],
+        'companies' => json_in($r['companies'], null), 'usesDeptGroup' => (bool)$r['uses_dept_group'],
+        'usesPosition' => (bool)$r['uses_position'], 'dailyCycle' => (bool)$r['daily_cycle'],
+        'tone' => $r['tone'], 'sortOrder' => (int)$r['sort_order']);
+}
+
+/** ประเภทพนักงาน (sql/015) — ใช้ผ่าน employee_types_all() ใน domain/labels.php */
+function repo_employee_types()
+{
+    $out = array();
+    foreach (db_all('SELECT * FROM employee_types ORDER BY sort_order, code') as $r) { $out[] = map_employee_type($r); }
+    return $out;
 }
 
 function map_site($r, $overrides = array())

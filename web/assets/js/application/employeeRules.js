@@ -1,3 +1,4 @@
+import { defaultTypeFor, typeAllows, typeInfo } from '../domain/catalog.js';
 import { probationDueDate } from '../domain/employee.js';
 import { digitsOnly, isValidThaiId } from '../domain/thaiId.js';
 
@@ -19,7 +20,11 @@ export function validateEmployee(e) {
   if (e.birthDate && e.startDate && e.birthDate >= e.startDate) x.birthDate = 'วันเกิดต้องก่อนวันเริ่มงาน';
   if (e.probationPassDate && e.probationPassDate < e.startDate) x.probationPassDate = 'ต้องไม่ก่อนวันเริ่มงาน';
   if (!e.siteId) x.siteId = 'กรุณาเลือกหน่วยงาน';
-  if (e.employeeType === 'CENTRAL') {
+  // ประเภทตั้งค่าได้ (sites.html แท็บประเภทพนักงาน) — พฤติกรรมตามค่าที่ตั้ง ไม่เช็กรหัส
+  const type = typeInfo(e.employeeType);
+  if (!type) x.employeeType = 'กรุณาเลือกประเภทพนักงาน';
+  else if (!typeAllows(e.employeeType, e.companyCode)) x.employeeType = `ประเภท ${type.name} ใช้กับบริษัทนี้ไม่ได้`;
+  if (type?.usesDeptGroup) {
     if (!e.deptGroup) x.deptGroup = 'กรุณาเลือกกลุ่ม/ฝ่าย';
     // ระดับพนักงาน 1–9 (HR ยืนยันสูงสุดระดับ 9)
     if (!(Number.isInteger(Number(e.level)) && Number(e.level) >= 1 && Number(e.level) <= 9)) x.level = 'ระดับต้องเป็นตัวเลข 1–9';
@@ -39,22 +44,21 @@ export function validateEmployee(e) {
 export function normalizeEmployee(e, sites) {
   const n = { ...e };
   if (!n.probationPassDate && n.startDate) n.probationPassDate = probationDueDate(n.startDate);
-  if (n.employeeType === 'PRO_SITE' && n.companyCode !== 'PRO') n.employeeType = 'CENTRAL';
+  // ประเภทที่ใช้กับบริษัทนี้ไม่ได้ (เช่น Pro Site แต่เปลี่ยนเป็นบริษัทอื่น) → ประเภทแรกที่ใช้ได้
+  if (!typeAllows(n.employeeType, n.companyCode)) n.employeeType = defaultTypeFor(n.companyCode);
+  const type = typeInfo(n.employeeType);
   // เลือกหน่วยงานไว้แต่คนละบริษัท (เพิ่งเปลี่ยนบริษัท) → หน่วยงานแรกของบริษัท
   // ยังไม่ได้เลือก (0 — เช่น นำเข้า Excel แล้วหาหน่วยงานไม่เจอ) = ปล่อยว่างให้เลือกเอง ไม่เดาให้เงียบ ๆ
   const site = sites.find((s) => s.id === n.siteId);
   if (n.siteId && (!site || site.companyCode !== n.companyCode))
     n.siteId = sites.find((s) => s.companyCode === n.companyCode)?.id ?? 0;
-  if (n.employeeType === 'CENTRAL') {
-    n.deptGroup ??= 'Support Line';
-    n.level ??= 1;
+  if (type?.usesDeptGroup) {
+    n.level ??= 1; // กลุ่ม / ฝ่ายไม่เดาให้ — ว่าง = ช่องแดงให้เลือก
   } else {
     n.deptGroup = null;
     n.level = null;
   }
-  if (n.employeeType !== 'PRO_SITE') {
-    n.position = null;
-    n.contractType = 'REGULAR';
-  }
+  // ตำแหน่งมีคอลัมน์ให้ทุกประเภทแล้ว (ไม่บังคับ) — ไม่ล้างตามประเภท · สัญญา 3% ยังใช้เฉพาะประเภทที่เก็บตำแหน่ง (แบบเดิม)
+  if (!type?.usesPosition) n.contractType = 'REGULAR';
   return n;
 }

@@ -30,7 +30,7 @@ date_default_timezone_set($GLOBALS['hlw_config']['timezone']);
 foreach (array('lib/util.php', 'lib/db.php', 'lib/settings.php', 'lib/http.php', 'lib/security.php',
     'domain/date.php', 'domain/labels.php', 'domain/insurance.php', 'domain/uniform.php', 'domain/rules_check.php', 'domain/rule_versions.php',
     'usecases/insurance_cycle.php', 'usecases/overview.php', 'usecases/insurer_export.php', 'usecases/uniform_stock.php', 'usecases/master_sync.php', 'usecases/notifications.php',
-    'repo/repo.php', 'auth.php', 'permissions.php', 'api/stock_client.php', 'api/handlers.php', 'api/admin.php', 'api/rules_edit.php', 'api/dept_groups.php', 'api/master_sync.php', 'api/routes.php') as $f) {
+    'repo/repo.php', 'auth.php', 'permissions.php', 'api/stock_client.php', 'api/handlers.php', 'api/admin.php', 'api/rules_edit.php', 'api/dept_groups.php', 'api/org.php', 'api/master_sync.php', 'api/routes.php') as $f) {
     require_once $hlw_dir . '/' . $f;
 }
 
@@ -43,6 +43,7 @@ function api_handle($req)
     unset($GLOBALS['hlw_auth_user']);
     sys_settings_reset_cache();
     perm_reset_cache();
+    org_cache_reset();
     try {
         csrf_check($req);
         $res = router_dispatch(api_routes(), $req);

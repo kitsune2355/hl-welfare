@@ -155,9 +155,10 @@ export const TOUR_STEPS = {
   },
 
   sites: {
-    version: 2,
+    version: 3,
     ready: '.xgrid td[data-r], .xgrid-wrap .empty',
     steps: [
+      { element: '#tabs', title: 'ตั้งค่าองค์กร', text: '<b>บริษัท</b> · <b>หน่วยงาน</b> · <b>ประเภทพนักงาน</b> · <b>กลุ่ม / ฝ่าย</b> — ใช้ร่วมกันทั้งระบบ · เพิ่ม/แก้แล้วหน้าอื่นเห็นทันที · ลบได้เมื่อไม่มีพนักงาน/กฎที่ใช้อยู่', side: 'bottom', align: 'start' },
       { element: '[data-grid-act="add"]', title: 'เพิ่มหน่วยงาน', text: 'เลือกบริษัทและพิมพ์ชื่อ แล้วกด <b>บันทึก</b>', side: 'bottom', align: 'start' },
       { element: '.xgrid tbody tr:first-child td[data-col="hasGroupInsurance"]', title: 'ได้รับประกันกลุ่ม', text: 'ติ๊ก = หน่วยงานนี้ได้ประกันกลุ่ม — มีผลกับ <b>แม่บ้าน CNS</b> ในหน่วยงานนั้น', side: 'bottom' },
       { element: '.xgrid tbody tr:first-child td[data-col="poloColor"]', title: 'สีโปโล', text: 'สีโปโลของ <b>Pro Site</b> ในหน่วยงานนี้ — ระบบใช้กำหนดชุดฟอร์มที่จะแจก', side: 'bottom' },

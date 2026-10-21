@@ -8,6 +8,7 @@ import { enhanceSelects } from '../ui/combobox.js';
 import { avatar, emptyState } from '../ui/components.js';
 import { toast } from '../ui/overlay.js';
 import { API_MODE, api } from './api.js';
+import './catalog.js'; // บริษัท + ประเภทพนักงานที่ตั้งค่าไว้ — โหลดก่อนหน้าเริ่มวาด (top-level await)
 import { can, isAuthEnabled, logout, refreshSessionUser, requireSession } from './auth.js';
 import { installNavigationProgress, progress } from '../ui/loading.js';
 import { initTour } from './tour.js';
@@ -22,7 +23,7 @@ const MENU = [
 ];
 const SETTINGS = [
   { id: 'rules', href: 'rules.html', label: 'เงื่อนไขสวัสดิการ', icon: 'book-open-text', cap: 'rules.view' },
-  { id: 'sites', href: 'sites.html', label: 'หน่วยงาน', icon: 'building-2', cap: 'sites.view' },
+  { id: 'sites', href: 'sites.html', label: 'ตั้งค่าองค์กร', icon: 'building-2', cap: 'sites.view' },
   { id: 'insurers', href: 'insurers.html', label: 'แบบฟอร์มประกัน', icon: 'file-spreadsheet', cap: 'insurers.view' },
 ];
 // cap = สิทธิ์ที่ต้องมีจึงเห็นเมนู/เปิดหน้าได้ (ตั้งที่ “กำหนดสิทธิ์การใช้งาน”) · anyCap = มีอย่างใดอย่างหนึ่ง · roles = เฉพาะบทบาทเหล่านี้
