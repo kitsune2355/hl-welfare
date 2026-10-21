@@ -14,6 +14,7 @@ export const UNIFORM_ITEM_LABEL = {
   TECH_PANTS: 'กางเกงช่าง',
   SAFETY_SHOES: 'รองเท้า Safety',
 };
+/** กลุ่ม / ฝ่ายตั้งต้น (= sql/014) — รายการจริงแก้ได้ที่หน้าเงื่อนไขสวัสดิการ แท็บ "ค่าตั้งค่า" (api.listDeptGroups) */
 export const DEPT_GROUPS = [
   'Support Line',
   'การตลาด',
@@ -46,6 +47,7 @@ export const ACTIVITY_ENTITY_LABEL = {
   SITE: 'หน่วยงาน',
   INSURANCE_BATCH: 'ประกันกลุ่ม',
   INSURER_FORM: 'แบบฟอร์มประกัน',
+  DEPT_GROUP: 'กลุ่ม / ฝ่าย',
   UNIFORM_ISSUE: 'ชุดฟอร์ม',
   STOCK_REQUEST: 'ใบเบิกสต็อก',
   USER: 'ผู้ใช้',

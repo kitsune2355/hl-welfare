@@ -31,7 +31,7 @@ $admin = mysqli_connect($c['db_host'], $c['db_user'], $c['db_pass'], '', (int)$c
 mysqli_query($admin, 'DROP DATABASE IF EXISTS `' . $c['db_name'] . '`');
 mysqli_query($admin, 'CREATE DATABASE `' . $c['db_name'] . '` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci');
 mysqli_select_db($admin, $c['db_name']);
-foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications') as $f) {
+foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications', '014_dept_groups') as $f) {
     $sql = file_get_contents($root . '/backend/sql/' . $f . '.sql');
     if (!mysqli_multi_query($admin, $sql)) { die("$f: " . mysqli_error($admin) . "\n"); }
     do {
@@ -852,6 +852,7 @@ check('SUPER_ADMIN รีเซ็ตได้ + ตั้งรหัสที�
 
 require dirname(__FILE__) . '/rules_test.php';
 require dirname(__FILE__) . '/scope_test.php';
+require dirname(__FILE__) . '/dept_groups_test.php';
 
 echo "\nผ่าน " . $GLOBALS['pass'] . ' · ไม่ผ่าน ' . $GLOBALS['fail'] . "\n";
 exit($GLOBALS['fail'] ? 1 : 0);

@@ -82,6 +82,16 @@ export class HttpApi {
   exportInsuranceBatch(id) {
     return this.req(`/insurance/batches/${id}/export`);
   }
+  // ---------- กลุ่ม / ฝ่าย (backend/api/dept_groups.php) ----------
+  listDeptGroups() {
+    return this.req('/dept-groups');
+  }
+  saveDeptGroup(input) {
+    return input.id ? this.send('PUT', `/dept-groups/${input.id}`, input) : this.send('POST', '/dept-groups', input);
+  }
+  deleteDeptGroup(id) {
+    return this.del(`/dept-groups/${id}`);
+  }
   // ---------- แบบฟอร์มบริษัทประกัน + ส่งออกไฟล์ ----------
   listInsurers() {
     return this.req('/insurers');

@@ -143,11 +143,11 @@ export async function runEmployeeImport(file, ctx) {
     body.innerHTML = String(alertBox({ tone: 'danger', title: 'อ่านไฟล์ไม่ได้', body: errorMessage(e) }));
     return;
   }
-  const missingCount = planWorkbookImport(parsed, employees, ctx.sites).skip.filter((s) => s.reason === 'ไม่พบรหัสนี้ในระบบ').length;
+  const missingCount = planWorkbookImport(parsed, employees, ctx.sites, { deptGroups: ctx.deptGroups }).skip.filter((s) => s.reason === 'ไม่พบรหัสนี้ในระบบ').length;
   let addMissing = false;
   let plan;
   const draw = () => {
-    plan = planWorkbookImport(parsed, employees, ctx.sites, { addMissing });
+    plan = planWorkbookImport(parsed, employees, ctx.sites, { addMissing, deptGroups: ctx.deptGroups });
     body.innerHTML = String(summaryHtml(plan, file, addMissing, missingCount));
     const n = plan.add.length + plan.update.length;
     ok.disabled = n === 0;

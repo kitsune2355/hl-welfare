@@ -49,6 +49,11 @@ function api_routes()
     router_add($r, 'PUT', '/rules/{kind}/{id}', 'api_rule_update');
     router_add($r, 'DELETE', '/rules/{kind}/{id}', 'api_rule_delete');
     router_add($r, 'PUT', '/sites/{id}/uniform', 'api_site_uniform_save');
+    /* กลุ่ม / ฝ่าย · api/dept_groups.php (แก้ = สิทธิ์ rules.edit) */
+    router_add($r, 'GET', '/dept-groups', 'api_dept_groups');
+    router_add($r, 'POST', '/dept-groups', 'api_dept_group_save');
+    router_add($r, 'PUT', '/dept-groups/{id}', 'api_dept_group_save');
+    router_add($r, 'DELETE', '/dept-groups/{id}', 'api_dept_group_delete');
 
     router_add($r, 'GET', '/insurance/cycles/{date}', 'api_insurance_cycle');
     router_add($r, 'GET', '/insurance/batches', 'api_batches');

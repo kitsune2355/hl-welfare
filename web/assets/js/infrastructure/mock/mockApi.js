@@ -5,6 +5,8 @@ import { buildBatchExport, buildInsurerExport } from '../../application/usecases
 import { buildUniformPending } from '../../application/usecases/uniformPending.js';
 import { buildStockOptions, stockChange, stockRef, stockSizes, stockSubmitPayload, toStockRequest, uniformLines } from '../../application/usecases/uniformStock.js';
 import { validateBindings, validateInsurerForm } from '../../application/insurerFormRules.js';
+import { deptGroupRuleUsage, renameInGroups, validateDeptGroup } from '../../application/deptGroupRules.js';
+import { DEPT_GROUPS } from '../../shared/labels.js';
 import { buildWorkQueue } from '../../application/usecases/workQueue.js';
 import { todayISO } from '../../domain/date.js';
 import { probationDueDate } from '../../domain/employee.js';
@@ -50,6 +52,16 @@ function load(today) {
 }
 
 const nextId = (xs) => Math.max(0, ...xs.map((x) => x.id)) + 1;
+
+/** กลุ่ม / ฝ่ายตั้งต้น (= sql/014) — 6 กลุ่มเดิม + ชื่อที่พนักงานใช้อยู่แต่ไม่อยู่ในรายการ */
+function seedDeptGroups(employees) {
+  const names = [...DEPT_GROUPS];
+  for (const e of employees) {
+    const n = e.deptGroup?.trim();
+    if (n && !names.includes(n)) names.push(n);
+  }
+  return names.map((name, i) => ({ id: i + 1, name, sortOrder: (i + 1) * 10 }));
+}
 const nextIdBy = (xs, key) => Math.max(0, ...xs.map((x) => x[key])) + 1;
 
 /** ฉบับของกฎ (มีวันที่มีผล) จากกฎชุดเดียว — seed / ข้อมูลรุ่นก่อนที่ยังไม่มีประวัติ */
@@ -100,6 +112,7 @@ export class MockApi {
     this.stock = stock;
     this.db = load(this.today());
     this.db.ruleHistory ??= ruleHistoryOf(this.db.rules);
+    this.db.deptGroups ??= seedDeptGroups(this.db.employees);
     this.syncRules();
   }
   // ---------- helpers ----------
@@ -522,6 +535,63 @@ export class MockApi {
     const f = this.db.insurers.find((x) => x.id === id);
     if (!f) throw new ApiError('ไม่พบแบบฟอร์มบริษัทประกัน', 404);
     return f;
+  }
+  // ---------- กลุ่ม / ฝ่าย = backend/api/dept_groups.php ----------
+  deptGroupList() {
+    const emp = new Map();
+    for (const e of this.db.employees) if (e.deptGroup) emp.set(e.deptGroup, (emp.get(e.deptGroup) ?? 0) + 1);
+    const rules = deptGroupRuleUsage(this.db.ruleHistory.uniform, this.today());
+    return [...this.db.deptGroups]
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
+      .map((g) => ({ ...g, employeeCount: emp.get(g.name) ?? 0, ruleCount: rules.get(g.name)?.size ?? 0 }));
+  }
+  deptGroup(id) {
+    const g = this.deptGroupList().find((x) => x.id === id);
+    if (!g) throw new ApiError('ไม่พบกลุ่ม / ฝ่าย', 404);
+    return g;
+  }
+  listDeptGroups() {
+    return this.run(() => this.deptGroupList());
+  }
+  saveDeptGroup(input) {
+    return this.run(() => {
+      const old = input.id ? this.deptGroup(input.id) : null;
+      const errors = validateDeptGroup(input.name, this.db.deptGroups, input.id);
+      if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
+      const name = input.name.trim();
+      if (!old) {
+        const g = { id: nextId(this.db.deptGroups), name, sortOrder: Math.max(0, ...this.db.deptGroups.map((x) => x.sortOrder)) + 10 };
+        this.db.deptGroups.push(g);
+        this.log('DEPT_GROUP', 'CREATE', g.id, `เพิ่มกลุ่ม / ฝ่าย ${name}`);
+        this.persist();
+        return this.deptGroup(g.id);
+      }
+      if (old.name !== name) {
+        this.db.deptGroups.find((x) => x.id === old.id).name = name;
+        let emp = 0;
+        for (const e of this.db.employees) if (e.deptGroup === old.name) (e.deptGroup = name), emp++;
+        let rules = 0;
+        for (const r of this.db.ruleHistory.uniform) {
+          if (Array.isArray(r.deptGroups) && r.deptGroups.includes(old.name)) (r.deptGroups = renameInGroups(r.deptGroups, old.name, name)), rules++;
+        }
+        this.syncRules();
+        this.log('DEPT_GROUP', 'UPDATE', old.id, `เปลี่ยนชื่อกลุ่ม / ฝ่าย ${old.name} → ${name} (พนักงาน ${emp} คน · กฎชุดฟอร์ม ${rules} ฉบับ)`);
+        this.persist();
+      }
+      return this.deptGroup(old.id);
+    });
+  }
+  deleteDeptGroup(id) {
+    return this.run(() => {
+      const g = this.deptGroup(id);
+      if (g.employeeCount || g.ruleCount) {
+        const why = [g.employeeCount && `พนักงาน ${g.employeeCount} คน`, g.ruleCount && `กฎชุดฟอร์ม ${g.ruleCount} ข้อ`].filter(Boolean);
+        throw new ApiError(`ลบไม่ได้ — ยังมี${why.join(' และ')}ใช้กลุ่มนี้อยู่ ย้ายออกก่อน หรือเปลี่ยนชื่อแทน`, 409);
+      }
+      this.db.deptGroups = this.db.deptGroups.filter((x) => x.id !== id);
+      this.log('DEPT_GROUP', 'DELETE', id, `ลบกลุ่ม / ฝ่าย ${g.name}`);
+      this.persist();
+    });
   }
   listInsurers() {
     return this.run(() => [...this.db.insurers].sort((a, b) => Number(b.active) - Number(a.active) || a.id - b.id));

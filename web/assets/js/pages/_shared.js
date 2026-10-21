@@ -243,6 +243,7 @@ export const ENTITY_ICON = {
   SITE: 'building-2',
   INSURANCE_BATCH: 'shield-plus',
   INSURER_FORM: 'file-spreadsheet',
+  DEPT_GROUP: 'users',
   UNIFORM_ISSUE: 'shirt',
   STOCK_REQUEST: 'package-check',
   USER: 'users',

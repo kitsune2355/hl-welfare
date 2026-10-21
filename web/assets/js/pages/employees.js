@@ -33,6 +33,12 @@ const form = $('#filters');
 const opts = (rec) => Object.entries(rec).map(([value, label]) => ({ value, label }));
 const str = (v) => (v === null || v === undefined ? '' : String(v));
 let sites = [];
+/** ชื่อกลุ่ม / ฝ่ายที่ตั้งค่าไว้ (หน้าเงื่อนไขสวัสดิการ แท็บค่าตั้งค่า) — โหลดไม่ได้/ยังไม่รัน sql/014 = รายการตั้งต้น */
+let deptGroups = [...DEPT_GROUPS];
+api.listDeptGroups().then(
+  (list) => (deptGroups = list.map((g) => g.name)),
+  () => {},
+);
 
 // ----- ตัวกรองจาก URL: ช่องค้นหา + แท็กกรองเร็ว -----
 /** กลุ่มแท็กกรองเร็ว — เลือกได้กลุ่มละ 1 ค่า (กดซ้ำ = ยกเลิก) · เพิ่ม/ลบกลุ่มได้ที่นี่ */
@@ -128,7 +134,8 @@ const columns = [
     editor: 'select',
     editable: (e) => e.employeeType === 'CENTRAL',
     value: (e) => e.deptGroup,
-    options: () => DEPT_GROUPS.map((d) => ({ value: d, label: d })),
+    // ค่าที่พนักงานมีอยู่แต่ไม่อยู่ในรายการแล้ว (ข้อมูลเดิม) ยังแสดงเป็นตัวเลือก ไม่หายจากช่อง
+    options: (e) => [...deptGroups, ...(e.deptGroup && !deptGroups.includes(e.deptGroup) ? [e.deptGroup] : [])].map((d) => ({ value: d, label: d })),
     set: setField('deptGroup', (v) => str(v) || null),
   },
   {
@@ -339,7 +346,7 @@ $('#grid').addEventListener('click', async (e) => {
   const file = await pickExcelFile();
   if (!file) return;
   if (!sites.length) sites = await api.listSites();
-  runEmployeeImport(file, { sites, prepareGrid: showAll, stage: (o) => grid.stage(o) });
+  runEmployeeImport(file, { sites, deptGroups, prepareGrid: showAll, stage: (o) => grid.stage(o) });
 });
 
 fillFilterForm();

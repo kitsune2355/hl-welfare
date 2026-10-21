@@ -162,11 +162,12 @@ export function guessEmployeeType(item) {
   return 'CENTRAL';
 }
 
-/** ฝ่ายในไฟล์ → กลุ่มฝ่ายของระบบ (DEPT_GROUPS) · ไม่ตรงอันไหน = null ให้ HR เลือก */
-export function matchDeptGroup(division) {
+/** ฝ่ายในไฟล์ → กลุ่ม/ฝ่ายของระบบ (groups = ชื่อที่ตั้งค่าไว้ · ไม่ส่ง = รายการตั้งต้น) · ไม่ตรงอันไหน = null ให้ HR เลือก */
+export function matchDeptGroup(division, groups = DEPT_GROUPS) {
   const d = norm(division);
   if (!d) return null;
-  return DEPT_GROUPS.find((g) => d.includes(g)) ?? null;
+  // ชื่อยาวก่อน — "BU ส่วนกลาง" ไม่ถูกแย่งด้วยกลุ่มชื่อสั้นที่เป็นส่วนหนึ่งของชื่อ
+  return [...groups].sort((a, b) => b.length - a.length).find((g) => d.includes(g)) ?? null;
 }
 
 /**
@@ -176,7 +177,7 @@ export function matchDeptGroup(division) {
  * @param {{addMissing?: boolean}} [opts]  ไฟล์ลาออก: คนที่ไม่มีในระบบ → เพิ่มเป็นพนักงานที่พ้นสภาพ
  * @returns {{kind: 'IN'|'OUT', add: {rowNo:number, row:object, issues:string[]}[], update: {rowNo:number, id:number, row:object, issues:string[]}[], skip: {rowNo:number, empCode:string, name:string, reason:string}[]}}
  */
-export function planEmployeeImport(parsed, employees, sites, { addMissing = false } = {}) {
+export function planEmployeeImport(parsed, employees, sites, { addMissing = false, deptGroups = DEPT_GROUPS } = {}) {
   const byCode = new Map(employees.map((e) => [e.empCode, e]));
   const out = { kind: parsed.kind, add: [], update: [], skip: [] };
   const seen = new Set();
@@ -196,7 +197,7 @@ export function planEmployeeImport(parsed, employees, sites, { addMissing = fals
         if (!it.endDate) skip('ไม่มีวันพ้นสภาพ / อ่านวันที่ไม่ได้');
         else if (!COMPANY_CODES.includes(it.companyCode)) skip(`ไม่รู้จักบริษัท "${it.companyCode}"`);
         else {
-          const a = newEmployee(it, sites);
+          const a = newEmployee(it, sites, deptGroups);
           const endReason = endReasonOf(it.note);
           out.add.push({ rowNo: it.rowNo, issues: a.issues, row: { ...a.row, status: 'INACTIVE', endDate: it.endDate, lastWorkingDate: it.endDate, endReason } });
         }
@@ -224,16 +225,16 @@ export function planEmployeeImport(parsed, employees, sites, { addMissing = fals
       skip(`ไม่รู้จักบริษัท "${it.companyCode}"`);
       continue;
     }
-    out.add.push({ rowNo: it.rowNo, ...newEmployee(it, sites) });
+    out.add.push({ rowNo: it.rowNo, ...newEmployee(it, sites, deptGroups) });
   }
   return out;
 }
 
 /** แถวพนักงานใหม่จาก 1 แถวในไฟล์ + สิ่งที่ HR ต้องตรวจ */
-function newEmployee(it, sites) {
+function newEmployee(it, sites, deptGroups) {
   const type = guessEmployeeType(it);
   const site = matchSite(it.unit, it.companyCode, sites);
-  const deptGroup = type === 'CENTRAL' ? matchDeptGroup(it.division) : null;
+  const deptGroup = type === 'CENTRAL' ? matchDeptGroup(it.division, deptGroups) : null;
   const issues = [];
   if (!site) issues.push(`ไม่พบหน่วยงาน "${it.unit || '–'}" — เลือกในตาราง`);
   if (type === 'CENTRAL' && !deptGroup) issues.push(`ฝ่าย "${it.division || '–'}" — เลือกกลุ่ม/ฝ่ายในตาราง`);
