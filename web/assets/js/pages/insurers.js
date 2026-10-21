@@ -23,7 +23,7 @@ import { icon } from '../shared/icons.js';
 import { alertBox, badge, errorState } from '../ui/components.js';
 import { enhanceSelects } from '../ui/combobox.js';
 import { busy, loader } from '../ui/loading.js';
-import { confirmAction, errorMessage, toast } from '../ui/overlay.js';
+import { confirmAction, errorMessage, openModal, toast } from '../ui/overlay.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { sheetPreviewHtml } from '../ui/sheetPreview.js';
 
@@ -243,6 +243,29 @@ const bindColumns = () => [
 ];
 let bindGrid = null;
 
+/** ตั้งบริษัทประกันให้หลายแถว (ใช้ set ของคอลัมน์ — เติมชื่อผู้ถือกรมธรรม์ให้เหมือนเลือกทีละแถว) */
+function stageBind(g, rows, insurerId) {
+  const set = bindColumns().find((c) => c.key === 'insurerId').set;
+  g.stage({ edits: rows.map((b) => ({ key: b.companyCode, row: set(b, insurerId ? String(insurerId) : '') })), onlyPending: false });
+  return `แก้ ${rows.length} บริษัท (ยังไม่บันทึก) — ตรวจเลขกรมธรรม์แล้วกด “บันทึก”`;
+}
+function bulkBind(rows, g) {
+  return new Promise((resolve) => {
+    let msg;
+    const m = openModal({
+      title: `ส่งแจ้ง ${rows.map((r) => r.companyCode).join(', ')} กับ`,
+      body: html`<div class="field"><label for="bb-ins">บริษัทประกัน</label>
+        <select class="input" id="bb-ins">${forms.map((x) => html`<option value="${x.id}">${x.shortName}${x.active ? '' : ' (ปิดอยู่)'}</option>`)}</select></div>`,
+      footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button><button class="btn btn-primary" data-ok>ตกลง</button>`,
+      onClose: () => resolve(msg),
+    });
+    m.el.querySelector('[data-ok]').onclick = () => {
+      msg = stageBind(g, rows, Number(m.el.querySelector('#bb-ins').value));
+      m.close();
+    };
+  });
+}
+
 function drawOverview() {
   page.classList.remove('editing');
   render($('#head-actions'), can('insurers.edit') ? html`<a class="btn btn-primary" href="insurers.html?id=new">${raw(icon('plus'))} เพิ่มบริษัทประกัน</a>` : '');
@@ -282,6 +305,13 @@ function drawOverview() {
       return row;
     },
     onSaved: () => render($('#ic-grid'), insurerCards()),
+    // เลือกหลายบริษัท → ผูกกับบริษัทประกันเดียวกัน / เลิกส่งแจ้ง (เป็นแถวยังไม่บันทึก)
+    bulkActions: can('insurers.edit')
+      ? [
+          { id: 'bind', label: 'ส่งแจ้งกับ…', icon: 'link', run: (rows, g) => bulkBind(rows, g) },
+          { id: 'unbind', label: 'ไม่ส่งแจ้ง', icon: 'x', when: (b) => !!b.insurerId, run: (rows, g) => stageBind(g, rows, null) },
+        ]
+      : [],
     empty: '',
   });
   bindGrid.setRows(clone(bindings));

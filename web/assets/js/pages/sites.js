@@ -124,10 +124,25 @@ const grid = new ExcelGrid($('#grid'), {
   },
   // ลบจริงตอนกดบันทึก — ลบได้เฉพาะหน่วยงานที่ไม่มีพนักงานอยู่ (API แจ้งเหตุผลถ้าลบไม่ได้)
   onRemove: (s) => api.deleteSite(s.id),
+  // เลือกหลายหน่วยงาน → ตั้งค่าพร้อมกัน (เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก) · "ลบที่เลือก" มีให้อยู่แล้ว
+  bulkActions: can('sites.edit')
+    ? [
+        { id: 'ins-on', label: 'ได้รับประกันกลุ่ม', icon: 'shield-plus', when: (s) => !s.hasGroupInsurance, run: (rows, g) => stageAll(g, rows, { hasGroupInsurance: true }) },
+        { id: 'ins-off', label: 'ไม่ได้รับประกันกลุ่ม', icon: 'shield-off', when: (s) => s.hasGroupInsurance, run: (rows, g) => stageAll(g, rows, { hasGroupInsurance: false }) },
+        { id: 'polo-black', label: 'โปโลสีดำ', when: (s) => s.poloColor !== 'BLACK', run: (rows, g) => stageAll(g, rows, { poloColor: 'BLACK' }) },
+        { id: 'polo-navy', label: 'โปโลสีน้ำเงิน', when: (s) => s.poloColor !== 'NAVY', run: (rows, g) => stageAll(g, rows, { poloColor: 'NAVY' }) },
+      ]
+    : [],
   rowLabel: (s) => `${s.companyCode} · ${s.name}`,
   onSaved: () => drawSummary(),
   empty: emptyState({ iconName: 'building-2', title: 'ยังไม่มีหน่วยงาน' }),
 });
+
+/** แก้หลายแถวเป็น "ยังไม่บันทึก" (ไม่ซ่อนแถวอื่น) */
+function stageAll(g, rows, patch) {
+  g.stage({ edits: rows.map((s) => ({ key: s.id, row: { ...s, ...patch } })), onlyPending: false });
+  return `แก้ ${rows.length} หน่วยงาน (ยังไม่บันทึก) — ตรวจแล้วกด “บันทึก”`;
+}
 
 // ===================== ชุดฟอร์มของหน่วยงาน (ตั้งทับกฎกลาง) =====================
 let rulesCache = null;
