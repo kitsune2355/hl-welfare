@@ -6796,3 +6796,94 @@ button.sev-pill {
     grid-template-columns: 1fr;
   }
 }
+
+/* =====================================================================
+   เลือกหลายแถว (ui/selection.js) — checkbox ช่องหน้าสุด + แถบทำรายการกับแถวที่เลือก (DataTable / ExcelGrid)
+   ===================================================================== */
+.rowhead {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  padding-left: 4px;
+}
+.row-check {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.row-check:disabled {
+  cursor: default;
+}
+.table .rownum.has-check {
+  width: 72px;
+  text-align: left;
+}
+.table tr.is-selected td,
+.xgrid tr.is-selected td:not(.stick-left):not(.stick-right) {
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+}
+.xgrid tr.is-selected td.stick-left,
+.table tr.is-selected td.rownum {
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.cards li.is-selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+.card-check {
+  display: inline-flex;
+  align-items: center;
+  padding-right: 4px;
+}
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  font-size: 13px;
+  animation: bulk-in 0.15s ease-out;
+}
+@keyframes bulk-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.bulk-count {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--primary);
+}
+.bulk-count .icon {
+  width: 16px;
+  height: 16px;
+}
+.bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bulk-clear {
+  margin-left: auto;
+}
+.btn-danger-soft {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  color: var(--danger);
+}
+.btn-danger-soft:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+@media (prefers-reduced-motion: reduce) {
+  .bulk-bar {
+    animation: none;
+  }
+}
