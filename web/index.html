@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ภาพรวม & ติดตามงาน · HL Welfare</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <script>
+      // ธีม + ตรวจการเข้าสู่ระบบก่อนแสดงหน้า (ยังไม่ login → ไปหน้า login.html)
+      try {
+        if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+        var s = JSON.parse(sessionStorage.getItem('hl-session') || localStorage.getItem('hl-session') || 'null');
+        // ขนาดตัวอักษรของระบบ (app/fontSize.js) — ต่อผู้ใช้ ต่อเบราว์เซอร์
+        var f = Number(localStorage.getItem('hl-font:' + (s && s.username)) || localStorage.getItem('hl-font') || 100);
+        if (f !== 100 && f >= 80 && f <= 150) document.documentElement.style.setProperty('--ui-zoom', f / 100);
+        if (!s || s.expiresAt < Date.now()) location.replace('login.html?next=' + encodeURIComponent((location.pathname.split('/').pop() || 'index.html') + location.search));
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <!-- หน้าเดียว ไม่มีแท็บ ทั้งหน้าเป็น bento · คิวงาน = #queue · บันทึกกิจกรรม = #activity (ลิงก์เก่า ?tab=queue|activity เลื่อนไปช่องนั้น) · คิวงานรับ ?severity= &kind= -->
+    <main id="page" class="page">
+      <div class="page-head">
+        <div>
+          <h1 id="greeting">สวัสดี 👋</h1>
+          <p id="today">กำลังโหลด…</p>
+        </div>
+        <div class="page-actions">
+          <span class="row small muted"><span class="live-dot" id="live-dot"></span><span id="updated" class="hide-sm"></span></span>
+          <label class="row" style="font-size:13px">
+            <button type="button" class="switch" role="switch" aria-checked="true" aria-label="รีเฟรชอัตโนมัติ" id="auto"></button>
+            <span>อัตโนมัติ<span class="hide-sm"> (60 วิ)</span></span>
+          </label>
+          <button class="btn btn-sm" id="refresh" title="รีเฟรช" aria-label="รีเฟรช"><i data-icon="refresh-cw"></i><span class="hide-sm">รีเฟรช</span></button>
+        </div>
+      </div>
+
+      <!-- ===== ทั้งหน้าเป็น bento เดียว (grid 12 คอลัมน์ · สูงตามเนื้อหา) =====
+           แถว 1–2: รอบแจ้งประกัน (ใหญ่) · แจ้งออกทันที / ชุดฟอร์มค้างแจก
+           แถว 3  : พนักงานปัจจุบัน · จะครบสิทธิใน 30 วัน · บันทึกกิจกรรม (#activity — เลื่อนในช่อง)
+           แถว 4  : คิวงาน (#queue — ตารางเต็มแถว) -->
+      <div class="bento" id="bento">
+        <section class="tile t-cycle" id="t-cycle" aria-label="รอบแจ้งประกันถัดไป"><div class="skeleton sk-block"></div></section>
+        <section class="tile t-urgent" id="t-urgent" aria-label="แจ้งออกทันทีค้าง"><div class="skeleton sk-line"></div></section>
+        <section class="tile t-uniform" id="t-uniform" aria-label="ชุดฟอร์มค้างแจก"><div class="skeleton sk-line"></div></section>
+        <section class="tile t-people" id="t-people" aria-label="พนักงานปัจจุบัน"><div class="skeleton sk-block"></div></section>
+        <section class="tile t-upcoming t-flush" aria-label="จะครบสิทธิใน 30 วัน">
+          <header class="tile-head">
+            <span class="tile-ic"><i data-icon="calendar-clock"></i></span>
+            <div class="grow"><h2>จะครบสิทธิประกันกลุ่มใน 30 วัน</h2><p>แจ้งเข้าในรอบถัดไปหลังครบสิทธิ</p></div>
+          </header>
+          <div id="upcoming"></div>
+        </section>
+
+        <section class="tile t-activity t-flush" id="activity" aria-label="บันทึกกิจกรรม">
+          <header class="tile-head">
+            <span class="tile-ic"><i data-icon="activity"></i></span>
+            <div class="grow"><h2>บันทึกกิจกรรม</h2><p><span id="today-count"></span></p></div>
+            <select id="entity" data-combobox data-size="sm" aria-label="กรองกิจกรรม" class="combo" style="width:140px">
+              <option value="">ทุกประเภท</option>
+              <option value="EMPLOYEE">พนักงาน</option>
+              <option value="SITE">หน่วยงาน</option>
+              <option value="INSURANCE_BATCH">ประกันกลุ่ม</option>
+              <option value="UNIFORM_ISSUE">ชุดฟอร์ม</option>
+            </select>
+          </header>
+          <div id="feed" class="activity-scroll"></div>
+          <div class="tile-foot hidden" id="more-wrap">
+            <button class="btn btn-ghost btn-sm" id="more">โหลดเพิ่ม</button>
+          </div>
+        </section>
+
+        <section class="tile t-tasks t-flush" id="queue" aria-label="คิวงาน">
+          <header class="tile-head">
+            <span class="tile-ic"><i data-icon="clipboard-list"></i></span>
+            <div class="grow"><h2>คิวงาน <span id="task-count"></span></h2><p>ทุกเรื่องที่ต้องทำ เรียงความเร่งด่วน แล้วตามวันที่เลยกำหนด</p></div>
+            <div class="input-icon tile-search">
+              <i data-icon="search"></i>
+              <input class="input" id="q" placeholder="ค้นหาพนักงาน หรือ ชื่องาน" aria-label="ค้นหางาน" />
+            </div>
+          </header>
+          <div id="sev-row" class="sev-row tile-pad" role="group" aria-label="กรองตามระดับ"></div>
+          <div class="chips tile-pad" id="kinds" role="group" aria-label="กรองตามประเภทงาน"></div>
+          <div id="tasks"></div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="assets/js/pages/dashboard.js"></script>
+  </body>
+</html>

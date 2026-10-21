@@ -1,0 +1,10 @@
+{
+  "name": "hl-welfare",
+  "private": true,
+  "type": "module",
+  "description": "ระบบจัดการสวัสดิการพนักงาน — กลุ่มบริษัทแฮปปี้แลนด์ (HTML + JavaScript ไม่ต้อง build)",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "serve": "npx -y http-server web -p 8080 -c-1"
+  }
+}

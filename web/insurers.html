@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>แบบฟอร์มประกัน · HL Welfare</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <script>
+      // ธีม + ตรวจการเข้าสู่ระบบก่อนแสดงหน้า (ยังไม่ login → ไปหน้า login.html)
+      try {
+        if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+        var s = JSON.parse(sessionStorage.getItem('hl-session') || localStorage.getItem('hl-session') || 'null');
+        // ขนาดตัวอักษรของระบบ (app/fontSize.js) — ต่อผู้ใช้ ต่อเบราว์เซอร์
+        var f = Number(localStorage.getItem('hl-font:' + (s && s.username)) || localStorage.getItem('hl-font') || 100);
+        if (f !== 100 && f >= 80 && f <= 150) document.documentElement.style.setProperty('--ui-zoom', f / 100);
+        if (!s || s.expiresAt < Date.now()) location.replace('login.html?next=' + encodeURIComponent((location.pathname.split('/').pop() || 'index.html') + location.search));
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <!-- insurers.html                       ภาพรวม: บริษัทประกัน (ไฟล์แบบฟอร์ม) + ผูกบริษัทในเครือ ↔ บริษัทประกัน
+         insurers.html?id=<id>|new&step=   แก้แบบฟอร์ม: ไฟล์ → ตำแหน่งข้อมูล → ตั้งค่าการส่งออก -->
+    <main id="page" class="page fit">
+      <div class="page-head">
+        <div>
+          <h1>แบบฟอร์มประกัน</h1>
+          <p>อัปโหลดไฟล์ Excel ที่ส่งบริษัทประกันจริง → ระบบหาจุดที่ต้องเติมเอง → ตอนส่งออก ระบบเติมรายชื่อลงไฟล์นั้นให้ (ไม่สร้างแบบฟอร์มใหม่)</p>
+        </div>
+        <div class="page-actions" id="head-actions"></div>
+      </div>
+      <div id="view" class="fill"></div>
+    </main>
+    <script type="module" src="assets/js/pages/insurers.js"></script>
+  </body>
+</html>

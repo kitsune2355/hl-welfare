@@ -1,0 +1,39 @@
+import { addDays, nextCycleDate } from '../../domain/date.js';
+import { cycleDays, insuranceStatus } from '../../domain/insurance.js';
+import { COMPANY_CODES } from '../../domain/labels.js';
+import { buildInsuranceCycle } from './insuranceCycle.js';
+import { buildUniformPending } from './uniformPending.js';
+
+const UPCOMING_DAYS = 30;
+
+export function buildDashboard(today, employees, sites, rules, batches, issues) {
+  const active = employees.filter((e) => e.status === 'ACTIVE');
+  const siteById = new Map(sites.map((s) => [s.id, s]));
+  // รอบถัดไปของแต่ละกลุ่ม (วันที่ 5 ทั่วไป · วันที่ 6 รายวัน) — แสดงรอบที่ใกล้ที่สุด นับรายการรวมทุกกลุ่ม
+  const cycles = cycleDays(rules.settings).map((d) => nextCycleDate(today, d));
+  const cycleDate = cycles.reduce((a, b) => (a < b ? a : b));
+  const pending = cycles.flatMap((c) => buildInsuranceCycle(c, employees, sites, rules, batches).rows).filter((r) => !r.submitted);
+  const horizon = addDays(today, UPCOMING_DAYS);
+  const upcoming = [];
+  for (const emp of active) {
+    const ins = insuranceStatus(emp, siteById.get(emp.siteId) ?? null, rules);
+    if (ins.eligible && ins.eligibleDate && ins.eligibleDate > today && ins.eligibleDate <= horizon) {
+      upcoming.push({ employee: emp, benefit: 'INSURANCE', date: ins.eligibleDate });
+    }
+  }
+  upcoming.sort((a, b) => a.date.localeCompare(b.date));
+  return {
+    today,
+    activeByCompany: COMPANY_CODES.map((companyCode) => ({
+      companyCode,
+      count: active.filter((e) => e.companyCode === companyCode).length,
+    })),
+    activeTotal: active.length,
+    nextCycleDate: cycleDate,
+    nextCycleIn: pending.filter((r) => r.type === 'IN').length,
+    nextCycleOut: pending.filter((r) => r.type === 'OUT').length,
+    urgentPending: pending.filter((r) => r.type === 'URGENT').length,
+    upcomingEligible: upcoming,
+    uniformPending: buildUniformPending(employees, sites, rules, issues, today).length,
+  };
+}

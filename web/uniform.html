@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ชุดฟอร์ม · HL Welfare</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <script>
+      // ธีม + ตรวจการเข้าสู่ระบบก่อนแสดงหน้า (ยังไม่ login → ไปหน้า login.html)
+      try {
+        if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+        var s = JSON.parse(sessionStorage.getItem('hl-session') || localStorage.getItem('hl-session') || 'null');
+        // ขนาดตัวอักษรของระบบ (app/fontSize.js) — ต่อผู้ใช้ ต่อเบราว์เซอร์
+        var f = Number(localStorage.getItem('hl-font:' + (s && s.username)) || localStorage.getItem('hl-font') || 100);
+        if (f !== 100 && f >= 80 && f <= 150) document.documentElement.style.setProperty('--ui-zoom', f / 100);
+        if (!s || s.expiresAt < Date.now()) location.replace('login.html?next=' + encodeURIComponent((location.pathname.split('/').pop() || 'index.html') + location.search));
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <!-- uniform.html?tab=history = แท็บประวัติการแจก -->
+    <main id="page" class="page fit">
+      <div class="page-head">
+        <div>
+          <h1>ชุดฟอร์ม</h1>
+          <p>สิทธิตามกลุ่ม/ระดับ/ตำแหน่ง — ส่งเบิกคลังให้จ่ายตามไซซ์ในระบบสต็อก Uniform</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn" id="sync" title="ดึงสถานะใบเบิกล่าสุดจากระบบสต็อก"><i data-icon="refresh-cw"></i> ดึงสถานะจากคลัง</button>
+          <button class="btn" id="export"><i data-icon="download"></i> ส่งออกรายการค้าง</button>
+        </div>
+      </div>
+
+      <div id="stock-warn"></div>
+      <div id="tabs"></div>
+
+      <!-- แท็บ: ค้างแจก -->
+      <div class="grid grid-3 fill" id="tab-pending">
+        <section class="card span-2">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="shirt"></i></span>
+              <div>
+                <h2>รายการค้างแจก</h2>
+                <p>กด “ส่งเบิกคลัง” เลือกแบบและไซซ์จากสต็อก — แจกนอกระบบไปแล้วใช้ปุ่มดินสอ</p>
+              </div>
+            </div>
+          </header>
+          <div id="pending" class="fill-body"></div>
+        </section>
+        <section class="card">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="list-checks"></i></span>
+              <div>
+                <h2>สรุปตามแบบเสื้อ</h2>
+                <p>ใช้วางแผนสั่งผลิต</p>
+              </div>
+            </div>
+          </header>
+          <div id="summary" class="fill-body scroll"></div>
+        </section>
+      </div>
+
+      <!-- แท็บ: รอคลังจ่าย -->
+      <section class="card fill hidden" id="tab-waiting">
+        <header class="card-head">
+          <div class="card-title">
+            <span class="card-icon"><i data-icon="package-check"></i></span>
+            <div>
+              <h2>รอคลังจ่าย</h2>
+              <p>ใบเบิกในระบบสต็อก Uniform (อนุมัติอัตโนมัติ) — คลังจ่ายแล้วจะย้ายไปประวัติการแจกเอง</p>
+            </div>
+          </div>
+        </header>
+        <div id="waiting" class="fill-body"></div>
+      </section>
+
+      <!-- แท็บ: ประวัติการแจก -->
+      <section class="card fill hidden" id="tab-history">
+        <header class="card-head">
+          <div class="card-title">
+            <span class="card-icon"><i data-icon="history"></i></span>
+            <div><h2>ประวัติการแจก</h2></div>
+          </div>
+        </header>
+        <div id="history" class="fill-body"></div>
+      </section>
+    </main>
+    <script type="module" src="assets/js/pages/uniform.js"></script>
+  </body>
+</html>

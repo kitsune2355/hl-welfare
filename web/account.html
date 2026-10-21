@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>บัญชีของฉัน · HL Welfare</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <script>
+      // ธีม + ตรวจการเข้าสู่ระบบก่อนแสดงหน้า (ยังไม่ login → ไปหน้า login.html)
+      try {
+        if (localStorage.getItem('hl-theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+        var s = JSON.parse(sessionStorage.getItem('hl-session') || localStorage.getItem('hl-session') || 'null');
+        // ขนาดตัวอักษรของระบบ (app/fontSize.js) — ต่อผู้ใช้ ต่อเบราว์เซอร์
+        var f = Number(localStorage.getItem('hl-font:' + (s && s.username)) || localStorage.getItem('hl-font') || 100);
+        if (f !== 100 && f >= 80 && f <= 150) document.documentElement.style.setProperty('--ui-zoom', f / 100);
+        if (!s || s.expiresAt < Date.now()) location.replace('login.html?next=' + encodeURIComponent((location.pathname.split('/').pop() || 'index.html') + location.search));
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <!--
+      account.html#password | #font — บัญชีของฉัน (ทุกคนที่เข้าสู่ระบบ)
+      ?force=1&next=หน้าเดิม = ผู้ดูแลตั้ง/รีเซ็ตรหัสให้ (เช่น 4123) ต้องตั้งรหัสเองก่อนใช้งาน (app/shell.js พามาที่นี่)
+    -->
+    <main id="page" class="page account-page">
+      <div class="page-head">
+        <div>
+          <h1>บัญชีของฉัน</h1>
+          <p id="who"></p>
+        </div>
+      </div>
+
+      <div id="force" class="hidden mb"></div>
+
+      <div class="grid grid-2 account-grid">
+        <section class="card" id="password">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="key-round"></i></span>
+              <div>
+                <h2>เปลี่ยนรหัสผ่าน</h2>
+                <p>เปลี่ยนแล้วอุปกรณ์อื่นจะออกจากระบบทั้งหมด (เครื่องนี้ใช้ต่อได้)</p>
+              </div>
+            </div>
+          </header>
+          <form class="card-body form-grid" id="pw-form" style="grid-template-columns:1fr" novalidate>
+            <div class="field" data-field="current">
+              <label for="pw-current">รหัสผ่านปัจจุบัน <span class="req">*</span></label>
+              <input class="input" id="pw-current" name="current" type="password" autocomplete="current-password" required />
+              <span class="hint" id="current-hint"></span>
+              <span class="error"></span>
+            </div>
+            <div class="field" data-field="next">
+              <label for="pw-next">รหัสผ่านใหม่ <span class="req">*</span></label>
+              <input class="input" id="pw-next" name="next" type="password" autocomplete="new-password" required />
+              <ul class="pw-rules" id="pw-rules" aria-live="polite"></ul>
+              <span class="error"></span>
+            </div>
+            <div class="field" data-field="confirm">
+              <label for="pw-confirm">ยืนยันรหัสผ่านใหม่ <span class="req">*</span></label>
+              <input class="input" id="pw-confirm" name="confirm" type="password" autocomplete="new-password" required />
+              <span class="error"></span>
+            </div>
+            <label class="row small" style="gap:8px">
+              <input type="checkbox" id="pw-show" /> แสดงรหัสผ่าน
+            </label>
+            <div class="row" style="justify-content:flex-end">
+              <button type="submit" class="btn btn-primary" id="pw-save" data-label="เปลี่ยนรหัสผ่าน"><i data-icon="save"></i> เปลี่ยนรหัสผ่าน</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="card" id="font">
+          <header class="card-head">
+            <div class="card-title">
+              <span class="card-icon"><i data-icon="type"></i></span>
+              <div>
+                <h2>ขนาดตัวอักษร</h2>
+                <p>ใช้กับทุกหน้าของระบบ เฉพาะบัญชีนี้บนเบราว์เซอร์นี้ · มีผลทันที</p>
+              </div>
+            </div>
+          </header>
+          <div class="card-body">
+            <div class="font-levels" id="font-levels" role="radiogroup" aria-label="ขนาดตัวอักษร"></div>
+            <p class="small muted" style="margin-top:12px">บนมือถือใช้ปุ่มย่อ/ขยายของเบราว์เซอร์ร่วมกันได้ · กลับเป็นค่าเริ่มต้นได้ที่ “ปกติ”</p>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="assets/js/pages/account.js"></script>
+  </body>
+</html>

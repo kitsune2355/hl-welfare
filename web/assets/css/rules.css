@@ -1,0 +1,267 @@
+/* =====================================================================
+   หน้าเงื่อนไขสวัสดิการ (rules.html) + ชุดฟอร์มของหน่วยงาน (sites.html)
+   ใช้ token จาก app.css ทั้งหมด — ไฟล์นี้มีแค่ส่วนที่หน้าอื่นไม่ใช้
+   ===================================================================== */
+
+/* ----- ตัวเลือกหลายค่าแบบชิป (บริษัท / กลุ่ม / ประเภทสัญญา) ----- */
+.chip-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.chip-pick:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+}
+.chip-pick:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 500;
+}
+.chip-pick input {
+  margin: 0;
+}
+.chip-pick.all {
+  border-style: dashed;
+}
+.field[aria-invalid='true'] .chip-picks .chip-pick,
+.field[aria-invalid='true'] .qty-grid {
+  border-color: var(--danger);
+}
+
+/* ----- ตารางจำนวนชุดฟอร์ม: รายการ × รอบ ----- */
+.qty-grid {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+.qty-grid th,
+.qty-grid td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-size: 13px;
+}
+.qty-grid tr:last-child td {
+  border-bottom: 0;
+}
+.qty-grid thead th {
+  background: var(--surface-2, color-mix(in srgb, var(--muted) 8%, var(--surface)));
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.qty-grid th.n,
+.qty-grid td.n {
+  width: 92px;
+  text-align: center;
+}
+.qty-grid input.input {
+  height: 36px;
+  padding: 0 6px;
+  text-align: center;
+}
+.qty-grid tfoot td {
+  font-weight: 600;
+  background: var(--surface-2, color-mix(in srgb, var(--muted) 6%, var(--surface)));
+}
+.qty-grid .item-off td:first-child {
+  color: var(--muted);
+}
+
+/* ----- สรุปจำนวนในตาราง: "โปโล 2 · เสื้อช่าง 2" ----- */
+.qty-sum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 13px;
+}
+.qty-sum .ev {
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 64px;
+}
+.qty-lines {
+  display: grid;
+  gap: 4px;
+}
+
+/* ----- การเปลี่ยนแปลงที่รอมีผล / ประวัติ ----- */
+.rev-list {
+  display: grid;
+  gap: 10px;
+}
+.rev-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.rev-item.pending {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+  background: color-mix(in srgb, var(--warning) 6%, var(--surface));
+}
+.rev-item.current {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+}
+.rev-item .when {
+  min-width: 96px;
+  font-weight: 600;
+}
+.rev-item .what {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.rev-item .meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ----- ค่าตั้งค่า ----- */
+.settings-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.effective-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  padding: 14px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+}
+.effective-bar .field {
+  min-width: 180px;
+}
+.effective-bar .hint {
+  flex: 1 1 260px;
+}
+.panel-pad {
+  padding: 20px;
+}
+
+/* ----- แถบเครื่องมือเหนือตาราง ----- */
+.rules-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.rules-toolbar .input-icon {
+  flex: 1 1 220px;
+  max-width: 360px;
+}
+.rules-toolbar .spacer {
+  flex: 1;
+}
+
+/* ----- ปุ่มในตาราง: แตะง่ายบนมือถือ ----- */
+.row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+@media (max-width: 767px) {
+  .row-actions .btn-icon {
+    width: 40px;
+    height: 40px;
+  }
+  .rev-item {
+    grid-template-columns: 1fr;
+  }
+  .qty-grid th.n,
+  .qty-grid td.n {
+    width: 64px;
+  }
+  .panel-pad {
+    padding: 14px;
+  }
+}
+
+/* modal ฟอร์มกฎ: สองคอลัมน์บนจอกว้าง */
+.rule-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.rule-form .full {
+  grid-column: 1 / -1;
+}
+@media (max-width: 640px) {
+  .rule-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- กลุ่ม / ฝ่าย (แท็บค่าตั้งค่า) ---------- */
+.dept-groups {
+  display: grid;
+  gap: 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.dg-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.dg-head h3 {
+  margin-bottom: 2px;
+  font-size: 15px;
+}
+.dg-head p {
+  max-width: 640px;
+}
+.dept-groups .table-wrap {
+  max-width: 720px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.dg-table td.num,
+.dg-table th.num {
+  width: 110px;
+}
+.dg-act {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+.dg-act .btn-icon[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.dg-table th.num,
+.dg-table td.num {
+  text-align: right;
+}

@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ย้ายไปหน้าภาพรวม · HL Welfare</title>
+    <!-- ศูนย์ติดตามงานรวมอยู่ในหน้าภาพรวม (แท็บ "คิวงาน") แล้ว — หน้านี้มีไว้ให้ลิงก์เดิมยังใช้ได้ -->
+    <script>
+      var q = location.search ? '&' + location.search.slice(1) : '';
+      location.replace('index.html?tab=queue' + q);
+    </script>
+    <meta http-equiv="refresh" content="0; url=index.html?tab=queue" />
+  </head>
+  <body>
+    <p>ย้ายไปที่ <a href="index.html?tab=queue">ภาพรวม & ติดตามงาน → คิวงาน</a></p>
+  </body>
+</html>
