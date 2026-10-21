@@ -1,7 +1,10 @@
 import { probationDueDate } from '../domain/employee.js';
 import { digitsOnly, isValidThaiId } from '../domain/thaiId.js';
 
-/** กฎตรวจข้อมูลพนักงาน — ใช้ร่วมกันทั้งฟอร์มและตาราง Excel */
+/**
+ * กฎตรวจข้อมูลพนักงาน — ใช้ร่วมกันทั้งฟอร์มและตาราง Excel (คู่กับ backend/domain/rules_check.php)
+ * ไม่ตรวจเงินเดือน / ตำแหน่ง — ระบบไม่มีคอลัมน์ให้กรอกแล้ว (ตำแหน่งมาจากไฟล์นำเข้าได้ แต่ไม่บังคับ)
+ */
 export function validateEmployee(e) {
   const x = {};
   // ข้อมูลส่วนตัวสำหรับไฟล์แจ้งประกัน: ไม่บังคับ แต่ถ้ากรอกต้องถูกรูปแบบ
@@ -15,14 +18,12 @@ export function validateEmployee(e) {
   if (!e.startDate) x.startDate = 'กรุณาระบุวันเริ่มงาน';
   if (e.birthDate && e.startDate && e.birthDate >= e.startDate) x.birthDate = 'วันเกิดต้องก่อนวันเริ่มงาน';
   if (e.probationPassDate && e.probationPassDate < e.startDate) x.probationPassDate = 'ต้องไม่ก่อนวันเริ่มงาน';
-  if (!(e.salary > 0)) x.salary = 'กรุณากรอกเงินเดือน';
   if (!e.siteId) x.siteId = 'กรุณาเลือกหน่วยงาน';
   if (e.employeeType === 'CENTRAL') {
     if (!e.deptGroup) x.deptGroup = 'กรุณาเลือกกลุ่ม/ฝ่าย';
     // ระดับพนักงาน 1–9 (HR ยืนยันสูงสุดระดับ 9)
     if (!(Number.isInteger(Number(e.level)) && Number(e.level) >= 1 && Number(e.level) <= 9)) x.level = 'ระดับต้องเป็นตัวเลข 1–9';
   }
-  if (e.employeeType === 'PRO_SITE' && !e.position?.trim()) x.position = 'กรุณาระบุตำแหน่ง';
   if (e.status === 'INACTIVE') {
     if (!e.endReason) x.endReason = 'กรุณาเลือกเหตุผล';
     if (!e.endDate) x.endDate = 'กรุณาระบุวันพ้นสภาพ';

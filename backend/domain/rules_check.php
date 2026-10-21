@@ -43,7 +43,7 @@ function validate_employee($e)
     if ($birth && $start && strcmp($birth, $start) >= 0) { $x['birthDate'] = 'วันเกิดต้องก่อนวันเริ่มงาน'; }
     $pass = arr_get($e, 'probationPassDate');
     if ($pass && $start && strcmp($pass, $start) < 0) { $x['probationPassDate'] = 'ต้องไม่ก่อนวันเริ่มงาน'; }
-    if (!(is_numeric(arr_get($e, 'salary')) && (float)$e['salary'] > 0)) { $x['salary'] = 'กรุณากรอกเงินเดือน'; }
+    // ไม่ตรวจเงินเดือน / ตำแหน่ง — หน้าพนักงานไม่มีคอลัมน์ให้กรอกแล้ว (คู่กับ application/employeeRules.js)
     if (!arr_get($e, 'siteId')) { $x['siteId'] = 'กรุณาเลือกหน่วยงาน'; }
     $type = arr_get($e, 'employeeType');
     if ($type === 'CENTRAL') {
@@ -54,7 +54,6 @@ function validate_employee($e)
             $x['level'] = 'ระดับต้องเป็นตัวเลข 1–9';
         }
     }
-    if ($type === 'PRO_SITE' && str_trim(arr_get($e, 'position', '')) === '') { $x['position'] = 'กรุณาระบุตำแหน่ง'; }
     if (arr_get($e, 'status') === 'INACTIVE') {
         if (!arr_get($e, 'endReason')) { $x['endReason'] = 'กรุณาเลือกเหตุผล'; }
         if (!arr_get($e, 'endDate'))   { $x['endDate'] = 'กรุณาระบุวันพ้นสภาพ'; }

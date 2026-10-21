@@ -363,6 +363,15 @@ $r = $hr->req('POST', '/employees', $bad);
 check('เลขบัตรผิด → 422 + errors.nationalId', $r['status'] === 422 && isset($r['json']['errors']['nationalId']));
 $bad = $new; $bad['empCode'] = 'TEST0003'; $bad['siteId'] = 3;
 check('หน่วยงานไม่ตรงบริษัท → 422', S($hr->req('POST', '/employees', $bad)) === 422);
+// หน้าพนักงานไม่มีคอลัมน์เงินเดือน / ตำแหน่งแล้ว → ไม่บังคับกรอก (Pro Site ก็ไม่บังคับตำแหน่ง)
+$pro = null;
+foreach ($golden['reads']['employees'] as $x) { if ($x['employeeType'] === 'PRO_SITE') { $pro = $x; break; } }
+$np = $pro; unset($np['id']);
+$np['empCode'] = 'TEST0004'; $np['nationalId'] = ''; $np['position'] = ''; $np['salary'] = 0; $np['status'] = 'ACTIVE';
+$np['endReason'] = null; $np['endDate'] = null; $np['lastWorkingDate'] = null;
+$r = $hr->req('POST', '/employees', $np);
+check('Pro Site ไม่มีตำแหน่ง + เงินเดือน 0 → 201', $r['status'] === 201, json_encode($r['json']));
+if ($r['status'] === 201) { db_exec('DELETE FROM employees WHERE id = ?', array($r['json']['data']['id'])); }
 $upd = $r = $hr->req('GET', '/employees?q=TEST0001');
 $e2 = $upd['json']['data'][0];
 $e2['status'] = 'INACTIVE'; $e2['endReason'] = 'RESIGN'; $e2['endDate'] = '2026-10-18'; $e2['lastWorkingDate'] = '2026-10-17';

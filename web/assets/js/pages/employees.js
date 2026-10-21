@@ -261,10 +261,7 @@ const grid = new ExcelGrid($('#grid'), {
   // นำเข้า Excel (ไฟล์เข้าใหม่ / ลาออกประจำเดือนของ HR) — ใส่เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก
   toolbar: can('employees.edit') ? importButton() : '',
   // ไม่มีช่องเงินเดือน / ตำแหน่งในตาราง → ไม่ตรวจสองค่านี้ (ตำแหน่งยังเก็บไว้ — มาจากไฟล์นำเข้า ใช้จับคู่ชุดฟอร์ม Pro Site)
-  validate: (e) => {
-    const { salary: _salary, position: _position, ...errors } = validateEmployee(e);
-    return errors;
-  },
+  validate: validateEmployee,
   newRow: blankEmployee,
   pageSize: 25,
   page: Math.max(1, Number(getParam('page')) || 1),
