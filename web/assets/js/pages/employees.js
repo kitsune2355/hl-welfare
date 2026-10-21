@@ -1,4 +1,5 @@
 // หน้า: พนักงาน (employees.html) — ตาราง Excel เพิ่ม / แก้ไข / ลบ / บันทึกพ้นสภาพ ในตารางทั้งหมด (ไม่มีฟอร์มแยก)
+import { defaultTypeFor, typeAllows, typeInfo, typesFor } from '../domain/catalog.js';
 import { api } from '../app/api.js';
 import { can, companyChoices, myCompany } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
@@ -141,7 +142,8 @@ const columns = [
     editor: 'select',
     value: (e) => e.employeeType,
     display: (e) => badge(EMPLOYEE_TYPE_LABEL[e.employeeType], EMPLOYEE_TYPE_TONE[e.employeeType], { dot: false }),
-    options: (e) => opts(EMPLOYEE_TYPE_LABEL).filter((o) => o.value !== 'PRO_SITE' || e.companyCode === 'PRO'),
+    // เฉพาะประเภทที่ใช้กับบริษัทของแถวนี้ได้ (ตั้งที่ sites.html แท็บประเภทพนักงาน)
+    options: (e) => typesFor(e.companyCode).map((t) => ({ value: t, label: EMPLOYEE_TYPE_LABEL[t] })),
     set: setField('employeeType', str),
   },
   {
@@ -149,7 +151,7 @@ const columns = [
     header: 'กลุ่ม / ฝ่าย',
     width: 180,
     editor: 'select',
-    editable: (e) => e.employeeType === 'CENTRAL',
+    editable: (e) => !!typeInfo(e.employeeType)?.usesDeptGroup,
     value: (e) => e.deptGroup,
     // ค่าที่พนักงานมีอยู่แต่ไม่อยู่ในรายการแล้ว (ข้อมูลเดิม) ยังแสดงเป็นตัวเลือก ไม่หายจากช่อง
     options: (e) => [...deptGroups, ...(e.deptGroup && !deptGroups.includes(e.deptGroup) ? [e.deptGroup] : [])].map((d) => ({ value: d, label: d })),
@@ -161,7 +163,7 @@ const columns = [
     width: 70,
     align: 'right',
     editor: 'number',
-    editable: (e) => e.employeeType === 'CENTRAL',
+    editable: (e) => !!typeInfo(e.employeeType)?.usesDeptGroup,
     value: (e) => e.level,
     set: setField('level', (v) => (v === null ? null : Number(v))),
   },
@@ -238,16 +240,18 @@ const columns = [
 
 function blankEmployee() {
   const f = filter();
+  const company = f.companyCode || myCompany() || COMPANY_CODES[0];
   return normalizeEmployee(
     {
       id: 0,
       empCode: '',
       firstName: '',
       lastName: '',
-      companyCode: f.companyCode || myCompany() || 'HL',
+      companyCode: company,
       // แถวใหม่: หน่วยงานแรกของบริษัทไว้ก่อน (เปลี่ยนได้)
-      siteId: sites.find((s) => s.companyCode === (f.companyCode || myCompany() || 'HL'))?.id ?? 0,
-      employeeType: f.employeeType && (f.employeeType !== 'PRO_SITE' || f.companyCode === 'PRO') ? f.employeeType : 'CENTRAL',
+      siteId: sites.find((s) => s.companyCode === company)?.id ?? 0,
+      // ประเภทตามแท็กที่กรองอยู่ ถ้าใช้กับบริษัทได้ · ไม่งั้นประเภทแรกที่ใช้ได้
+      employeeType: f.employeeType && typeAllows(f.employeeType, company) ? f.employeeType : defaultTypeFor(company),
       contractType: 'REGULAR',
       deptGroup: null,
       position: null,

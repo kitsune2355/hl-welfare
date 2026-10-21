@@ -27,11 +27,11 @@ function prng(seed) {
 
 // legalName = ชื่อตามทะเบียน (ใช้ในชีตสรุปของไฟล์แจ้งประกัน)
 const COMPANIES = [
-  { code: 'HL', name: 'แฮปปี้แลนด์ (HL)', legalName: 'บริษัท แฮปปี้แลนด์ จำกัด' },
-  { code: 'PRO', name: 'PRO', legalName: 'บริษัท โปรแอ็คทีฟ แมเนจเม้นท์ จำกัด' },
-  { code: 'CNS', name: 'CNS', legalName: 'บริษัท คลีนนิ่ง โซลูชั่น จำกัด' },
-  { code: 'CIC', name: 'CIC', legalName: 'บริษัท คอน.อิน.คอน จำกัด' },
-  { code: 'AS', name: 'AS', legalName: 'บริษัท อาเชี่ยน คอนสตรั๊คชั่น จำกัด' },
+  { code: 'HL', name: 'แฮปปี้แลนด์ (HL)', legalName: 'บริษัท แฮปปี้แลนด์ จำกัด', color: '#2563eb', sortOrder: 1 },
+  { code: 'PRO', name: 'PRO', legalName: 'บริษัท โปรแอ็คทีฟ แมเนจเม้นท์ จำกัด', color: '#0891b2', sortOrder: 2 },
+  { code: 'CNS', name: 'CNS', legalName: 'บริษัท คลีนนิ่ง โซลูชั่น จำกัด', color: '#10b981', sortOrder: 3 },
+  { code: 'CIC', name: 'CIC', legalName: 'บริษัท คอน.อิน.คอน จำกัด', color: '#f59e0b', sortOrder: 4 },
+  { code: 'AS', name: 'AS', legalName: 'บริษัท อาเชี่ยน คอนสตรั๊คชั่น จำกัด', color: '#8b5cf6', sortOrder: 5 },
 ];
 
 const SITES = [

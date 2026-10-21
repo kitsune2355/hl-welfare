@@ -6,7 +6,7 @@
  *  ทั้งสองที่เก็บเป็น "ชื่อ" ไม่ใช่ id — จึง:
  *    - เปลี่ยนชื่อ = แก้ชื่อในพนักงาน + กฎชุดฟอร์มทุกฉบับ (รวมประวัติ) ให้ในคำสั่งเดียว
  *    - ลบ = ได้เฉพาะกลุ่มที่ไม่มีพนักงาน และไม่มีกฎที่ใช้อยู่ / รอมีผล (ประวัติเก่าเก็บชื่อไว้ในตัว)
- *  อ่าน = ผู้ใช้ที่ login · แก้ = สิทธิ์ rules.edit (ชุดเดียวกับแก้เงื่อนไขสวัสดิการ)
+ *  อ่าน = ผู้ใช้ที่ login · แก้ = สิทธิ์ org.edit (ตั้งค่าองค์กร — sites.html แท็บกลุ่ม / ฝ่าย)
  *  การตรวจข้อมูลตรงกับ web/assets/js/application/deptGroupRules.js (แก้ที่หนึ่งต้องแก้อีกที่)
  * ============================================================ */
 
@@ -109,7 +109,7 @@ function api_dept_groups($req, $params)
 
 function api_dept_group_save($req, $params)
 {
-    $u = rules_edit_require($req);
+    $u = org_edit_require($req);
     dept_groups_need_table();
     $id = isset($params['id']) ? param_id($params) : 0;
     $b = req_json($req);
@@ -141,7 +141,7 @@ function api_dept_group_save($req, $params)
 
 function api_dept_group_delete($req, $params)
 {
-    $u = rules_edit_require($req);
+    $u = org_edit_require($req);
     dept_groups_need_table();
     $id = param_id($params);
     $g = find_or_404(repo_dept_group($id), 'ไม่พบกลุ่ม / ฝ่าย');

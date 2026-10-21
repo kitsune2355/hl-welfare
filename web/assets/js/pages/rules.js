@@ -4,15 +4,15 @@ import { api } from '../app/api.js';
 import { can } from '../app/auth.js';
 import { initPage } from '../app/shell.js';
 import { startTourIfNew } from '../app/tour.js';
+import { typeInfo } from '../domain/catalog.js';
 import { UNIFORM_EVENTS } from '../domain/uniform.js';
 import { CONTRACT_TYPES, EMPLOYEE_TYPES, LEVEL_RANGE, QTY_MAX, SETTING_SPEC, validateInsuranceRule, validateSettings, validateUniformRule } from '../application/ruleRules.js';
 import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { relativeDays, thaiDate, thaiDateLong } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
-import { validateDeptGroup } from '../application/deptGroupRules.js';
 import { CONTRACT_LABEL, DEPT_GROUPS, EMPLOYEE_TYPE_LABEL, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
 import { alertBox, badge, emptyState, errorState, tabs } from '../ui/components.js';
-import { confirmAction, errorMessage, openModal, toast } from '../ui/overlay.js';
+import { errorMessage, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 
 /** คำแนะนำการใช้งานตามแท็บ (tour/steps.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
@@ -27,17 +27,14 @@ const canEdit = can('rules.edit');
 let tab = TABS.includes(getParam('tab')) ? getParam('tab') : 'insurance';
 let hist = null; // { today, insurance, uniform, settings, uniformItems }
 let companies = [];
-/** กลุ่ม / ฝ่าย (api.listDeptGroups) — ยังไม่ได้รัน sql/014 = ใช้รายการตั้งต้นในโค้ด แก้ไม่ได้ (groupsReady = false) */
+/** กลุ่ม / ฝ่าย ให้เลือกในกฎชุดฟอร์ม (แก้ที่ sites.html?tab=groups) — ยังไม่ได้รัน sql/014 = รายการตั้งต้นในโค้ด */
 let groups = [];
-let groupsReady = true;
 async function loadGroups() {
   try {
     groups = await api.listDeptGroups();
-    groupsReady = true;
   } catch (e) {
     if (e.status !== 409) throw e;
-    groups = DEPT_GROUPS.map((name, i) => ({ id: -(i + 1), name, employeeCount: null, ruleCount: null }));
-    groupsReady = false;
+    groups = DEPT_GROUPS.map((name, i) => ({ id: -(i + 1), name }));
   }
 }
 let query = '';
@@ -46,7 +43,7 @@ let query = '';
 const companiesText = (list) => (list === null ? 'ทุกบริษัท' : list.join(', '));
 const itemName = (code, rule) => (rule?.poloBySite && code.startsWith('POLO') ? 'โปโล (สีตามหน่วยงาน)' : UNIFORM_ITEM_LABEL[code] ?? code);
 function levelText(r) {
-  if (r.levelMin === null && r.levelMax === null) return r.employeeType === 'CENTRAL' ? 'ทุกระดับ' : '';
+  if (r.levelMin === null && r.levelMax === null) return typeInfo(r.employeeType)?.usesDeptGroup ? 'ทุกระดับ' : '';
   if (r.levelMin !== null && r.levelMax !== null) return r.levelMin === r.levelMax ? `ระดับ ${r.levelMin}` : `ระดับ ${r.levelMin}–${r.levelMax}`;
   return r.levelMin !== null ? `ระดับ ${r.levelMin} ขึ้นไป` : `ไม่เกินระดับ ${r.levelMax}`;
 }
@@ -208,89 +205,10 @@ function drawSettings() {
             </div>
           </div>`
         : ''}
-      ${groupsSection()}
+      <p class="hint small muted">ประเภทพนักงาน และกลุ่ม / ฝ่าย ที่ใช้ในกฎ ตั้งได้ที่ <a href="sites.html?tab=types">ตั้งค่าองค์กร → ประเภทพนักงาน</a> · <a href="sites.html?tab=groups">กลุ่ม / ฝ่าย</a></p>
     </div></div>`,
   );
 }
-// ---------- กลุ่ม / ฝ่าย ----------
-const countCell = (n) => (n === null ? html`<span class="muted">–</span>` : html`<span class="num">${n}</span>`);
-function groupsSection() {
-  const editable = canEdit && groupsReady;
-  return html`<section class="dept-groups" id="dept-groups">
-    <div class="dg-head">
-      <div>
-        <h3>กลุ่ม / ฝ่าย <span class="muted small">(พนักงานส่วนกลาง)</span></h3>
-        <p class="hint small muted">ใช้เลือกในตารางพนักงาน และแยกจำนวนชุดฟอร์มในกฎชุดฟอร์ม · เปลี่ยนชื่อ = ชื่อในพนักงานและกฎทุกฉบับเปลี่ยนตาม · ลบได้เมื่อไม่มีพนักงานหรือกฎที่ใช้อยู่</p>
-      </div>
-      ${editable ? html`<button class="btn btn-sm" data-dg-add>${raw(icon('plus'))} เพิ่มกลุ่ม / ฝ่าย</button>` : ''}
-    </div>
-    ${groupsReady ? '' : alertBox({ tone: 'warning', body: 'ยังแก้ไม่ได้ — ต้องรัน migration backend/sql/014_dept_groups.sql ก่อน (ตอนนี้ใช้รายการตั้งต้นในระบบ)' })}
-    <div class="table-wrap">
-      <table class="table dg-table">
-        <thead><tr><th>ชื่อกลุ่ม / ฝ่าย</th><th class="num">พนักงาน</th><th class="num">กฎชุดฟอร์ม</th>${editable ? html`<th></th>` : ''}</tr></thead>
-        <tbody>
-          ${groups.map((g) => {
-            const inUse = g.employeeCount > 0 || g.ruleCount > 0;
-            return html`<tr>
-              <td>${g.name}</td>
-              <td class="num">${countCell(g.employeeCount)}</td>
-              <td class="num">${countCell(g.ruleCount)}</td>
-              ${editable
-                ? html`<td class="dg-act">
-                    <button class="btn-icon sm" data-dg-edit="${g.id}" title="เปลี่ยนชื่อ" aria-label="เปลี่ยนชื่อ ${g.name}">${raw(icon('pencil'))}</button>
-                    <button class="btn-icon sm danger-text" data-dg-del="${g.id}" title="${inUse ? 'ลบไม่ได้ — ยังมีพนักงาน/กฎใช้อยู่' : 'ลบ'}" aria-label="ลบ ${g.name}" ${inUse ? raw('disabled') : ''}>${raw(icon('trash-2'))}</button>
-                  </td>`
-                : ''}
-            </tr>`;
-          })}
-        </tbody>
-      </table>
-    </div>
-  </section>`;
-}
-/** เพิ่ม (g = null) / เปลี่ยนชื่อกลุ่ม */
-function openGroupEditor(g = null) {
-  const m = openModal({
-    title: g ? 'เปลี่ยนชื่อกลุ่ม / ฝ่าย' : 'เพิ่มกลุ่ม / ฝ่าย',
-    description: g
-      ? `ชื่อในพนักงาน ${g.employeeCount} คน และกฎชุดฟอร์มทุกฉบับ (รวมประวัติ) จะเปลี่ยนตาม`
-      : 'กลุ่มใหม่เลือกได้ทันทีในตารางพนักงานและในกฎชุดฟอร์ม',
-    body: html`<div class="field" data-field="name">
-      <label for="dg-name">ชื่อกลุ่ม / ฝ่าย<span class="req">*</span></label>
-      <input class="input" id="dg-name" maxlength="100" value="${g?.name ?? ''}" placeholder="เช่น ฝ่ายบัญชี" />
-    </div>`,
-    footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button>
-      <button class="btn btn-primary" data-ok data-label="บันทึก">บันทึก</button>`,
-  });
-  const input = m.el.querySelector('#dg-name');
-  input.focus();
-  input.select();
-  const ok = m.el.querySelector('[data-ok]');
-  const submit = async () => {
-    const errs = validateDeptGroup(input.value, groups, g?.id ?? 0);
-    showErrors(m.el, errs);
-    if (Object.keys(errs).length) return;
-    if (g && input.value.trim() === g.name) return m.close();
-    m.busy(true, ok);
-    try {
-      await api.saveDeptGroup({ id: g?.id, name: input.value.trim() });
-      // เปลี่ยนชื่อแก้กฎชุดฟอร์มด้วย → โหลดประวัติกฎใหม่
-      const [, h] = await Promise.all([loadGroups(), g ? api.getRuleHistory() : null]);
-      if (h) hist = h;
-      m.busy(false, ok);
-      m.close();
-      draw();
-      toast.success(g ? 'เปลี่ยนชื่อแล้ว' : 'เพิ่มกลุ่ม / ฝ่ายแล้ว');
-    } catch (e) {
-      m.busy(false, ok);
-      if (e.details) showErrors(m.el, e.details);
-      toast.error(errorMessage(e));
-    }
-  };
-  ok.onclick = submit;
-  input.addEventListener('keydown', (e) => e.key === 'Enter' && submit());
-}
-
 const settingValueText = (key, v) => (key === 'uniformAnnualMonth' ? MONTHS[Number(v) - 1] : `${v} ${SETTING_SPEC[key]?.[3] ?? ''}`);
 
 // ===================== รอมีผล (ทุกเรื่องรวมกัน) =====================
@@ -427,9 +345,9 @@ function showErrors(root, errs) {
 }
 
 // ===================== ฟอร์มกฎ (เพิ่ม / แก้) =====================
-const blankInsurance = () => ({ employeeType: 'CENTRAL', companies: null, waitDays: 30, excludeContracts: [], requireSiteInsurance: false, note: '' });
+const blankInsurance = () => ({ employeeType: EMPLOYEE_TYPES[0], companies: null, waitDays: 30, excludeContracts: [], requireSiteInsurance: false, note: '' });
 const blankUniform = () => ({
-  employeeType: 'CENTRAL',
+  employeeType: EMPLOYEE_TYPES[0],
   companies: [],
   deptGroups: null,
   position: null, // ไม่มีช่องให้กรอกแล้ว — กฎใหม่ใช้กับทุกตำแหน่ง
@@ -537,7 +455,7 @@ function uniformForm(r) {
     <div class="field full" data-field="deptGroups">
       <label>กลุ่ม / ฝ่าย <span class="muted small">(พนักงานส่วนกลาง)</span></label>
       ${chipPicks('groups', names.map((g) => ({ value: g, label: g })), r.deptGroups, { all: 'ทุกกลุ่ม' })}
-      <span class="hint">เพิ่ม / เปลี่ยนชื่อกลุ่มได้ที่แท็บ “ค่าตั้งค่า”</span>
+      <span class="hint">เพิ่ม / เปลี่ยนชื่อกลุ่มได้ที่ <a href="sites.html?tab=groups" target="_blank">ตั้งค่าองค์กร → กลุ่ม / ฝ่าย</a></span>
     </div>
     ${r.position
       ? // กฎเดิมที่แยกตามตำแหน่ง (Pro Site) — ไม่มีช่องให้พิมพ์แล้ว แต่ยังจับตามตำแหน่งจากไฟล์นำเข้าเหมือนเดิม
@@ -818,22 +736,6 @@ on($('#content'), 'click', '#save-settings', async (_e, btn) => {
     toast.error(errorMessage(e));
     btn.disabled = false;
   }
-});
-
-on($('#content'), 'click', '[data-dg-add]', () => openGroupEditor());
-on($('#content'), 'click', '[data-dg-edit]', (_e, b) => openGroupEditor(groups.find((g) => g.id === Number(b.dataset.dgEdit))));
-on($('#content'), 'click', '[data-dg-del]', async (_e, b) => {
-  const g = groups.find((x) => x.id === Number(b.dataset.dgDel));
-  const done = await confirmAction({
-    title: `ลบกลุ่ม / ฝ่าย “${g.name}”?`,
-    description: 'ลบแล้วเลือกกลุ่มนี้ไม่ได้อีก — ประวัติกฎเก่าที่เคยใช้ชื่อนี้ยังเก็บชื่อไว้',
-    confirmLabel: 'ลบ',
-    successMessage: `ลบ “${g.name}” แล้ว`,
-    action: () => api.deleteDeptGroup(g.id),
-  });
-  if (!done) return;
-  await loadGroups();
-  draw();
 });
 
 // ===================== load =====================

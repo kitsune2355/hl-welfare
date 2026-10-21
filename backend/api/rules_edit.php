@@ -120,7 +120,7 @@ function rules_insurance_columns($b)
 {
     $x = array();
     $type = (string)arr_get($b, 'employeeType', '');
-    if (!in_array($type, array('CENTRAL', 'PRO_SITE', 'DAILY', 'MAID_CNS'), true)) { $x['employeeType'] = 'กรุณาเลือกประเภทพนักงาน'; }
+    if (!in_array($type, employee_type_codes(), true)) { $x['employeeType'] = 'กรุณาเลือกประเภทพนักงาน'; }
     $companies = arr_get($b, 'companies');
     if ($companies !== null && !(rules_codes_valid($companies, rules_company_codes()) && count($companies) > 0)) {
         $x['companies'] = 'เลือกบริษัทอย่างน้อย 1 บริษัท หรือ "ทุกบริษัท"';
@@ -144,7 +144,7 @@ function rules_uniform_columns($b)
 {
     $x = array();
     $type = (string)arr_get($b, 'employeeType', '');
-    if (!in_array($type, array('CENTRAL', 'PRO_SITE', 'DAILY', 'MAID_CNS'), true)) { $x['employeeType'] = 'กรุณาเลือกประเภทพนักงาน'; }
+    if (!in_array($type, employee_type_codes(), true)) { $x['employeeType'] = 'กรุณาเลือกประเภทพนักงาน'; }
     $companies = arr_get($b, 'companies', array());
     if (!(rules_codes_valid($companies, rules_company_codes()) && count($companies) > 0)) { $x['companies'] = 'เลือกบริษัทอย่างน้อย 1 บริษัท'; }
     $groups = arr_get($b, 'deptGroups');

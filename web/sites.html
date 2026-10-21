@@ -23,11 +23,12 @@
     </script>
   </head>
   <body>
+    <!-- sites.html?tab=companies|sites|types|groups (ไม่ใส่ = หน่วยงาน) -->
     <main id="page" class="page fit">
       <div class="page-head">
         <div>
-          <h1>หน่วยงาน</h1>
-          <p>เพิ่ม / แก้ไข / ลบ ในตาราง แล้วกด “บันทึก” — สวิตช์ประกันกลุ่มใช้กับแม่บ้าน CNS · สีโปโลใช้กับ Pro Site</p>
+          <h1>ตั้งค่าองค์กร</h1>
+          <p id="tab-hint">บริษัท · หน่วยงาน · ประเภทพนักงาน · กลุ่ม / ฝ่าย — ใช้ร่วมกันทั้งระบบ</p>
         </div>
         <div class="page-actions">
           <span id="summary"></span>
@@ -35,8 +36,12 @@
         </div>
       </div>
 
-      <section class="card fill">
+      <div id="tabs"></div>
+      <section class="card fill" id="panel-sites">
         <div id="grid" class="fill-body"></div>
+      </section>
+      <section class="card fill hidden" id="panel-org">
+        <div id="org" class="fill-body scroll"></div>
       </section>
     </main>
     <script type="module" src="assets/js/pages/sites.js"></script>

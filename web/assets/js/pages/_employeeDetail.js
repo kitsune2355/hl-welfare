@@ -6,6 +6,7 @@
 // แก้ข้อมูลชุดฟอร์มใน popup แล้ว → ส่ง event 'employee:changed' ให้หน้าที่เปิดอยู่รีเฟรชตัวเอง
 import { api } from '../app/api.js';
 import { refreshCounts } from '../app/shell.js';
+import { typeInfo } from '../domain/catalog.js';
 import { diffDays, todayISO } from '../domain/date.js';
 import { ageOf } from '../domain/employee.js';
 import { formatThaiId } from '../domain/thaiId.js';
@@ -192,7 +193,7 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
         infoList([
           { label: 'หน่วยงาน', value: b.site?.name ?? '–' },
           { label: 'ประเภท', value: badge(EMPLOYEE_TYPE_LABEL[e.employeeType], EMPLOYEE_TYPE_TONE[e.employeeType], { dot: false }) },
-          { label: e.employeeType === 'PRO_SITE' ? 'ตำแหน่ง' : 'ฝ่าย / ระดับ', value: e.position ?? (e.deptGroup ? `${e.deptGroup} · ระดับ ${e.level ?? '–'}` : '–') },
+          { label: typeInfo(e.employeeType)?.usesPosition ? 'ตำแหน่ง' : 'ฝ่าย / ระดับ', value: e.position ?? (e.deptGroup ? `${e.deptGroup} · ระดับ ${e.level ?? '–'}` : '–') },
           { label: 'สัญญา', value: CONTRACT_LABEL[e.contractType] },
           { label: 'วันเริ่มงาน', value: thaiDate(e.startDate) },
           { label: 'ผ่านทดลองงาน', value: thaiDate(e.probationPassDate) },

@@ -34,8 +34,27 @@ export class HttpApi {
   getDashboard() {
     return this.req('/dashboard');
   }
-  listCompanies() {
-    return this.req('/companies');
+  // ---------- ตั้งค่าองค์กร (backend/api/org.php) — usage = พร้อมจำนวนที่ใช้ (หน้าตั้งค่า) ----------
+  listCompanies({ usage = false } = {}) {
+    return this.req(usage ? '/companies?usage=1' : '/companies');
+  }
+  saveCompany(input, creating) {
+    return creating ? this.send('POST', '/companies', input) : this.send('PUT', `/companies/${encodeURIComponent(input.code)}`, input);
+  }
+  saveCompanyOrder(order) {
+    return this.send('PUT', '/companies/order', { order });
+  }
+  deleteCompany(code) {
+    return this.del(`/companies/${encodeURIComponent(code)}`);
+  }
+  listEmployeeTypes({ usage = false } = {}) {
+    return this.req(usage ? '/employee-types?usage=1' : '/employee-types');
+  }
+  saveEmployeeType(input, creating) {
+    return creating ? this.send('POST', '/employee-types', input) : this.send('PUT', `/employee-types/${encodeURIComponent(input.code)}`, input);
+  }
+  deleteEmployeeType(code) {
+    return this.del(`/employee-types/${encodeURIComponent(code)}`);
   }
   listSites() {
     return this.req('/sites');

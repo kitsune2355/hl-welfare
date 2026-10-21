@@ -2,7 +2,9 @@
 // คืน { field: 'ข้อความ' } — ว่าง = ผ่าน (หน้าเงื่อนไขสวัสดิการใช้แสดงช่องสีแดงทันที เซิร์ฟเวอร์ตรวจซ้ำ)
 import { UNIFORM_EVENTS } from '../domain/uniform.js';
 
-export const EMPLOYEE_TYPES = ['CENTRAL', 'PRO_SITE', 'DAILY', 'MAID_CNS'];
+import { EMPLOYEE_TYPES } from '../domain/catalog.js';
+
+export { EMPLOYEE_TYPES };
 export const CONTRACT_TYPES = ['REGULAR', 'SHORT_3PCT'];
 export const LEVEL_RANGE = [1, 9];
 export const QTY_MAX = 20;

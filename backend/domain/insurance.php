@@ -4,10 +4,11 @@
  *  สิทธิประกันกลุ่มของพนักงาน 1 คน (แปลงบรรทัดต่อบรรทัด — แก้ที่หนึ่งต้องแก้อีกที่)
  * ============================================================ */
 
-/** วันที่รอบแจ้งประกันของพนักงาน — รายวันส่งแยกทุกวันที่ 6 (ตั้งค่าได้) · ประเภทอื่นทุกวันที่ 5 */
+/** วันที่รอบแจ้งประกันของพนักงาน — ประเภทที่ตั้ง "รอบรายวัน" ส่งแยกทุกวันที่ 6 (ตั้งค่าได้) · ประเภทอื่นทุกวันที่ 5 */
 function cycle_day_of($emp, $settings)
 {
-    if ($emp['employeeType'] === 'DAILY') {
+    $type = employee_type_info($emp['employeeType']);
+    if ($type && $type['dailyCycle']) {
         return isset($settings['insuranceCycleDayDaily']) && $settings['insuranceCycleDayDaily'] !== null
             ? $settings['insuranceCycleDayDaily'] : $settings['insuranceCycleDay'];
     }

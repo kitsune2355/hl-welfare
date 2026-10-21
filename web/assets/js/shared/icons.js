@@ -37,6 +37,7 @@ const ICONS = {
   'check': '<path d="M20 6 9 17l-5-5"/>',
   'check-circle-2': '<circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/>',
   'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+  'chevron-up': '<path d="m18 15-6-6-6 6"/>',
   'chevron-left': '<path d="m15 18-6-6 6-6"/>',
   'chevrons-left': '<path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/>',
   'chevrons-right': '<path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/>',

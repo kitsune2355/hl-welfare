@@ -42,6 +42,8 @@ function perm_defs()
             'roles' => $all, 'handlers' => array()),
         'sites.edit' => array('group' => 'หน่วยงาน', 'kind' => 'action', 'label' => 'เพิ่ม / แก้ไข / ลบหน่วยงาน',
             'roles' => $all, 'handlers' => array('api_site_create', 'api_site_update', 'api_site_delete')),
+        'org.edit' => array('allCompanies' => true, 'group' => 'หน่วยงาน', 'kind' => 'action', 'label' => 'ตั้งค่าบริษัท / ประเภทพนักงาน / กลุ่ม-ฝ่าย (เพิ่ม แก้ ลบ)',
+            'roles' => array('HR_ADMIN'), 'handlers' => array()),
         'insurers.view' => array('group' => 'แบบฟอร์มประกัน', 'kind' => 'view', 'label' => 'เห็นหน้าแบบฟอร์มประกัน', 'page' => 'insurers',
             'roles' => $all, 'handlers' => array('api_insurers')),
         'insurers.edit' => array('allCompanies' => true, 'group' => 'แบบฟอร์มประกัน', 'kind' => 'action', 'label' => 'แก้แบบฟอร์ม / ผูกบริษัทกับบริษัทประกัน',

@@ -46,7 +46,10 @@ function validate_employee($e)
     // ไม่ตรวจเงินเดือน / ตำแหน่ง — หน้าพนักงานไม่มีคอลัมน์ให้กรอกแล้ว (คู่กับ application/employeeRules.js)
     if (!arr_get($e, 'siteId')) { $x['siteId'] = 'กรุณาเลือกหน่วยงาน'; }
     $type = arr_get($e, 'employeeType');
-    if ($type === 'CENTRAL') {
+    $info = employee_type_info($type);
+    if (!$info) { $x['employeeType'] = 'กรุณาเลือกประเภทพนักงาน'; }
+    elseif (!employee_type_allows($info, arr_get($e, 'companyCode'))) { $x['employeeType'] = 'ประเภท ' . $info['name'] . ' ใช้กับบริษัทนี้ไม่ได้'; }
+    if ($info && $info['usesDeptGroup']) {
         if (!arr_get($e, 'deptGroup')) { $x['deptGroup'] = 'กรุณาเลือกกลุ่ม/ฝ่าย'; }
         // ระดับพนักงาน 1–9 (HR ยืนยันสูงสุดระดับ 9)
         $lv = arr_get($e, 'level');

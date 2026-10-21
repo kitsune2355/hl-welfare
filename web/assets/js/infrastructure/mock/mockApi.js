@@ -6,6 +6,8 @@ import { buildUniformPending } from '../../application/usecases/uniformPending.j
 import { buildStockOptions, stockChange, stockRef, stockSizes, stockSubmitPayload, toStockRequest, uniformLines } from '../../application/usecases/uniformStock.js';
 import { validateBindings, validateInsurerForm } from '../../application/insurerFormRules.js';
 import { deptGroupRuleUsage, renameInGroups, validateDeptGroup } from '../../application/deptGroupRules.js';
+import { companyRuleUsage, typeRuleUsage, validateCompany, validateEmployeeType } from '../../application/orgRules.js';
+import { DEFAULT_COMPANIES, DEFAULT_EMPLOYEE_TYPES } from '../../domain/catalog.js';
 import { DEPT_GROUPS } from '../../shared/labels.js';
 import { buildWorkQueue } from '../../application/usecases/workQueue.js';
 import { todayISO } from '../../domain/date.js';
@@ -113,6 +115,12 @@ export class MockApi {
     this.db = load(this.today());
     this.db.ruleHistory ??= ruleHistoryOf(this.db.rules);
     this.db.deptGroups ??= seedDeptGroups(this.db.employees);
+    // ตั้งค่าองค์กร (= sql/015): ประเภทพนักงาน + สี/ลำดับบริษัท — ข้อมูลเดิมในเครื่องยังไม่มี
+    this.db.employeeTypes ??= DEFAULT_EMPLOYEE_TYPES.map((t, i) => ({ ...t, sortOrder: (i + 1) * 10 }));
+    this.db.companies.forEach((c, i) => {
+      c.color ??= DEFAULT_COMPANIES.find((d) => d.code === c.code)?.color ?? '';
+      c.sortOrder ??= i + 1;
+    });
     this.syncRules();
   }
   // ---------- helpers ----------
@@ -203,8 +211,137 @@ export class MockApi {
     );
   }
   // ---------- Companies / Sites ----------
-  listCompanies() {
-    return this.run(() => this.db.companies);
+  // ---------- ตั้งค่าองค์กร = backend/api/org.php ----------
+  sortedCompanies() {
+    return [...this.db.companies].sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code));
+  }
+  /** usage = true → พร้อมจำนวนที่ใช้ (หน้าตั้งค่า) */
+  listCompanies({ usage = false } = {}) {
+    return this.run(() =>
+      usage ? this.companyUsage() : this.sortedCompanies().map(({ code, name, legalName, color, sortOrder }) => ({ code, name, legalName, color, sortOrder })),
+    );
+  }
+  companyUsage() {
+    const count = (list, key) => list.reduce((m, x) => m.set(x[key], (m.get(x[key]) ?? 0) + 1), new Map());
+    const sites = count(this.db.sites, 'companyCode');
+    const emps = count(this.db.employees, 'companyCode');
+    const rules = companyRuleUsage(this.db.ruleHistory, this.today());
+    const insurers = new Map();
+    for (const f of this.db.insurers) for (const c of f.companies ?? []) insurers.set(c.companyCode, (insurers.get(c.companyCode) ?? 0) + 1);
+    return this.sortedCompanies().map((c) => ({
+      code: c.code,
+      name: c.name,
+      legalName: c.legalName,
+      color: c.color,
+      sortOrder: c.sortOrder,
+      siteCount: sites.get(c.code) ?? 0,
+      employeeCount: emps.get(c.code) ?? 0,
+      userCount: 0, // โหมด mock ไม่มีผู้ใช้ HR บริษัทจริง
+      ruleCount: rules.get(c.code) ?? 0,
+      insurerCount: insurers.get(c.code) ?? 0,
+    }));
+  }
+  saveCompany(input, creating) {
+    return this.run(() => {
+      const old = creating ? null : this.db.companies.find((c) => c.code === input.code);
+      if (!creating && !old) throw new ApiError('ไม่พบบริษัท', 404);
+      const errors = validateCompany(input, this.db.companies, creating);
+      if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
+      const fields = { name: input.name.trim(), legalName: (input.legalName ?? '').trim(), color: (input.color ?? '').toLowerCase() };
+      const code = creating ? input.code.trim().toUpperCase() : old.code;
+      if (creating) {
+        this.db.companies.push({ code, ...fields, sortOrder: Math.max(0, ...this.db.companies.map((c) => c.sortOrder)) + 1 });
+        this.log('COMPANY', 'CREATE', code, `เพิ่มบริษัท ${code} — ${fields.name}`);
+      } else {
+        Object.assign(old, fields);
+        this.log('COMPANY', 'UPDATE', code, `แก้ไขบริษัท ${code} — ${fields.name}`);
+      }
+      this.persist();
+      return this.companyUsage().find((c) => c.code === code);
+    });
+  }
+  saveCompanyOrder(order) {
+    return this.run(() => {
+      if ([...order].sort().join() !== this.db.companies.map((c) => c.code).sort().join()) throw new ApiError('ลำดับต้องมีบริษัทครบทุกบริษัท', 422);
+      order.forEach((code, i) => (this.db.companies.find((c) => c.code === code).sortOrder = i + 1));
+      this.log('COMPANY', 'UPDATE', '-', `จัดลำดับบริษัท: ${order.join(', ')}`);
+      this.persist();
+      return this.companyUsage();
+    });
+  }
+  deleteCompany(code) {
+    return this.run(() => {
+      const c = this.companyUsage().find((x) => x.code === code);
+      if (!c) throw new ApiError('ไม่พบบริษัท', 404);
+      const why = [
+        ['siteCount', 'หน่วยงาน'],
+        ['employeeCount', 'พนักงาน'],
+        ['userCount', 'ผู้ใช้ HR บริษัท'],
+        ['ruleCount', 'กฎสวัสดิการ'],
+        ['insurerCount', 'บริษัทประกันที่ผูก'],
+      ]
+        .filter(([k]) => c[k] > 0)
+        .map(([k, label]) => `${label} ${c[k]}`);
+      if (why.length) throw new ApiError(`ลบไม่ได้ — ยังมี${why.join(' · ')} ที่ใช้อยู่`, 409);
+      this.db.companies = this.db.companies.filter((x) => x.code !== code);
+      this.log('COMPANY', 'DELETE', code, `ลบบริษัท ${code} — ${c.name}`);
+      this.persist();
+    });
+  }
+  sortedTypes() {
+    return [...this.db.employeeTypes].sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code));
+  }
+  listEmployeeTypes({ usage = false } = {}) {
+    return this.run(() => (usage ? this.typeUsage() : this.sortedTypes()));
+  }
+  typeUsage() {
+    const emps = this.db.employees.reduce((m, e) => m.set(e.employeeType, (m.get(e.employeeType) ?? 0) + 1), new Map());
+    const rules = typeRuleUsage(this.db.ruleHistory, this.today());
+    return this.sortedTypes().map((t) => ({ ...t, employeeCount: emps.get(t.code) ?? 0, ruleCount: rules.get(t.code) ?? 0 }));
+  }
+  saveEmployeeType(input, creating) {
+    return this.run(() => {
+      const old = creating ? null : this.db.employeeTypes.find((t) => t.code === input.code);
+      if (!creating && !old) throw new ApiError('ไม่พบประเภทพนักงาน', 404);
+      const errors = validateEmployeeType(input, this.db.employeeTypes, this.db.companies.map((c) => c.code), creating);
+      if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
+      const fields = {
+        name: input.name.trim(),
+        description: (input.description ?? '').trim(),
+        companies: input.companies === null ? null : [...input.companies],
+        usesDeptGroup: !!input.usesDeptGroup,
+        usesPosition: !!input.usesPosition,
+        dailyCycle: !!input.dailyCycle,
+        tone: input.tone,
+      };
+      const code = creating ? input.code.trim().toUpperCase() : old.code;
+      if (creating) {
+        this.db.employeeTypes.push({ code, ...fields, sortOrder: Math.max(0, ...this.db.employeeTypes.map((t) => t.sortOrder)) + 10 });
+        this.log('EMPLOYEE_TYPE', 'CREATE', code, `เพิ่มประเภทพนักงาน ${fields.name} (${code})`);
+      } else {
+        Object.assign(old, fields);
+        this.log('EMPLOYEE_TYPE', 'UPDATE', code, `แก้ไขประเภทพนักงาน ${fields.name} (${code})`);
+      }
+      this.persist();
+      return this.typeUsage().find((t) => t.code === code);
+    });
+  }
+  deleteEmployeeType(code) {
+    return this.run(() => {
+      const t = this.typeUsage().find((x) => x.code === code);
+      if (!t) throw new ApiError('ไม่พบประเภทพนักงาน', 404);
+      const why = [
+        ['employeeCount', 'พนักงาน'],
+        ['ruleCount', 'กฎสวัสดิการ'],
+      ]
+        .filter(([k]) => t[k] > 0)
+        .map(([k, label]) => `${label} ${t[k]}`);
+      if (why.length) throw new ApiError(`ลบไม่ได้ — ยังมี${why.join(' · ')} ที่ใช้อยู่`, 409);
+      if (this.db.employeeTypes.length <= 1) throw new ApiError('ต้องมีประเภทพนักงานอย่างน้อย 1 ประเภท', 409);
+      this.db.employeeTypes = this.db.employeeTypes.filter((x) => x.code !== code);
+      this.log('EMPLOYEE_TYPE', 'DELETE', code, `ลบประเภทพนักงาน ${t.name} (${code})`);
+      this.persist();
+    });
   }
   listSites() {
     return this.run(() => this.db.sites);
