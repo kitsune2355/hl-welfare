@@ -68,6 +68,7 @@ export class ExcelGrid {
     this.tid = tableId(root, opts);
     this.pins = loadPins(this.tid); // คอลัมน์ที่ผู้ใช้ตรึงไว้ด้านซ้าย
     this.widths = loadWidths(this.tid); // ความกว้างที่ผู้ใช้ลากไว้ (ทับ width ของคอลัมน์)
+    this.fit = {}; // ความกว้างที่ขยายให้หัวคอลัมน์ไม่ถูกตัด (วัดจริงหลังฟอนต์โหลด — fitHeaders)
     this.layoutCols();
     this.rows = null;
     this.drafts = new Map(); // key → แถวที่แก้แล้วแต่ยังไม่บันทึก
@@ -215,9 +216,35 @@ export class ExcelGrid {
     });
   }
 
-  /** ลำดับ (ที่ตรึงมาก่อน) + ความกว้างที่ผู้ใช้ลากไว้ */
+  /** ลำดับ (ที่ตรึงมาก่อน) + ความกว้าง: ที่ผู้ใช้ลากไว้ > ที่ขยายให้พอดีหัว > width ของคอลัมน์ */
   layoutCols() {
-    this.cols = orderByPins(this.allCols, this.pins).map((c) => (this.widths[c.key] ? { ...c, width: this.widths[c.key] } : c));
+    this.cols = orderByPins(this.allCols, this.pins).map((c) => {
+      const w = this.widths[c.key] ?? this.fit[c.key];
+      return w ? { ...c, width: w } : c;
+    });
+  }
+
+  /**
+   * หัวคอลัมน์ที่ข้อความถูกตัด ("วันเริ่มง…") → ขยายคอลัมน์ให้พอดีหัว (ชื่อ + * + ไอคอนเรียง + ปุ่มกรอง)
+   * วัดครั้งเดียวหลังฟอนต์โหลดและตารางแสดงอยู่ · คอลัมน์ที่ผู้ใช้ลากเองไม่แตะ · ดับเบิลคลิกขอบ = กลับมาพอดีหัว
+   */
+  fitHeaders() {
+    if (this.fitDone || this.rows === null || !this.root.offsetParent) return;
+    this.fitDone = true;
+    (document.fonts?.ready ?? Promise.resolve()).then(() =>
+      requestAnimationFrame(() => {
+        const fit = {};
+        for (const th of this.root.querySelectorAll('.xgrid thead th[data-col]')) {
+          const label = th.querySelector('.th-label .truncate');
+          const over = label ? label.scrollWidth - label.clientWidth : 0;
+          if (over > 0 && !this.widths[th.dataset.col]) fit[th.dataset.col] = Math.ceil(th.offsetWidth + over + 2);
+        }
+        if (!Object.keys(fit).length) return;
+        Object.assign(this.fit, fit);
+        this.layoutCols();
+        this.render();
+      }),
+    );
   }
 
   togglePin(key) {
@@ -520,7 +547,12 @@ export class ExcelGrid {
       },
       onDone: (key, w) => {
         if (w) this.widths[key] = w;
-        else delete this.widths[key];
+        else {
+          // คืนค่าเดิม → วัดหัวใหม่ (คอลัมน์ที่เคยลากไว้ตอนโหลดหน้ายังไม่เคยถูกวัด)
+          delete this.widths[key];
+          delete this.fit[key];
+          this.fitDone = false;
+        }
         saveWidths(this.tid, this.widths);
         this.layoutCols();
         this.render();
@@ -851,6 +883,7 @@ export class ExcelGrid {
     }
     this.drawErrorBar();
     if (hadFocus && this.active) this.focusGrid();
+    this.fitHeaders();
     void rowKey;
   }
 }

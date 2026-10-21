@@ -91,10 +91,27 @@ const setStartDate = (row, v) => {
   return normalizeEmployee({ ...row, startDate: start, probationPassDate: auto ? probationDueDate(start) : row.probationPassDate }, sites);
 };
 
+// ลำดับคอลัมน์: รหัส → ข้อมูลบุคคล → สังกัด → การจ้าง → แจ้งประกัน → สถานะ/พ้นสภาพ
 const columns = [
   { key: 'empCode', header: 'รหัส', width: 110, required: true, editor: 'text', value: (e) => e.empCode, set: setField('empCode', (v) => str(v).trim()) },
+  // ----- ข้อมูลบุคคล -----
+  {
+    key: 'title',
+    header: 'คำนำหน้า',
+    width: 90,
+    editor: 'select',
+    value: (e) => e.title,
+    options: () => TITLES.map((t) => ({ value: t, label: t })),
+    // เลือกคำนำหน้า → เลือกเพศให้
+    set: (row, v) => normalizeEmployee({ ...row, title: str(v) || null, gender: v ? (v === 'นาย' ? 'M' : 'F') : row.gender }, sites),
+  },
   { key: 'firstName', header: 'ชื่อ', width: 130, required: true, editor: 'text', value: (e) => e.firstName, set: setField('firstName', (v) => str(v).trim()) },
   { key: 'lastName', header: 'นามสกุล', width: 140, required: true, editor: 'text', value: (e) => e.lastName, set: setField('lastName', (v) => str(v).trim()) },
+  { key: 'gender', header: 'เพศ', width: 70, editor: 'select', value: (e) => e.gender, display: (e) => GENDER_LABEL[e.gender] ?? '', options: () => opts(GENDER_LABEL), set: setField('gender', (v) => str(v) || null) },
+  { key: 'birthDate', header: 'วันเกิด', width: 110, required: true, editor: 'date', value: (e) => e.birthDate, display: (e) => (e.birthDate ? thaiDate(e.birthDate) : ''), set: setField('birthDate', str) },
+  // อายุ: คำนวณจากวันเกิด ณ วันนี้ (แก้ไม่ได้)
+  { key: 'age', header: 'อายุ', width: 70, align: 'right', value: (e) => ageOf(e.birthDate, today), display: (e) => (e.birthDate ? `${ageOf(e.birthDate, today)} ปี` : '') },
+  // ----- สังกัด -----
   {
     key: 'companyCode',
     header: 'บริษัท',
@@ -148,9 +165,7 @@ const columns = [
     value: (e) => e.level,
     set: setField('level', (v) => (v === null ? null : Number(v))),
   },
-  { key: 'birthDate', header: 'วันเกิด', width: 110, required: true, editor: 'date', value: (e) => e.birthDate, display: (e) => (e.birthDate ? thaiDate(e.birthDate) : ''), set: setField('birthDate', str) },
-  // อายุ: คำนวณจากวันเกิด ณ วันนี้ (แก้ไม่ได้)
-  { key: 'age', header: 'อายุ', width: 70, align: 'right', value: (e) => ageOf(e.birthDate, today), display: (e) => (e.birthDate ? `${ageOf(e.birthDate, today)} ปี` : '') },
+  // ----- การจ้าง -----
   { key: 'startDate', header: 'วันเริ่มงาน', width: 110, required: true, editor: 'date', value: (e) => e.startDate, display: (e) => thaiDate(e.startDate), set: setStartDate },
   {
     // คำนวณให้ = วันเริ่มงาน + 119 วัน · แก้เองได้ (เช่น ขยายทดลองงาน) · ล้างค่า = คำนวณใหม่
@@ -163,17 +178,6 @@ const columns = [
     set: setField('probationPassDate', (v) => str(v) || null),
   },
   // ----- ข้อมูลแจ้งประกัน (ไม่บังคับ — ว่างแล้วระบบเตือนตอนส่งออก) -----
-  {
-    key: 'title',
-    header: 'คำนำหน้า',
-    width: 90,
-    editor: 'select',
-    value: (e) => e.title,
-    options: () => TITLES.map((t) => ({ value: t, label: t })),
-    // เลือกคำนำหน้า → เลือกเพศให้
-    set: (row, v) => normalizeEmployee({ ...row, title: str(v) || null, gender: v ? (v === 'นาย' ? 'M' : 'F') : row.gender }, sites),
-  },
-  { key: 'gender', header: 'เพศ', width: 70, editor: 'select', value: (e) => e.gender, display: (e) => GENDER_LABEL[e.gender] ?? '', options: () => opts(GENDER_LABEL), set: setField('gender', (v) => str(v) || null) },
   {
     key: 'nationalId',
     header: 'เลขบัตรประชาชน',
