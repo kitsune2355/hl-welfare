@@ -16,6 +16,7 @@ import { SEVERITY_LABEL, SEVERITY_TONE, TASK_KIND_LABEL } from '../shared/labels
 import { badge, emptyState, employeeCell, errorState, skeletonLines } from '../ui/components.js';
 import { DataTable } from '../ui/table.js';
 import { activityFeed } from './_shared.js';
+import { openEmployeeDetail } from './_employeeDetail.js';
 
 /** ลิงก์เก่าที่ชี้แท็บ (?tab=queue|activity) → เลื่อนไปส่วนนั้นหลังโหลด */
 const jumpTo = ['queue', 'activity'].includes(getParam('tab')) ? getParam('tab') : '';
@@ -49,6 +50,8 @@ function scrollToSection(id) {
 const upcoming = new DataTable($('#upcoming'), {
   rowKey: (r) => `${r.employee.id}-${r.benefit}`,
   pageSize: 5, // ช่อง bento 1/3 แถว — 5 คนต่อหน้า
+  selectable: false, // ช่องแคบ — ไม่มีที่ให้ช่องเลือก
+  onRowDblClick: (r) => openEmployeeDetail(r.employee.id),
   columns: [
     { key: 'emp', header: 'พนักงาน', text: (r) => `${r.employee.firstName} ${r.employee.lastName}`, cell: (r) => employeeCell(r.employee, { link: true }) },
     {
@@ -144,6 +147,9 @@ function taskLink(t) {
 const taskTable = new DataTable($('#tasks'), {
   rowKey: (t) => t.id,
   pageSize: 25,
+  exportName: 'คิวงาน',
+  // ดับเบิลคลิกแถว = ไปทำงานนั้น (เหมือนปุ่มท้ายแถว)
+  onRowDblClick: (t) => (location.href = taskLink(t).href),
   columns: [
     {
       key: 'sev',

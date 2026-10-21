@@ -101,6 +101,7 @@ function renderUniform(box, emp, st) {
   if (st.ruleId === null) return;
   const t = new DataTable(box.querySelector('[data-uniform-table]'), {
     rowKey: (e) => e.key,
+    selectable: false, // ตารางเล็กใน popup
     onRender: enhanceIssueActions,
     columns: [
       { key: 'event', header: 'รอบ', cell: (e) => html`<b style="font-weight:500">${UNIFORM_EVENT_LABEL[e.event]}${e.event === 'ANNUAL' ? ` ${Number(e.key.slice(7)) + 543}` : ''}</b>` },
