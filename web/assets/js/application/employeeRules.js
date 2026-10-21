@@ -58,9 +58,7 @@ export function normalizeEmployee(e, sites) {
     n.deptGroup = null;
     n.level = null;
   }
-  if (!type?.usesPosition) {
-    n.position = null;
-    n.contractType = 'REGULAR';
-  }
+  // ตำแหน่งมีคอลัมน์ให้ทุกประเภทแล้ว (ไม่บังคับ) — ไม่ล้างตามประเภท · สัญญา 3% ยังใช้เฉพาะประเภทที่เก็บตำแหน่ง (แบบเดิม)
+  if (!type?.usesPosition) n.contractType = 'REGULAR';
   return n;
 }

@@ -22,9 +22,9 @@ import {
 } from '../shared/labels.js';
 import { badge, emptyState, errorState } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
-import { toast } from '../ui/overlay.js';
+import { openModal, toast } from '../ui/overlay.js';
 import { openEmployeeDetail } from './_employeeDetail.js';
-import { importButton, openTemplateDialog, pickExcelFile, runEmployeeImport } from './_employeeImport.js';
+import { exportEmployeeList, importButton, openTemplateDialog, pickExcelFile, runEmployeeImport } from './_employeeImport.js';
 
 const URGENT = ['TERMINATED', 'MISCONDUCT'];
 
@@ -167,6 +167,8 @@ const columns = [
     value: (e) => e.level,
     set: setField('level', (v) => (v === null ? null : Number(v))),
   },
+  // ตำแหน่ง: ไม่บังคับ ไม่ตรวจ — ใช้จับกฎชุดฟอร์มเดิมที่แยกตามตำแหน่ง (Pro Site)
+  { key: 'position', header: 'ตำแหน่ง', width: 150, editor: 'text', value: (e) => e.position, set: setField('position', (v) => str(v).trim() || null) },
   // ----- การจ้าง -----
   { key: 'startDate', header: 'วันเริ่มงาน', width: 110, required: true, editor: 'date', value: (e) => e.startDate, display: (e) => thaiDate(e.startDate), set: setStartDate },
   {
@@ -238,6 +240,45 @@ const columns = [
   },
 ];
 
+/** กล่องเลือกเหตุผล + วันพ้นสภาพ → แก้หลายคนเป็น "ยังไม่บันทึก" */
+function bulkTerminate(rows) {
+  return new Promise((resolve) => {
+    const m = openModal({
+      title: `บันทึกพ้นสภาพ ${rows.length} คน`,
+      description: 'ใส่ในตารางเป็นแถวยังไม่บันทึก (สีเหลือง) — ตรวจ แก้รายคนได้ แล้วกด “บันทึก”',
+      body: html`<div class="org-form">
+        <div class="field full">
+          <label for="bt-reason">เหตุผล<span class="req">*</span></label>
+          <select class="input" id="bt-reason">${Object.entries(END_REASON_LABEL).map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select>
+        </div>
+        <div class="field">
+          <label for="bt-end">วันพ้นสภาพ<span class="req">*</span></label>
+          <input class="input" type="date" id="bt-end" value="${todayISO()}" />
+        </div>
+        <div class="field">
+          <label for="bt-last">ทำงานวันสุดท้าย</label>
+          <input class="input" type="date" id="bt-last" />
+          <span class="hint">ว่าง = วันพ้นสภาพ (ขาดงาน 3 วันต้องกรอก)</span>
+        </div>
+      </div>
+      <p class="small muted" style="margin-top:12px">${rows.map((r) => `${r.empCode} ${r.firstName}`).slice(0, 8).join(' · ')}${rows.length > 8 ? ` และอีก ${rows.length - 8} คน` : ''}</p>`,
+      footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button><button class="btn btn-primary" data-ok>ใส่ในตาราง</button>`,
+      onClose: () => resolve(),
+    });
+    m.el.querySelector('[data-ok]').onclick = () => {
+      const endReason = m.el.querySelector('#bt-reason').value;
+      const endDate = m.el.querySelector('#bt-end').value;
+      const last = m.el.querySelector('#bt-last').value || null;
+      if (!endDate) return toast.error('กรุณาเลือกวันพ้นสภาพ');
+      grid.stage({
+        edits: rows.map((r) => ({ key: r.id, row: { ...r, status: 'INACTIVE', endReason, endDate, lastWorkingDate: last ?? (endReason === 'ABSENT_3D' ? null : endDate) } })),
+      });
+      m.close();
+      toast.success(`ใส่ในตารางแล้ว ${rows.length} คน (ยังไม่บันทึก) — ตรวจแล้วกด “บันทึก”`);
+    };
+  });
+}
+
 function blankEmployee() {
   const f = filter();
   const company = f.companyCode || myCompany() || COMPANY_CODES[0];
@@ -291,6 +332,15 @@ const grid = new ExcelGrid($('#grid'), {
     return saved;
   },
   onOpen: (e) => openEmployeeDetail(e.id),
+  // ปุ่ม Excel / Excel ที่เลือก = ไฟล์รายชื่อพนักงาน (แก้แล้วนำเข้ากลับได้ — pages/_employeeImport.js)
+  exporter: async (rows) => {
+    if (!sites.length) sites = await api.listSites();
+    return exportEmployeeList(rows, { sites, deptGroups });
+  },
+  // เลือกหลายคน → บันทึกพ้นสภาพพร้อมกัน (เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก)
+  bulkActions: can('employees.edit')
+    ? [{ id: 'terminate', label: 'บันทึกพ้นสภาพ', icon: 'user-x', when: (e) => e.status === 'ACTIVE', run: (rows) => bulkTerminate(rows) }]
+    : [],
   // มือถือก็ใช้ตารางเดียวกัน (เลื่อนแนวนอน) — เพิ่ม/แก้ได้ในตารางทุกขนาดจอ
   // ลบ = ทำเครื่องหมายไว้ ลบจริงตอนกดบันทึก (มีกล่องยืนยันรายชื่อก่อน)
   // ลบได้เฉพาะข้อมูลที่บันทึกผิด — ถ้ามีประวัติแจ้งประกัน/แจกชุดแล้ว API ไม่ให้ลบ (ใช้ "พ้นสภาพ" แทน)

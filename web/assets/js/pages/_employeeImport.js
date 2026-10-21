@@ -9,6 +9,7 @@
 //   ไม่บันทึกอะไรจนกว่า HR กด "บันทึก" ในตาราง (ExcelGrid.stage)
 import { api } from '../app/api.js';
 import { monthlyTemplateRows, OUT_NOTE_HINTS, parseEmployeeSheet, planWorkbookImport, TEMPLATE_SHEETS } from '../application/usecases/employeeImport.js';
+import { employeeListRows, isListHeader, LIST_COLUMNS, parseEmployeeList, planEmployeeList } from '../application/usecases/employeeList.js';
 import { COMPANY_CODES, EMPLOYEE_TYPE_LABEL, THAI_MONTHS_FULL } from '../domain/labels.js';
 import { html, raw } from '../shared/dom.js';
 import { downloadBlob, loadExcelJs, loadSheetJs, XLSX_MIME } from '../shared/excel.js';
@@ -21,7 +22,7 @@ import { errorMessage, openModal, toast } from '../ui/overlay.js';
 
 /** ปุ่มในแถบเครื่องมือของตาราง */
 export const importButton = () =>
-  html`<button type="button" class="btn btn-sm" data-import-excel title="นำเข้ารายชื่อพนักงานเข้าใหม่ / ลาออก จากไฟล์ Excel ของ HR หรือ template">${raw(icon('upload'))} นำเข้า Excel</button>
+  html`<button type="button" class="btn btn-sm" data-import-excel title="นำเข้า: ไฟล์รายชื่อพนักงานที่ส่งออกจากตารางนี้ (แก้แล้วนำเข้ากลับ) · ไฟล์เข้าใหม่ / ลาออกของ HR · template">${raw(icon('upload'))} นำเข้า Excel</button>
     <button type="button" class="btn btn-sm" data-template-excel title="ดาวน์โหลด template 2 ชีต (เข้าใหม่ + ลาออก) หรือส่งออกเข้า-ออกประจำเดือน">${raw(icon('file-spreadsheet'))} Template / ส่งออกรายเดือน</button>`;
 
 /** เลือกไฟล์ (ใช้ input ชั่วคราว — ตารางวาดใหม่บ่อย) */
@@ -36,9 +37,10 @@ export function pickExcelFile() {
 }
 
 /**
- * อ่านไฟล์ → ทุกชีตที่เป็นรายชื่อ (มีหัว "รหัสพนักงาน" และมีแถวข้อมูล)
- * template มี 2 ชีต (เข้าใหม่ + ลาออก) · ไฟล์ HR มีชีตเดียว · ชีตว่างถูกข้าม
- * @returns {Promise<{kind: 'IN'|'OUT', items: object[], sheet: string}[]>}
+ * อ่านไฟล์ → ทุกชีตที่เป็นรายชื่อ (มีหัวตารางและมีแถวข้อมูล) · ชีตว่าง / ชีตคำอธิบาย ถูกข้าม
+ *   LIST = ไฟล์รายชื่อพนักงานที่ส่งออกจากตาราง (หัว รหัส / ชื่อ / นามสกุล / สถานะ)
+ *   IN / OUT = ไฟล์เข้าใหม่ / ลาออกของ HR หรือ template 2 ชีต
+ * @returns {Promise<{kind: 'IN'|'OUT'|'LIST', items: object[], sheet: string}[]>}
  */
 async function readSheets(file) {
   const XLSX = await loadSheetJs();
@@ -47,7 +49,7 @@ async function readSheets(file) {
   let firstError = null;
   for (const name of wb.SheetNames) {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
-    const p = parseEmployeeSheet(rows);
+    const p = rows.slice(0, 15).some(isListHeader) ? parseEmployeeList(rows) : parseEmployeeSheet(rows);
     if (p.error) firstError ??= `ชีต "${name}": ${p.error}`;
     else if (p.items.length) found.push({ ...p, sheet: name });
   }
@@ -55,14 +57,30 @@ async function readSheets(file) {
   return found;
 }
 
-const KIND_LABEL = { IN: 'พนักงานเข้าใหม่', OUT: 'พนักงานลาออก' };
+const KIND_LABEL = { IN: 'พนักงานเข้าใหม่', OUT: 'พนักงานลาออก', LIST: 'รายชื่อพนักงาน' };
+
+/** แผนรวม: ชีตเข้าใหม่/ลาออก (planWorkbookImport) + ชีตรายชื่อพนักงาน (planEmployeeList — แก้ทุกช่อง) */
+function planAll(parsed, employees, sites, opts) {
+  const hr = parsed.filter((p) => p.kind !== 'LIST');
+  const plan = hr.length ? planWorkbookImport(hr, employees, sites, opts) : { kinds: [], add: [], update: [], skip: [] };
+  plan.unchanged = 0;
+  for (const p of parsed.filter((x) => x.kind === 'LIST')) {
+    const l = planEmployeeList(p, employees, sites, { deptGroups: opts.deptGroups ?? [] });
+    plan.kinds.push({ kind: 'LIST', sheet: p.sheet, count: p.items.length });
+    plan.add.push(...l.add.map((a) => ({ ...a, sheet: p.sheet })));
+    plan.update.push(...l.update.map((u) => ({ ...u, sheet: p.sheet })));
+    plan.skip.push(...l.skip.map((x) => ({ ...x, sheet: p.sheet })));
+    plan.unchanged += l.unchanged;
+  }
+  return plan;
+}
 
 function summaryHtml(plan, file, addMissing, missingCount) {
   const multi = plan.kinds.length > 1;
   const where = (r) => (multi ? `${r.sheet} · ${r.rowNo}` : r.rowNo);
   const rows = [
     ...plan.add.map((a) => ({ ...a, act: a.row.status === 'INACTIVE' ? 'addOut' : 'add', code: a.row.empCode, name: `${a.row.firstName} ${a.row.lastName}`, row: a.row })),
-    ...plan.update.map((u) => ({ ...u, act: 'out', code: u.row.empCode, name: `${u.row.firstName} ${u.row.lastName}`, row: u.row })),
+    ...plan.update.map((u) => ({ ...u, act: u.changes ? 'edit' : 'out', code: u.row.empCode, name: `${u.row.firstName} ${u.row.lastName}`, row: u.row })),
   ];
   const issueCount = rows.filter((r) => r.issues.length).length;
   const actBadge = (r) =>
@@ -70,11 +88,15 @@ function summaryHtml(plan, file, addMissing, missingCount) {
       ? badge('เพิ่มใหม่', 'success')
       : r.act === 'addOut'
         ? badge('เพิ่ม (พ้นสภาพแล้ว)', 'neutral')
-        : badge(`พ้นสภาพ ${thaiDate(r.row.endDate)}`, 'warning');
+        : r.act === 'edit'
+          ? badge(`แก้ไข ${r.changes.length} ช่อง`, 'warning')
+          : badge(`พ้นสภาพ ${thaiDate(r.row.endDate)}`, 'warning');
   return html`<div class="imp-sum">
       <span class="imp-file">${raw(icon('file-spreadsheet'))} <b>${file.name}</b> · ${plan.kinds.map((k) => `${KIND_LABEL[k.kind]}${multi ? ` (ชีต "${k.sheet}")` : ''} ${k.count} แถว`).join(' · ')}</span>
       <span class="chg-tag add">เพิ่ม ${plan.add.length}</span>
-      ${plan.kinds.some((k) => k.kind === 'OUT') ? html`<span class="chg-tag edit">บันทึกพ้นสภาพ ${plan.update.length}</span>` : ''}
+      ${plan.kinds.some((k) => k.kind === 'OUT') ? html`<span class="chg-tag edit">บันทึกพ้นสภาพ ${plan.update.filter((u) => !u.changes).length}</span>` : ''}
+      ${plan.kinds.some((k) => k.kind === 'LIST') ? html`<span class="chg-tag edit">แก้ไข ${plan.update.filter((u) => u.changes).length}</span>` : ''}
+      ${plan.unchanged ? html`<span class="imp-skip-tag">เหมือนเดิม ${plan.unchanged}</span>` : ''}
       ${plan.skip.length ? html`<span class="imp-skip-tag">ข้าม ${plan.skip.length}</span>` : ''}
     </div>
     ${missingCount
@@ -100,7 +122,7 @@ function summaryHtml(plan, file, addMissing, missingCount) {
               <td class="num muted">${where(r)}</td>
               <td class="num">${r.code}</td>
               <td>${r.name}</td>
-              <td>${actBadge(r)}${r.act !== 'add' && r.row.endReason ? html` <span class="small muted">${END_REASON_LABEL[r.row.endReason]}</span>` : ''}</td>
+              <td>${actBadge(r)}${r.act === 'edit' ? html` <span class="small muted">${r.changes.join(', ')}</span>` : r.act !== 'add' && r.row.endReason ? html` <span class="small muted">${END_REASON_LABEL[r.row.endReason]}</span>` : ''}</td>
               <td class="small">${r.issues.length ? html`<span class="imp-issue">${r.issues.join(' · ')}</span>` : html`<span class="muted">–</span>`}</td>
             </tr>`,
           )}
@@ -143,11 +165,11 @@ export async function runEmployeeImport(file, ctx) {
     body.innerHTML = String(alertBox({ tone: 'danger', title: 'อ่านไฟล์ไม่ได้', body: errorMessage(e) }));
     return;
   }
-  const missingCount = planWorkbookImport(parsed, employees, ctx.sites, { deptGroups: ctx.deptGroups }).skip.filter((s) => s.reason === 'ไม่พบรหัสนี้ในระบบ').length;
+  const missingCount = planAll(parsed, employees, ctx.sites, { deptGroups: ctx.deptGroups }).skip.filter((s) => s.reason === 'ไม่พบรหัสนี้ในระบบ').length;
   let addMissing = false;
   let plan;
   const draw = () => {
-    plan = planWorkbookImport(parsed, employees, ctx.sites, { addMissing, deptGroups: ctx.deptGroups });
+    plan = planAll(parsed, employees, ctx.sites, { addMissing, deptGroups: ctx.deptGroups });
     body.innerHTML = String(summaryHtml(plan, file, addMissing, missingCount));
     const n = plan.add.length + plan.update.length;
     ok.disabled = n === 0;
@@ -181,7 +203,7 @@ export async function runEmployeeImport(file, ctx) {
 const MAX_ROWS = 500; // ช่องเลือก/รูปแบบเตรียมไว้ถึงแถวนี้
 const HEAD_NOTES = {
   รหัสพนักงาน: 'ต้องไม่ซ้ำ — ใช้จับคู่พนักงานในระบบ (ชีตลาออก)',
-  บริษัท: 'HL / PRO / CNS / CIC / AS',
+  บริษัท: () => COMPANY_CODES.join(' / '),
   ชื่อพนักงาน: 'คำนำหน้า+ชื่อ เว้นวรรค นามสกุล เช่น นายสมชาย ใจดี',
   ชื่อหน่วยงาน: 'ชื่อตามหน้า "หน่วยงาน" ในระบบ (Pro Site เขียน PRO/FM/ชื่อไซต์ ได้)',
   ฝ่าย: 'ส่วนกลาง: กลุ่ม/ฝ่ายตามระบบ เช่น Support Line, ฝ่ายขาย',
@@ -227,7 +249,7 @@ async function buildTemplate(rows, subtitle) {
       c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: kind === 'IN' ? 'FF0E7490' : 'FFB45309' } };
       c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-      const note = HEAD_NOTES[c.value];
+      const note = typeof HEAD_NOTES[c.value] === 'function' ? HEAD_NOTES[c.value]() : HEAD_NOTES[c.value];
       if (note) c.note = note;
     });
     for (const r of rows[kind] ?? []) {
@@ -314,4 +336,58 @@ export function openTemplateDialog({ sites }) {
       toast.success(`ส่งออกเดือน${monthLabel(ym)} แล้ว — เข้าใหม่ ${rows.IN.length} · ลาออก ${rows.OUT.length} คน`);
     });
   };
+}
+
+// ===================== ไฟล์รายชื่อพนักงาน (ปุ่ม Excel ของตาราง / Excel ที่เลือก) =====================
+/**
+ * ส่งออกพนักงานเป็นไฟล์ที่นำเข้ากลับได้ — คอลัมน์ชุดเดียวกับตาราง (LIST_COLUMNS)
+ * วันที่เป็นเซลล์วันที่ (แสดงปี พ.ศ.) · รหัส/เลขบัตร/โทร เป็นข้อความ · ช่องเลือก บริษัท ประเภท สถานะ ฯลฯ · ชีต "วิธีใช้"
+ */
+export async function exportEmployeeList(employees, { sites, deptGroups = [], name = 'รายชื่อพนักงาน' }) {
+  const ExcelJS = await loadExcelJs();
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'HL Welfare';
+  const ws = wb.addWorksheet('พนักงาน', { views: [{ state: 'frozen', ySplit: 1, xSplit: 1 }] });
+  const head = ws.addRow(LIST_COLUMNS.map((c) => c.head));
+  head.height = 24;
+  head.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0E7490' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+  });
+  for (const r of employeeListRows(employees, sites)) {
+    ws.addRow(r.map((v, i) => (LIST_COLUMNS[i].kind === 'date' && v ? isoToDate(v) : v)));
+  }
+  const last = Math.max(employees.length + 1, 2) + 200; // เผื่อแถวที่จะเพิ่มเอง
+  const ctx = { sites, deptGroups };
+  LIST_COLUMNS.forEach((c, i) => {
+    const col = ws.getColumn(i + 1);
+    col.width = c.width ?? 14;
+    for (let r = 2; r <= last; r++) {
+      if (c.kind === 'date') ws.getCell(r, i + 1).numFmt = '[$-th-TH]d/m/bbbb';
+      if (c.kind === 'code') ws.getCell(r, i + 1).numFmt = '@';
+    }
+    const values = c.list?.(ctx);
+    // ช่องเลือก — รายการยาว (เกิน 255 ตัวอักษร) ใส่ใน Excel ไม่ได้ ข้ามไป
+    if (values?.length && values.join(',').length < 250) ws.dataValidations.add(`${col.letter}2:${col.letter}${last}`, listRule(values, false));
+  });
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: LIST_COLUMNS.length } };
+  const help = wb.addWorksheet('วิธีใช้');
+  help.getColumn(1).width = 110;
+  [
+    'ไฟล์รายชื่อพนักงาน — แก้ในไฟล์นี้แล้วนำเข้ากลับที่หน้าพนักงาน (ปุ่ม "นำเข้า Excel")',
+    '',
+    '• จับคู่ตาม "รหัส": มีในระบบ = แก้เฉพาะช่องที่เปลี่ยน · ไม่มีในระบบ = เพิ่มพนักงานใหม่',
+    '• ลบคอลัมน์ที่ไม่ต้องการแก้ออกได้ — คอลัมน์ที่ไม่มีในไฟล์ ระบบไม่แตะ',
+    '• หน่วยงาน / ประเภท / กลุ่ม-ฝ่าย ใช้ชื่อตามระบบ · วันที่พิมพ์ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ.)',
+    '• ค่าที่ระบบอ่านไม่ได้จะคงค่าเดิมและแจ้งให้ตรวจ — ทุกอย่างเข้าตารางเป็น "ยังไม่บันทึก" ตรวจแล้วกดบันทึกเอง',
+    '• อายุไม่อยู่ในไฟล์ (ระบบคำนวณจากวันเกิด)',
+  ].forEach((t, i) => {
+    const cell = help.getCell(i + 1, 1);
+    cell.value = t;
+    if (i === 0) cell.font = { bold: true, size: 13 };
+  });
+  const buf = await wb.xlsx.writeBuffer();
+  downloadBlob(new Blob([buf], { type: XLSX_MIME }), `${name} ${new Date().toISOString().slice(0, 10)}.xlsx`);
+  toast.success(`ส่งออกแล้ว ${employees.length.toLocaleString('th-TH')} คน — แก้แล้วนำเข้ากลับได้ที่ปุ่ม “นำเข้า Excel”`);
 }

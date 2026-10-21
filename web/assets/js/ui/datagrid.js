@@ -32,6 +32,7 @@
 //   แถบที่เลือก: "ลบที่เลือก" (ทำเครื่องหมายลบ — ลบจริงตอนกดบันทึก · มีเมื่อ onRemove) + bulkActions ของหน้า + Excel ที่เลือก
 //   bulkActions: [{ id, label, icon?, tone?, when?(row), confirm?(rows), run: async (rows, grid) => msg }] — rows = ค่าล่าสุด (รวมที่แก้ค้าง)
 //   ใช้ grid.stage({ edits }) ใน run เพื่อแก้หลายแถวเป็น "ยังไม่บันทึก" ให้ตรวจก่อนกดบันทึก
+// exporter: async (rows) => {} = ส่งออกแบบของหน้าเอง (ปุ่ม Excel + Excel ที่เลือก) แทนการส่งออกตามที่แสดง
 import { esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import {
@@ -53,7 +54,7 @@ import {
   wireColumnResize,
 } from './columnFilter.js';
 import { openPicker } from './combobox.js';
-import { spinner } from './loading.js';
+import { busy, spinner } from './loading.js';
 import { exportButton, wireExport } from './exportExcel.js';
 import { confirmAction, errorMessage, toast } from './overlay.js';
 import { allCheck, applyIndeterminate, bulkBar, rowCheck, runBulk, Selection } from './selection.js';
@@ -102,7 +103,14 @@ export class ExcelGrid {
       if (this.hasPending()) e.preventDefault();
     });
     // ส่งออก Excel: ข้อมูลที่บันทึกแล้ว ทุกแถวตามตัวกรอง/การเรียง (ไม่รวมการเปลี่ยนแปลงที่ยังไม่บันทึก)
-    wireExport(root, () => ({ name: this.o.exportName, columns: this.exportColumns(), rows: this.filtered() }));
+    if (this.o.exporter) {
+      root.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-export-excel]');
+        if (!btn) return;
+        e.stopPropagation();
+        busy(btn, () => this.o.exporter(this.filtered()), { label: 'Excel' }).catch((err) => toast.error(errorMessage(err)));
+      });
+    } else wireExport(root, () => ({ name: this.o.exportName, columns: this.exportColumns(), rows: this.filtered() }));
     this.render();
   }
 
@@ -187,7 +195,9 @@ export class ExcelGrid {
       return true;
     }
     if (e.target.closest('[data-bulk-export]')) {
-      exportTableExcel({ name: this.o.exportName, columns: this.exportColumns(), rows: this.selectedEntries().map((x) => x.row) });
+      const rows = this.selectedEntries().filter((x) => !x.isNew).map((x) => x.orig);
+      if (this.o.exporter) this.o.exporter(rows).catch((err) => toast.error(errorMessage(err)));
+      else exportTableExcel({ name: this.o.exportName, columns: this.exportColumns(), rows: this.selectedEntries().map((x) => x.row) });
       return true;
     }
     const b = e.target.closest('[data-bulk]');
