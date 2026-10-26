@@ -1,6 +1,8 @@
-// หน้า: ตั้งค่าองค์กร (sites.html?tab=companies|sites|types|groups)
-//   หน่วยงาน (ค่าเริ่มต้น) = ตาราง Excel เพิ่ม/แก้/ลบ + ชุดฟอร์มของหน่วยงาน (ไฟล์นี้)
-//   บริษัท / ประเภทพนักงาน / กลุ่ม-ฝ่าย = pages/_orgSettings.js
+// หน้า: ตั้งค่าองค์กร (sites.html?tab=setup|companies|types|groups|sites)
+//   เริ่มต้นตั้งค่า (ค่าเริ่มต้น) = ลำดับขั้น + สถานะจริงของแต่ละขั้น (pages/_orgSetup.js)
+//   แท็บเรียงตามลำดับที่ต้องตั้ง: 1 บริษัท → 2 ประเภทพนักงาน → 3 กลุ่ม/ฝ่าย → 4 หน่วยงาน
+//   หน่วยงาน = ตาราง Excel เพิ่ม/แก้/ลบ + ชุดฟอร์มของหน่วยงาน (ไฟล์นี้) · บริษัท / ประเภท / กลุ่ม-ฝ่าย = pages/_orgSettings.js
+//   ทุกแท็บมีกล่องอธิบาย "คืออะไร / ใช้ทำอะไร / ต้องมีอะไรก่อน" (ซ่อนได้)
 import { api } from '../app/api.js';
 import { can, companyChoices, myCompany } from '../app/auth.js';
 import { initPage } from '../app/shell.js';
@@ -15,32 +17,46 @@ import { loader } from '../ui/loading.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 
 import { showOrgTab } from './_orgSettings.js';
+import { aboutBox, showSetup, wireAbout } from './_orgSetup.js';
 
 /** คู่มือตามแท็บ (tour/steps.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
-const tourId = () => ({ companies: 'sites-companies', types: 'sites-types', groups: 'sites-groups' })[getParam('tab')] ?? 'sites';
+const tourId = () => ({ sites: 'sites', companies: 'sites-companies', types: 'sites-types', groups: 'sites-groups' })[getParam('tab')] ?? 'sites-setup';
 initPage('sites', { tour: tourId });
 
 // ===================== แท็บ =====================
+// เรียงตามลำดับที่ต้องตั้ง (ขั้นหลังใช้ข้อมูลของขั้นก่อน) — เลขขั้นตรงกับการ์ดในแท็บเริ่มต้นตั้งค่า
 const TABS = [
-  { value: 'companies', label: 'บริษัท', hint: 'รหัส ชื่อ ชื่อตามทะเบียน สี และลำดับของบริษัท — ใช้ทั้งระบบ' },
-  { value: 'sites', label: 'หน่วยงาน', hint: 'เพิ่ม / แก้ไข / ลบ ในตาราง แล้วกด “บันทึก” — สวิตช์ประกันกลุ่มใช้กับแม่บ้าน CNS · สีโปโลใช้กับ Pro Site' },
-  { value: 'types', label: 'ประเภทพนักงาน', hint: 'ประเภทและพฤติกรรม (บริษัทที่ใช้ได้ · กลุ่ม/ฝ่าย+ระดับ · ตำแหน่ง · รอบแจ้งรายวัน)' },
-  { value: 'groups', label: 'กลุ่ม / ฝ่าย', hint: 'กลุ่ม / ฝ่ายของพนักงานที่ใช้ระดับ (เช่น ส่วนกลาง)' },
+  { value: 'setup', label: 'เริ่มต้นตั้งค่า', hint: 'ตั้งค่าตามลำดับ 1 → 9 — แต่ละขั้นบอกว่าทำแล้วหรือยัง ขาดอะไร และปุ่มไปตั้งค่า' },
+  { value: 'companies', label: '1 บริษัท', hint: 'บริษัทในเครือ — รหัสใช้ทั้งระบบ · ทำเป็นอย่างแรก' },
+  { value: 'types', label: '2 ประเภทพนักงาน', hint: 'กลุ่มพนักงานที่ได้สิทธิ์ต่างกัน และพฤติกรรมของแต่ละประเภท' },
+  { value: 'groups', label: '3 กลุ่ม / ฝ่าย', hint: 'ฝ่ายของพนักงานประเภทที่ใช้ระดับ (เช่น ส่วนกลาง)' },
+  { value: 'sites', label: '4 หน่วยงาน', hint: 'สำนักงาน / โครงการ / ไซต์ ที่พนักงานประจำ — ดับเบิลคลิกเพื่อแก้ แล้วกด “บันทึก”' },
 ];
-let tab = TABS.some((t) => t.value === getParam('tab')) ? getParam('tab') : 'sites';
+let tab = TABS.some((t) => t.value === getParam('tab')) ? getParam('tab') : 'setup';
+function drawAbout() {
+  render($('#about'), aboutBox(tab));
+}
 function drawTab() {
   render($('#tabs'), tabs(TABS, tab));
   $('#tab-hint').textContent = TABS.find((t) => t.value === tab).hint;
-  const onSites = tab === 'sites';
-  $('#panel-sites').classList.toggle('hidden', !onSites);
-  $('#panel-org').classList.toggle('hidden', onSites);
-  $('#summary').style.display = onSites ? '' : 'none';
-  if (onSites) grid.render();
+  drawAbout();
+  const panel = tab === 'setup' ? 'setup' : tab === 'sites' ? 'sites' : 'org';
+  for (const p of ['setup', 'sites', 'org']) $(`#panel-${p}`).classList.toggle('hidden', p !== panel);
+  $('#summary').style.display = tab === 'sites' ? '' : 'none';
+  if (panel === 'sites') grid.render();
+  else if (panel === 'setup') showSetup($('#setup'), goTab);
   else showOrgTab($('#org'), tab);
 }
+function goTab(next) {
+  tab = next;
+  setParams({ tab: tab === 'setup' ? '' : tab });
+  drawTab();
+  startTourIfNew(tourId());
+}
+wireAbout($('#about'), drawAbout);
 on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
   tab = t.dataset.tab;
-  setParams({ tab: tab === 'sites' ? '' : tab });
+  setParams({ tab: tab === 'setup' ? '' : tab });
   drawTab();
   startTourIfNew(tourId()); // แท็บนี้เปิดครั้งแรก → คู่มือของแท็บนี้
 });
@@ -60,6 +76,9 @@ function drawSummary() {
   render($('#summary'), badge(`ไม่ได้รับประกัน ${n} หน่วยงาน`, n ? 'warning' : 'success'));
 }
 
+/** จำนวนพนักงาน (ทำงานอยู่) ต่อหน่วยงาน — โหลดพร้อมรายการหน่วยงาน */
+let empCount = new Map();
+
 const grid = new ExcelGrid($('#grid'), {
   rowKey: (s) => s.id,
   addLabel: 'เพิ่มหน่วยงาน',
@@ -73,16 +92,36 @@ const grid = new ExcelGrid($('#grid'), {
       required: true,
       editor: 'select',
       // หน่วยงานที่สร้างแล้วย้ายบริษัทไม่ได้ (พนักงานผูกอยู่) — เลือกได้ตอนสร้างเท่านั้น
+      hint: 'เลือกได้ตอนเพิ่มเท่านั้น — สร้างแล้วย้ายบริษัทไม่ได้ (พนักงานผูกอยู่)',
       editable: (s) => s.id === 0,
       value: (s) => s.companyCode,
       options: () => companyChoices(COMPANY_CODES).map((c) => ({ value: c, label: c })),
       set: (s, v) => ({ ...s, companyCode: String(v) }),
     },
-    { key: 'name', header: 'ชื่อหน่วยงาน', width: 320, required: true, editor: 'text', value: (s) => s.name, set: (s, v) => ({ ...s, name: String(v ?? '').trim() }) },
+    {
+      key: 'name',
+      header: 'ชื่อหน่วยงาน',
+      hint: 'สำนักงาน / โครงการ / ไซต์ ที่พนักงานประจำ — เป็นชื่อแผนกในระบบสต็อก และใช้จับคู่ “ชื่อหน่วยงาน” ตอนนำเข้า Excel',
+      width: 320,
+      required: true,
+      editor: 'text',
+      value: (s) => s.name,
+      set: (s, v) => ({ ...s, name: String(v ?? '').trim() }),
+    },
+    {
+      key: 'employees',
+      header: 'พนักงาน',
+      hint: 'จำนวนพนักงานที่ทำงานอยู่ — มีพนักงานแล้วลบหน่วยงานไม่ได้',
+      width: 104,
+      align: 'right',
+      value: (s) => empCount.get(s.id) ?? 0,
+      display: (s) => (s.id ? html`<span class="num ${empCount.get(s.id) ? '' : 'muted'}">${empCount.get(s.id) ?? 0}</span>` : ''),
+    },
     {
       key: 'hasGroupInsurance',
       header: 'ได้รับประกันกลุ่ม',
-      width: 150,
+      hint: 'ใช้กับกฎประกันที่ติ๊ก “เฉพาะหน่วยงานที่ได้รับประกันกลุ่ม” (เช่น แม่บ้าน CNS) — ประเภทอื่นไม่ดูช่องนี้',
+      width: 170,
       align: 'center',
       editor: 'switch',
       value: (s) => s.hasGroupInsurance,
@@ -91,6 +130,7 @@ const grid = new ExcelGrid($('#grid'), {
     {
       key: 'poloColor',
       header: 'สีโปโล',
+      hint: 'ใช้กับกฎชุดฟอร์มที่ตั้ง “สีโปโลตามหน่วยงาน” (Pro Site) — กฎอื่นใช้สีตามกฎ',
       width: 130,
       editor: 'select',
       value: (s) => s.poloColor,
@@ -102,7 +142,8 @@ const grid = new ExcelGrid($('#grid'), {
       // อ่านอย่างเดียวในตาราง — กดปุ่มเพื่อตั้งจำนวนชุดฟอร์มของหน่วยงาน (บันทึกทันที แยกจากปุ่มบันทึกของตาราง)
       key: 'uniform',
       header: 'ชุดฟอร์ม',
-      width: 200,
+      hint: 'จำนวนชุดเฉพาะหน่วยงานนี้ (ทับกฎกลาง) — ไม่ตั้ง = ตามกฎกลาง · บันทึกทันทีแยกจากปุ่มบันทึกของตาราง',
+      width: 210,
       value: (s) => (s.uniformOverrides ?? []).length,
       display: (s) =>
         s.id === 0
@@ -139,7 +180,7 @@ const grid = new ExcelGrid($('#grid'), {
     : [],
   rowLabel: (s) => `${s.companyCode} · ${s.name}`,
   onSaved: () => drawSummary(),
-  empty: emptyState({ iconName: 'building-2', title: 'ยังไม่มีหน่วยงาน' }),
+  empty: emptyState({ iconName: 'building-2', title: 'ยังไม่มีหน่วยงาน', description: 'กด “เพิ่มหน่วยงาน” แล้วเลือกบริษัท — ทุกบริษัทควรมีอย่างน้อย 1 หน่วยงาน ไม่งั้นเพิ่มพนักงานของบริษัทนั้นไม่ได้' }),
 });
 
 /** แก้หลายแถวเป็น "ยังไม่บันทึก" (ไม่ซ่อนแถวอื่น) */
@@ -302,7 +343,9 @@ $('#sync-stock').onclick = async (e) => {
 
 drawTab();
 try {
-  grid.setRows(sortSites(await api.listSites()));
+  const [siteList, emps] = await Promise.all([api.listSites(), api.listEmployees({ status: 'ACTIVE' }).catch(() => [])]);
+  empCount = emps.reduce((m, e) => m.set(e.siteId, (m.get(e.siteId) ?? 0) + 1), new Map());
+  grid.setRows(sortSites(siteList));
   drawSummary();
 } catch (e) {
   render($('#grid'), html`<div style="padding:16px">${errorState(e)}</div>`);

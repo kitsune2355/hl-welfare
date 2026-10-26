@@ -23,7 +23,7 @@
     </script>
   </head>
   <body>
-    <!-- sites.html?tab=companies|sites|types|groups (ไม่ใส่ = หน่วยงาน) -->
+    <!-- sites.html?tab=setup|companies|types|groups|sites (ไม่ใส่ = เริ่มต้นตั้งค่า) -->
     <main id="page" class="page fit">
       <div class="page-head">
         <div>
@@ -37,7 +37,11 @@
       </div>
 
       <div id="tabs"></div>
-      <section class="card fill" id="panel-sites">
+      <div id="about"></div>
+      <section class="card fill hidden" id="panel-setup">
+        <div id="setup" class="fill-body scroll"></div>
+      </section>
+      <section class="card fill hidden" id="panel-sites">
         <div id="grid" class="fill-body"></div>
       </section>
       <section class="card fill hidden" id="panel-org">

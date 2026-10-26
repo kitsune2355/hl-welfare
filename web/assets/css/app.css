@@ -6928,3 +6928,166 @@ button.sev-pill {
   background: var(--surface);
   cursor: pointer;
 }
+
+/* คำอธิบายคอลัมน์ (ExcelGrid column.hint) */
+.th-hint {
+  display: inline-flex;
+  margin-left: 4px;
+  color: var(--muted);
+  cursor: help;
+  vertical-align: middle;
+}
+.th-hint .icon {
+  width: 13px;
+  height: 13px;
+}
+.th-hint:hover {
+  color: var(--primary);
+}
+
+/* =====================================================================
+   ตั้งค่าองค์กร — แท็บเริ่มต้นตั้งค่า + กล่องอธิบายของแต่ละแท็บ (pages/_orgSetup.js)
+   ===================================================================== */
+.org-about {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+  font-size: 13px;
+  line-height: 1.6;
+}
+.org-about ul {
+  margin: 4px 0 4px;
+  padding-left: 18px;
+}
+.org-about li {
+  margin: 1px 0;
+}
+.org-about-step,
+.setup-num {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+.org-about-mini {
+  margin: -4px 0 8px;
+}
+.setup {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+.setup-intro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.setup-intro h2 {
+  margin-bottom: 2px;
+  font-size: 17px;
+}
+.setup-progress {
+  display: grid;
+  gap: 4px;
+  min-width: 220px;
+  font-size: 13px;
+}
+.setup-progress b {
+  font-size: 20px;
+}
+.setup-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+.setup-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+.setup-step.is-done {
+  border-left-color: var(--success);
+}
+.setup-step.is-done .setup-num {
+  background: var(--success);
+}
+.setup-step.is-warn {
+  border-left-color: var(--warning);
+}
+.setup-step.is-warn .setup-num {
+  background: var(--warning);
+}
+.setup-step.is-todo {
+  border-left-color: var(--danger);
+}
+.setup-step.is-todo .setup-num {
+  background: var(--danger);
+}
+.setup-step.is-optional .setup-num,
+.setup-step.is-unknown .setup-num {
+  background: var(--muted);
+}
+.setup-step .setup-num .icon {
+  width: 16px;
+  height: 16px;
+}
+.setup-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 15px;
+}
+.setup-what {
+  margin: 2px 0 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.setup-lines {
+  margin: 0 0 4px;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.setup-lines li {
+  margin: 1px 0;
+}
+.setup-step > .btn {
+  align-self: center;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .setup {
+    padding: 14px;
+  }
+  .setup-step {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .setup-step > .btn,
+  .setup-step > span:last-child {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+}

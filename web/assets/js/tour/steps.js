@@ -180,11 +180,23 @@ export const TOUR_STEPS = {
   },
 
   // ===================== ตั้งค่าองค์กร (sites.html?tab=…) — แท็บหน่วยงาน = "sites" · แท็บอื่น = sites-<แท็บ> =====================
+  // แท็บแรก (ค่าเริ่มต้น) — ลำดับขั้นการตั้งค่า + สถานะ (pages/_orgSetup.js)
+  'sites-setup': {
+    ready: '.setup-steps',
+    steps: [
+      { element: '#tabs', title: 'ตั้งค่าองค์กร', text: 'แท็บเรียงตามลำดับที่ต้องตั้ง: <b>1 บริษัท → 2 ประเภทพนักงาน → 3 กลุ่ม/ฝ่าย → 4 หน่วยงาน</b> · ทุกแท็บเป็นตาราง Excel: ดับเบิลคลิกเพื่อแก้ แล้วกดบันทึก · แต่ละแท็บมีคำแนะนำของตัวเอง', side: 'bottom', align: 'start' },
+      { element: '.setup-progress', title: 'ความคืบหน้า', text: 'จำนวนขั้นที่จำเป็นที่เรียบร้อยแล้ว และขั้นถัดไปที่ควรทำ', side: 'left' },
+      { element: '.setup-steps', title: 'ทำจากบนลงล่าง', text: 'ขั้นหลังใช้ข้อมูลของขั้นก่อน · แต่ละขั้นบอกว่า<b>ใช้ทำอะไร</b> · <b>ทำแล้วหรือยัง / ขาดอะไร</b> (คำนวณจากข้อมูลจริง) · <b>ต้องมีอะไรก่อน</b><br>สี: <b style="color:var(--success)">เขียว</b> เรียบร้อย · <b style="color:var(--warning)">ส้ม</b> ควรตรวจ · <b style="color:var(--danger)">แดง</b> ยังไม่ได้ทำ · เทา ไม่บังคับ', side: 'top' },
+      { element: '.setup-step .btn', title: 'ไปตั้งค่า', text: 'พาไปแท็บหรือหน้าที่ใช้ตั้งขั้นนั้น — กลับมาที่แท็บนี้เพื่อดูสถานะล่าสุด', side: 'left' },
+    ],
+  },
+
   sites: {
-    version: 4,
+    version: 5,
     ready: '#grid .xgrid td[data-r], #grid .xgrid-wrap .empty',
     steps: [
-      { element: '#tabs', title: 'ตั้งค่าองค์กร', text: '<b>บริษัท</b> · <b>หน่วยงาน</b> · <b>ประเภทพนักงาน</b> · <b>กลุ่ม / ฝ่าย</b> — ใช้ร่วมกันทั้งระบบ · ทุกแท็บเป็นตาราง Excel: <b>ดับเบิลคลิก</b>เพื่อแก้ แล้วกด<b>บันทึก</b> · เพิ่ม/แก้แล้วหน้าอื่นเห็นทันที · แต่ละแท็บมีคำแนะนำของตัวเอง', side: 'bottom', align: 'start' },
+      { element: '#about', title: 'หน่วยงานคืออะไร', text: 'สำนักงาน / โครงการ / ไซต์ ที่พนักงานประจำ — พนักงานทุกคนสังกัด 1 หน่วยงาน · เป็นแผนกในระบบสต็อก (ผู้อนุมัติใบเบิกชุดฟอร์ม + ลงค่าใช้จ่าย) · กล่องนี้ซ่อนได้ (ปุ่ม ×)', side: 'bottom', align: 'start' },
+      { element: '#grid .xgrid thead .th-hint', title: 'คำอธิบายคอลัมน์', text: 'ชี้ที่ไอคอน ⓘ หลังชื่อคอลัมน์ เพื่อดูว่าคอลัมน์นั้นใช้ทำอะไร', side: 'bottom', align: 'start' },
       { element: '#grid [data-grid-act="add"]', title: 'เพิ่มหน่วยงาน', text: 'เลือกบริษัทและพิมพ์ชื่อ แล้วกด <b>บันทึก</b>', side: 'bottom', align: 'start' },
       { element: '#grid .xgrid tbody tr:first-child td[data-col="hasGroupInsurance"]', title: 'ได้รับประกันกลุ่ม', text: 'ติ๊ก = หน่วยงานนี้ได้ประกันกลุ่ม — มีผลกับ <b>แม่บ้าน CNS</b> ในหน่วยงานนั้น', side: 'bottom' },
       { element: '#grid .xgrid tbody tr:first-child td[data-col="poloColor"]', title: 'สีโปโล', text: 'สีโปโลของ <b>Pro Site</b> ในหน่วยงานนี้ — ระบบใช้กำหนดชุดฟอร์มที่จะแจก', side: 'bottom' },

@@ -20,6 +20,7 @@
 //   });
 //   grid.setRows(rows);
 //
+// hint: คำอธิบายคอลัมน์ (ไอคอน ⓘ หลังชื่อหัวคอลัมน์ — ชี้ดู)
 // editor: 'text' | 'number' | 'date' | 'select' | 'switch' | 'custom' (edit(row, td) => Promise<ค่า|undefined>) · ไม่ใส่ = อ่านอย่างเดียว
 // options(row) สำหรับ select · editable(row) = แก้ได้เฉพาะบางแถว · display(row) = HTML ที่แสดง
 // กรองคอลัมน์ที่หัวตาราง: เปิดอัตโนมัติ · filter: false = ปิด · text(row) = ข้อความที่ใช้กรอง (ไม่ใส่ = ข้อความที่แสดง)
@@ -670,6 +671,7 @@ export class ExcelGrid {
       },
     });
     root.addEventListener('click', (e) => {
+      if (e.target.closest('.th-hint')) return; // ไอคอนคำอธิบายในหัวคอลัมน์ — ชี้ดูเฉย ๆ ไม่เรียง
       if (this.onSelectClick(e)) return;
       const fb = e.target.closest('[data-col-filter]');
       if (fb) return this.openFilter(fb);
@@ -950,7 +952,7 @@ export class ExcelGrid {
                 (c) =>
                   html`<th class="${pinCls(c)}" style="${pinStyle(c, 4)}" data-col="${c.key}" aria-sort="${ariaSort(c.key, this.filter)}">
                     <span class="th-inner"
-                      >${headerLabel(c.key, html`${c.header}${c.required ? html`<span class="req">*</span>` : ''}`, this.filter, { sortable: this.canFilter(c) && !loading && !!c.header, align: c.align })}${!loading && c.header
+                      >${headerLabel(c.key, html`${c.header}${c.required ? html`<span class="req">*</span>` : ''}${c.hint ? html`<span class="th-hint" title="${c.hint}" aria-label="${c.hint}">${raw(icon('info'))}</span>` : ''}`, this.filter, { sortable: this.canFilter(c) && !loading && !!c.header, align: c.align })}${!loading && c.header
                         ? html`<span class="th-acts">${headerPinButton(c.key, c.header, this.pins.has(c.key))}${this.canFilter(c) ? headerFilterButton(c.key, c.header, this.filter) : ''}</span>`
                         : ''}</span
                     >${c.header ? resizeHandle(c.key) : ''}
