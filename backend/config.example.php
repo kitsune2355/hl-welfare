@@ -19,11 +19,12 @@ $cfg_is_local  = $cfg_http_host === ''
 
 $hlw_config = array(
     /* ---------- ฐานข้อมูล (ฐานแยก hl_welfare บน MySQL เครื่องเดียวกับ stock_hr) ---------- */
-    'db_host' => 'localhost',
+    /* ฐานกลางที่ 192.168.10.21 — ใช้ร่วมกับเครื่อง 192.168.10.39 (ผู้ใช้ hlw สิทธิ์เฉพาะ hl_welfare) */
+    'db_host' => '192.168.10.21',
     'db_port' => 3306,
-    'db_user' => $cfg_is_local ? 'root' : 'ชื่อผู้ใช้ฐานข้อมูลบนโฮสต์',
-    'db_pass' => $cfg_is_local ? 'รหัสผ่าน' : 'รหัสผ่านฐานข้อมูลบนโฮสต์',
-    'db_name' => $cfg_is_local ? 'hl_welfare' : 'ชื่อฐานข้อมูลบนโฮสต์',
+    'db_user' => 'hlw',
+    'db_pass' => '123456',
+    'db_name' => 'hl_welfare',
 
     'timezone' => 'Asia/Bangkok',
 
