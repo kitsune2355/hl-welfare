@@ -139,6 +139,10 @@ export async function busy(button, fn, { label } = {}) {
 }
 
 /** คลิกลิงก์ภายในระบบ → loading กลางจอ (หน้าใหม่ยังโหลดไม่เสร็จ) · กลับมาด้วยปุ่ม Back → ปิด */
+/** คลิกลิงก์แล้วหน้ายังไม่เปลี่ยนภายในเวลานี้ (ms) = ถือว่าไม่ได้ไปไหน ปิด loading */
+const NAV_GIVE_UP = 8000;
+let navigating = false;
+let navTimer = null;
 export function installNavigationProgress() {
   document.addEventListener('click', (e) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -146,12 +150,27 @@ export function installNavigationProgress() {
     if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
     const url = new URL(a.href, location.href);
     if (url.origin !== location.origin || (url.pathname === location.pathname && url.hash)) return;
-    progress.start();
+    // ตัดสินหลัง handler อื่นของคลิกนี้ทำงานครบ — หน้าที่ถามก่อนออก (เช่น "ทิ้งการแก้ไข?") จะ preventDefault ทีหลัง
+    // ถ้าเริ่ม loading ทันที แผ่น loading จะบังกล่องถามและค้างตลอด (ไม่มีการเปลี่ยนหน้า)
+    setTimeout(() => {
+      if (e.defaultPrevented) return;
+      progress.start();
+      navigating = true;
+      // ยังไม่ออกจากหน้า (เช่น กดอยู่ต่อในกล่อง beforeunload ของเบราว์เซอร์) → ปิด loading เอง
+      clearTimeout(navTimer);
+      navTimer = setTimeout(() => {
+        if (!navigating) return;
+        navigating = false;
+        progress.done();
+      }, NAV_GIVE_UP);
+    }, 0);
   });
   // กลับมาด้วยปุ่ม Back (หน้าจาก bfcache) → loading ที่เริ่มตอนคลิกลิงก์ค้างอยู่ ให้ปิด
   // (โหลดหน้าปกติไม่ต้องรีเซ็ต — api ของหน้ายังทำงานอยู่)
   window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return;
+    navigating = false;
+    clearTimeout(navTimer);
     pending = 0;
     finish();
   });
