@@ -149,8 +149,16 @@ function rules_uniform_columns($b)
     if (!(rules_codes_valid($companies, rules_company_codes()) && count($companies) > 0)) { $x['companies'] = 'เลือกบริษัทอย่างน้อย 1 บริษัท'; }
     $groups = arr_get($b, 'deptGroups');
     if ($groups !== null && !(is_array($groups) && count($groups) > 0)) { $x['deptGroups'] = 'เลือกกลุ่ม/ฝ่ายอย่างน้อย 1 กลุ่ม หรือ "ทุกกลุ่ม"'; }
-    $position = arr_get($b, 'position');
-    $position = ($position === null || str_trim((string)$position) === '') ? null : str_trim((string)$position);
+    // ตำแหน่งคั่นด้วย "," → ตัดช่องว่าง/ตัวซ้ำ แล้วต่อด้วย ", " · ว่าง = ทุกตำแหน่ง · ยาวได้เท่าคอลัมน์ (ตรงกับ ruleRules.js POSITION_MAX)
+    $positions = array();
+    foreach (explode(',', (string)arr_get($b, 'position', '')) as $p) {
+        $p = str_trim($p);
+        if ($p !== '' && !in_array($p, $positions, true)) { $positions[] = $p; }
+    }
+    $position = count($positions) ? implode(', ', $positions) : null;
+    if ($position !== null && mb_strlen($position, 'UTF-8') > 200) {
+        $x['position'] = 'ตำแหน่งรวมกันยาวเกิน 200 ตัวอักษร — เลือกน้อยลง หรือแยกเป็นอีกกฎ';
+    }
     $lmin = arr_get($b, 'levelMin');
     $lmax = arr_get($b, 'levelMax');
     if ($lmin !== null && !rules_is_int($lmin, 1, 9)) { $x['levelMin'] = 'ระดับต้องเป็น 1–9'; }

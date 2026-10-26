@@ -116,6 +116,7 @@ export function uniformStatus(emp, site, rules, issues, today) {
           : 'ประเภทพนักงานนี้ไม่อยู่ในเงื่อนไขชุดฟอร์ม',
       ],
       entitlements: [],
+      upcoming: [],
     };
   }
   const quantities = siteQuantities(rule, site);
@@ -147,16 +148,30 @@ export function uniformStatus(emp, site, rules, issues, today) {
   }
   // ผ่านทดลองงานก่อนเสมอ ถึงจะได้รอบผ่านโปรและรอบประจำปี (HR ยืนยัน)
   const pass = emp.probationPassDate;
+  const month = String(rules.settings.uniformAnnualMonth).padStart(2, '0');
   if (pass && pass <= limit && sumQty(quantities.PROBATION) > 0) {
     push('PROBATION', 'PROBATION', pass);
   }
   if (pass && sumQty(quantities.ANNUAL) > 0) {
-    const month = String(rules.settings.uniformAnnualMonth).padStart(2, '0');
     const lastYear = yearOf(limit);
     for (let y = Math.max(yearOf(pass), lastYear - ANNUAL_LOOKBACK_YEARS + 1); y <= lastYear; y++) {
       const due = `${y}-${month}-01`;
       if (due > pass && due <= limit) push(`ANNUAL-${y}`, 'ANNUAL', due);
     }
+  }
+  // รอบที่ยังไม่ถึงกำหนด — แสดงล่วงหน้าในหน้าพนักงาน ไม่นับเป็นค้างแจก · ประจำปีแสดงเฉพาะรอบถัดไป · หลังวันพ้นสภาพไม่มี
+  const upcoming = [];
+  const ahead = (key, event, dueDate) => {
+    if (dueDate <= limit || (emp.endDate && dueDate > emp.endDate)) return;
+    const itemQty = quantities[event];
+    upcoming.push({ key, event, dueDate, qty: sumQty(itemQty), qtyLabel: String(sumQty(itemQty)), items: Object.keys(itemQty), itemQty, style });
+  };
+  if (sumQty(quantities.START) > 0) ahead('START', 'START', emp.startDate);
+  if (pass && sumQty(quantities.PROBATION) > 0) ahead('PROBATION', 'PROBATION', pass);
+  if (pass && sumQty(quantities.ANNUAL) > 0) {
+    let y = yearOf(limit > pass ? limit : pass);
+    while (`${y}-${month}-01` <= limit || `${y}-${month}-01` <= pass) y++;
+    ahead(`ANNUAL-${y}`, 'ANNUAL', `${y}-${month}-01`);
   }
   return {
     ruleId: rule.id,
@@ -165,5 +180,6 @@ export function uniformStatus(emp, site, rules, issues, today) {
     siteOverride: siteOverride(rule, site) !== null,
     reasons: [],
     entitlements: ents,
+    upcoming,
   };
 }

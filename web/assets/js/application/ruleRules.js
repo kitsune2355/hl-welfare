@@ -8,6 +8,14 @@ export { EMPLOYEE_TYPES };
 export const CONTRACT_TYPES = ['REGULAR', 'SHORT_3PCT'];
 export const LEVEL_RANGE = [1, 9];
 export const QTY_MAX = 20;
+/** ตำแหน่งในกฎชุดฟอร์ม (คั่นด้วย ", ") ยาวได้เท่าคอลัมน์ uniform_rules.position */
+export const POSITION_MAX = 200;
+
+/** ตำแหน่งในกฎ: " ก ,ข,, ก" → "ก, ข" · ว่าง → null (= ทุกตำแหน่ง) — ตรงกับ backend/api/rules_edit.php */
+export function normalizePositions(s) {
+  const list = [...new Set(String(s ?? '').split(',').map((p) => p.trim()).filter(Boolean))];
+  return list.length ? list.join(', ') : null;
+}
 
 /** ค่าตั้งค่าที่แก้ได้: [ต่ำสุด, สูงสุด, ชื่อ, หน่วย] */
 export const SETTING_SPEC = {
@@ -55,6 +63,7 @@ export function validateUniformRule(r, { companies, items }) {
     x.levelMax = 'ระดับสูงสุดต้องไม่น้อยกว่าระดับต่ำสุด';
   }
   if (!r.style?.trim()) x.style = 'กรุณาระบุชื่อแบบชุดฟอร์ม';
+  if ((normalizePositions(r.position)?.length ?? 0) > POSITION_MAX) x.position = `ตำแหน่งรวมกันยาวเกิน ${POSITION_MAX} ตัวอักษร — เลือกน้อยลง หรือแยกเป็นอีกกฎ`;
   const q = quantitiesError(r.quantities, items);
   if (q) x.quantities = q;
   return x;

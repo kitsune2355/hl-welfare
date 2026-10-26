@@ -24,6 +24,13 @@ export function thaiDate(d) {
   return `${day} ${TH_MONTHS[m - 1]} ${String(y + 543).slice(-2)}`;
 }
 
+/** 2026-11-05 → "5 พ.ย. 2569" (ปีเต็ม — หน้ารายละเอียดพนักงาน) */
+export function thaiDateFull(d) {
+  if (!d) return '–';
+  const [y, m, day] = d.split('-').map(Number);
+  return `${day} ${TH_MONTHS[m - 1]} ${y + 543}`;
+}
+
 /** 2026-11-05 → "5 พฤศจิกายน 2569" */
 export function thaiDateLong(d) {
   const [y, m, day] = d.split('-').map(Number);
