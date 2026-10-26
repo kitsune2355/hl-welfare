@@ -6981,6 +6981,10 @@ button.sev-pill {
   font-weight: 700;
   font-size: 14px;
 }
+.org-about-step .icon {
+  width: 15px;
+  height: 15px;
+}
 .org-about-mini {
   margin: -4px 0 8px;
 }
