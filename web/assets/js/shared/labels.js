@@ -27,6 +27,8 @@ export const PRO_POSITIONS = [
   'ธุรการโครงการ',
 ];
 export const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'];
+/** ไซซ์รองเท้า (เบอร์) — บันทึกแจกเอง */
+export const SHOE_SIZES = ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46'];
 export const TASK_KIND_LABEL = {
   INSURANCE_URGENT: 'แจ้งออกทันที',
   INSURANCE_IN: 'แจ้งเข้าประกัน',

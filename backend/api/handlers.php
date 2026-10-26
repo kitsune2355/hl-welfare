@@ -623,6 +623,8 @@ function api_issue_create($req, $params)
     $b = req_json($req);
     $e = find_or_404(repo_employee((int)arr_get($b, 'employeeId', 0)), 'ไม่พบพนักงาน');
     if (trim((string)arr_get($b, 'size', '')) === '') { throw new ApiError('กรุณาเลือกไซซ์', 422); }
+    // หลายไซซ์ต่อรายการ เก็บเป็นข้อความสรุป (sql/016 ขยายเป็น 255) — ตรงกับ mockApi.js
+    if (mb_strlen(trim($b['size']), 'UTF-8') > 255) { throw new ApiError('ไซซ์รวมกันยาวเกิน 255 ตัวอักษร', 422); }
     $event = arr_get($b, 'event');
     if (!in_array($event, array('START', 'PROBATION', 'ANNUAL'), true)) { throw new ApiError('รอบการแจกไม่ถูกต้อง', 422); }
     $qty = (int)arr_get($b, 'qty', 0);

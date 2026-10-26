@@ -18,6 +18,10 @@ if (!$golden) { die("อ่าน fixtures/golden.json ไม่ได้ — �
 
 /* ใช้ค่าเชื่อมต่อจาก config.php แต่เปลี่ยนเป็นฐานข้อมูลทดสอบ + วันที่ของ seed */
 include $root . '/backend/config.php';
+/* config.php ชี้ไปฐานกลางเครื่องอื่นได้ — รันเทสต์กับ MySQL ในเครื่องด้วย HLW_TEST_DB_HOST / _USER / _PASS */
+foreach (array('db_host' => 'HLW_TEST_DB_HOST', 'db_user' => 'HLW_TEST_DB_USER', 'db_pass' => 'HLW_TEST_DB_PASS') as $k => $env) {
+    if (getenv($env) !== false) { $hlw_config[$k] = getenv($env); }
+}
 $hlw_config['db_name'] = getenv('HLW_TEST_DB') ? getenv('HLW_TEST_DB') : 'hl_welfare_test';
 if (strpos($hlw_config['db_name'], 'test') === false) { die("ฐานข้อมูลทดสอบต้องมีคำว่า test\n"); }
 $hlw_config['today_override'] = $golden['today'];
@@ -31,7 +35,7 @@ $admin = mysqli_connect($c['db_host'], $c['db_user'], $c['db_pass'], '', (int)$c
 mysqli_query($admin, 'DROP DATABASE IF EXISTS `' . $c['db_name'] . '`');
 mysqli_query($admin, 'CREATE DATABASE `' . $c['db_name'] . '` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci');
 mysqli_select_db($admin, $c['db_name']);
-foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications', '014_dept_groups', '015_org_settings') as $f) {
+foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications', '014_dept_groups', '015_org_settings', '016_issue_size_length') as $f) {
     $sql = file_get_contents($root . '/backend/sql/' . $f . '.sql');
     if (!mysqli_multi_query($admin, $sql)) { die("$f: " . mysqli_error($admin) . "\n"); }
     do {
@@ -428,7 +432,14 @@ check('แจกซ้ำ → 409', S($hr->req('POST', '/uniform/issues', array(
     'event' => $p['event'], 'qty' => 2, 'size' => 'L', 'issuedAt' => $golden['today']))) === 409);
 check('ไม่ระบุไซซ์ → 422', S($hr->req('POST', '/uniform/issues', array('employeeId' => 1, 'entitlementKey' => 'X', 'event' => 'START', 'qty' => 1,
     'size' => ' ', 'issuedAt' => $golden['today']))) === 422);
+check('ไซซ์รวมกันยาวเกิน 255 ตัวอักษร → 422', S($hr->req('POST', '/uniform/issues', array('employeeId' => 1, 'entitlementKey' => 'X', 'event' => 'START', 'qty' => 1,
+    'size' => str_repeat('ก', 256), 'issuedAt' => $golden['today']))) === 422);
 check('ยกเลิกการแจก → 204', S($hr->req('DELETE', '/uniform/issues/' . $iid)) === 204);
+$multi = 'เสื้อช่าง M, L · กางเกงช่าง L×2 · โปโลสีน้ำเงิน M×2 · รองเท้า Safety 42 · ' . str_repeat('ข', 100);
+$r = $hr->req('POST', '/uniform/issues', array('employeeId' => $p['employee']['id'], 'entitlementKey' => $p['entitlementKey'],
+    'event' => $p['event'], 'qty' => 7, 'size' => $multi, 'issuedAt' => $golden['today']));
+check('ไซซ์แยกรายตัวหลายรายการ (เกิน 100 ตัวอักษร · sql/016) เก็บครบ', $r['status'] === 201 && $r['json']['data']['size'] === $multi, json_encode($r['json']));
+S($hr->req('DELETE', '/uniform/issues/' . $r['json']['data']['id']));
 
 section('ส่งเบิกสต็อก Uniform (สต็อกตัวปลอม)');
 $p = null;

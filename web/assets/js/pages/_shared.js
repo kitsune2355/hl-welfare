@@ -4,9 +4,9 @@ import { can } from '../app/auth.js';
 import { refreshCounts } from '../app/shell.js';
 import { CONFIG } from '../config.js';
 import { html, on, raw, render } from '../shared/dom.js';
-import { timeAgo } from '../shared/format.js';
+import { sizeSummary, timeAgo } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
-import { ACTIVITY_ENTITY_LABEL, SIZES, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
+import { ACTIVITY_ENTITY_LABEL, SHOE_SIZES, SIZES, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
 import { enhanceSelects } from '../ui/combobox.js';
 import { alertBox, emptyState, errorState } from '../ui/components.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
@@ -19,11 +19,11 @@ import { loader } from '../ui/loading.js';
  * ส่งเบิกคลัง = ออกใบเบิกในระบบสต็อก Uniform ให้คลังจ่าย (ตัดสต็อกจริง)
  * บันทึกแจกเอง = กรณีแจกนอกระบบไปแล้ว หรือระบบสต็อกใช้งานไม่ได้ (ไม่ตัดสต็อก)
  */
-export function issueAction({ employeeId, entitlementKey, event, qty, name = '' }) {
+export function issueAction({ employeeId, entitlementKey, event, qty, name = '', itemQty = null }) {
   const manual = can('uniform.issue');
   const stock = can('stock.request');
   if (!manual && !stock) return html`<span class="small muted">รอแจก</span>`;
-  return html`<div class="row" data-issue data-emp="${employeeId}" data-key="${entitlementKey}" data-event="${event}" data-qty="${qty}" data-name="${name}" style="justify-content:flex-end;gap:6px">
+  return html`<div class="row" data-issue data-emp="${employeeId}" data-key="${entitlementKey}" data-event="${event}" data-qty="${qty}" data-name="${name}" data-items="${itemQty ? JSON.stringify(itemQty) : ''}" style="justify-content:flex-end;gap:6px">
     ${manual ? html`<button class="btn-icon sm" data-issue-manual title="บันทึกแจกเอง (แจกนอกระบบสต็อกไปแล้ว)" aria-label="บันทึกแจกเอง">${raw(icon('pencil'))}</button>` : ''}
     ${stock ? html`<button class="btn btn-primary btn-sm" data-stock-request>${raw(icon('send'))} ส่งเบิกคลัง</button>` : ''}
   </div>`;
@@ -35,7 +35,7 @@ export const canCancelIssue = (isStock) => can('uniform.issue') && (!isStock || 
 export function wireIssueActions(root, { today, onDone }) {
   const ctx = (btn) => {
     const d = btn.closest('[data-issue]').dataset;
-    return { employeeId: Number(d.emp), entitlementKey: d.key, event: d.event, qty: Number(d.qty), name: d.name, today, onDone };
+    return { employeeId: Number(d.emp), entitlementKey: d.key, event: d.event, qty: Number(d.qty), name: d.name, itemQty: d.items ? JSON.parse(d.items) : null, today, onDone };
   };
   on(root, 'click', '[data-stock-request]', (_e, btn) => openStockRequest(ctx(btn)));
   on(root, 'click', '[data-issue-manual]', (_e, btn) => openManualIssue(ctx(btn)));
@@ -45,7 +45,7 @@ export function wireIssueActions(root, { today, onDone }) {
  * ทำทีละคนต่อเนื่องกับแถวที่เลือก (ตารางค้างแจก): เปิดกล่องส่งเบิก / บันทึกแจกเอง ของคนถัดไปเมื่อปิดกล่องก่อนหน้า
  * กดยกเลิก (ปิดโดยไม่บันทึก) = หยุดทั้งชุด · คืนจำนวนที่ทำสำเร็จ
  * @param {'stock'|'manual'} kind
- * @param {{employeeId:number, entitlementKey:string, event:string, qty:number, name:string}[]} items
+ * @param {{employeeId:number, entitlementKey:string, event:string, qty:number, name:string, itemQty?:Object<string, number>}[]} items
  */
 export async function issueSequence(kind, items, { today, onDone }) {
   let done = 0;
@@ -78,32 +78,59 @@ export const STOCK_STAGE = {
   RECEIVED: { label: 'เซ็นรับแล้ว', tone: 'success' },
 };
 
-/** บันทึกแจกเอง — เลือกไซซ์ แล้วบันทึกว่าแจกแล้ว (ไม่ผ่านคลัง) */
-function openManualIssue({ employeeId, entitlementKey, event, qty, name, today, onDone, onClose, step = '' }) {
+/**
+ * บันทึกแจกเอง — เลือกไซซ์แยกรายตัวของแต่ละรายการ (เสื้อ 2 ตัวคนละไซซ์ได้) แล้วบันทึกว่าแจกแล้ว (ไม่ผ่านคลัง)
+ * ไซซ์เก็บเป็นข้อความสรุป เช่น "เสื้อช่าง M, L · กางเกงช่าง L×2" · สิทธิ์ที่ไม่มีจำนวนต่อรายการ (รุ่นก่อน) = เลือกไซซ์เดียว
+ */
+function openManualIssue({ employeeId, entitlementKey, event, qty, name, itemQty = null, today, onDone, onClose, step = '' }) {
+  const perItem = Object.entries(itemQty ?? {}).filter(([, n]) => n > 0);
+  const lines = perItem.length
+    ? perItem.map(([code, n]) => ({ code, n, label: UNIFORM_ITEM_LABEL[code] ?? code, unit: code === 'SAFETY_SHOES' ? 'คู่' : 'ตัว', options: code === 'SAFETY_SHOES' ? SHOE_SIZES : SIZES }))
+    : [{ code: '', n: 1, label: 'ไซซ์ที่แจก', unit: '', options: SIZES }];
   const m = openModal({
     onClose,
     title: `บันทึกแจกเอง${step ? ` (${step})` : ''}`,
     description: `${name ? `${name} · ` : ''}${roundLabel(event, entitlementKey)} · ${qty} ตัว`,
     body: html`${alertBox({ tone: 'warning', body: 'ใช้เมื่อแจกนอกระบบสต็อกไปแล้วเท่านั้น — ไม่ออกใบเบิกและไม่ตัดยอดในคลัง ถ้ายังไม่ได้แจก ให้ใช้ “ส่งเบิกคลัง”' })}
-      <div class="field" style="margin-top:16px">
-        <label for="manual-size">ไซซ์ที่แจก<span class="req">*</span></label>
-        <select class="input" id="manual-size">
-          <option value="">เลือกไซซ์</option>
-          ${SIZES.map((s) => html`<option value="${s}">${s}</option>`)}
-        </select>
+      <div style="display:grid;gap:14px;margin-top:16px">
+        ${lines.map(
+          (l, li) => html`<div class="field">
+            <label>${l.label}${l.unit ? html` <span class="muted small">(${l.n} ${l.unit})</span>` : ''}<span class="req">*</span></label>
+            <div class="row wrap" style="gap:8px">
+              ${Array.from(
+                { length: l.n },
+                (_, k) => html`<select class="input" data-size="${li}" style="width:auto;min-width:104px" aria-label="${l.label}${l.n > 1 ? ` ตัวที่ ${k + 1}` : ''}">
+                  <option value="">${l.n > 1 ? `ตัวที่ ${k + 1}` : 'เลือกไซซ์'}</option>
+                  ${l.options.map((s) => html`<option value="${s}">${s}</option>`)}
+                </select>`,
+              )}
+            </div>
+          </div>`,
+        )}
+        ${lines.some((l) => l.n > 1) ? html`<span class="hint">เลือกตัวแรกแล้ว ตัวที่ยังว่างของรายการเดียวกันจะใช้ไซซ์เดียวกัน — เปลี่ยนรายตัวได้</span>` : ''}
       </div>`,
     footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button>
       <button class="btn btn-primary" data-ok data-label="บันทึกแจก" disabled>บันทึกแจก</button>`,
   });
-  const sel = m.el.querySelector('#manual-size');
   const ok = m.el.querySelector('[data-ok]');
-  sel.onchange = () => (ok.disabled = !sel.value);
-  sel.focus();
+  const selectsOf = (li) => [...m.el.querySelectorAll(`[data-size="${li}"]`)];
+  const all = () => [...m.el.querySelectorAll('[data-size]')];
+  m.el.addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-size]');
+    if (!sel) return;
+    const same = selectsOf(sel.dataset.size);
+    // ตัวแรกของรายการ → เติมตัวที่ยังว่างให้ (ส่วนใหญ่ไซซ์เดียวกันทั้งรายการ)
+    if (sel === same[0] && sel.value) same.forEach((s) => s.value || (s.value = sel.value));
+    ok.disabled = all().some((s) => !s.value);
+  });
+  all()[0]?.focus();
+  const summary = () => (lines[0].code === '' ? all()[0].value : sizeSummary(lines.map((l, li) => ({ label: l.label, sizes: selectsOf(li).map((s) => s.value) }))));
   ok.onclick = async () => {
     m.busy(true, ok);
     try {
-      await api.createUniformIssue({ employeeId, entitlementKey, event, qty, size: sel.value, issuedAt: today });
-      toast.success(`บันทึกแจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[event]}) ไซซ์ ${sel.value} แล้ว`);
+      const size = summary();
+      await api.createUniformIssue({ employeeId, entitlementKey, event, qty, size, issuedAt: today });
+      toast.success(`บันทึกแจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[event]}) แล้ว — ${size}`);
       m.busy(false, ok);
       m.close();
       refreshCounts();

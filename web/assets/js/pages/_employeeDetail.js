@@ -132,7 +132,7 @@ function renderUniform(box, emp, st) {
               ? html`<span class="row" style="justify-content:flex-end">${badge('แจกแล้ว', 'success')}
                 ${canCancelIssue(false) ? html`<button class="btn-icon sm danger" data-cancel-issue="${e.issueId}" data-label="${UNIFORM_EVENT_LABEL[e.event]}" title="ยกเลิกการแจก" aria-label="ยกเลิกการแจก">${raw(icon('undo-2'))}</button>` : ''}</span>`
               : emp.status === 'ACTIVE'
-                ? issueAction({ employeeId: emp.id, entitlementKey: e.key, event: e.event, qty: e.qty, name: `${emp.firstName} ${emp.lastName}` })
+                ? issueAction({ employeeId: emp.id, entitlementKey: e.key, event: e.event, qty: e.qty, name: `${emp.firstName} ${emp.lastName}`, itemQty: e.itemQty })
                 : badge('ไม่ได้แจก', 'neutral'),
       },
     ],

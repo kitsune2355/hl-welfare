@@ -847,6 +847,7 @@ export class MockApi {
     return this.run(() => {
       const e = this.employee(input.employeeId);
       if (!input.size.trim()) throw new ApiError('กรุณาเลือกไซซ์', 422);
+      if (input.size.trim().length > 255) throw new ApiError('ไซซ์รวมกันยาวเกิน 255 ตัวอักษร', 422);
       const dup = this.db.issues.find((i) => i.employeeId === input.employeeId && i.entitlementKey === input.entitlementKey);
       if (dup) throw new ApiError(isStockIssue(dup) ? `ส่งเบิกคลังไปแล้ว (ใบ ${dup.stock.docNo})` : 'รายการนี้แจกไปแล้ว', 409);
       const issue = { ...input, source: 'MANUAL', id: nextId(this.db.issues), issuedBy: this.actor };
