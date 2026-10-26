@@ -7061,3 +7061,46 @@ button.sev-pill {
     padding-left: 6px;
   }
 }
+
+/* ส่งเบิกคลัง — 1 รายการแบ่งได้หลายไซซ์ (pages/_shared.js openStockRequest) */
+.stock-line {
+  display: grid;
+  gap: 8px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.stock-line-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.stock-line .field {
+  margin: 0;
+}
+.size-rows {
+  display: grid;
+  gap: 6px;
+}
+.size-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px 32px;
+  gap: 8px;
+  align-items: start;
+}
+.size-row > .btn-icon {
+  margin-top: 4px;
+}
+.size-row-head {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.stock-line [data-add-row] {
+  justify-self: start;
+}
+.warn-text {
+  color: var(--warning);
+  font-weight: 600;
+}

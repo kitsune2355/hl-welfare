@@ -1,31 +1,27 @@
-// ชิ้นส่วนที่หลายหน้าใช้ร่วมกัน (บันทึกแจกชุด, ไทม์ไลน์กิจกรรม)
+// ชิ้นส่วนที่หลายหน้าใช้ร่วมกัน (ส่งเบิกชุดฟอร์ม, ไทม์ไลน์กิจกรรม)
 import { api } from '../app/api.js';
 import { can } from '../app/auth.js';
 import { refreshCounts } from '../app/shell.js';
 import { CONFIG } from '../config.js';
 import { html, on, raw, render } from '../shared/dom.js';
-import { sizeSummary, timeAgo } from '../shared/format.js';
+import { timeAgo } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
-import { ACTIVITY_ENTITY_LABEL, SHOE_SIZES, SIZES, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
+import { ACTIVITY_ENTITY_LABEL, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
 import { enhanceSelects } from '../ui/combobox.js';
 import { alertBox, emptyState, errorState } from '../ui/components.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 import { loader } from '../ui/loading.js';
 
-// ===================== แจกชุดฟอร์ม: ส่งเบิกคลัง (หลัก) / บันทึกแจกเอง (รอง) =====================
+// ===================== แจกชุดฟอร์ม: ส่งเบิกคลังเสมอ (ไม่มีบันทึกแจกเองแล้ว — ต้องผ่านคลัง ตัดสต็อกจริง) =====================
 
 /**
  * ปุ่มของสิทธิ์ที่ค้างแจก — ต้องเรียก wireIssueActions(root, ...) หนึ่งครั้งต่อ container
  * ส่งเบิกคลัง = ออกใบเบิกในระบบสต็อก Uniform ให้คลังจ่าย (ตัดสต็อกจริง)
- * บันทึกแจกเอง = กรณีแจกนอกระบบไปแล้ว หรือระบบสต็อกใช้งานไม่ได้ (ไม่ตัดสต็อก)
  */
 export function issueAction({ employeeId, entitlementKey, event, qty, name = '', itemQty = null }) {
-  const manual = can('uniform.issue');
-  const stock = can('stock.request');
-  if (!manual && !stock) return html`<span class="small muted">รอแจก</span>`;
+  if (!can('stock.request')) return html`<span class="small muted">รอแจก</span>`;
   return html`<div class="row" data-issue data-emp="${employeeId}" data-key="${entitlementKey}" data-event="${event}" data-qty="${qty}" data-name="${name}" data-items="${itemQty ? JSON.stringify(itemQty) : ''}" style="justify-content:flex-end;gap:6px">
-    ${manual ? html`<button class="btn-icon sm" data-issue-manual title="บันทึกแจกเอง (แจกนอกระบบสต็อกไปแล้ว)" aria-label="บันทึกแจกเอง">${raw(icon('pencil'))}</button>` : ''}
-    ${stock ? html`<button class="btn btn-primary btn-sm" data-stock-request>${raw(icon('send'))} ส่งเบิกคลัง</button>` : ''}
+    <button class="btn btn-primary btn-sm" data-stock-request>${raw(icon('send'))} ส่งเบิกคลัง</button>
   </div>`;
 }
 
@@ -38,22 +34,20 @@ export function wireIssueActions(root, { today, onDone }) {
     return { employeeId: Number(d.emp), entitlementKey: d.key, event: d.event, qty: Number(d.qty), name: d.name, itemQty: d.items ? JSON.parse(d.items) : null, today, onDone };
   };
   on(root, 'click', '[data-stock-request]', (_e, btn) => openStockRequest(ctx(btn)));
-  on(root, 'click', '[data-issue-manual]', (_e, btn) => openManualIssue(ctx(btn)));
 }
 
 /**
- * ทำทีละคนต่อเนื่องกับแถวที่เลือก (ตารางค้างแจก): เปิดกล่องส่งเบิก / บันทึกแจกเอง ของคนถัดไปเมื่อปิดกล่องก่อนหน้า
+ * ทำทีละคนต่อเนื่องกับแถวที่เลือก (ตารางค้างแจก): เปิดกล่องส่งเบิกของคนถัดไปเมื่อปิดกล่องก่อนหน้า
  * กดยกเลิก (ปิดโดยไม่บันทึก) = หยุดทั้งชุด · คืนจำนวนที่ทำสำเร็จ
- * @param {'stock'|'manual'} kind
  * @param {{employeeId:number, entitlementKey:string, event:string, qty:number, name:string, itemQty?:Object<string, number>}[]} items
  */
-export async function issueSequence(kind, items, { today, onDone }) {
+export async function issueSequence(items, { today, onDone }) {
   let done = 0;
   for (const [i, it] of items.entries()) {
     let saved = false;
     await new Promise((resolve) => {
       const ctx = { ...it, today, step: `${i + 1}/${items.length}`, onDone: () => ((saved = true), done++), onClose: resolve };
-      (kind === 'stock' ? openStockRequest : openManualIssue)(ctx);
+      openStockRequest(ctx);
     });
     if (!saved) break;
   }
@@ -79,70 +73,9 @@ export const STOCK_STAGE = {
 };
 
 /**
- * บันทึกแจกเอง — เลือกไซซ์แยกรายตัวของแต่ละรายการ (เสื้อ 2 ตัวคนละไซซ์ได้) แล้วบันทึกว่าแจกแล้ว (ไม่ผ่านคลัง)
- * ไซซ์เก็บเป็นข้อความสรุป เช่น "เสื้อช่าง M, L · กางเกงช่าง L×2" · สิทธิ์ที่ไม่มีจำนวนต่อรายการ (รุ่นก่อน) = เลือกไซซ์เดียว
+ * ส่งเบิกคลัง — เลือกแบบ (ชาย/หญิง) แล้วแบ่งจำนวนเป็นไซซ์ของแต่ละรายการ จากสินค้าในระบบสต็อก
+ * 1 รายการแบ่งได้หลายไซซ์ (เสื้อ 2 ตัว = M 1 + L 1) — ส่งเป็นหลายบรรทัดของรายการเดียวกัน (ไซซ์ = สินค้าคนละตัวในสต็อก)
  */
-function openManualIssue({ employeeId, entitlementKey, event, qty, name, itemQty = null, today, onDone, onClose, step = '' }) {
-  const perItem = Object.entries(itemQty ?? {}).filter(([, n]) => n > 0);
-  const lines = perItem.length
-    ? perItem.map(([code, n]) => ({ code, n, label: UNIFORM_ITEM_LABEL[code] ?? code, unit: code === 'SAFETY_SHOES' ? 'คู่' : 'ตัว', options: code === 'SAFETY_SHOES' ? SHOE_SIZES : SIZES }))
-    : [{ code: '', n: 1, label: 'ไซซ์ที่แจก', unit: '', options: SIZES }];
-  const m = openModal({
-    onClose,
-    title: `บันทึกแจกเอง${step ? ` (${step})` : ''}`,
-    description: `${name ? `${name} · ` : ''}${roundLabel(event, entitlementKey)} · ${qty} ตัว`,
-    body: html`${alertBox({ tone: 'warning', body: 'ใช้เมื่อแจกนอกระบบสต็อกไปแล้วเท่านั้น — ไม่ออกใบเบิกและไม่ตัดยอดในคลัง ถ้ายังไม่ได้แจก ให้ใช้ “ส่งเบิกคลัง”' })}
-      <div style="display:grid;gap:14px;margin-top:16px">
-        ${lines.map(
-          (l, li) => html`<div class="field">
-            <label>${l.label}${l.unit ? html` <span class="muted small">(${l.n} ${l.unit})</span>` : ''}<span class="req">*</span></label>
-            <div class="row wrap" style="gap:8px">
-              ${Array.from(
-                { length: l.n },
-                (_, k) => html`<select class="input" data-size="${li}" style="width:auto;min-width:104px" aria-label="${l.label}${l.n > 1 ? ` ตัวที่ ${k + 1}` : ''}">
-                  <option value="">${l.n > 1 ? `ตัวที่ ${k + 1}` : 'เลือกไซซ์'}</option>
-                  ${l.options.map((s) => html`<option value="${s}">${s}</option>`)}
-                </select>`,
-              )}
-            </div>
-          </div>`,
-        )}
-        ${lines.some((l) => l.n > 1) ? html`<span class="hint">เลือกตัวแรกแล้ว ตัวที่ยังว่างของรายการเดียวกันจะใช้ไซซ์เดียวกัน — เปลี่ยนรายตัวได้</span>` : ''}
-      </div>`,
-    footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button>
-      <button class="btn btn-primary" data-ok data-label="บันทึกแจก" disabled>บันทึกแจก</button>`,
-  });
-  const ok = m.el.querySelector('[data-ok]');
-  const selectsOf = (li) => [...m.el.querySelectorAll(`[data-size="${li}"]`)];
-  const all = () => [...m.el.querySelectorAll('[data-size]')];
-  m.el.addEventListener('change', (e) => {
-    const sel = e.target.closest('[data-size]');
-    if (!sel) return;
-    const same = selectsOf(sel.dataset.size);
-    // ตัวแรกของรายการ → เติมตัวที่ยังว่างให้ (ส่วนใหญ่ไซซ์เดียวกันทั้งรายการ)
-    if (sel === same[0] && sel.value) same.forEach((s) => s.value || (s.value = sel.value));
-    ok.disabled = all().some((s) => !s.value);
-  });
-  all()[0]?.focus();
-  const summary = () => (lines[0].code === '' ? all()[0].value : sizeSummary(lines.map((l, li) => ({ label: l.label, sizes: selectsOf(li).map((s) => s.value) }))));
-  ok.onclick = async () => {
-    m.busy(true, ok);
-    try {
-      const size = summary();
-      await api.createUniformIssue({ employeeId, entitlementKey, event, qty, size, issuedAt: today });
-      toast.success(`บันทึกแจกชุดฟอร์ม (${UNIFORM_EVENT_LABEL[event]}) แล้ว — ${size}`);
-      m.busy(false, ok);
-      m.close();
-      refreshCounts();
-      onDone();
-    } catch (err) {
-      toast.error(errorMessage(err));
-      m.busy(false, ok);
-    }
-  };
-}
-
-/** ส่งเบิกคลัง — เลือกแบบ (ชาย/หญิง) ไซซ์ และจำนวนของแต่ละรายการ จากสินค้าในระบบสต็อก */
 async function openStockRequest({ employeeId, entitlementKey, event, name, onDone, onClose, step = '' }) {
   const m = openModal({
     onClose,
@@ -161,36 +94,52 @@ async function openStockRequest({ employeeId, entitlementKey, event, name, onDon
     render(body, errorState(err));
     return;
   }
-  // สิ่งที่ผู้ใช้เลือก — index ของแบบ + สินค้า (ไซซ์) + จำนวน ต่อรายการ
-  const picks = opt.items.map((it) => ({ variant: it.variantIndex, productId: 0, qty: it.qty }));
-
+  // สิ่งที่ผู้ใช้เลือก ต่อรายการ — index ของแบบ + แถวไซซ์ (สินค้า + จำนวน)
+  const picks = opt.items.map((it) => ({ variant: it.variantIndex, rows: [{ productId: 0, qty: it.qty }] }));
+  const unitOf = (it) => (it.itemCode === 'SAFETY_SHOES' ? 'คู่' : 'ตัว');
+  const total = (p) => p.rows.reduce((s, r) => s + (Number.isInteger(r.qty) && r.qty > 0 ? r.qty : 0), 0);
   const productsOf = (i) => opt.items[i].variants[picks[i].variant]?.products ?? [];
+
+  const sizeRow = (i, r, ri, rowCount) => {
+    const chosen = productsOf(i).find((x) => x.productId === r.productId);
+    const short = chosen && chosen.onHand < r.qty;
+    return html`<div class="size-row" data-row="${ri}">
+      <div class="field">
+        <select class="input" data-product aria-label="ไซซ์${rowCount > 1 ? ` แถวที่ ${ri + 1}` : ''}">
+          <option value="">เลือกไซซ์</option>
+          ${productsOf(i).map((x) => html`<option value="${x.productId}" ${x.productId === r.productId ? raw('selected') : ''}>${x.size} (คงเหลือ ${x.onHand})</option>`)}
+        </select>
+        ${chosen ? html`<span class="${short ? 'error' : 'hint'}">${short ? `สต็อกไม่พอ (มี ${chosen.onHand})` : `คงเหลือ ${chosen.onHand}`}</span>` : ''}
+      </div>
+      <input class="input num" type="number" min="1" step="1" data-qty value="${r.qty}" aria-label="จำนวน" />
+      ${rowCount > 1
+        ? html`<button type="button" class="btn-icon sm" data-remove-row title="เอาไซซ์นี้ออก" aria-label="เอาไซซ์นี้ออก">${raw(icon('x'))}</button>`
+        : html`<span></span>`}
+    </div>`;
+  };
   const lineHtml = (it, i) => {
     const p = picks[i];
-    const chosen = productsOf(i).find((x) => x.productId === p.productId);
-    const short = chosen && chosen.onHand < p.qty;
-    return html`<div class="form-grid stock-line" data-line="${i}" style="grid-template-columns:1fr 1fr 84px;align-items:start;padding:12px 0;border-bottom:1px solid var(--border)">
+    const sum = total(p);
+    const unit = unitOf(it);
+    return html`<section class="stock-line" data-line="${i}">
+      <div class="stock-line-head">
+        <b>${UNIFORM_ITEM_LABEL[it.itemCode] ?? it.itemCode}</b>
+        <span class="${sum === it.qty ? 'muted' : 'warn-text'} small">รวม ${sum} / สิทธิ์ ${it.qty} ${unit}</span>
+      </div>
       <div class="field">
-        <label>${UNIFORM_ITEM_LABEL[it.itemCode] ?? it.itemCode}</label>
+        <label>แบบ</label>
         ${it.variants.length > 1
           ? html`<select class="input" data-variant aria-label="แบบ">
               ${it.variants.map((v, vi) => html`<option value="${vi}" ${vi === p.variant ? raw('selected') : ''}>${v.label}</option>`)}
             </select>`
-          : html`<span class="small muted" style="min-height:40px;display:flex;align-items:center">${it.variants[0]?.name ?? '–'}</span>`}
+          : html`<span class="small muted">${it.variants[0]?.name ?? '–'}</span>`}
       </div>
-      <div class="field">
-        <label>ไซซ์<span class="req">*</span></label>
-        <select class="input" data-product aria-label="ไซซ์">
-          <option value="">เลือกไซซ์</option>
-          ${productsOf(i).map((x) => html`<option value="${x.productId}" ${x.productId === p.productId ? raw('selected') : ''}>${x.size} (คงเหลือ ${x.onHand})</option>`)}
-        </select>
-        ${chosen ? html`<span class="${short ? 'error' : 'hint'}">${short ? `สต็อกไม่พอ (มี ${chosen.onHand})` : `คงเหลือ ${chosen.onHand}`}</span>` : ''}
+      <div class="size-rows">
+        <div class="size-row size-row-head" aria-hidden="true"><span>ไซซ์<span class="req">*</span></span><span>จำนวน</span><span></span></div>
+        ${p.rows.map((r, ri) => sizeRow(i, r, ri, p.rows.length))}
       </div>
-      <div class="field">
-        <label>จำนวน</label>
-        <input class="input num" type="number" min="1" step="1" data-qty value="${p.qty}" aria-label="จำนวน" />
-      </div>
-    </div>`;
+      <button type="button" class="btn btn-ghost btn-sm" data-add-row>${raw(icon('plus'))} เพิ่มไซซ์ <span class="muted">(เช่น 2 ${unit} คนละไซซ์)</span></button>
+    </section>`;
   };
   const draw = () => {
     const d = opt.department;
@@ -215,26 +164,56 @@ async function openStockRequest({ employeeId, entitlementKey, event, name, onDon
             </div>`
           : ''}`,
     );
-    ok.disabled = opt.blockers.length > 0 || picks.some((p) => !p.productId || !(Number.isInteger(p.qty) && p.qty > 0));
+    ok.disabled = opt.blockers.length > 0 || picks.some((p) => p.rows.some((r) => !r.productId || !(Number.isInteger(r.qty) && r.qty > 0)));
   };
   draw();
 
-  body.addEventListener('change', (e) => {
+  const at = (e) => {
     const line = e.target.closest('[data-line]');
-    if (!line) return;
+    if (!line) return null;
     const p = picks[Number(line.dataset.line)];
+    const row = e.target.closest('[data-row]');
+    return { p, ri: row ? Number(row.dataset.row) : -1 };
+  };
+  body.addEventListener('change', (e) => {
+    const c = at(e);
+    if (!c) return;
     if (e.target.matches('[data-variant]')) {
-      p.variant = Number(e.target.value);
-      p.productId = 0; // ไซซ์เป็นสินค้าของแต่ละแบบ เปลี่ยนแบบแล้วต้องเลือกใหม่
-    } else if (e.target.matches('[data-product]')) p.productId = Number(e.target.value);
-    else if (e.target.matches('[data-qty]')) p.qty = Number(e.target.value);
+      c.p.variant = Number(e.target.value);
+      for (const r of c.p.rows) r.productId = 0; // ไซซ์เป็นสินค้าของแต่ละแบบ เปลี่ยนแบบแล้วต้องเลือกใหม่
+    } else if (e.target.matches('[data-product]')) c.p.rows[c.ri].productId = Number(e.target.value);
+    else if (e.target.matches('[data-qty]')) c.p.rows[c.ri].qty = Number(e.target.value);
+    draw();
+  });
+  body.addEventListener('click', (e) => {
+    const c = at(e);
+    if (!c) return;
+    if (e.target.closest('[data-add-row]')) {
+      // แบ่ง 1 ชิ้นจากแถวท้ายสุดที่มีมากกว่า 1 → รวมยังเท่าสิทธิ์ เลือกแค่ไซซ์ของแถวใหม่
+      const from = [...c.p.rows].reverse().find((r) => r.qty > 1);
+      if (from) from.qty--;
+      c.p.rows.push({ productId: 0, qty: 1 });
+    } else if (e.target.closest('[data-remove-row]')) {
+      const [gone] = c.p.rows.splice(c.ri, 1);
+      // คืนจำนวนให้แถวก่อนหน้า (แถวแรกถูกเอาออก = ให้แถวถัดไป) → รวมไม่หาย
+      const to = c.p.rows[Math.max(0, c.ri - 1)];
+      if (Number.isInteger(gone.qty) && gone.qty > 0) to.qty = (Number.isInteger(to.qty) && to.qty > 0 ? to.qty : 0) + gone.qty;
+    } else return;
     draw();
   });
 
   ok.onclick = async () => {
     m.busy(true, ok);
     try {
-      const lines = opt.items.map((it, i) => ({ itemCode: it.itemCode, productId: picks[i].productId, qty: picks[i].qty }));
+      // 1 บรรทัดต่อ (รายการ, ไซซ์) — เลือกไซซ์เดียวกันซ้ำ = รวมจำนวน
+      const lines = [];
+      opt.items.forEach((it, i) => {
+        for (const r of picks[i].rows) {
+          const same = lines.find((l) => l.itemCode === it.itemCode && l.productId === r.productId);
+          if (same) same.qty += r.qty;
+          else lines.push({ itemCode: it.itemCode, productId: r.productId, qty: r.qty });
+        }
+      });
       const issue = await api.requestUniformFromStock({ employeeId, entitlementKey, lines });
       toast.success(`ส่งเบิกแล้ว ใบ ${issue.stock.docNo} — ${STOCK_STAGE[issue.stock.stage]?.label ?? 'รอผู้อนุมัติ'}`);
       m.busy(false, ok);

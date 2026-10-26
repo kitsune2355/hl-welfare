@@ -1,7 +1,6 @@
 import { describe, it } from 'node:test';
 import { expect } from './_expect.js';
 import { MockApi } from '../web/assets/js/infrastructure/mock/mockApi.js';
-import { sizeSummary } from '../web/assets/js/shared/format.js';
 import { buildStockOptions, stockChange, stockSizes, stockSubmitPayload, toStockRequest } from '../web/assets/js/application/usecases/uniformStock.js';
 
 const TODAY = '2026-10-16';
@@ -152,17 +151,7 @@ describe('uniformStock use-case', () => {
   });
 });
 
-describe('บันทึกแจกเอง: ไซซ์แยกรายตัว (shared/format.js sizeSummary)', () => {
-  it('รวมไซซ์ซ้ำเป็น ×จำนวน · คงลำดับที่เลือก · คั่นรายการด้วย " · "', () => {
-    expect(
-      sizeSummary([
-        { label: 'เสื้อช่าง', sizes: ['M', 'L'] },
-        { label: 'กางเกงช่าง', sizes: ['L', 'L'] },
-        { label: 'รองเท้า Safety', sizes: ['42'] },
-      ]),
-    ).toBe('เสื้อช่าง M, L · กางเกงช่าง L×2 · รองเท้า Safety 42');
-    expect(sizeSummary([{ label: 'โปโลสีดำ', sizes: ['XL', 'M', 'XL'] }])).toBe('โปโลสีดำ XL×2, M');
-  });
+describe('บันทึกการแจก (API — หน้าเว็บไม่มีบันทึกแจกเองแล้ว ใช้ส่งเบิกคลังเสมอ)', () => {
   it('MockApi รับไซซ์หลายรายการ · ยาวเกิน 255 → 422', async () => {
     const api = new MockApi(() => TODAY, null);
     const p = (await api.listUniformPending())[0];

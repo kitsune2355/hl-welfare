@@ -32,7 +32,7 @@ let employees = new Map();
 const pieces = (label) => label.split('+').reduce((s, x) => s + Number(x), 0); // "2+1" → 3
 const annualYear = (key) => ` ${Number(key.slice(7)) + 543}`;
 
-/** แถวค้างแจก → ข้อมูลที่กล่องส่งเบิก / บันทึกแจกเองใช้ */
+/** แถวค้างแจก → ข้อมูลที่กล่องส่งเบิกใช้ */
 const issueItem = (r) => ({ employeeId: r.employee.id, entitlementKey: r.entitlementKey, event: r.event, qty: pieces(r.qtyLabel), name: `${r.employee.firstName} ${r.employee.lastName}`, itemQty: r.itemQty ?? null });
 /** ยกเลิกหลายรายการ (ส่งเบิก / แจก) — ทีละรายการ แจ้งที่ไม่สำเร็จรวมท้าย */
 async function cancelMany(rows, label) {
@@ -57,12 +57,7 @@ const pendingTable = new DataTable($('#pending'), {
   onRender: enhanceIssueActions,
   onRowDblClick: (r) => openEmp(r.employee.id),
   // เลือกหลายคน → เปิดกล่องของแต่ละคนต่อกัน (ไซซ์ต่างกันรายคน) · ยกเลิกกล่องไหน = หยุด
-  bulkActions: [
-    ...(can('stock.request')
-      ? [{ id: 'stock', label: 'ส่งเบิกคลังทีละคน', icon: 'send', run: async (rows) => seq('stock', rows) }]
-      : []),
-    ...(can('uniform.issue') ? [{ id: 'manual', label: 'บันทึกแจกเองทีละคน', icon: 'pencil', run: async (rows) => seq('manual', rows) }] : []),
-  ],
+  bulkActions: can('stock.request') ? [{ id: 'stock', label: 'ส่งเบิกคลังทีละคน', icon: 'send', run: async (rows) => seq(rows) }] : [],
   columns: [
     { key: 'emp', header: 'พนักงาน', cell: (r) => employeeCell(r.employee, { link: true }) },
     {
@@ -101,9 +96,9 @@ const empCol = { key: 'emp', header: 'พนักงาน', mobile: 'title', c
 const roundCol = { key: 'ev', header: 'รอบ', cell: (i) => `${UNIFORM_EVENT_LABEL[i.event]}${i.event === 'ANNUAL' ? annualYear(i.entitlementKey) : ''}` };
 const stockItems = (i) => i.stock.items.map((x) => `${x.name} × ${x.qty}`).join(', ');
 
-async function seq(kind, rows) {
-  const n = await issueSequence(kind, rows.map(issueItem), { today, onDone: load });
-  return n ? `${kind === 'stock' ? 'ส่งเบิก' : 'บันทึกแจก'}แล้ว ${n} จาก ${rows.length} คน` : '';
+async function seq(rows) {
+  const n = await issueSequence(rows.map(issueItem), { today, onDone: load });
+  return n ? `ส่งเบิกแล้ว ${n} จาก ${rows.length} คน` : '';
 }
 
 const waitingTable = new DataTable($('#waiting'), {
