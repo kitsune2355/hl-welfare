@@ -6981,6 +6981,14 @@ button.sev-pill {
   font-weight: 700;
   font-size: 14px;
 }
+.org-about > .grow {
+  flex: 1;
+  min-width: 0;
+}
+.org-about > [data-about-hide] {
+  flex: none;
+  margin: -4px -6px 0 auto; /* ขวาบนสุดของกรอบ */
+}
 .org-about-step .icon {
   width: 15px;
   height: 15px;
