@@ -40,8 +40,8 @@ $hlw_config = array(
     'login_window_minutes'     => 15,
 
     /* ---------- ระบบสต็อก Uniform (stock_hr) — กุญแจต้องตรงกับ stock_hr/config_ctrl/welfare_key.php ---------- */
-    'stock_api_url'    => $cfg_is_local ? 'http://localhost/stock_hr/api/welfare.php' : 'https://develophpg.net/stock_hr/api/welfare.php',
-    'stock_api_secret' => '',
+    'stock_api_url'    => $cfg_is_local ? 'http://192.168.10.39/stock_hr/api/welfare.php' : 'https://develophpg.net/stock_hr/api/welfare.php',
+    'stock_api_secret' => 'd542dc95971ca160b2d3b3ad04d880dd1b2c1889c93141be33ee62fd0b495c83',
 
     /* เทสต์เท่านั้น: บังคับ "วันนี้" (YYYY-MM-DD) — ระบบจริงต้องว่าง */
     'today_override' => '',
