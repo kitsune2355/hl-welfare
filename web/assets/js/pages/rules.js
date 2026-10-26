@@ -268,11 +268,8 @@ function draw() {
   const pendingCount = pendingItems().length;
   render(
     $('#tabs'),
-    settingsTabs(tab, {
-      insurance: { count: hist.insurance.filter((t) => t.current).length },
-      uniform: { count: hist.uniform.filter((t) => t.current).length },
-      pending: { count: pendingCount, tone: pendingCount ? 'warning' : '' },
-    }),
+    // ตัวเลขบนแท็บ: เฉพาะรอมีผล (มีรายการรอ = สีส้ม) — จำนวนกฎดูในตารางของแท็บนั้น
+    settingsTabs(tab, { pending: { count: pendingCount, tone: pendingCount ? 'warning' : '' } }),
   );
   revealActiveTab($('#tabs'));
   $('#tab-hint').textContent = settingsTab(tab).hint;
