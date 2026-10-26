@@ -12,7 +12,7 @@ import { relativeDays, thaiDate, thaiDateLong } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import { CONTRACT_LABEL, DEPT_GROUPS, EMPLOYEE_TYPE_LABEL, PRO_POSITIONS, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
 import { alertBox, badge, emptyState, errorState } from '../ui/components.js';
-import { aboutBox, wireAbout } from './_orgSetup.js';
+import { aboutBox, wireAbout } from './_settingsAbout.js';
 import { revealActiveTab, settingsTab, settingsTabs, wireSettingsTabs } from './_settingsTabs.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
@@ -774,7 +774,7 @@ function wireActions(root, close = () => {}) {
 }
 
 // ===================== events =====================
-// แท็บของหน้านี้สลับในหน้า · แท็บองค์กร / เริ่มต้นตั้งค่า = ลิงก์ไป sites.html (pages/_settingsTabs.js)
+// แท็บของหน้านี้สลับในหน้า · แท็บองค์กร = ลิงก์ไป sites.html (pages/_settingsTabs.js)
 wireAbout($('#about'), () => render($('#about'), aboutBox(tab)));
 wireSettingsTabs($('#tabs'), 'rules', (next) => {
   tab = next;

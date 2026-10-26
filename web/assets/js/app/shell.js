@@ -21,7 +21,7 @@ const MENU = [
   { id: 'insurance', href: 'insurance.html', label: 'ประกันกลุ่ม', icon: 'shield-plus', cap: 'insurance.view', count: (d) => d.urgentPending, tone: 'danger' },
   { id: 'uniform', href: 'uniform.html', label: 'ชุดฟอร์ม', icon: 'shirt', cap: 'uniform.view', count: (d) => d.uniformPending, tone: 'warning' },
 ];
-// "ตั้งค่าสวัสดิการ" = เมนูเดียวของ 2 หน้า (sites.html = เริ่มต้นตั้งค่า + องค์กร · rules.html = เงื่อนไขสวัสดิการ)
+// "ตั้งค่าสวัสดิการ" = เมนูเดียวของ 2 หน้า (sites.html = องค์กร · rules.html = เงื่อนไขสวัสดิการ)
 //   แถบแท็บร่วมกัน (pages/_settingsTabs.js) · สิทธิ์ยังแยกหน้า: sites.view / rules.view — มีอย่างใดอย่างหนึ่งก็เห็นเมนู
 //   pages = id ของหน้าที่ไฮไลต์เมนูนี้ · hidden = มีไว้ตรวจสิทธิ์ของหน้า (guardPage) ไม่แสดงในเมนู
 const SETTINGS = [

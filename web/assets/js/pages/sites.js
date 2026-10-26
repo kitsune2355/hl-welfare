@@ -1,5 +1,4 @@
-// หน้า: ตั้งค่าองค์กร (sites.html?tab=setup|companies|types|groups|sites)
-//   เริ่มต้นตั้งค่า (ค่าเริ่มต้น) = ลำดับขั้น + สถานะจริงของแต่ละขั้น (pages/_orgSetup.js)
+// หน้า: ตั้งค่าสวัสดิการ — แท็บองค์กร (sites.html?tab=companies|types|groups|sites · ไม่ใส่ = บริษัท)
 //   แท็บเรียงตามลำดับที่ต้องตั้ง: 1 บริษัท → 2 ประเภทพนักงาน → 3 กลุ่ม/ฝ่าย → 4 หน่วยงาน
 //   หน่วยงาน = ตาราง Excel เพิ่ม/แก้/ลบ + ชุดฟอร์มของหน่วยงาน (ไฟล์นี้) · บริษัท / ประเภท / กลุ่ม-ฝ่าย = pages/_orgSettings.js
 //   ทุกแท็บมีกล่องอธิบาย "คืออะไร / ใช้ทำอะไร / ต้องมีอะไรก่อน" (ซ่อนได้)
@@ -17,17 +16,17 @@ import { loader } from '../ui/loading.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 
 import { showOrgTab } from './_orgSettings.js';
-import { aboutBox, showSetup, wireAbout } from './_orgSetup.js';
+import { aboutBox, wireAbout } from './_settingsAbout.js';
 import { revealActiveTab, settingsTab, settingsTabs, wireSettingsTabs } from './_settingsTabs.js';
 
 /** คู่มือตามแท็บ (tour/steps.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
-const tourId = () => ({ sites: 'sites', companies: 'sites-companies', types: 'sites-types', groups: 'sites-groups' })[getParam('tab')] ?? 'sites-setup';
+const tourId = () => ({ sites: 'sites', types: 'sites-types', groups: 'sites-groups' })[getParam('tab')] ?? 'sites-companies';
 initPage('sites', { tour: tourId });
 
 // ===================== แท็บ =====================
 // แท็บของหน้านี้ (แถบแท็บใช้ร่วมกับ rules.html — pages/_settingsTabs.js)
-const TABS = ['setup', 'companies', 'types', 'groups', 'sites'];
-let tab = TABS.includes(getParam('tab')) ? getParam('tab') : 'setup';
+const TABS = ['companies', 'types', 'groups', 'sites'];
+let tab = TABS.includes(getParam('tab')) ? getParam('tab') : 'companies';
 function drawAbout() {
   render($('#about'), aboutBox(tab));
 }
@@ -36,16 +35,15 @@ function drawTab() {
   revealActiveTab($('#tabs'));
   $('#tab-hint').textContent = settingsTab(tab).hint;
   drawAbout();
-  const panel = tab === 'setup' ? 'setup' : tab === 'sites' ? 'sites' : 'org';
-  for (const p of ['setup', 'sites', 'org']) $(`#panel-${p}`).classList.toggle('hidden', p !== panel);
+  const panel = tab === 'sites' ? 'sites' : 'org';
+  for (const p of ['sites', 'org']) $(`#panel-${p}`).classList.toggle('hidden', p !== panel);
   $('#summary').style.display = tab === 'sites' ? '' : 'none';
   if (panel === 'sites') grid.render();
-  else if (panel === 'setup') showSetup($('#setup'), goTab);
   else showOrgTab($('#org'), tab);
 }
 function goTab(next) {
   tab = next;
-  setParams({ tab: tab === 'setup' ? '' : tab });
+  setParams({ tab: tab === 'companies' ? '' : tab });
   drawTab();
   startTourIfNew(tourId());
 }
