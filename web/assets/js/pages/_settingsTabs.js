@@ -34,21 +34,40 @@ export const settingsTab = (value) => SETTINGS_TABS.find((t) => t.value === valu
  * แถบแท็บ — active = แท็บที่เปิดอยู่ · counts = { [value]: { count, tone } } (ตัวเลขบนแท็บ)
  */
 export function settingsTabs(active, counts = {}) {
-  const items = SETTINGS_TABS.filter((t) => t.group || visible(t));
-  // หัวกลุ่มแสดงเมื่อมีแท็บที่เห็นต่อท้าย (ไม่มีสิทธิ์ทั้งกลุ่ม = ไม่มีหัวกลุ่มลอย ๆ)
-  const shown = items.filter((t, i) => !t.group || (items[i + 1] && !items[i + 1].group));
+  // แบ่งเป็นช่วง: แท็บเดี่ยว (เริ่มต้นตั้งค่า) + กลุ่ม — หัวกลุ่มเป็นป้ายเล็กเหนือแท็บของกลุ่ม (ไม่ใช่ปุ่ม กดไม่ได้)
+  const parts = [];
+  for (const t of SETTINGS_TABS) {
+    if (t.group) parts.push({ group: t.group, tabs: [] });
+    else if (visible(t)) (parts.at(-1)?.group ? parts.at(-1).tabs : (parts.push({ tabs: [] }), parts.at(-1).tabs)).push(t);
+  }
+  const tab = (t) => {
+    const on = t.value === active;
+    const c = counts[t.value];
+    return html`<a class="tab${on ? ' active' : ''}" role="tab" aria-selected="${on}" href="${href(t)}" data-tab="${t.value}" data-page="${t.page}"
+      >${t.icon ? raw(icon(t.icon)) : t.step ? html`<span class="tab-step num">${t.step}</span>` : ''}${t.label}${c?.count !== undefined
+        ? html` <span class="count num ${c.tone ? `tone-${c.tone}` : ''}">${c.count}</span>`
+        : ''}</a
+    >`;
+  };
   return html`<nav class="tabs settings-tabs" role="tablist" aria-label="ตั้งค่าสวัสดิการ">
-    ${shown.map((t) => {
-      if (t.group) return html`<span class="settings-group" aria-hidden="true">${t.group}</span>`;
-      const on = t.value === active;
-      const c = counts[t.value];
-      return html`<a class="tab${on ? ' active' : ''}" role="tab" aria-selected="${on}" href="${href(t)}" data-tab="${t.value}" data-page="${t.page}"
-        >${t.icon ? raw(icon(t.icon)) : t.step ? html`<span class="tab-step num">${t.step}</span>` : ''}${t.label}${c?.count !== undefined
-          ? html` <span class="count num ${c.tone ? `tone-${c.tone}` : ''}">${c.count}</span>`
-          : ''}</a
-      >`;
-    })}
+    ${parts
+      .filter((p) => p.tabs.length) // ไม่มีสิทธิ์ทั้งกลุ่ม = ไม่แสดงหัวกลุ่ม
+      .map((p) =>
+        p.group
+          ? html`<div class="settings-group" role="presentation">
+              <span class="settings-group-label" aria-hidden="true">${p.group}</span>
+              <div class="settings-group-tabs">${p.tabs.map(tab)}</div>
+            </div>`
+          : p.tabs.map(tab),
+      )}
   </nav>`;
+}
+
+/** เลื่อนแถบแท็บ (แนวนอน) ให้เห็นแท็บที่เลือก — เรียกหลังวาดแถบ */
+export function revealActiveTab(el) {
+  const nav = el.querySelector('.settings-tabs') ?? el;
+  const a = nav.querySelector('.tab.active');
+  if (a && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2;
 }
 
 /** คลิกแท็บของหน้านี้ = สลับในหน้า (ไม่โหลดใหม่) · แท็บของอีกหน้า = ปล่อยให้ลิงก์พาไป */

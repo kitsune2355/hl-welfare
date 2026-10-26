@@ -12,7 +12,7 @@ import { relativeDays, thaiDate, thaiDateLong } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import { CONTRACT_LABEL, DEPT_GROUPS, EMPLOYEE_TYPE_LABEL, PRO_POSITIONS, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
 import { alertBox, badge, emptyState, errorState } from '../ui/components.js';
-import { settingsTab, settingsTabs, wireSettingsTabs } from './_settingsTabs.js';
+import { revealActiveTab, settingsTab, settingsTabs, wireSettingsTabs } from './_settingsTabs.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 
@@ -273,6 +273,7 @@ function draw() {
       pending: { count: pendingCount, tone: pendingCount ? 'warning' : '' },
     }),
   );
+  revealActiveTab($('#tabs'));
   $('#tab-hint').textContent = settingsTab(tab).hint;
   // .btn ตั้ง display เอง แอตทริบิวต์ hidden จึงซ่อนไม่ได้ — ใช้ style แทน
   $('#add').style.display = canEdit && (tab === 'insurance' || tab === 'uniform') ? '' : 'none';

@@ -18,7 +18,7 @@ import { errorMessage, openModal, toast } from '../ui/overlay.js';
 
 import { showOrgTab } from './_orgSettings.js';
 import { aboutBox, showSetup, wireAbout } from './_orgSetup.js';
-import { settingsTab, settingsTabs, wireSettingsTabs } from './_settingsTabs.js';
+import { revealActiveTab, settingsTab, settingsTabs, wireSettingsTabs } from './_settingsTabs.js';
 
 /** คู่มือตามแท็บ (tour/steps.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
 const tourId = () => ({ sites: 'sites', companies: 'sites-companies', types: 'sites-types', groups: 'sites-groups' })[getParam('tab')] ?? 'sites-setup';
@@ -33,6 +33,7 @@ function drawAbout() {
 }
 function drawTab() {
   render($('#tabs'), settingsTabs(tab));
+  revealActiveTab($('#tabs'));
   $('#tab-hint').textContent = settingsTab(tab).hint;
   drawAbout();
   const panel = tab === 'setup' ? 'setup' : tab === 'sites' ? 'sites' : 'org';

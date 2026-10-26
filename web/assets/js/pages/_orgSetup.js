@@ -273,26 +273,78 @@ const STATE = {
   unknown: { label: 'ดูไม่ได้', tone: 'neutral' },
 };
 
-function stepCard(s, i) {
-  const meta = ABOUT[s.id] ?? EXTRA[s.id];
+/** กลุ่มของขั้น — ตรงกับหัวกลุ่มในแถบแท็บ (pages/_settingsTabs.js) */
+const GROUPS = [
+  { title: 'องค์กร', sub: 'ข้อมูลหลักที่ทุกอย่างอ้างถึง', ids: ['companies', 'types', 'groups', 'sites'] },
+  { title: 'เงื่อนไขสวัสดิการ', sub: 'ใครได้สิทธิ์อะไร เมื่อไร', ids: ['rules-insurance', 'rules-uniform'] },
+  { title: 'ก่อนเริ่มใช้งาน', sub: 'ไฟล์แจ้งประกัน ผู้ใช้ และพนักงาน', ids: ['insurers', 'users', 'employees'] },
+];
+const metaOf = (s) => ABOUT[s.id] ?? EXTRA[s.id];
+const pending = (s) => s.state === 'todo' || s.state === 'warn';
+
+/** ปุ่มไปตั้งค่าของขั้น — แท็บของหน้านี้ = ปุ่ม (สลับแท็บ) · หน้าอื่น = ลิงก์ */
+function goButton(go, primary, extra = '') {
+  if (!go) return '';
+  const cls = `btn btn-sm ${primary ? 'btn-primary' : 'btn-ghost'} ${extra}`;
+  return go.tab
+    ? html`<button type="button" class="${cls}" data-go-tab="${go.tab}">${go.label} ${raw(icon('chevron-right'))}</button>`
+    : html`<a class="${cls}" href="${go.href}">${go.label} ${raw(icon('chevron-right'))}</a>`;
+}
+
+/** 1 ขั้น = แถวสั้น (เลข · ชื่อ · สรุป 1 บรรทัด · สถานะ · ปุ่ม) + รายละเอียดที่กางได้ — ขั้นที่ยังขาดกางไว้ให้เลย */
+function stepRow(s, n) {
+  const meta = metaOf(s);
   const st = STATE[s.state];
-  return html`<li class="setup-step is-${s.state}">
-    <span class="setup-num" aria-hidden="true">${s.state === 'done' ? raw(icon('check')) : i + 1}</span>
-    <div class="setup-body">
-      <div class="setup-head">
-        <b>${meta.title}</b>
-        ${badge(st.label, st.tone)}
-      </div>
-      <p class="setup-what">${meta.what}</p>
-      <ul class="setup-lines">${s.lines.map((l) => html`<li>${l}</li>`)}</ul>
+  const open = pending(s);
+  return html`<li class="setup-step is-${s.state}${open ? ' open' : ''}" data-step="${s.id}">
+    <div class="setup-row">
+      <span class="setup-num" aria-hidden="true">${s.state === 'done' ? raw(icon('check')) : n}</span>
+      <button type="button" class="setup-toggle" aria-expanded="${open}" aria-controls="setup-detail-${s.id}">
+        <span class="setup-title"><b>${meta.title}</b> ${badge(st.label, st.tone)}</span>
+        <span class="setup-summary">${s.lines[0] ?? ''}</span>
+        ${raw(icon('chevron-down', 'setup-caret'))}
+      </button>
+      ${s.go ? goButton(s.go, open) : html`<span></span>`}
+    </div>
+    <div class="setup-detail" id="setup-detail-${s.id}">
+      <p>${meta.what}</p>
+      ${s.lines.length > 1 ? html`<ul class="setup-lines">${s.lines.slice(1).map((l) => html`<li>${l}</li>`)}</ul>` : ''}
       <small class="muted">ต้องมีก่อน: ${meta.needs}</small>
     </div>
-    ${s.go
-      ? s.go.tab
-        ? html`<button type="button" class="btn btn-sm ${s.state === 'todo' || s.state === 'warn' ? 'btn-primary' : ''}" data-go-tab="${s.go.tab}">${s.go.label} ${raw(icon('chevron-right'))}</button>`
-        : html`<a class="btn btn-sm ${s.state === 'todo' || s.state === 'warn' ? 'btn-primary' : ''}" href="${s.go.href}">${s.go.label} ${raw(icon('chevron-right'))}</a>`
-      : html`<span></span>`}
   </li>`;
+}
+
+/** การ์ดบนสุด: ขั้นถัดไปที่ต้องทำ (หรือ "พร้อมใช้งาน") + ความคืบหน้า */
+function nextCard(steps) {
+  const must = steps.filter((s) => s.state !== 'optional' && s.state !== 'unknown');
+  const done = must.filter((s) => s.state === 'done').length;
+  const pct = must.length ? Math.round((done / must.length) * 100) : 0;
+  const next = steps.find(pending);
+  const n = next ? steps.indexOf(next) + 1 : 0;
+  const ring = html`<div class="setup-ring" style="--p:${pct}" role="img" aria-label="เรียบร้อย ${done} จาก ${must.length} ขั้นที่จำเป็น">
+    <b class="num">${done}/${must.length}</b><small>ขั้นจำเป็น</small>
+  </div>`;
+  if (!next) {
+    return html`<div class="setup-next is-done">
+      ${ring}
+      <div class="setup-next-body">
+        <small class="setup-next-kicker">${raw(icon('check'))} ตั้งค่าครบแล้ว</small>
+        <h2>พร้อมใช้งาน</h2>
+        <p class="muted">ทุกขั้นที่จำเป็นเรียบร้อย — เพิ่ม/แก้ภายหลังได้ที่แท็บของแต่ละขั้น · กลับมาดูหน้านี้ได้ทุกเมื่อ ระบบตรวจใหม่ทุกครั้ง</p>
+      </div>
+      <a class="btn btn-primary" href="employees.html">ไปพนักงาน ${raw(icon('chevron-right'))}</a>
+    </div>`;
+  }
+  const meta = metaOf(next);
+  return html`<div class="setup-next is-${next.state}">
+    ${ring}
+    <div class="setup-next-body">
+      <small class="setup-next-kicker">ทำต่อ · ขั้นที่ ${n}</small>
+      <h2>${meta.title}</h2>
+      <p>${next.lines.find((l, i) => i > 0) ?? next.lines[0] ?? meta.what}</p>
+    </div>
+    ${goButton(next.go, true, 'btn-next')}
+  </div>`;
 }
 
 /** วาดแท็บเริ่มต้นตั้งค่าใน el · onGo(tab) = ไปแท็บของหน้านี้ */
@@ -305,25 +357,34 @@ export async function showSetup(el, onGo) {
     render(el, html`<div class="panel-pad">${errorState(e)}</div>`);
     return;
   }
-  const must = steps.filter((s) => s.state !== 'optional' && s.state !== 'unknown');
-  const done = must.filter((s) => s.state === 'done').length;
-  const next = steps.find((s) => s.state === 'todo' || s.state === 'warn');
+  const num = (s) => steps.indexOf(s) + 1;
   render(
     el,
     html`<div class="setup">
-      <div class="setup-intro">
-        <div>
-          <h2>ตั้งค่าตามลำดับนี้</h2>
-          <p class="muted">ขั้นหลังใช้ข้อมูลของขั้นก่อน — ทำจากบนลงล่าง · สถานะคำนวณจากข้อมูลจริงทุกครั้งที่เปิดแท็บนี้</p>
-        </div>
-        <div class="setup-progress" title="ขั้นที่จำเป็นที่เรียบร้อยแล้ว">
-          <b class="num">${done}/${must.length}</b>
-          <span class="progress"><span style="width:${must.length ? (done / must.length) * 100 : 0}%"></span></span>
-          <small class="muted">${next ? `ถัดไป: ${(ABOUT[next.id] ?? EXTRA[next.id]).title}` : 'ครบทุกขั้นที่จำเป็นแล้ว'}</small>
-        </div>
-      </div>
-      <ol class="setup-steps">${steps.map(stepCard)}</ol>
+      ${nextCard(steps)}
+      ${GROUPS.map((g) => {
+        const list = steps.filter((s) => g.ids.includes(s.id));
+        if (!list.length) return '';
+        const must = list.filter((s) => s.state !== 'optional' && s.state !== 'unknown');
+        const ok = must.filter((s) => s.state === 'done').length;
+        return html`<section class="setup-group">
+          <header>
+            <h3>${g.title} <span class="muted">ขั้นที่ ${num(list[0])}–${num(list[list.length - 1])}</span></h3>
+            <small class="muted">${g.sub}</small>
+            ${must.length ? badge(`${ok}/${must.length} เรียบร้อย`, ok === must.length ? 'success' : 'neutral') : ''}
+          </header>
+          <ol class="setup-steps">${list.map((s) => stepRow(s, num(s)))}</ol>
+        </section>`;
+      })}
+      <p class="setup-foot muted">${raw(icon('info'))} ขั้นหลังใช้ข้อมูลของขั้นก่อน — ทำจากบนลงล่าง · สถานะคำนวณจากข้อมูลจริงทุกครั้งที่เปิดแท็บนี้ · กดที่ชื่อขั้นเพื่อดูรายละเอียด</p>
     </div>`,
   );
   el.querySelectorAll('[data-go-tab]').forEach((b) => (b.onclick = () => onGo(b.dataset.goTab)));
+  el.querySelectorAll('.setup-toggle').forEach(
+    (b) =>
+      (b.onclick = () => {
+        const li = b.closest('.setup-step');
+        b.setAttribute('aria-expanded', String(li.classList.toggle('open')));
+      }),
+  );
 }
