@@ -8,7 +8,7 @@ import { timeAgo } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import { ACTIVITY_ENTITY_LABEL, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
 import { enhanceSelects } from '../ui/combobox.js';
-import { alertBox, emptyState, errorState } from '../ui/components.js';
+import { alertBox, badge, emptyState, errorState } from '../ui/components.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 import { loader } from '../ui/loading.js';
 
@@ -79,6 +79,7 @@ export const STOCK_STAGE = {
 async function openStockRequest({ employeeId, entitlementKey, event, name, onDone, onClose, step = '' }) {
   const m = openModal({
     onClose,
+    size: 'md',
     title: `ส่งเบิกชุดฟอร์มไปคลัง${step ? ` (${step})` : ''}`,
     description: `${name ? `${name} · ` : ''}${roundLabel(event, entitlementKey)}`,
     body: html`<div data-stock-body>${loader({ text: 'กำลังโหลดรายการจากระบบสต็อก' })}</div>`,
@@ -100,45 +101,43 @@ async function openStockRequest({ employeeId, entitlementKey, event, name, onDon
   const total = (p) => p.rows.reduce((s, r) => s + (Number.isInteger(r.qty) && r.qty > 0 ? r.qty : 0), 0);
   const productsOf = (i) => opt.items[i].variants[picks[i].variant]?.products ?? [];
 
-  const sizeRow = (i, r, ri, rowCount) => {
+  // แถวไซซ์: ไซซ์ · จำนวน · หน่วย · ✕ (ไม่มีป้ายซ้ำทุกแถว — หัวคอลัมน์อยู่บนแถวแรก)
+  const sizeRow = (i, r, ri, rowCount, unit) => {
     const chosen = productsOf(i).find((x) => x.productId === r.productId);
     const short = chosen && chosen.onHand < r.qty;
     return html`<div class="size-row" data-row="${ri}">
-      <div class="field">
-        <select class="input" data-product aria-label="ไซซ์${rowCount > 1 ? ` แถวที่ ${ri + 1}` : ''}">
-          <option value="">เลือกไซซ์</option>
-          ${productsOf(i).map((x) => html`<option value="${x.productId}" ${x.productId === r.productId ? raw('selected') : ''}>${x.size} (คงเหลือ ${x.onHand})</option>`)}
-        </select>
-        ${chosen ? html`<span class="${short ? 'error' : 'hint'}">${short ? `สต็อกไม่พอ (มี ${chosen.onHand})` : `คงเหลือ ${chosen.onHand}`}</span>` : ''}
-      </div>
+      <select class="input" data-product aria-label="ไซซ์${rowCount > 1 ? ` แถวที่ ${ri + 1}` : ''}">
+        <option value="">เลือกไซซ์</option>
+        ${productsOf(i).map((x) => html`<option value="${x.productId}" ${x.productId === r.productId ? raw('selected') : ''}>${x.size} · คงเหลือ ${x.onHand}</option>`)}
+      </select>
       <input class="input num" type="number" min="1" step="1" data-qty value="${r.qty}" aria-label="จำนวน" />
+      <span class="size-unit muted">${unit}</span>
       ${rowCount > 1
         ? html`<button type="button" class="btn-icon sm" data-remove-row title="เอาไซซ์นี้ออก" aria-label="เอาไซซ์นี้ออก">${raw(icon('x'))}</button>`
         : html`<span></span>`}
+      ${short ? html`<span class="size-short error">สต็อกไม่พอ (มี ${chosen.onHand}) — ส่งเบิกได้ คลังจ่ายเมื่อมีของ</span>` : ''}
     </div>`;
   };
+  // 1 รายการ = การ์ดเล็ก: หัว (ชื่อ · แบบ · รวม/สิทธิ์) + แถวไซซ์ + เพิ่มไซซ์ (เฉพาะรายการที่มี 2 ชิ้นขึ้นไป)
   const lineHtml = (it, i) => {
     const p = picks[i];
     const sum = total(p);
     const unit = unitOf(it);
+    const splittable = it.qty > 1 || p.rows.length > 1;
     return html`<section class="stock-line" data-line="${i}">
       <div class="stock-line-head">
         <b>${UNIFORM_ITEM_LABEL[it.itemCode] ?? it.itemCode}</b>
-        <span class="${sum === it.qty ? 'muted' : 'warn-text'} small">รวม ${sum} / สิทธิ์ ${it.qty} ${unit}</span>
-      </div>
-      <div class="field">
-        <label>แบบ</label>
         ${it.variants.length > 1
-          ? html`<select class="input" data-variant aria-label="แบบ">
+          ? html`<select class="input stock-variant" data-variant aria-label="แบบ">
               ${it.variants.map((v, vi) => html`<option value="${vi}" ${vi === p.variant ? raw('selected') : ''}>${v.label}</option>`)}
             </select>`
-          : html`<span class="small muted">${it.variants[0]?.name ?? '–'}</span>`}
+          : it.variants[0]?.name && it.variants[0].name !== (UNIFORM_ITEM_LABEL[it.itemCode] ?? it.itemCode)
+            ? html`<span class="muted small truncate">${it.variants[0].name}</span>`
+            : ''}
+        <span class="stock-line-total">${badge(`${sum} / ${it.qty} ${unit}`, sum === it.qty ? 'success' : 'warning', { dot: false })}</span>
       </div>
-      <div class="size-rows">
-        <div class="size-row size-row-head" aria-hidden="true"><span>ไซซ์<span class="req">*</span></span><span>จำนวน</span><span></span></div>
-        ${p.rows.map((r, ri) => sizeRow(i, r, ri, p.rows.length))}
-      </div>
-      <button type="button" class="btn btn-ghost btn-sm" data-add-row>${raw(icon('plus'))} เพิ่มไซซ์ <span class="muted">(เช่น 2 ${unit} คนละไซซ์)</span></button>
+      ${p.rows.map((r, ri) => sizeRow(i, r, ri, p.rows.length, unit))}
+      ${splittable ? html`<button type="button" class="link-btn" data-add-row>${raw(icon('plus'))} เพิ่มไซซ์</button>` : ''}
     </section>`;
   };
   const draw = () => {
@@ -148,19 +147,16 @@ async function openStockRequest({ employeeId, entitlementKey, event, name, onDon
       body,
       html`${opt.blockers.length
           ? alertBox({ tone: 'danger', title: 'ยังส่งเบิกไม่ได้', body: html`${opt.blockers.join(' · ')} — แจ้งผู้ดูแลระบบสต็อกให้จับคู่ก่อน` })
-          : alertBox({
-              tone: 'info',
-              // <strong> ไม่ใช่ <b> — .alert-body b เป็นหัวข้อ (display: block)
-              body: html`${newStaff ? html`ออกเป็น<strong>ใบเบิกพนักงานใหม่</strong> (อยู่ใน “รายการใบเบิก” ของระบบสต็อก) ` : 'ใบเบิก'}ลงหน่วยงาน <strong>${d.name}</strong>${d.company ? ` (${d.company})` : ''} แล้วรอ<strong>ผู้อนุมัติของหน่วยงานในระบบสต็อกกดอนุมัติ</strong> — อนุมัติแล้วคลังจ่าย สถานะในระบบนี้อัปเดตเอง · ไม่อนุมัติ = กลับเป็นค้างแจก พร้อมเหตุผล`,
-            })}
-        <p class="small muted" style="margin:12px 0 0">${opt.style} · สิทธิ์ ${opt.qtyLabel} ตัว · ของไม่พอก็ส่งเบิกได้ คลังจะจ่ายเมื่อมีของ</p>
-        <div>${opt.items.map(lineHtml)}</div>
+          : html`<p class="stock-route">
+              ${raw(icon('send'))}
+              <span>${newStaff ? html`<strong>ใบเบิกพนักงานใหม่</strong> ` : 'ใบเบิก'}ลง <strong>${d.name}</strong>${d.company ? html` <span class="muted">(${d.company})</span>` : ''} → ผู้อนุมัติของหน่วยงานในระบบสต็อก → คลังจ่าย · ไม่อนุมัติ = กลับเป็นค้างแจก</span>
+            </p>`}
+        <p class="stock-style small muted">${opt.style} · สิทธิ์ ${opt.qtyLabel} ตัว</p>
+        <div class="stock-lines">${opt.items.map(lineHtml)}</div>
         ${newStaff && opt.kit.length
-          ? html`<div class="field" style="margin-top:16px">
-              <label>ชุดของพนักงานใหม่ (ระบบสต็อกใส่ให้ในใบเดียวกัน)</label>
-              <ul class="small muted" style="margin:0;padding-left:18px">
-                ${opt.kit.map((k) => html`<li>${k.name} × ${k.qty}${k.mustReturn ? ' · ต้องคืนเมื่อพ้นสภาพ' : ''}</li>`)}
-              </ul>
+          ? html`<div class="stock-kit small">
+              <b>ชุดของพนักงานใหม่</b> <span class="muted">(ระบบสต็อกใส่ให้ในใบเดียวกัน)</span>
+              <ul>${opt.kit.map((k) => html`<li>${k.name} × ${k.qty}${k.mustReturn ? ' · ต้องคืนเมื่อพ้นสภาพ' : ''}</li>`)}</ul>
             </div>`
           : ''}`,
     );
