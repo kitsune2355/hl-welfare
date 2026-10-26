@@ -1,8 +1,8 @@
 // ตั้งค่าองค์กร — แท็บ "เริ่มต้นตั้งค่า" (ลำดับขั้น + สถานะจริงของแต่ละขั้น) และกล่องอธิบายของแต่ละแท็บ
 //
-// ลำดับมาจากการอ้างอิงของข้อมูล (ขั้นหลังใช้ข้อมูลของขั้นก่อน):
-//   1 บริษัท → 2 ประเภทพนักงาน → 3 กลุ่ม/ฝ่าย → 4 หน่วยงาน → 5 แบบฟอร์มประกัน + ผูกบริษัท
-//   → 6 เงื่อนไขสวัสดิการ → 7 ชุดฟอร์มเฉพาะหน่วยงาน (ไม่บังคับ) → 8 ผู้ใช้ HR บริษัท (ไม่บังคับ) → 9 พนักงาน
+// ลำดับมาจากการอ้างอิงของข้อมูล (ขั้นหลังใช้ข้อมูลของขั้นก่อน) — เลข 1–6 ตรงกับแท็บ (pages/_settingsTabs.js):
+//   1 บริษัท → 2 ประเภทพนักงาน → 3 กลุ่ม/ฝ่าย → 4 หน่วยงาน → 5 เงื่อนไขประกันกลุ่ม → 6 เงื่อนไขชุดฟอร์ม
+//   → 7 แบบฟอร์มประกัน + ผูกบริษัท → 8 ผู้ใช้ HR บริษัท (ไม่บังคับ) → 9 พนักงาน
 // สถานะคำนวณจากข้อมูลจริงทุกครั้งที่เปิด (ไม่เก็บ "ทำแล้ว" แยก) — ข้อมูลที่บัญชีนี้ไม่มีสิทธิ์ดู = แสดงว่า "ดูไม่ได้"
 import { api } from '../app/api.js';
 import { can } from '../app/auth.js';
@@ -181,7 +181,42 @@ export function setupSteps(d) {
       go: { label: 'ตั้งหน่วยงาน', tab: 'sites' },
     });
   }
-  // 5 แบบฟอร์มประกัน + ผูกบริษัท — บริษัทที่มีพนักงานแต่ยังไม่ผูก = ไม่อยู่ในไฟล์แจ้งประกัน
+  // 5–6 เงื่อนไขสวัสดิการ — ประเภท × บริษัท ที่มีพนักงานทำงานอยู่แต่ไม่มีกฎ = ไม่ได้สิทธิ์
+  const covered = (list, t, c) => list.some((r) => r.employeeType === t && (r.companies === null || r.companies.includes(c)));
+  const gaps = (list) => {
+    const out = [];
+    for (const t of types) {
+      for (const c of companies.map((x) => x.code).filter((code) => typesFor(code).includes(t.code))) {
+        if (active.some((e) => e.employeeType === t.code && e.companyCode === c) && !covered(list, t.code, c)) out.push(`${EMPLOYEE_TYPE_LABEL[t.code] ?? t.name} · ${c}`);
+      }
+    }
+    return out;
+  };
+  {
+    const ins = rules.insurance ?? [];
+    const miss = gaps(ins);
+    steps.push({
+      id: 'rules-insurance',
+      state: !d.rules.ok ? 'unknown' : !ins.length ? 'todo' : miss.length ? 'warn' : 'done',
+      lines: [`กฎประกันกลุ่ม ${ins.length} ข้อ`, ...(miss.length ? [`มีพนักงานแต่ไม่มีกฎประกัน (ไม่ได้ประกันกลุ่ม): ${plural(miss, 3)}`] : [])],
+      go: { label: 'ตั้งกฎประกันกลุ่ม', href: 'rules.html' },
+    });
+  }
+  {
+    const uni = rules.uniform ?? [];
+    const miss = gaps(uni);
+    const custom = sites.filter((x) => (x.uniformOverrides ?? []).length).length;
+    steps.push({
+      id: 'rules-uniform',
+      state: !d.rules.ok ? 'unknown' : !uni.length ? 'todo' : miss.length ? 'warn' : 'done',
+      lines: [
+        `กฎชุดฟอร์ม ${uni.length} ข้อ · ${custom ? `${custom} หน่วยงานตั้งจำนวนเอง (ทับกฎกลาง)` : 'ทุกหน่วยงานใช้ตามกฎกลาง'}`,
+        ...(miss.length ? [`มีพนักงานแต่ไม่มีกฎชุดฟอร์ม (ไม่ได้ชุด — ถ้าตั้งใจ ข้ามได้): ${plural(miss, 3)}`] : []),
+      ],
+      go: { label: 'ตั้งกฎชุดฟอร์ม', href: 'rules.html?tab=uniform' },
+    });
+  }
+  // 7 แบบฟอร์มประกัน + ผูกบริษัท — บริษัทที่มีพนักงานแต่ยังไม่ผูก = ไม่อยู่ในไฟล์แจ้งประกัน
   {
     const bound = new Set(forms.flatMap((f) => (f.companies ?? []).map((c) => c.companyCode)));
     const unbound = companies.filter((c) => !bound.has(c.code) && active.some((e) => e.companyCode === c.code)).map((c) => c.code);
@@ -195,41 +230,6 @@ export function setupSteps(d) {
           ]
         : ['ดูไม่ได้ — บัญชีนี้ไม่มีสิทธิ์หน้าแบบฟอร์มประกัน'],
       go: { label: 'ไปแบบฟอร์มประกัน', href: 'insurers.html' },
-    });
-  }
-  // 6 เงื่อนไขสวัสดิการ — ประเภท × บริษัท ที่มีพนักงานแต่ไม่มีกฎ = ไม่ได้สิทธิ์
-  {
-    const covered = (list, t, c) => list.some((r) => r.employeeType === t && (r.companies === null || r.companies.includes(c)));
-    const gaps = (list) => {
-      const out = [];
-      for (const t of types) {
-        for (const c of companies.map((x) => x.code).filter((code) => typesFor(code).includes(t.code))) {
-          if (active.some((e) => e.employeeType === t.code && e.companyCode === c) && !covered(list, t.code, c)) out.push(`${EMPLOYEE_TYPE_LABEL[t.code] ?? t.name} · ${c}`);
-        }
-      }
-      return out;
-    };
-    const ins = gaps(rules.insurance ?? []);
-    const uni = gaps(rules.uniform ?? []);
-    steps.push({
-      id: 'rules',
-      state: !d.rules.ok ? 'unknown' : !(rules.insurance?.length || rules.uniform?.length) ? 'todo' : ins.length || uni.length ? 'warn' : 'done',
-      lines: [
-        `กฎประกันกลุ่ม ${rules.insurance?.length ?? 0} ข้อ · กฎชุดฟอร์ม ${rules.uniform?.length ?? 0} ข้อ`,
-        ...(ins.length ? [`มีพนักงานแต่ไม่มีกฎประกัน: ${plural(ins, 3)}`] : []),
-        ...(uni.length ? [`มีพนักงานแต่ไม่มีกฎชุดฟอร์ม (ไม่ได้ชุด — ถ้าตั้งใจ ข้ามได้): ${plural(uni, 3)}`] : []),
-      ],
-      go: { label: 'ไปเงื่อนไขสวัสดิการ', href: 'rules.html' },
-    });
-  }
-  // 7 ชุดฟอร์มเฉพาะหน่วยงาน — ไม่บังคับ
-  {
-    const custom = sites.filter((s) => (s.uniformOverrides ?? []).length).length;
-    steps.push({
-      id: 'site-uniform',
-      state: 'optional',
-      lines: [custom ? `${custom} หน่วยงานตั้งจำนวนเอง · ที่เหลือใช้ตามกฎกลาง` : 'ทุกหน่วยงานใช้ตามกฎกลาง — ตั้งเฉพาะหน่วยงานที่ได้ไม่เท่ากฎ'],
-      go: { label: 'ตั้งที่คอลัมน์ “ชุดฟอร์ม”', tab: 'sites' },
     });
   }
   // 8 ผู้ใช้ HR บริษัท — ไม่บังคับ · ต้องมีบริษัทก่อน
@@ -259,9 +259,9 @@ export function setupSteps(d) {
 
 /** ข้อความของขั้นที่ไม่ได้อยู่ใน ABOUT (อยู่หน้าอื่น) */
 const EXTRA = {
-  insurers: { title: 'แบบฟอร์มประกัน + ผูกบริษัท', what: 'ไฟล์ Excel ของแต่ละบริษัทประกัน และบริษัทในเครือไหนส่งแจ้งกับใคร พร้อมเลขกรมธรรม์', needs: 'บริษัท' },
-  rules: { title: 'เงื่อนไขสวัสดิการ', what: 'ใครได้ประกันกลุ่มเมื่อไร และได้ชุดฟอร์มอะไรกี่ตัวในแต่ละรอบ — แยกตามประเภท บริษัท กลุ่ม/ฝ่าย ระดับ', needs: 'บริษัท · ประเภท · กลุ่ม/ฝ่าย' },
-  'site-uniform': { title: 'ชุดฟอร์มเฉพาะหน่วยงาน', what: 'หน่วยงานที่ได้จำนวนชุดไม่เท่ากฎกลาง (เช่น ไซต์ที่ได้เสื้อช่าง 2 + โปโล 1)', needs: 'หน่วยงาน · กฎชุดฟอร์ม' },
+  'rules-insurance': { title: 'เงื่อนไขประกันกลุ่ม', what: 'ใครได้ประกันกลุ่ม เมื่อทำงานครบกี่วัน — แยกตามประเภทและบริษัท (แท็บ 5)', needs: 'บริษัท · ประเภท' },
+  'rules-uniform': { title: 'เงื่อนไขชุดฟอร์ม', what: 'ใครได้ชุดอะไรกี่ตัวในแต่ละรอบ — แยกตามประเภท บริษัท กลุ่ม/ฝ่าย ระดับ (แท็บ 6) · หน่วยงานที่ได้ไม่เท่ากฎ ตั้งทับที่คอลัมน์ “ชุดฟอร์ม” ของแท็บหน่วยงาน', needs: 'บริษัท · ประเภท · กลุ่ม/ฝ่าย' },
+  insurers: { title: 'แบบฟอร์มประกัน + ผูกบริษัท', what: 'ไฟล์ Excel ของแต่ละบริษัทประกัน และบริษัทในเครือไหนส่งแจ้งกับใคร พร้อมเลขกรมธรรม์ (เมนู “แบบฟอร์มประกัน”)', needs: 'บริษัท' },
   users: { title: 'ผู้ใช้ HR บริษัท', what: 'บัญชีที่ดูแลเฉพาะบางบริษัท', needs: 'บริษัท' },
   employees: { title: 'พนักงาน', what: 'เพิ่มในตาราง หรือนำเข้า Excel (ไฟล์เข้าใหม่/ลาออก ของ HR หรือไฟล์รายชื่อ) — ระบบคำนวณสิทธิให้เอง', needs: 'ทุกขั้นก่อนหน้า' },
 };

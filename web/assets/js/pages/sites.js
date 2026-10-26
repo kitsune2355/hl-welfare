@@ -11,34 +11,29 @@ import { UNIFORM_EVENTS } from '../domain/uniform.js';
 import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import { COMPANY_CODES, EMPLOYEE_TYPE_LABEL, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
-import { badge, emptyState, errorState, tabs } from '../ui/components.js';
+import { badge, emptyState, errorState } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { loader } from '../ui/loading.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 
 import { showOrgTab } from './_orgSettings.js';
 import { aboutBox, showSetup, wireAbout } from './_orgSetup.js';
+import { settingsTab, settingsTabs, wireSettingsTabs } from './_settingsTabs.js';
 
 /** คู่มือตามแท็บ (tour/steps.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
 const tourId = () => ({ sites: 'sites', companies: 'sites-companies', types: 'sites-types', groups: 'sites-groups' })[getParam('tab')] ?? 'sites-setup';
 initPage('sites', { tour: tourId });
 
 // ===================== แท็บ =====================
-// เรียงตามลำดับที่ต้องตั้ง (ขั้นหลังใช้ข้อมูลของขั้นก่อน) — เลขขั้นตรงกับการ์ดในแท็บเริ่มต้นตั้งค่า
-const TABS = [
-  { value: 'setup', label: 'เริ่มต้นตั้งค่า', hint: 'ตั้งค่าตามลำดับ 1 → 9 — แต่ละขั้นบอกว่าทำแล้วหรือยัง ขาดอะไร และปุ่มไปตั้งค่า' },
-  { value: 'companies', label: '1 บริษัท', hint: 'บริษัทในเครือ — รหัสใช้ทั้งระบบ · ทำเป็นอย่างแรก' },
-  { value: 'types', label: '2 ประเภทพนักงาน', hint: 'กลุ่มพนักงานที่ได้สิทธิ์ต่างกัน และพฤติกรรมของแต่ละประเภท' },
-  { value: 'groups', label: '3 กลุ่ม / ฝ่าย', hint: 'ฝ่ายของพนักงานประเภทที่ใช้ระดับ (เช่น ส่วนกลาง)' },
-  { value: 'sites', label: '4 หน่วยงาน', hint: 'สำนักงาน / โครงการ / ไซต์ ที่พนักงานประจำ — ดับเบิลคลิกเพื่อแก้ แล้วกด “บันทึก”' },
-];
-let tab = TABS.some((t) => t.value === getParam('tab')) ? getParam('tab') : 'setup';
+// แท็บของหน้านี้ (แถบแท็บใช้ร่วมกับ rules.html — pages/_settingsTabs.js)
+const TABS = ['setup', 'companies', 'types', 'groups', 'sites'];
+let tab = TABS.includes(getParam('tab')) ? getParam('tab') : 'setup';
 function drawAbout() {
   render($('#about'), aboutBox(tab));
 }
 function drawTab() {
-  render($('#tabs'), tabs(TABS, tab));
-  $('#tab-hint').textContent = TABS.find((t) => t.value === tab).hint;
+  render($('#tabs'), settingsTabs(tab));
+  $('#tab-hint').textContent = settingsTab(tab).hint;
   drawAbout();
   const panel = tab === 'setup' ? 'setup' : tab === 'sites' ? 'sites' : 'org';
   for (const p of ['setup', 'sites', 'org']) $(`#panel-${p}`).classList.toggle('hidden', p !== panel);
@@ -54,12 +49,8 @@ function goTab(next) {
   startTourIfNew(tourId());
 }
 wireAbout($('#about'), drawAbout);
-on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
-  tab = t.dataset.tab;
-  setParams({ tab: tab === 'setup' ? '' : tab });
-  drawTab();
-  startTourIfNew(tourId()); // แท็บนี้เปิดครั้งแรก → คู่มือของแท็บนี้
-});
+// แท็บของหน้านี้สลับในหน้า (คู่มือของแท็บเปิดครั้งแรก) · แท็บเงื่อนไขสวัสดิการ = ลิงก์ไป rules.html
+wireSettingsTabs($('#tabs'), 'sites', goTab);
 
 // ตั้งชุดฟอร์มของหน่วยงาน = แก้เงื่อนไขสวัสดิการ (สิทธิ์ rules.edit)
 const canEdit = can('rules.edit');
@@ -242,7 +233,7 @@ async function openSiteUniform(siteId) {
   const m = openModal({
     size: 'lg',
     title: `ชุดฟอร์มของหน่วยงาน “${site.name}”`,
-    description: `${site.companyCode} · ตั้งจำนวนเฉพาะหน่วยงานนี้แทนกฎกลาง — กฎที่ไม่ได้ติ๊กใช้จำนวนตามกฎกลาง (แก้กฎกลางได้ที่หน้าเงื่อนไขสวัสดิการ)`,
+    description: `${site.companyCode} · ตั้งจำนวนเฉพาะหน่วยงานนี้แทนกฎกลาง — กฎที่ไม่ได้ติ๊กใช้จำนวนตามกฎกลาง (แก้กฎกลางได้ที่แท็บ 6 ชุดฟอร์ม)`,
     body: html`<div data-body>${loader({ text: 'กำลังโหลดกฎชุดฟอร์ม' })}</div>`,
     footer: html`<button class="btn btn-ghost" data-close>${canEdit ? 'ยกเลิก' : 'ปิด'}</button>
       ${canEdit ? html`<button class="btn btn-primary" data-ok data-label="บันทึก">บันทึก</button>` : ''}`,
@@ -276,7 +267,7 @@ async function openSiteUniform(siteId) {
             </div>`,
           )}
         </div>`
-      : emptyState({ iconName: 'shirt', title: `ยังไม่มีกฎชุดฟอร์มของบริษัท ${site.companyCode}`, description: 'เพิ่มกฎได้ที่หน้าเงื่อนไขสวัสดิการ แท็บชุดฟอร์ม' }),
+      : emptyState({ iconName: 'shirt', title: `ยังไม่มีกฎชุดฟอร์มของบริษัท ${site.companyCode}`, description: 'เพิ่มกฎได้ที่แท็บ 6 ชุดฟอร์ม' }),
   );
   // ติ๊ก/เลิกติ๊ก: เปิดให้แก้ (เริ่มจากจำนวนของกฎกลาง) หรือกลับไปแสดงจำนวนของกฎกลาง
   body.addEventListener('change', (e) => {

@@ -21,9 +21,13 @@ const MENU = [
   { id: 'insurance', href: 'insurance.html', label: 'ประกันกลุ่ม', icon: 'shield-plus', cap: 'insurance.view', count: (d) => d.urgentPending, tone: 'danger' },
   { id: 'uniform', href: 'uniform.html', label: 'ชุดฟอร์ม', icon: 'shirt', cap: 'uniform.view', count: (d) => d.uniformPending, tone: 'warning' },
 ];
+// "ตั้งค่าสวัสดิการ" = เมนูเดียวของ 2 หน้า (sites.html = เริ่มต้นตั้งค่า + องค์กร · rules.html = เงื่อนไขสวัสดิการ)
+//   แถบแท็บร่วมกัน (pages/_settingsTabs.js) · สิทธิ์ยังแยกหน้า: sites.view / rules.view — มีอย่างใดอย่างหนึ่งก็เห็นเมนู
+//   pages = id ของหน้าที่ไฮไลต์เมนูนี้ · hidden = มีไว้ตรวจสิทธิ์ของหน้า (guardPage) ไม่แสดงในเมนู
 const SETTINGS = [
-  { id: 'rules', href: 'rules.html', label: 'เงื่อนไขสวัสดิการ', icon: 'book-open-text', cap: 'rules.view' },
-  { id: 'sites', href: 'sites.html', label: 'ตั้งค่าองค์กร', icon: 'building-2', cap: 'sites.view' },
+  { id: 'settings', href: 'sites.html', label: 'ตั้งค่าสวัสดิการ', icon: 'building-2', anyCap: ['sites.view', 'rules.view'], pages: ['sites', 'rules'] },
+  { id: 'sites', href: 'sites.html', label: 'ตั้งค่าสวัสดิการ (องค์กร)', cap: 'sites.view', hidden: true },
+  { id: 'rules', href: 'rules.html', label: 'ตั้งค่าสวัสดิการ (เงื่อนไข)', cap: 'rules.view', hidden: true },
   { id: 'insurers', href: 'insurers.html', label: 'แบบฟอร์มประกัน', icon: 'file-spreadsheet', cap: 'insurers.view' },
 ];
 // cap = สิทธิ์ที่ต้องมีจึงเห็นเมนู/เปิดหน้าได้ (ตั้งที่ “กำหนดสิทธิ์การใช้งาน”) · anyCap = มีอย่างใดอย่างหนึ่ง · roles = เฉพาะบทบาทเหล่านี้
@@ -128,7 +132,10 @@ function drawThemeButton() {
 }
 
 function navLink(item, active) {
-  return html`<a href="${item.href}" class="${item.id === active ? 'active' : ''}" data-nav="${item.id}"
+  // ตั้งค่าสวัสดิการ: ไม่มีสิทธิ์หน้าองค์กร = เปิดที่หน้าเงื่อนไข
+  const hrefOf = item.id === 'settings' && !can('sites.view') ? 'rules.html' : item.href;
+  const on = item.id === active || item.pages?.includes(active);
+  return html`<a href="${hrefOf}" class="${on ? 'active' : ''}" data-nav="${item.id}"
     >${raw(icon(item.icon))}<span>${item.label}</span><b class="nav-count hidden ${item.tone ?? ''}"></b
   ></a>`;
 }
@@ -159,7 +166,7 @@ export function initPage(active, { tour = active } = {}) {
     </div>
     <nav class="nav" aria-label="เมนูหลัก">
       ${MENU.filter(allowedFor(user)).map((m) => navLink(m, active))}
-      ${SETTINGS.some(allowedFor(user)) ? html`<div class="nav-section">ตั้งค่า</div>${SETTINGS.filter(allowedFor(user)).map((m) => navLink(m, active))}` : ''}
+      ${SETTINGS.some(allowedFor(user)) ? html`<div class="nav-section">ตั้งค่า</div>${SETTINGS.filter((m) => !m.hidden && allowedFor(user)(m)).map((m) => navLink(m, active))}` : ''}
       <div class="nav-section">บัญชีของฉัน</div>
       ${ACCOUNT.map((m) => navLink(m, active))}
       ${ADMIN.some(allowedFor(user)) ? html`<div class="nav-section">ผู้ดูแลระบบ</div>${ADMIN.filter(allowedFor(user)).map((m) => navLink(m, active))}` : ''}

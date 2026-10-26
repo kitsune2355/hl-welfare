@@ -26,7 +26,7 @@ const TONE_LABEL = { primary: 'น้ำเงิน', info: 'ฟ้า', succes
 const BEHAVIORS = [
   ['usesDeptGroup', 'กลุ่ม/ฝ่าย + ระดับ', 'ต้องเลือกกลุ่ม / ฝ่าย และระดับ 1–9 — กฎชุดฟอร์มแยกจำนวนตามกลุ่มและระดับได้ (แบบส่วนกลาง)'],
   ['usesPosition', 'ตำแหน่ง', 'กฎชุดฟอร์มเดิมที่แยกตามตำแหน่งจับได้ + ใช้สัญญา 3% ได้ (แบบ Pro Site)'],
-  ['dailyCycle', 'รอบแจ้งรายวัน', 'แจ้งเข้า/ออกประกันกลุ่มในรอบรายวัน (ตั้งที่เงื่อนไขสวัสดิการ) แทนรอบปกติ'],
+  ['dailyCycle', 'รอบแจ้งรายวัน', 'แจ้งเข้า/ออกประกันกลุ่มในรอบรายวัน (วันรอบตั้งที่แท็บค่าตั้งค่า) แทนรอบปกติ'],
 ];
 const count = (n) => (n === undefined || n === null ? html`<span class="muted">–</span>` : n ? html`<span class="num">${n}</span>` : html`<span class="muted num">0</span>`);
 const str = (v) => String(v ?? '').trim();
