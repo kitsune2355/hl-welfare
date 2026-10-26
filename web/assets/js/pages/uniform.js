@@ -33,7 +33,7 @@ const pieces = (label) => label.split('+').reduce((s, x) => s + Number(x), 0); /
 const annualYear = (key) => ` ${Number(key.slice(7)) + 543}`;
 
 /** แถวค้างแจก → ข้อมูลที่กล่องส่งเบิก / บันทึกแจกเองใช้ */
-const issueItem = (r) => ({ employeeId: r.employee.id, entitlementKey: r.entitlementKey, event: r.event, qty: pieces(r.qtyLabel), name: `${r.employee.firstName} ${r.employee.lastName}` });
+const issueItem = (r) => ({ employeeId: r.employee.id, entitlementKey: r.entitlementKey, event: r.event, qty: pieces(r.qtyLabel), name: `${r.employee.firstName} ${r.employee.lastName}`, itemQty: r.itemQty ?? null });
 /** ยกเลิกหลายรายการ (ส่งเบิก / แจก) — ทีละรายการ แจ้งที่ไม่สำเร็จรวมท้าย */
 async function cancelMany(rows, label) {
   let failed = 0;
@@ -91,8 +91,7 @@ const pendingTable = new DataTable($('#pending'), {
       key: 'act',
       header: '',
       align: 'right',
-      cell: (r) =>
-        issueAction({ employeeId: r.employee.id, entitlementKey: r.entitlementKey, event: r.event, qty: pieces(r.qtyLabel), name: `${r.employee.firstName} ${r.employee.lastName}` }),
+      cell: (r) => issueAction(issueItem(r)),
     },
   ],
   empty: emptyState({ iconName: 'package-check', title: 'แจกครบทุกรายการแล้ว 🎉', description: 'ไม่มีชุดฟอร์มค้างแจก' }),

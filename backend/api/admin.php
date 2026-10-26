@@ -555,13 +555,14 @@ function api_admin_health($req, $params)
         '013_notifications' => admin_column_type('notifications', 'is_read') !== null,
         '014_dept_groups' => admin_column_type('dept_groups', 'name') !== null,
         '015_org_settings' => admin_column_type('employee_types', 'daily_cycle') !== null,
+        '016_issue_size_length' => strpos((string)admin_column_type('uniform_issues', 'size'), '255') !== false,
     );
     $pending = array();
     foreach ($migrations as $m => $ok) {
         if (!$ok) { $pending[] = $m; }
     }
     $checks[] = admin_check('migrations', 'Migration (backend/sql)', count($pending) ? 'error' : 'ok',
-        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 015');
+        count($pending) ? 'ยังไม่ได้รัน ' . implode(', ', $pending) : 'ครบถึง 016');
 
     $cfgIssues = array();
     $cfgError = false;

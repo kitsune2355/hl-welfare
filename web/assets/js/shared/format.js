@@ -24,6 +24,20 @@ export function thaiDate(d) {
   return `${day} ${TH_MONTHS[m - 1]} ${String(y + 543).slice(-2)}`;
 }
 
+/**
+ * ไซซ์ที่แจกแยกรายตัว → ข้อความสรุปที่เก็บใน uniform_issues.size
+ * [{label:'เสื้อช่าง', sizes:['M','L']}, {label:'กางเกงช่าง', sizes:['L','L']}] → "เสื้อช่าง M, L · กางเกงช่าง L×2"
+ */
+export function sizeSummary(groups) {
+  return groups
+    .map(({ label, sizes }) => {
+      const count = new Map();
+      for (const s of sizes) count.set(s, (count.get(s) ?? 0) + 1);
+      return `${label} ${[...count].map(([s, n]) => (n > 1 ? `${s}×${n}` : s)).join(', ')}`;
+    })
+    .join(' · ');
+}
+
 /** 2026-11-05 → "5 พ.ย. 2569" (ปีเต็ม — หน้ารายละเอียดพนักงาน) */
 export function thaiDateFull(d) {
   if (!d) return '–';
