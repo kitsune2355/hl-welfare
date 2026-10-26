@@ -57,6 +57,17 @@ $bad['quantities'] = array('START' => array('NOPE' => 1));
 check('รหัสรายการไม่มีจริง → 422', S($ed->req('PUT', '/rules/uniform/16', $bad)) === 422);
 $bad['quantities'] = array('START' => array('POLO_BLACK' => 0), 'PROBATION' => array(), 'ANNUAL' => array());
 check('ไม่ได้ชุดฟอร์มเลยสักรอบ → 422', S($ed->req('PUT', '/rules/uniform/16', $bad)) === 422);
+$pos = $body;
+$pos['position'] = ' ช่างทีมโมบาย ,วิศวกร,, ช่างทีมโมบาย ';
+$pos['effectiveFrom'] = $later;
+$r = $ed->req('PUT', '/rules/uniform/16', $pos);
+$t16 = rules_find($r['json']['data']['uniform'], 16);
+check('ตำแหน่งหลายตำแหน่ง: ตัดช่องว่าง/ตัวซ้ำ คั่นด้วย ", "', $r['status'] === 200 && $t16['pending'][0]['position'] === 'ช่างทีมโมบาย, วิศวกร', json_encode($t16['pending']));
+$ed->req('DELETE', '/rules/uniform/revisions/' . $t16['pending'][0]['revisionId']);
+$pos['position'] = implode(',', array_fill(0, 30, 'หัวหน้าช่างเทคนิค'));
+$pos['position'] .= ',' . str_repeat('ก', 201);
+$r = $ed->req('PUT', '/rules/uniform/16', $pos);
+check('ตำแหน่งรวมกันเกิน 200 ตัวอักษร → 422', $r['status'] === 422 && isset($r['json']['errors']['position']));
 
 $new = array('employeeType' => 'CENTRAL', 'companies' => array('HL'), 'waitDays' => 45, 'excludeContracts' => array(),
     'requireSiteInsurance' => false, 'note' => 'ทดสอบ', 'effectiveFrom' => $today);

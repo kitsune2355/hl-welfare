@@ -5,12 +5,12 @@ import { can } from '../app/auth.js';
 import { initPage } from '../app/shell.js';
 import { startTourIfNew } from '../app/tour.js';
 import { typeInfo } from '../domain/catalog.js';
-import { UNIFORM_EVENTS } from '../domain/uniform.js';
+import { OTHER_POSITION, UNIFORM_EVENTS } from '../domain/uniform.js';
 import { CONTRACT_TYPES, EMPLOYEE_TYPES, LEVEL_RANGE, QTY_MAX, SETTING_SPEC, validateInsuranceRule, validateSettings, validateUniformRule } from '../application/ruleRules.js';
 import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { relativeDays, thaiDate, thaiDateLong } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
-import { CONTRACT_LABEL, DEPT_GROUPS, EMPLOYEE_TYPE_LABEL, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
+import { CONTRACT_LABEL, DEPT_GROUPS, EMPLOYEE_TYPE_LABEL, PRO_POSITIONS, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
 import { alertBox, badge, emptyState, errorState, tabs } from '../ui/components.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
@@ -37,6 +37,8 @@ async function loadGroups() {
     groups = DEPT_GROUPS.map((name, i) => ({ id: -(i + 1), name }));
   }
 }
+/** ตำแหน่งที่มีในข้อมูลพนักงาน — ตัวเลือกของช่องตำแหน่งในกฎชุดฟอร์ม (ไม่มีสิทธิ์ดูพนักงาน = ว่าง) */
+let employeePositions = [];
 let query = '';
 
 // ===================== คำอธิบายกฎ =====================
@@ -355,7 +357,7 @@ const blankUniform = () => ({
   employeeType: EMPLOYEE_TYPES[0],
   companies: [],
   deptGroups: null,
-  position: null, // ไม่มีช่องให้กรอกแล้ว — กฎใหม่ใช้กับทุกตำแหน่ง
+  position: null, // ว่าง = ทุกตำแหน่ง
   levelMin: null,
   levelMax: null,
   style: '',
@@ -462,14 +464,7 @@ function uniformForm(r) {
       ${chipPicks('groups', names.map((g) => ({ value: g, label: g })), r.deptGroups, { all: 'ทุกกลุ่ม' })}
       <span class="hint">เพิ่ม / เปลี่ยนชื่อกลุ่มได้ที่ <a href="sites.html?tab=groups" target="_blank">ตั้งค่าองค์กร → กลุ่ม / ฝ่าย</a></span>
     </div>
-    ${r.position
-      ? // กฎเดิมที่แยกตามตำแหน่ง (Pro Site) — ไม่มีช่องให้พิมพ์แล้ว แต่ยังจับตามตำแหน่งจากไฟล์นำเข้าเหมือนเดิม
-        html`<div class="field full">
-          <label>ตำแหน่ง <span class="muted small">(กฎเดิม)</span></label>
-          <label class="chip-pick" style="align-self:flex-start"><input type="checkbox" id="f-pos-keep" checked /> ใช้เฉพาะตำแหน่ง: ${r.position}</label>
-          <span class="hint">เอาเครื่องหมายออก = กฎนี้ใช้กับทุกตำแหน่ง</span>
-        </div>`
-      : ''}
+    ${positionField(r)}
     <div class="field" data-field="levelMin">
       <label for="f-lmin">ระดับต่ำสุด</label>
       <input class="input num" type="number" inputmode="numeric" min="${LEVEL_RANGE[0]}" max="${LEVEL_RANGE[1]}" id="f-lmin" value="${r.levelMin ?? ''}" placeholder="ไม่จำกัด" />
@@ -499,15 +494,77 @@ function uniformForm(r) {
     </div>
   </div>`;
 }
-function readUniform(root, base) {
+// ===================== ตำแหน่งในกฎชุดฟอร์ม =====================
+// เก็บเป็นข้อความคั่นด้วย "," (uniform_rules.position) · ไม่เลือก = ทุกตำแหน่ง
+// พนักงานตรงกฎเมื่อตำแหน่งตรงตัวอักษร จึงให้เลือกจากตำแหน่งที่มีในข้อมูลพนักงานแทนการพิมพ์เอง
+const splitPositions = (s) => (s ? s.split(',').map((p) => p.trim()).filter(Boolean) : []);
+
+/** ตัวเลือก = ตำแหน่งในข้อมูลพนักงาน + ที่กฎชุดฟอร์มใช้อยู่/รอมีผล + รายการตั้งต้น · "ตำแหน่งอื่นๆ" อยู่ท้าย */
+function positionOptions(selected) {
+  const set = new Set([...PRO_POSITIONS, ...employeePositions, ...selected]);
+  for (const t of hist.uniform) for (const r of [t.current, ...t.pending]) if (r && !r.deleted) splitPositions(r.position).forEach((p) => set.add(p));
+  set.delete(OTHER_POSITION);
+  return [...[...set].sort((a, b) => a.localeCompare(b, 'th')), OTHER_POSITION];
+}
+
+function positionField(r) {
+  const selected = splitPositions(r.position);
+  const options = positionOptions(selected);
+  // แสดงเมื่อประเภทพนักงานตั้ง "ใช้ตำแหน่ง" (ตั้งค่าองค์กร → ประเภทพนักงาน) หรือกฎเลือกตำแหน่งไว้แล้ว
+  const show = !!typeInfo(r.employeeType)?.usesPosition || selected.length > 0;
+  return html`<div class="field full" data-field="position" data-pos-field ${show ? '' : raw('hidden')}>
+    <label>ตำแหน่ง <span class="muted small">(ไม่เลือก = ทุกตำแหน่ง · “${OTHER_POSITION}” = ตำแหน่งที่ไม่มีกฎของตัวเอง)</span></label>
+    <div data-pos-chips>${chipPicks('positions', options.map((p) => ({ value: p, label: p })), selected)}</div>
+    <div class="row" style="gap:8px;margin-top:8px">
+      <input class="input" id="f-pos-new" list="f-pos-list" maxlength="100" placeholder="ตำแหน่งที่ไม่มีในรายการ" style="max-width:280px" aria-label="เพิ่มตำแหน่ง" />
+      <datalist id="f-pos-list">${options.map((p) => html`<option value="${p}"></option>`)}</datalist>
+      <button type="button" class="btn btn-ghost btn-sm" data-pos-add>${raw(icon('plus'))} เพิ่ม</button>
+    </div>
+    <span class="hint">ตัวเลือกมาจากตำแหน่งในข้อมูลพนักงาน — พนักงานได้กฎนี้เมื่อตำแหน่งตรงกันทุกตัวอักษร</span>
+  </div>`;
+}
+
+/** เพิ่มตำแหน่งจากช่องพิมพ์ — ตรงกับตัวเลือกเดิม (ไม่สนช่องว่าง/ตัวพิมพ์) = ติ๊กตัวเดิม ไม่สร้างซ้ำ */
+function addPosition(root) {
+  const input = root.querySelector('#f-pos-new');
+  const v = input.value.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!v) return;
+  const same = [...root.querySelectorAll('[data-pick="positions"]')].find((b) => b.value.replace(/\s+/g, '').toLowerCase() === v.replace(/\s+/g, '').toLowerCase());
+  if (same) same.checked = true;
+  else {
+    const label = document.createElement('label');
+    label.className = 'chip-pick';
+    const cb = Object.assign(document.createElement('input'), { type: 'checkbox', value: v, checked: true });
+    cb.dataset.pick = 'positions';
+    label.append(cb, ` ${v}`);
+    root.querySelector('[data-pos-chips] .chip-picks').append(label);
+  }
+  input.value = '';
+  input.focus();
+}
+
+function wirePositionField(root) {
+  const field = root.querySelector('[data-pos-field]');
+  root.querySelector('#f-type').addEventListener('change', (e) => {
+    field.hidden = !typeInfo(e.target.value)?.usesPosition && !readPicks(root, 'positions').length;
+  });
+  on(root, 'click', '[data-pos-add]', () => addPosition(root));
+  root.querySelector('#f-pos-new').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    addPosition(root);
+  });
+}
+
+function readUniform(root) {
   const num = (id) => (root.querySelector(id).value === '' ? null : Number(root.querySelector(id).value));
-  const keepPos = root.querySelector('#f-pos-keep')?.checked;
+  const positions = root.querySelector('[data-pos-field]').hidden ? [] : readPicks(root, 'positions');
   return {
     employeeType: root.querySelector('#f-type').value,
     style: root.querySelector('#f-style').value.trim(),
     companies: readPicks(root, 'companies') ?? [],
     deptGroups: readPicks(root, 'groups'),
-    position: keepPos ? base.position : null,
+    position: positions.length ? positions.join(', ') : null,
     levelMin: num('#f-lmin'),
     levelMax: num('#f-lmax'),
     logo: root.querySelector('#f-logo').value || null,
@@ -541,6 +598,7 @@ function openRuleEditor(kind, id = null, base = null, date = null) {
   const root = m.el;
   wireAllToggles(root);
   if (kind === 'uniform') {
+    wirePositionField(root);
     updateQtyTotals(root);
     root.addEventListener('input', (e) => e.target.matches('[data-qty]') && updateQtyTotals(root));
   }
@@ -556,7 +614,7 @@ function openRuleEditor(kind, id = null, base = null, date = null) {
   });
   const ok = root.querySelector('[data-ok]');
   ok.onclick = async () => {
-    const values = kind === 'insurance' ? readInsurance(root) : readUniform(root, rule);
+    const values = kind === 'insurance' ? readInsurance(root) : readUniform(root);
     const ctx = { companies: companies.map((c) => c.code), items: hist.uniformItems.map((i) => i.code) };
     const errs = kind === 'insurance' ? validateInsuranceRule(values, ctx) : validateUniformRule(values, ctx);
     if (!from.value) errs.effectiveFrom = 'กรุณาเลือกวันที่มีผล';
@@ -757,7 +815,9 @@ on($('#content'), 'click', '#save-settings', async (_e, btn) => {
 
 // ===================== load =====================
 try {
-  [hist, companies] = await Promise.all([api.getRuleHistory(), api.listCompanies(), loadGroups()]);
+  let emps;
+  [hist, companies, , emps] = await Promise.all([api.getRuleHistory(), api.listCompanies(), loadGroups(), api.listEmployees().catch(() => [])]);
+  employeePositions = [...new Set(emps.map((e) => e.position?.trim()).filter(Boolean))];
   draw();
 } catch (e) {
   render($('#content'), html`<div class="panel-pad">${errorState(e)}</div>`);

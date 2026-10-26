@@ -11,7 +11,7 @@ import { diffDays, todayISO } from '../domain/date.js';
 import { ageOf } from '../domain/employee.js';
 import { formatThaiId } from '../domain/thaiId.js';
 import { html, on, raw, render } from '../shared/dom.js';
-import { money, relativeDays, tenure, thaiDate } from '../shared/format.js';
+import { money, relativeDays, tenure, thaiDateFull } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import {
   CONTRACT_LABEL,
@@ -38,7 +38,7 @@ const reasons = (list) => html`<ul class="reasons">${list.map((r) => html`<li>${
 function timeline(steps) {
   return html`<ol class="timeline">
     ${steps.map(
-      (s) => html`<li class="${s.date && s.date <= today ? 'done' : ''} ${s.tone ?? ''}"><span>${s.label}</span><b class="num">${thaiDate(s.date)}</b></li>`,
+      (s) => html`<li class="${s.date && s.date <= today ? 'done' : ''} ${s.tone ?? ''}"><span>${s.label}</span><b class="num">${thaiDateFull(s.date)}</b></li>`,
     )}
   </ol>`;
 }
@@ -68,7 +68,7 @@ function insuranceCard(emp, st) {
   const body = st.eligible
     ? html`<div style="display:grid;gap:16px">
         ${st.enrollCycleDate && st.enrollCycleDate >= today && !leaving
-          ? html`<p class="small muted">แจ้งเข้า <b style="color:var(--fg)">${thaiDate(st.enrollCycleDate)}</b> · ${relativeDays(st.enrollCycleDate, today)}</p>`
+          ? html`<p class="small muted">แจ้งเข้า <b style="color:var(--fg)">${thaiDateFull(st.enrollCycleDate)}</b> · ${relativeDays(st.enrollCycleDate, today)}</p>`
           : ''}
         ${st.exitUrgent ? alertBox({ tone: 'danger', title: 'ต้องแจ้งออกทันที', body: 'เลิกจ้าง/กระทำผิด — ไม่รอรอบวันที่ 5' }) : ''} ${timeline(steps)}
       </div>`
@@ -76,9 +76,13 @@ function insuranceCard(emp, st) {
   return card({ title: 'ประกันกลุ่ม', iconName: 'shield-plus', actions: b, body });
 }
 
+/** "เสื้อช่าง 3 · กางเกงช่าง 3 · โปโลสีดำ 3" — จำนวนต่อรายการของรอบ */
+const itemsText = (e) => e.items.map((i) => `${UNIFORM_ITEM_LABEL[i] ?? i} ${e.itemQty?.[i] ?? ''}`.trim()).join(' · ');
+
 function renderUniform(box, emp, st) {
   const pending = st.entitlements.filter((e) => !e.issued && !e.requested).length;
   const waiting = st.entitlements.filter((e) => e.requested).length;
+  const upcoming = (st.upcoming ?? []).map((e) => ({ ...e, upcoming: true }));
   const b =
     st.ruleId === null
       ? badge('ไม่พบสิทธิ', 'danger', { lg: true })
@@ -86,7 +90,9 @@ function renderUniform(box, emp, st) {
         ? badge(`ค้างแจก ${pending}`, 'warning', { lg: true })
         : waiting
           ? badge(`ส่งเบิกแล้ว ${waiting}`, 'info', { lg: true })
-          : badge('ครบแล้ว', 'success', { lg: true });
+          : !st.entitlements.length && upcoming.length
+            ? badge('รอถึงรอบแจก', 'info', { lg: true })
+            : badge('ครบแล้ว', 'success', { lg: true });
   render(
     box,
     card({
@@ -105,15 +111,18 @@ function renderUniform(box, emp, st) {
     onRender: enhanceIssueActions,
     columns: [
       { key: 'event', header: 'รอบ', cell: (e) => html`<b style="font-weight:500">${UNIFORM_EVENT_LABEL[e.event]}${e.event === 'ANNUAL' ? ` ${Number(e.key.slice(7)) + 543}` : ''}</b>` },
-      { key: 'due', header: 'ครบกำหนด', sort: (e) => e.dueDate, cell: (e) => html`<span class="num">${thaiDate(e.dueDate)}</span>` },
+      { key: 'due', header: 'ครบกำหนด', sort: (e) => e.dueDate, cell: (e) => html`<span class="num">${thaiDateFull(e.dueDate)}</span>` },
       { key: 'qty', header: 'จำนวน', align: 'right', cell: (e) => html`<span class="num">${e.qtyLabel} ตัว</span>` },
-      { key: 'items', header: 'รายการ', hideOnMobile: true, cell: (e) => html`<span class="muted">${e.items.map((i) => UNIFORM_ITEM_LABEL[i]).join(', ')}</span>` },
+      { key: 'items', header: 'รายการ', hideOnMobile: true, text: itemsText, cell: (e) => html`<span class="muted">${itemsText(e)}</span>` },
       {
         key: 'act',
         header: '',
         align: 'right',
         cell: (e) =>
-          e.stock
+          e.upcoming
+            ? // รอบล่วงหน้า: ยังแจก / ส่งเบิกไม่ได้
+              html`<span class="row" style="justify-content:flex-end;gap:6px"><span class="small muted">${relativeDays(e.dueDate, today)}</span> ${badge('ยังไม่ถึงกำหนด', 'neutral')}</span>`
+            : e.stock
             ? // ผ่านคลัง: ยกเลิกได้เฉพาะตอนรอคลังจ่าย (คลังจ่ายแล้วต้องยกเลิกที่ระบบสต็อก)
               html`<span class="row" style="justify-content:flex-end;gap:6px">${stockDocLink(e.stock)} ${badge(STOCK_STAGE[e.stock.stage].label, STOCK_STAGE[e.stock.stage].tone)}
                 ${e.requested && canCancelIssue(true)
@@ -129,7 +138,8 @@ function renderUniform(box, emp, st) {
     ],
     empty: emptyState({ iconName: 'shirt', title: 'ยังไม่ถึงรอบแจกชุดฟอร์ม', description: 'จะได้รับเมื่อเริ่มงาน / ผ่านทดลองงาน / รอบประจำปี ตามกฎ' }),
   });
-  t.setRows([...st.entitlements].reverse());
+  // ใหม่สุดอยู่บน — รอบที่ยังไม่ถึงกำหนดอยู่บนสุด
+  t.setRows([...st.entitlements, ...upcoming].reverse());
 }
 
 /** โครงของรายละเอียด (ตำแหน่งแต่ละส่วนเรียกด้วย data-part — ไม่ใช้ id เพราะ popup เปิดซ้อนบนหน้าอื่นได้) */
@@ -196,19 +206,19 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
           { label: 'ประเภท', value: badge(EMPLOYEE_TYPE_LABEL[e.employeeType], EMPLOYEE_TYPE_TONE[e.employeeType], { dot: false }) },
           { label: typeInfo(e.employeeType)?.usesPosition ? 'ตำแหน่ง' : 'ฝ่าย / ระดับ', value: e.position ?? (e.deptGroup ? `${e.deptGroup} · ระดับ ${e.level ?? '–'}` : '–') },
           { label: 'สัญญา', value: CONTRACT_LABEL[e.contractType] },
-          { label: 'วันเริ่มงาน', value: thaiDate(e.startDate) },
-          { label: 'ผ่านทดลองงาน', value: thaiDate(e.probationPassDate) },
+          { label: 'วันเริ่มงาน', value: thaiDateFull(e.startDate) },
+          { label: 'ผ่านทดลองงาน', value: thaiDateFull(e.probationPassDate) },
           { label: 'อายุงาน', value: tenure(e.startDate, e.endDate ?? today) },
           { label: 'เงินเดือน', value: html`<span class="num">${money(e.salary)} ฿</span>` },
-          { label: 'วันเกิด / อายุ', value: e.birthDate ? `${thaiDate(e.birthDate)} · ${ageOf(e.birthDate, today)} ปี` : '–' },
+          { label: 'วันเกิด / อายุ', value: e.birthDate ? `${thaiDateFull(e.birthDate)} · ${ageOf(e.birthDate, today)} ปี` : '–' },
           { label: 'คำนำหน้า / เพศ', value: [e.title, GENDER_LABEL[e.gender]].filter(Boolean).join(' · ') || missing() },
           { label: 'เลขบัตรประชาชน', value: e.nationalId ? html`<span class="num">${formatThaiId(e.nationalId)}</span>` : missing() },
           { label: 'โทร / อีเมล', value: [e.phone, e.email].filter(Boolean).join(' · ') || '–' },
           ...(e.status === 'INACTIVE'
             ? [
                 { label: 'เหตุผลพ้นสภาพ', value: e.endReason ? END_REASON_LABEL[e.endReason] : '–' },
-                { label: 'วันทำงานสุดท้าย', value: thaiDate(e.lastWorkingDate) },
-                { label: 'วันพ้นสภาพ', value: thaiDate(e.endDate) },
+                { label: 'วันทำงานสุดท้าย', value: thaiDateFull(e.lastWorkingDate) },
+                { label: 'วันพ้นสภาพ', value: thaiDateFull(e.endDate) },
               ]
             : []),
         ]),

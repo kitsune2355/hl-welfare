@@ -61,6 +61,15 @@ describe('MockApi แก้กฎผ่านหน้าจอ', () => {
     await api.retireRule('uniform', 2, TODAY);
     expect((await api.getRules()).uniform.some((x) => x.id === 2)).toBe(false);
   });
+  it('ตำแหน่งหลายตำแหน่ง: ตัดช่องว่าง/ตัวซ้ำ คั่นด้วย ", " · ว่าง = ทุกตำแหน่ง · ยาวเกิน 200 → 422', async () => {
+    const api = make();
+    const u = (await api.getRules()).uniform.find((x) => x.id === 16);
+    await api.updateRule('uniform', 16, { ...u, position: ' ช่างทีมโมบาย ,วิศวกร,, ช่างทีมโมบาย ', effectiveFrom: TODAY });
+    expect((await api.getRules()).uniform.find((x) => x.id === 16).position).toBe('ช่างทีมโมบาย, วิศวกร');
+    await api.updateRule('uniform', 16, { ...u, position: ' , ', effectiveFrom: TODAY });
+    expect((await api.getRules()).uniform.find((x) => x.id === 16).position).toBe(null);
+    await expect(api.updateRule('uniform', 16, { ...u, position: 'ก'.repeat(201), effectiveFrom: TODAY })).rejects.toMatchObject({ status: 422 });
+  });
   it('ชุดฟอร์มของหน่วยงาน: ตรวจกฎกับบริษัท', async () => {
     const api = make();
     await expect(api.saveSiteUniform(5, [{ ruleId: 10, quantities: { START: { POLO_BLACK: 1 } } }])).rejects.toMatchObject({ status: 422 });

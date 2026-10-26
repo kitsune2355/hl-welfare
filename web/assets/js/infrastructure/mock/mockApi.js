@@ -17,7 +17,7 @@ import { benefitsOf, uniformStatus } from '../../domain/eligibility.js';
 import { isHandedOut, isStockIssue } from '../../domain/uniform.js';
 import { activeRules, activeSettings, RULE_EPOCH, ruleTimeline, toRevisions } from '../../domain/ruleVersions.js';
 import { UNIFORM_EVENTS } from '../../domain/uniform.js';
-import { quantitiesError, validateInsuranceRule, validateSettings, validateUniformRule } from '../../application/ruleRules.js';
+import { normalizePositions, quantitiesError, validateInsuranceRule, validateSettings, validateUniformRule } from '../../application/ruleRules.js';
 import { withTotals } from './rules.js';
 import { CONFIG } from '../../config.js';
 import { StockGateway } from '../http/stockGateway.js';
@@ -479,7 +479,7 @@ export class MockApi {
     const { effectiveFrom: _e, id: _i, revisionId: _r, deleted: _d, updatedBy: _u, ...r } = rule;
     if (kind === 'insurance') return { ...r, waitDays: Number(r.waitDays), note: (r.note ?? '').trim() };
     const items = [...new Set(UNIFORM_EVENTS.flatMap((ev) => Object.keys(r.quantities[ev] ?? {})))];
-    return withTotals({ ...r, items, note: (r.note ?? '').trim(), style: r.style.trim() });
+    return withTotals({ ...r, items, position: normalizePositions(r.position), note: (r.note ?? '').trim(), style: r.style.trim() });
   }
   /** เพิ่ม/แก้ฉบับ — ฉบับของกฎเดียวกันวันเดียวกันมีอยู่แล้ว = แก้ฉบับนั้น */
   writeRevision(kind, id, effectiveFrom, rule, deleted) {

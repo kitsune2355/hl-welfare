@@ -157,6 +157,7 @@ function uniform_status($emp, $site, $rules, $issues, $today)
                 ? 'ไม่พบกฎชุดฟอร์มที่ตรงกับบริษัท/กลุ่ม/ระดับของพนักงาน (รอ HR ยืนยัน)'
                 : 'ประเภทพนักงานนี้ไม่อยู่ในเงื่อนไขชุดฟอร์ม'),
             'entitlements' => array(),
+            'upcoming' => array(),
         );
     }
     $quantities = site_quantities($rule, $site);
@@ -173,11 +174,11 @@ function uniform_status($emp, $site, $rules, $issues, $today)
     }
     // ผ่านทดลองงานก่อนเสมอ ถึงจะได้รอบผ่านโปรและรอบประจำปี (HR ยืนยัน)
     $pass = $emp['probationPassDate'];
+    $month = str_pad2($rules['settings']['uniformAnnualMonth']);
     if ($pass && strcmp($pass, $limit) <= 0 && sum_qty($quantities['PROBATION']) > 0) {
         $add[] = array('PROBATION', 'PROBATION', $pass);
     }
     if ($pass && sum_qty($quantities['ANNUAL']) > 0) {
-        $month = str_pad2($rules['settings']['uniformAnnualMonth']);
         $lastYear = year_of($limit);
         for ($y = max(year_of($pass), $lastYear - ANNUAL_LOOKBACK_YEARS + 1); $y <= $lastYear; $y++) {
             $due = $y . '-' . $month . '-01';
@@ -209,8 +210,25 @@ function uniform_status($emp, $site, $rules, $issues, $today)
             'stock' => $stock,
         );
     }
+    // รอบที่ยังไม่ถึงกำหนด — แสดงล่วงหน้าในหน้าพนักงาน ไม่นับเป็นค้างแจก · ประจำปีแสดงเฉพาะรอบถัดไป · หลังวันพ้นสภาพไม่มี
+    $ahead = array();   // [key, event, dueDate]
+    if (sum_qty($quantities['START']) > 0) { $ahead[] = array('START', 'START', $emp['startDate']); }
+    if ($pass && sum_qty($quantities['PROBATION']) > 0) { $ahead[] = array('PROBATION', 'PROBATION', $pass); }
+    if ($pass && sum_qty($quantities['ANNUAL']) > 0) {
+        $y = year_of(strcmp($limit, $pass) > 0 ? $limit : $pass);
+        while (strcmp($y . '-' . $month . '-01', $limit) <= 0 || strcmp($y . '-' . $month . '-01', $pass) <= 0) { $y++; }
+        $ahead[] = array('ANNUAL-' . $y, 'ANNUAL', $y . '-' . $month . '-01');
+    }
+    $upcoming = array();
+    foreach ($ahead as $a) {
+        if (strcmp($a[2], $limit) <= 0 || ($emp['endDate'] && strcmp($a[2], $emp['endDate']) > 0)) { continue; }
+        $itemQty = $quantities[$a[1]];
+        $upcoming[] = array('key' => $a[0], 'event' => $a[1], 'dueDate' => $a[2], 'qty' => sum_qty($itemQty),
+            'qtyLabel' => (string)sum_qty($itemQty), 'items' => array_keys($itemQty), 'itemQty' => $itemQty, 'style' => $style);
+    }
     return array('ruleId' => $rule['id'], 'style' => $style, 'logo' => uniform_logo($rule, $emp),
-        'siteOverride' => site_override($rule, $site) !== null, 'reasons' => array(), 'entitlements' => $ents);
+        'siteOverride' => site_override($rule, $site) !== null, 'reasons' => array(), 'entitlements' => $ents,
+        'upcoming' => $upcoming);
 }
 
 /** สิทธิสวัสดิการทั้งหมดของพนักงาน 1 คน (= benefitsOf ใน eligibility.js) */
