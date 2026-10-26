@@ -35,7 +35,7 @@ function master_sync_after_change($actor, $siteIds = null, $removed = array())
         stock_sync_master($payload, $actor);
         return null;
     } catch (Exception $e) {
-        $msg = 'บันทึกแล้ว แต่ส่งข้อมูลไปสต็อก Uniform ไม่สำเร็จ (' . $e->getMessage() . ') — กด "ส่งข้อมูลไปสต็อก" ที่หน้าหน่วยงานอีกครั้ง';
+        $msg = 'บันทึกแล้ว แต่ส่งข้อมูลไปสต็อก Uniform ไม่สำเร็จ (' . $e->getMessage() . ') — กด "ส่งข้อมูลไปสต็อก" ที่แท็บหน่วยงาน (ตั้งค่าสวัสดิการ) อีกครั้ง';
         try {
             audit_write('STOCK_REQUEST', 'MASTER', 'SYNC', 'ส่งข้อมูลหลักไปสต็อกไม่สำเร็จ: ' . $e->getMessage(), null, $actor);
         } catch (Exception $ignored) {

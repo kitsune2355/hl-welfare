@@ -11,7 +11,9 @@ import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js'
 import { relativeDays, thaiDate, thaiDateLong } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import { CONTRACT_LABEL, DEPT_GROUPS, EMPLOYEE_TYPE_LABEL, PRO_POSITIONS, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
-import { alertBox, badge, emptyState, errorState, tabs } from '../ui/components.js';
+import { alertBox, badge, emptyState, errorState } from '../ui/components.js';
+import { aboutBox, wireAbout } from './_orgSetup.js';
+import { revealActiveTab, settingsTab, settingsTabs, wireSettingsTabs } from './_settingsTabs.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 
@@ -212,7 +214,7 @@ function drawSettings() {
             </div>
           </div>`
         : ''}
-      <p class="hint small muted">ประเภทพนักงาน และกลุ่ม / ฝ่าย ที่ใช้ในกฎ ตั้งได้ที่ <a href="sites.html?tab=types">ตั้งค่าองค์กร → ประเภทพนักงาน</a> · <a href="sites.html?tab=groups">กลุ่ม / ฝ่าย</a></p>
+      <p class="hint small muted">ประเภทพนักงาน และกลุ่ม / ฝ่าย ที่ใช้ในกฎ ตั้งได้ที่แท็บ <a href="sites.html?tab=types">2 ประเภทพนักงาน</a> · <a href="sites.html?tab=groups">3 กลุ่ม / ฝ่าย</a></p>
     </div></div>`,
   );
 }
@@ -266,16 +268,15 @@ function draw() {
   const pendingCount = pendingItems().length;
   render(
     $('#tabs'),
-    tabs(
-      [
-        { value: 'insurance', label: 'ประกันกลุ่ม', count: hist.insurance.filter((t) => t.current).length },
-        { value: 'uniform', label: 'ชุดฟอร์ม', count: hist.uniform.filter((t) => t.current).length },
-        { value: 'settings', label: 'ค่าตั้งค่า' },
-        { value: 'pending', label: 'รอมีผล', count: pendingCount, tone: pendingCount ? 'warning' : '' },
-      ],
-      tab,
-    ),
+    settingsTabs(tab, {
+      insurance: { count: hist.insurance.filter((t) => t.current).length },
+      uniform: { count: hist.uniform.filter((t) => t.current).length },
+      pending: { count: pendingCount, tone: pendingCount ? 'warning' : '' },
+    }),
   );
+  revealActiveTab($('#tabs'));
+  $('#tab-hint').textContent = settingsTab(tab).hint;
+  render($('#about'), aboutBox(tab)); // คืออะไร / ใช้ทำอะไร — เหมือนแท็บองค์กร
   // .btn ตั้ง display เอง แอตทริบิวต์ hidden จึงซ่อนไม่ได้ — ใช้ style แทน
   $('#add').style.display = canEdit && (tab === 'insurance' || tab === 'uniform') ? '' : 'none';
   $('#add-label').textContent = tab === 'uniform' ? 'เพิ่มกฎชุดฟอร์ม' : 'เพิ่มกฎประกันกลุ่ม';
@@ -462,7 +463,7 @@ function uniformForm(r) {
     <div class="field full" data-field="deptGroups">
       <label>กลุ่ม / ฝ่าย <span class="muted small">(พนักงานส่วนกลาง)</span></label>
       ${chipPicks('groups', names.map((g) => ({ value: g, label: g })), r.deptGroups, { all: 'ทุกกลุ่ม' })}
-      <span class="hint">เพิ่ม / เปลี่ยนชื่อกลุ่มได้ที่ <a href="sites.html?tab=groups" target="_blank">ตั้งค่าองค์กร → กลุ่ม / ฝ่าย</a></span>
+      <span class="hint">เพิ่ม / เปลี่ยนชื่อกลุ่มได้ที่ <a href="sites.html?tab=groups" target="_blank">แท็บ 3 กลุ่ม / ฝ่าย</a></span>
     </div>
     ${positionField(r)}
     <div class="field" data-field="levelMin">
@@ -485,7 +486,7 @@ function uniformForm(r) {
       <label class="chip-pick" style="align-self:flex-start"><input type="checkbox" id="f-polo" ${r.poloBySite ? raw('checked') : ''} /> ใช้สีตามหน่วยงาน (ดำ / น้ำเงิน)</label>
     </div>
     <div class="field full" data-field="quantities">
-      <label>จำนวนต่อรอบ<span class="req">*</span> <span class="muted small">(0 = ไม่ได้ · หน่วยงานตั้งต่างจากนี้ได้ที่หน้าหน่วยงาน)</span></label>
+      <label>จำนวนต่อรอบ<span class="req">*</span> <span class="muted small">(0 = ไม่ได้ · หน่วยงานตั้งต่างจากนี้ได้ที่แท็บ 4 หน่วยงาน คอลัมน์ “ชุดฟอร์ม”)</span></label>
       ${qtyGrid(r)}
     </div>
     <div class="field full">
@@ -773,8 +774,10 @@ function wireActions(root, close = () => {}) {
 }
 
 // ===================== events =====================
-on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
-  tab = t.dataset.tab;
+// แท็บของหน้านี้สลับในหน้า · แท็บองค์กร / เริ่มต้นตั้งค่า = ลิงก์ไป sites.html (pages/_settingsTabs.js)
+wireAbout($('#about'), () => render($('#about'), aboutBox(tab)));
+wireSettingsTabs($('#tabs'), 'rules', (next) => {
+  tab = next;
   query = '';
   setParams({ tab: tab === 'insurance' ? '' : tab });
   draw();

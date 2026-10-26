@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>หน่วยงาน · HL Welfare</title>
+    <title>ตั้งค่าสวัสดิการ · HL Welfare</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -23,11 +23,11 @@
     </script>
   </head>
   <body>
-    <!-- sites.html?tab=companies|sites|types|groups (ไม่ใส่ = หน่วยงาน) -->
+    <!-- sites.html?tab=setup|companies|types|groups|sites (ไม่ใส่ = เริ่มต้นตั้งค่า) -->
     <main id="page" class="page fit">
       <div class="page-head">
         <div>
-          <h1>ตั้งค่าองค์กร</h1>
+          <h1>ตั้งค่าสวัสดิการ</h1>
           <p id="tab-hint">บริษัท · หน่วยงาน · ประเภทพนักงาน · กลุ่ม / ฝ่าย — ใช้ร่วมกันทั้งระบบ</p>
         </div>
         <div class="page-actions">
@@ -37,7 +37,11 @@
       </div>
 
       <div id="tabs"></div>
-      <section class="card fill" id="panel-sites">
+      <div id="about"></div>
+      <section class="card fill hidden" id="panel-setup">
+        <div id="setup" class="fill-body scroll"></div>
+      </section>
+      <section class="card fill hidden" id="panel-sites">
         <div id="grid" class="fill-body"></div>
       </section>
       <section class="card fill hidden" id="panel-org">
