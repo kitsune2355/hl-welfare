@@ -6,11 +6,9 @@ import {
   guessEmployeeType,
   matchDeptGroup,
   matchSite,
-  monthlyTemplateRows,
   parseEmployeeSheet,
   planEmployeeImport,
   planWorkbookImport,
-  TEMPLATE_SHEETS,
   splitThaiName,
   toIsoDate,
 } from '../web/assets/js/application/usecases/employeeImport.js';
@@ -120,16 +118,20 @@ describe('นำเข้า Excel พนักงาน: แผนการน�
   });
 });
 
-describe('นำเข้า Excel พนักงาน: template 2 ชีต + ส่งออกรายเดือน', () => {
+// หัวตารางแบบไฟล์ของ HR (2 ชีต เข้าใหม่ / ลาออก) — ระบบยังนำเข้าไฟล์แบบนี้ได้ (ไฟล์ที่ระบบสร้างใช้คอลัมน์ของตาราง — employeeList.test.js)
+const HR_IN_HEAD = ['ลำดับ', 'รหัสพนักงาน', 'บริษัท', 'ชื่อพนักงาน', 'ชื่อตำแหน่ง', 'ชื่อหน่วยงาน', 'ฝ่าย', 'วันเริ่มงาน', 'วันเกิด', 'ระดับ', 'เลขบัตรประชาชน', 'ประเภทพนักงาน', 'หมายเหตุ'];
+const HR_OUT_HEAD = ['ลำดับ', 'รหัสพนักงาน', 'บริษัท', 'ชื่อพนักงาน', 'ชื่อตำแหน่ง', 'ชื่อหน่วยงาน', 'ฝ่าย', 'วันเข้างาน', 'วันพ้นสภาพ', 'วันเกิด', 'เลขบัตรประชาชน', 'ระดับ', 'ประเภทพนักงาน', 'หมายเหตุ'];
+
+describe('นำเข้า Excel พนักงาน: ไฟล์ HR 2 ชีต (เข้าใหม่ + ลาออก)', () => {
   const T_IN = [
     ['พนักงานเข้าใหม่'],
-    TEMPLATE_SHEETS.IN.head,
+    HR_IN_HEAD,
     [1, '9900011', 'HL', 'นายเข้า ทดลอง', 'ธุรการ', 'สำนักงานใหญ่ HL', '', serial(2569, 9, 1), serial(2540, 1, 1), 'ระดับ 2', '', 'ส่วนกลาง', ''],
     [2, '9900012', 'PRO', 'นางสาวเข้า แล้วออก', 'แม่บ้าน', 'Pro Site — ไซต์ทดสอบ', '', serial(2569, 9, 3), serial(2545, 1, 1), '', '', 'Pro Site', ''],
   ];
   const T_OUT = [
     ['พนักงานลาออก / พ้นสภาพ'],
-    TEMPLATE_SHEETS.OUT.head,
+    HR_OUT_HEAD,
     [1, '9900012', 'PRO', 'นางสาวเข้า แล้วออก', '', '', '', serial(2569, 9, 3), serial(2569, 9, 20), serial(2545, 1, 1), '', '', 'Pro Site', 'เลิกจ้าง'],
     [2, 'E0003', 'CNS', 'ว่าที่ร.ต.ขาด งาน', '', '', '', serial(2568, 1, 1), serial(2569, 9, 15), serial(2530, 1, 1), '', '', '', 'ลาออก'],
   ];
@@ -138,7 +140,7 @@ describe('นำเข้า Excel พนักงาน: template 2 ชีต +
     { ...parseEmployeeSheet(T_OUT), sheet: 'ลาออก' },
   ];
 
-  it('อ่านหัวตาราง template ได้ทั้งสองชีต (มีคอลัมน์ประเภทพนักงาน)', () => {
+  it('อ่านหัวตารางได้ทั้งสองชีต (มีคอลัมน์ประเภทพนักงาน)', () => {
     const [a, b] = parsedList();
     expect([a.error, a.kind, a.items.length, a.items[1].typeLabel]).toEqual([undefined, 'IN', 2, 'Pro Site']);
     expect([b.error, b.kind, b.items.length]).toEqual([undefined, 'OUT', 2]);
@@ -161,34 +163,5 @@ describe('นำเข้า Excel พนักงาน: template 2 ชีต +
     expect(plan.add[1].issues.some((x) => x.startsWith('เข้าและออกในไฟล์เดียวกัน'))).toBe(true);
     expect(plan.update.map((u) => [u.sheet, u.id, u.row.endDate])).toEqual([['ลาออก', 3, '2026-09-15']]);
     expect(plan.skip.length).toBe(0);
-  });
-  it('ส่งออกรายเดือน → รูปแบบ template → นำเข้ากลับได้ค่าเดิม', () => {
-    const people = [
-      { id: 1, empCode: 'B2', title: 'นาย', firstName: 'ใหม่', lastName: 'สอง', companyCode: 'PRO', siteId: 10, employeeType: 'PRO_SITE', position: 'แม่บ้าน', startDate: '2026-09-05', birthDate: '1995-02-03', status: 'ACTIVE', nationalId: '1101700230701' },
-      { id: 2, empCode: 'B1', title: 'นางสาว', firstName: 'ใหม่', lastName: 'หนึ่ง', companyCode: 'HL', siteId: 0, employeeType: 'CENTRAL', deptGroup: 'ฝ่ายขาย', level: 4, startDate: '2026-09-01', birthDate: '', status: 'ACTIVE' },
-      { id: 3, empCode: 'C1', title: 'นาย', firstName: 'ออก', lastName: 'ไป', companyCode: 'CNS', siteId: 20, employeeType: 'CENTRAL', startDate: '2020-01-01', endDate: '2026-09-30', endReason: 'ABSENT_3D', status: 'INACTIVE' },
-      { id: 4, empCode: 'D1', title: 'นาย', firstName: 'เดือน', lastName: 'อื่น', companyCode: 'HL', startDate: '2026-08-31', endDate: '2026-10-01', status: 'INACTIVE' },
-    ];
-    const rows = monthlyTemplateRows(people, sites, '2026-09');
-    expect(rows.IN.map((r) => [r[0], r[1], r[3], r[5], r[7], r[9], r[11]])).toEqual([
-      [1, 'B1', 'นางสาวใหม่ หนึ่ง', '', '2026-09-01', 'ระดับ 4', 'ส่วนกลาง'],
-      [2, 'B2', 'นายใหม่ สอง', 'PRO/FM/ไซต์ทดสอบ', '2026-09-05', '', 'Pro Site'],
-    ]);
-    expect(rows.OUT.map((r) => [r[1], r[8], r[13]])).toEqual([['C1', '2026-09-30', 'ขาดงาน 3 วันติด']]);
-    expect(rows.IN[0].length).toBe(TEMPLATE_SHEETS.IN.head.length);
-    expect(rows.OUT[0].length).toBe(TEMPLATE_SHEETS.OUT.head.length);
-    // เขียนลงไฟล์ = เซลล์วันที่ → อ่านกลับเป็น serial
-    const toSerial = (def) => (r) => r.map((v, i) => (def.dates.includes(def.head[i]) && v ? serial(...v.split('-').map(Number)) : v));
-    const back = [
-      { ...parseEmployeeSheet([['x'], TEMPLATE_SHEETS.IN.head, ...rows.IN.map(toSerial(TEMPLATE_SHEETS.IN))]), sheet: 'เข้าใหม่' },
-      { ...parseEmployeeSheet([['x'], TEMPLATE_SHEETS.OUT.head, ...rows.OUT.map(toSerial(TEMPLATE_SHEETS.OUT))]), sheet: 'ลาออก' },
-    ];
-    const plan = planWorkbookImport(back, [], sites, { addMissing: true });
-    expect(plan.add.map((a) => [a.row.empCode, a.row.firstName, a.row.lastName, a.row.employeeType, a.row.siteId, a.row.startDate, a.row.status, a.row.endReason ?? null])).toEqual([
-      ['B1', 'ใหม่', 'หนึ่ง', 'CENTRAL', 0, '2026-09-01', 'ACTIVE', null],
-      ['B2', 'ใหม่', 'สอง', 'PRO_SITE', 10, '2026-09-05', 'ACTIVE', null],
-      ['C1', 'ออก', 'ไป', 'CENTRAL', 20, '2020-01-01', 'INACTIVE', 'ABSENT_3D'],
-    ]);
-    expect([plan.add[0].row.level, plan.add[0].row.deptGroup, plan.add[1].row.position, plan.add[1].row.birthDate]).toEqual([4, 'ฝ่ายขาย', 'แม่บ้าน', '1995-02-03']);
   });
 });

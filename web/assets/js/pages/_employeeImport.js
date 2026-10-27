@@ -1,16 +1,17 @@
-// นำเข้า Excel ในหน้าพนักงาน — ไฟล์ "เข้าใหม่" / "ลาออก" ประจำเดือนที่ HR ได้รับ หรือ template 2 ชีต (เข้าใหม่ + ลาออก)
+// Excel ในหน้าพนักงาน
 //
-//   Template / ส่งออกรายเดือน (openTemplateDialog): ไฟล์ Excel 2 ชีต หัวตารางชุดเดียวกับที่นำเข้า
-//     - template เปล่า: ช่องเลือก บริษัท / ระดับ / ประเภท / หมายเหตุ · คำอธิบายที่หัวคอลัมน์ · รหัส/เลขบัตรเป็นข้อความ (เลข 0 นำหน้าไม่หาย)
-//     - ส่งออกเข้า-ออกของเดือน: รูปแบบเดียวกัน → แก้แล้วนำเข้ากลับได้
+//   ไฟล์ที่ระบบสร้าง = คอลัมน์และลำดับเดียวกับตารางพนักงาน (LIST_COLUMNS) ทั้งหมด — listWorkbook ตัวเดียว:
+//     - ส่งออก (ปุ่ม Excel / Excel ที่เลือก) · template เปล่า · ส่งออกเข้า-ออกรายเดือน (ชีต "เข้าใหม่" + "ลาออก")
+//     - ช่องเลือก บริษัท / ประเภท / สถานะ ฯลฯ · คำอธิบายที่หัวคอลัมน์ · รหัส/เลขบัตรเป็นข้อความ (เลข 0 นำหน้าไม่หาย) · อายุ = ดูอย่างเดียว
+//   นำเข้า: ไฟล์ข้างบน (จับคู่ตามรหัส แก้/เพิ่ม) หรือไฟล์ "เข้าใหม่" / "ลาออก" แบบของ HR (อ่านหัวตารางเอง)
 //
 //   อ่านไฟล์ (.xlsx / .xls) → แยกข้อมูล (application/usecases/employeeImport.js) → กล่องสรุปก่อนนำเข้า
 //   → ใส่ในตารางเป็นแถว "ยังไม่บันทึก" (เขียว = เพิ่ม · เหลือง = บันทึกพ้นสภาพ เห็นค่าเดิม) → HR ตรวจช่องแดงแล้วกดบันทึกเอง
 //   ไม่บันทึกอะไรจนกว่า HR กด "บันทึก" ในตาราง (ExcelGrid.stage)
 import { api } from '../app/api.js';
-import { monthlyTemplateRows, OUT_NOTE_HINTS, parseEmployeeSheet, planWorkbookImport, TEMPLATE_SHEETS } from '../application/usecases/employeeImport.js';
-import { employeeListRows, isListHeader, LIST_COLUMNS, parseEmployeeList, planEmployeeList } from '../application/usecases/employeeList.js';
-import { COMPANY_CODES, EMPLOYEE_TYPE_LABEL, THAI_MONTHS_FULL } from '../domain/labels.js';
+import { parseEmployeeSheet, planWorkbookImport } from '../application/usecases/employeeImport.js';
+import { employeeListRows, isListHeader, LIST_COLUMNS, monthlyMovers, parseEmployeeList, planEmployeeList } from '../application/usecases/employeeList.js';
+import { COMPANY_CODES, THAI_MONTHS_FULL } from '../domain/labels.js';
 import { html, raw } from '../shared/dom.js';
 import { downloadBlob, loadExcelJs, loadSheetJs, XLSX_MIME } from '../shared/excel.js';
 import { thaiDate } from '../shared/format.js';
@@ -199,23 +200,9 @@ export async function runEmployeeImport(file, ctx) {
   };
 }
 
-// ===================== Template / ส่งออกรายเดือน =====================
-const MAX_ROWS = 500; // ช่องเลือก/รูปแบบเตรียมไว้ถึงแถวนี้
-const HEAD_NOTES = {
-  รหัสพนักงาน: 'ต้องไม่ซ้ำ — ใช้จับคู่พนักงานในระบบ (ชีตลาออก)',
-  บริษัท: () => COMPANY_CODES.join(' / '),
-  ชื่อพนักงาน: 'คำนำหน้า+ชื่อ เว้นวรรค นามสกุล เช่น นายสมชาย ใจดี',
-  ชื่อหน่วยงาน: 'ชื่อตามหน้า "หน่วยงาน" ในระบบ (Pro Site เขียน PRO/FM/ชื่อไซต์ ได้)',
-  ฝ่าย: 'ส่วนกลาง: กลุ่ม/ฝ่ายตามระบบ เช่น Support Line, ฝ่ายขาย',
-  วันเริ่มงาน: 'วันที่ — พิมพ์ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ. ก็ได้)',
-  วันเข้างาน: 'วันที่ — พิมพ์ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ. ก็ได้)',
-  วันพ้นสภาพ: 'วันที่พ้นสภาพ — พิมพ์ วว/ดด/ปปปป',
-  วันเกิด: 'วันที่ — พิมพ์ วว/ดด/ปปปป',
-  ระดับ: 'ส่วนกลาง: ระดับ 1–9',
-  เลขบัตรประชาชน: '13 หลัก (ใส่ขีดได้)',
-  ประเภทพนักงาน: 'ไม่บังคับ — ว่าง = ระบบเดาจากบริษัท/หน่วยงาน',
-  หมายเหตุ: 'ชีตลาออก: เหตุผล เช่น ลาออก / ขาดงานเกิน 3 วัน / เลิกจ้าง / กระทำผิด',
-};
+// ===================== ไฟล์ Excel พนักงาน — คอลัมน์ชุดเดียวกับตาราง (LIST_COLUMNS) =====================
+// ส่งออก (ปุ่ม Excel) · template เปล่า · ส่งออกเข้า-ออกรายเดือน ใช้ listWorkbook ตัวเดียวกัน → นำเข้ากลับด้วย "นำเข้า Excel" ได้ทุกไฟล์
+const EXTRA_ROWS = 200; // ช่องเลือก/รูปแบบเตรียมไว้ใต้ข้อมูล (แถวที่จะเพิ่มเอง)
 const listRule = (values, strict = true) => ({
   type: 'list',
   allowBlank: true,
@@ -228,51 +215,80 @@ const isoToDate = (iso) => {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d));
 };
+/** คำอธิบายที่หัวคอลัมน์ (ชี้ที่หัวใน Excel) — คอลัมน์ที่มี note ใน LIST_COLUMNS ใช้ค่านั้นก่อน */
+const HEAD_NOTE = {
+  empCode: 'ต้องไม่ซ้ำ — ใช้จับคู่พนักงานในระบบ (มีแล้ว = แก้ · ไม่มี = เพิ่มใหม่)',
+  companyCode: () => COMPANY_CODES.join(' / '),
+  siteId: 'ชื่อตามแท็บ "หน่วยงาน" ของบริษัทนั้น',
+  employeeType: 'ว่าง = ระบบเลือกตามบริษัท',
+  deptGroup: 'เฉพาะประเภทที่ใช้กลุ่ม/ฝ่าย (เช่น ส่วนกลาง)',
+  level: 'ตัวเลข 1–9 (ประเภทที่ใช้ระดับ)',
+  birthDate: 'วันที่ — พิมพ์ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ. ก็ได้)',
+  startDate: 'วันที่ — พิมพ์ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ. ก็ได้)',
+  probationPassDate: 'ว่าง = ระบบคำนวณจากวันเริ่มงาน',
+  nationalId: '13 หลัก (ใส่ขีดได้)',
+  status: 'พ้นสภาพ = ใส่เหตุผลและวันพ้นสภาพด้วย',
+  endReason: () => Object.values(END_REASON_LABEL).join(' / '),
+};
+const HELP = [
+  'ไฟล์รายชื่อพนักงาน — กรอก/แก้ในไฟล์นี้แล้วนำเข้าที่หน้าพนักงาน (ปุ่ม "นำเข้า Excel")',
+  '',
+  '• คอลัมน์และลำดับเดียวกับตารางพนักงานในระบบ',
+  '• จับคู่ตาม "รหัส": มีในระบบ = แก้เฉพาะช่องที่เปลี่ยน · ไม่มีในระบบ = เพิ่มพนักงานใหม่',
+  '• ลบคอลัมน์ที่ไม่ต้องการแก้ออกได้ — คอลัมน์ที่ไม่มีในไฟล์ ระบบไม่แตะ',
+  '• หน่วยงาน / ประเภท / กลุ่ม-ฝ่าย ใช้ชื่อตามระบบ · วันที่พิมพ์ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ.)',
+  '• อายุ (หัวสีเทา) ระบบคำนวณจากวันเกิด — แก้ช่องนี้ไม่มีผล',
+  '• ค่าที่ระบบอ่านไม่ได้จะคงค่าเดิมและแจ้งให้ตรวจ — ทุกอย่างเข้าตารางเป็น "ยังไม่บันทึก" ตรวจแล้วกดบันทึกเอง',
+];
 
-/** สมุดงาน 2 ชีต (template) — rows = { IN, OUT } แถวข้อมูลตามหัวตาราง (ว่าง = template เปล่า) */
-async function buildTemplate(rows, subtitle) {
+/**
+ * สมุดงานรายชื่อพนักงาน — sheets = [{ name, employees, color? }] ชีตละตารางเดียว (หัวแถว 1) + ชีต "วิธีใช้"
+ * วันที่เป็นเซลล์วันที่ (แสดงปี พ.ศ.) · รหัส/เลขบัตร/โทร เป็นข้อความ · ช่องเลือก บริษัท ประเภท สถานะ ฯลฯ · อายุ = หัวสีเทา (ระบบคำนวณ)
+ */
+async function listWorkbook(sheets, { sites, deptGroups = [] }) {
   const ExcelJS = await loadExcelJs();
   const wb = new ExcelJS.Workbook();
   wb.creator = 'HL Welfare';
-  for (const kind of ['IN', 'OUT']) {
-    const def = TEMPLATE_SHEETS[kind];
-    const ws = wb.addWorksheet(def.name, { views: [{ state: 'frozen', ySplit: 2 }] });
-    const n = def.head.length;
-    ws.addRow([`${def.title}${subtitle ? ` — ${subtitle}` : ''}`]);
-    ws.mergeCells(1, 1, 1, n);
-    const t = ws.getCell(1, 1);
-    t.font = { bold: true, size: 14, color: { argb: 'FF0E7490' } };
-    ws.getRow(1).height = 26;
-    const head = ws.addRow(def.head);
+  const ctx = { sites, deptGroups };
+  for (const sh of sheets) {
+    const ws = wb.addWorksheet(sh.name, { views: [{ state: 'frozen', ySplit: 1, xSplit: 1 }] });
+    const head = ws.addRow(LIST_COLUMNS.map((c) => c.head));
     head.height = 24;
-    head.eachCell((c) => {
-      c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: kind === 'IN' ? 'FF0E7490' : 'FFB45309' } };
-      c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-      const note = typeof HEAD_NOTES[c.value] === 'function' ? HEAD_NOTES[c.value]() : HEAD_NOTES[c.value];
-      if (note) c.note = note;
+    head.eachCell((cell, n) => {
+      const c = LIST_COLUMNS[n - 1];
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c.readOnly ? 'FF94A3B8' : sh.color ?? 'FF0E7490' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      const note = c.note ?? (typeof HEAD_NOTE[c.key] === 'function' ? HEAD_NOTE[c.key]() : HEAD_NOTE[c.key]);
+      if (note) cell.note = note;
     });
-    for (const r of rows[kind] ?? []) {
-      ws.addRow(r.map((v, i) => (def.dates.includes(def.head[i]) && v ? isoToDate(v) : v)));
+    for (const r of employeeListRows(sh.employees, sites)) {
+      ws.addRow(r.map((v, i) => (LIST_COLUMNS[i].kind === 'date' && v ? isoToDate(v) : v)));
     }
-    def.head.forEach((h, i) => {
+    const last = sh.employees.length + 1 + EXTRA_ROWS;
+    LIST_COLUMNS.forEach((c, i) => {
       const col = ws.getColumn(i + 1);
-      col.width = { ลำดับ: 7, รหัสพนักงาน: 14, บริษัท: 9, ชื่อพนักงาน: 28, ชื่อตำแหน่ง: 22, ชื่อหน่วยงาน: 32, ฝ่าย: 22, ระดับ: 10, เลขบัตรประชาชน: 18, ประเภทพนักงาน: 15, หมายเหตุ: 30 }[h] ?? 14;
-      const letter = col.letter;
-      const range = `${letter}3:${letter}${MAX_ROWS}`;
-      if (def.dates.includes(h)) {
-        // แสดงปี พ.ศ. แบบไฟล์ของ HR (ค่าในเซลล์เป็นวันที่จริง)
-        for (let r = 3; r <= Math.max(3 + (rows[kind]?.length ?? 0), 60); r++) ws.getCell(r, i + 1).numFmt = '[$-th-TH]d/m/bbbb';
+      col.width = c.width ?? 14;
+      for (let r = 2; r <= last; r++) {
+        if (c.kind === 'date') ws.getCell(r, i + 1).numFmt = '[$-th-TH]d/m/bbbb';
+        if (c.kind === 'code') ws.getCell(r, i + 1).numFmt = '@';
       }
-      if (h === 'รหัสพนักงาน' || h === 'เลขบัตรประชาชน') for (let r = 3; r <= 60 + (rows[kind]?.length ?? 0); r++) ws.getCell(r, i + 1).numFmt = '@';
-      if (h === 'บริษัท') ws.dataValidations.add(range, listRule(COMPANY_CODES));
-      if (h === 'ระดับ') ws.dataValidations.add(range, listRule(Array.from({ length: 9 }, (_, k) => `ระดับ ${k + 1}`), false));
-      if (h === 'ประเภทพนักงาน') ws.dataValidations.add(range, listRule(Object.values(EMPLOYEE_TYPE_LABEL)));
-      if (h === 'หมายเหตุ' && kind === 'OUT') ws.dataValidations.add(range, listRule(OUT_NOTE_HINTS, false));
+      const values = c.list?.(ctx);
+      // ช่องเลือก — รายการยาว (เกิน 255 ตัวอักษร) ใส่ใน Excel ไม่ได้ ข้ามไป
+      if (values?.length && values.join(',').length < 250) ws.dataValidations.add(`${col.letter}2:${col.letter}${last}`, listRule(values, false));
     });
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: LIST_COLUMNS.length } };
   }
+  const help = wb.addWorksheet('วิธีใช้');
+  help.getColumn(1).width = 110;
+  HELP.forEach((t, i) => {
+    const cell = help.getCell(i + 1, 1);
+    cell.value = t;
+    if (i === 0) cell.font = { bold: true, size: 13 };
+  });
   return wb.xlsx.writeBuffer();
 }
+const saveXlsx = (buf, name) => downloadBlob(new Blob([buf], { type: XLSX_MIME }), name);
 
 const lastMonth = () => {
   const d = new Date();
@@ -285,20 +301,20 @@ const monthLabel = (ym) => {
   return `${THAI_MONTHS_FULL[m - 1]} ${y + 543}`;
 };
 
-/** กล่อง Template / ส่งออกรายเดือน */
-export function openTemplateDialog({ sites }) {
+/** กล่อง Template / ส่งออกเข้า-ออกรายเดือน — คอลัมน์ชุดเดียวกับตารางพนักงาน */
+export function openTemplateDialog({ sites, deptGroups = [] }) {
   const m = openModal({
-    title: 'Template Excel พนักงานเข้า-ออก',
-    description: 'ไฟล์ 2 ชีต: "เข้าใหม่" และ "ลาออก" — หัวตารางชุดเดียวกับไฟล์ของ HR นำเข้าด้วยปุ่ม "นำเข้า Excel" ได้ทั้งไฟล์ในครั้งเดียว',
+    title: 'Template Excel พนักงาน',
+    description: 'คอลัมน์และลำดับเดียวกับตารางพนักงาน — กรอก/แก้แล้วนำเข้าด้วยปุ่ม "นำเข้า Excel" ได้ทันที',
     body: html`<div class="tpl-opts">
       <section class="tpl-opt">
         <span class="tile-ic">${raw(icon('file-spreadsheet'))}</span>
-        <div class="grow"><b>Template เปล่า</b><small>กรอกพนักงานเข้าใหม่ / ลาออกของเดือน แล้วนำเข้า · มีช่องเลือกบริษัท ระดับ ประเภท และคำอธิบายที่หัวคอลัมน์</small></div>
+        <div class="grow"><b>Template เปล่า</b><small>กรอกพนักงานใหม่ หรือแก้ข้อมูล (จับคู่ตามรหัส) · มีช่องเลือกบริษัท ประเภท สถานะ ฯลฯ และคำอธิบายที่หัวคอลัมน์</small></div>
         <button type="button" class="btn btn-sm" data-tpl-blank>${raw(icon('download'))} ดาวน์โหลด</button>
       </section>
       <section class="tpl-opt">
         <span class="tile-ic">${raw(icon('calendar-clock'))}</span>
-        <div class="grow"><b>ส่งออกเข้า-ออกประจำเดือน</b><small>เข้าใหม่ = วันเริ่มงานในเดือนนั้น · ลาออก = วันพ้นสภาพในเดือนนั้น — รูปแบบเดียวกับ template</small>
+        <div class="grow"><b>ส่งออกเข้า-ออกประจำเดือน</b><small>2 ชีต: เข้าใหม่ (วันเริ่มงานในเดือนนั้น) · ลาออก (วันพ้นสภาพในเดือนนั้น)</small>
           <label class="tpl-month">เดือน <input class="input" type="month" data-tpl-month value="${lastMonth()}" max="${new Date().toISOString().slice(0, 7)}" /></label>
         </div>
         <button type="button" class="btn btn-sm btn-primary" data-tpl-month-export>${raw(icon('download'))} ส่งออก</button>
@@ -306,7 +322,6 @@ export function openTemplateDialog({ sites }) {
     </div>`,
     footer: html`<button class="btn btn-ghost" data-close>ปิด</button>`,
   });
-  const save = (buf, name) => downloadBlob(new Blob([buf], { type: XLSX_MIME }), name);
   /** ปุ่มแสดงกำลังทำงานระหว่างสร้างไฟล์ (คืนไอคอน+ข้อความเดิมเมื่อเสร็จ) */
   const working = async (b, job) => {
     const before = b.innerHTML;
@@ -323,7 +338,7 @@ export function openTemplateDialog({ sites }) {
   };
   m.el.querySelector('[data-tpl-blank]').onclick = (e) =>
     working(e.currentTarget, async () => {
-      save(await buildTemplate({ IN: [], OUT: [] }, ''), 'template พนักงานเข้า-ออก.xlsx');
+      saveXlsx(await listWorkbook([{ name: 'พนักงาน', employees: [] }], { sites, deptGroups }), 'template พนักงาน.xlsx');
       toast.success('ดาวน์โหลด template แล้ว');
     });
   m.el.querySelector('[data-tpl-month-export]').onclick = async (e) => {
@@ -331,63 +346,19 @@ export function openTemplateDialog({ sites }) {
     const ym = m.el.querySelector('[data-tpl-month]').value;
     if (!/^\d{4}-\d{2}$/.test(ym)) return toast.error('เลือกเดือนก่อน');
     return working(b, async () => {
-      const rows = monthlyTemplateRows(await api.listEmployees({}), sites, ym);
-      save(await buildTemplate(rows, `เดือน${monthLabel(ym)}`), `เข้า-ออก เดือน${monthLabel(ym)}.xlsx`);
-      toast.success(`ส่งออกเดือน${monthLabel(ym)} แล้ว — เข้าใหม่ ${rows.IN.length} · ลาออก ${rows.OUT.length} คน`);
+      const mv = monthlyMovers(await api.listEmployees({}), ym);
+      const sheets = [
+        { name: 'เข้าใหม่', employees: mv.IN },
+        { name: 'ลาออก', employees: mv.OUT, color: 'FFB45309' },
+      ];
+      saveXlsx(await listWorkbook(sheets, { sites, deptGroups }), `เข้า-ออก เดือน${monthLabel(ym)}.xlsx`);
+      toast.success(`ส่งออกเดือน${monthLabel(ym)} แล้ว — เข้าใหม่ ${mv.IN.length} · ลาออก ${mv.OUT.length} คน`);
     });
   };
 }
 
-// ===================== ไฟล์รายชื่อพนักงาน (ปุ่ม Excel ของตาราง / Excel ที่เลือก) =====================
-/**
- * ส่งออกพนักงานเป็นไฟล์ที่นำเข้ากลับได้ — คอลัมน์ชุดเดียวกับตาราง (LIST_COLUMNS)
- * วันที่เป็นเซลล์วันที่ (แสดงปี พ.ศ.) · รหัส/เลขบัตร/โทร เป็นข้อความ · ช่องเลือก บริษัท ประเภท สถานะ ฯลฯ · ชีต "วิธีใช้"
- */
+/** ส่งออกพนักงาน (ปุ่ม Excel ของตาราง / Excel ที่เลือก) — นำเข้ากลับได้ */
 export async function exportEmployeeList(employees, { sites, deptGroups = [], name = 'รายชื่อพนักงาน' }) {
-  const ExcelJS = await loadExcelJs();
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'HL Welfare';
-  const ws = wb.addWorksheet('พนักงาน', { views: [{ state: 'frozen', ySplit: 1, xSplit: 1 }] });
-  const head = ws.addRow(LIST_COLUMNS.map((c) => c.head));
-  head.height = 24;
-  head.eachCell((cell) => {
-    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0E7490' } };
-    cell.alignment = { vertical: 'middle', horizontal: 'center' };
-  });
-  for (const r of employeeListRows(employees, sites)) {
-    ws.addRow(r.map((v, i) => (LIST_COLUMNS[i].kind === 'date' && v ? isoToDate(v) : v)));
-  }
-  const last = Math.max(employees.length + 1, 2) + 200; // เผื่อแถวที่จะเพิ่มเอง
-  const ctx = { sites, deptGroups };
-  LIST_COLUMNS.forEach((c, i) => {
-    const col = ws.getColumn(i + 1);
-    col.width = c.width ?? 14;
-    for (let r = 2; r <= last; r++) {
-      if (c.kind === 'date') ws.getCell(r, i + 1).numFmt = '[$-th-TH]d/m/bbbb';
-      if (c.kind === 'code') ws.getCell(r, i + 1).numFmt = '@';
-    }
-    const values = c.list?.(ctx);
-    // ช่องเลือก — รายการยาว (เกิน 255 ตัวอักษร) ใส่ใน Excel ไม่ได้ ข้ามไป
-    if (values?.length && values.join(',').length < 250) ws.dataValidations.add(`${col.letter}2:${col.letter}${last}`, listRule(values, false));
-  });
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: LIST_COLUMNS.length } };
-  const help = wb.addWorksheet('วิธีใช้');
-  help.getColumn(1).width = 110;
-  [
-    'ไฟล์รายชื่อพนักงาน — แก้ในไฟล์นี้แล้วนำเข้ากลับที่หน้าพนักงาน (ปุ่ม "นำเข้า Excel")',
-    '',
-    '• จับคู่ตาม "รหัส": มีในระบบ = แก้เฉพาะช่องที่เปลี่ยน · ไม่มีในระบบ = เพิ่มพนักงานใหม่',
-    '• ลบคอลัมน์ที่ไม่ต้องการแก้ออกได้ — คอลัมน์ที่ไม่มีในไฟล์ ระบบไม่แตะ',
-    '• หน่วยงาน / ประเภท / กลุ่ม-ฝ่าย ใช้ชื่อตามระบบ · วันที่พิมพ์ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ.)',
-    '• ค่าที่ระบบอ่านไม่ได้จะคงค่าเดิมและแจ้งให้ตรวจ — ทุกอย่างเข้าตารางเป็น "ยังไม่บันทึก" ตรวจแล้วกดบันทึกเอง',
-    '• อายุไม่อยู่ในไฟล์ (ระบบคำนวณจากวันเกิด)',
-  ].forEach((t, i) => {
-    const cell = help.getCell(i + 1, 1);
-    cell.value = t;
-    if (i === 0) cell.font = { bold: true, size: 13 };
-  });
-  const buf = await wb.xlsx.writeBuffer();
-  downloadBlob(new Blob([buf], { type: XLSX_MIME }), `${name} ${new Date().toISOString().slice(0, 10)}.xlsx`);
+  saveXlsx(await listWorkbook([{ name: 'พนักงาน', employees }], { sites, deptGroups }), `${name} ${new Date().toISOString().slice(0, 10)}.xlsx`);
   toast.success(`ส่งออกแล้ว ${employees.length.toLocaleString('th-TH')} คน — แก้แล้วนำเข้ากลับได้ที่ปุ่ม “นำเข้า Excel”`);
 }

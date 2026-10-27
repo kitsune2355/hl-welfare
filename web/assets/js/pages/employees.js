@@ -398,7 +398,7 @@ async function showAll() {
 $('#grid').addEventListener('click', async (e) => {
   if (e.target.closest('[data-template-excel]')) {
     if (!sites.length) sites = await api.listSites();
-    return openTemplateDialog({ sites });
+    return openTemplateDialog({ sites, deptGroups });
   }
   if (!e.target.closest('[data-import-excel]')) return;
   const file = await pickExcelFile();

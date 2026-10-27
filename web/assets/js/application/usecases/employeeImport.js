@@ -9,13 +9,12 @@
 //     IN : เพิ่มแถวใหม่ (รหัสซ้ำในระบบ = ข้าม) · เดาประเภท/หน่วยงาน/ฝ่าย — ที่เดาไม่ได้ปล่อยว่างให้ HR เลือก (ช่องแดง)
 //     OUT: แก้พนักงานเดิมตามรหัส → พ้นสภาพ + วันพ้นสภาพ + เหตุผล (พ้นสภาพแล้ว = ข้าม)
 //          ไม่พบในระบบ = ข้าม · หรือ addMissing: true = เพิ่มเป็นพนักงานที่พ้นสภาพแล้ว (ข้อมูลในไฟล์ครบ)
-//   planWorkbookImport(parsedList, …)  หลายชีตในไฟล์เดียว (template 2 ชีต "เข้าใหม่" + "ลาออก") → รวมเป็นแผนเดียว
+//   planWorkbookImport(parsedList, …)  หลายชีตในไฟล์เดียว (ชีต "เข้าใหม่" + "ลาออก") → รวมเป็นแผนเดียว
 //     คนที่อยู่ทั้งสองชีต (เข้าแล้วออกในเดือนเดียวกัน) = เพิ่มแถวเดียวเป็นพ้นสภาพ ไม่ซ้ำ
 //
-//   Template (TEMPLATE_SHEETS) — คอลัมน์ชุดเดียวกับไฟล์ของ HR + "ประเภทพนักงาน" (ไม่บังคับ — ว่าง = เดาให้)
-//   monthlyTemplateRows(employees, sites, month)  ส่งออกเข้า-ออกประจำเดือนในรูปแบบ template (นำเข้ากลับได้)
+//   ไฟล์ที่ระบบสร้าง (template / ส่งออก) ใช้คอลัมน์ชุดเดียวกับตาราง — ดู employeeList.js · ไฟล์นี้อ่านไฟล์แบบของ HR
 import { defaultTypeFor, typeAllows, typeInfo } from '../../domain/catalog.js';
-import { COMPANY_CODES, EMPLOYEE_TYPE_LABEL, END_REASON_LABEL, TITLES } from '../../domain/labels.js';
+import { COMPANY_CODES, EMPLOYEE_TYPE_LABEL, TITLES } from '../../domain/labels.js';
 import { probationDueDate } from '../../domain/employee.js';
 import { DEPT_GROUPS } from '../../shared/labels.js';
 
@@ -312,64 +311,4 @@ export function planWorkbookImport(parsedList, employees, sites, opts = {}) {
     out.skip.push(...plan.skip.map((x) => ({ ...x, sheet: p.sheet })));
   }
   return out;
-}
-
-// ---------- Template Excel 2 ชีต ----------
-const IN_HEAD = ['ลำดับ', 'รหัสพนักงาน', 'บริษัท', 'ชื่อพนักงาน', 'ชื่อตำแหน่ง', 'ชื่อหน่วยงาน', 'ฝ่าย', 'วันเริ่มงาน', 'วันเกิด', 'ระดับ', 'เลขบัตรประชาชน', 'ประเภทพนักงาน', 'หมายเหตุ'];
-const OUT_HEAD = ['ลำดับ', 'รหัสพนักงาน', 'บริษัท', 'ชื่อพนักงาน', 'ชื่อตำแหน่ง', 'ชื่อหน่วยงาน', 'ฝ่าย', 'วันเข้างาน', 'วันพ้นสภาพ', 'วันเกิด', 'เลขบัตรประชาชน', 'ระดับ', 'ประเภทพนักงาน', 'หมายเหตุ'];
-
-/** ชีตของ template — ชื่อชีต / หัวตาราง (แถว 2 ใต้ชื่อเรื่อง — แบบไฟล์ของ HR) / คอลัมน์วันที่ */
-export const TEMPLATE_SHEETS = {
-  IN: { name: 'เข้าใหม่', title: 'พนักงานเข้าใหม่', head: IN_HEAD, dates: ['วันเริ่มงาน', 'วันเกิด'] },
-  OUT: { name: 'ลาออก', title: 'พนักงานลาออก / พ้นสภาพ', head: OUT_HEAD, dates: ['วันเข้างาน', 'วันพ้นสภาพ', 'วันเกิด'] },
-};
-
-/** หมายเหตุที่แนะนำในชีตลาออก (ระบบอ่านเหตุผลจากคำในหมายเหตุ — ดู endReasonOf) */
-export const OUT_NOTE_HINTS = ['ลาออก', 'ลาออก (ผิดกฎ ขาดงานเกิน 3 วัน)', 'เลิกจ้าง', 'กระทำผิด', 'สิ้นสุดระยะการจ้าง'];
-
-const fullNameOf = (e) => `${e.title ?? ''}${e.firstName} ${e.lastName}`.trim();
-/** ชื่อหน่วยงานแบบไฟล์ HR — Pro Site เขียนเป็น "PRO/FM/<ชื่อ>" (นำเข้ากลับแล้วเดาประเภทได้) */
-function unitName(e, site) {
-  if (!site) return '';
-  return e.employeeType === 'PRO_SITE' ? `PRO/FM/${site.name.replace(/^pro site\s*[—-]\s*/i, '')}` : site.name;
-}
-
-/**
- * พนักงานเข้า-ออกของเดือน (YYYY-MM) → แถวของ template (ค่าวันที่เป็น YYYY-MM-DD — ผู้เขียนไฟล์แปลงเป็นวันที่ Excel)
- * เข้าใหม่ = วันเริ่มงานอยู่ในเดือนนั้น · ลาออก = พ้นสภาพ และวันพ้นสภาพอยู่ในเดือนนั้น
- * @returns {{IN: any[][], OUT: any[][]}}
- */
-export function monthlyTemplateRows(employees, sites, month) {
-  const siteOf = new Map(sites.map((x) => [x.id, x]));
-  const inMonth = (d) => !!d && d.slice(0, 7) === month;
-  const byCode = (a, b) => a.empCode.localeCompare(b.empCode);
-  const common = (e) => {
-    const site = siteOf.get(e.siteId);
-    return {
-      code: e.empCode,
-      company: e.companyCode,
-      name: fullNameOf(e),
-      position: e.position ?? '',
-      unit: unitName(e, site),
-      division: e.deptGroup ?? '',
-      level: e.level ? `ระดับ ${e.level}` : '',
-      nid: e.nationalId ?? '',
-      type: EMPLOYEE_TYPE_LABEL[e.employeeType] ?? '',
-    };
-  };
-  const IN = employees
-    .filter((e) => inMonth(e.startDate))
-    .sort(byCode)
-    .map((e, i) => {
-      const c = common(e);
-      return [i + 1, c.code, c.company, c.name, c.position, c.unit, c.division, e.startDate, e.birthDate || null, c.level, c.nid, c.type, ''];
-    });
-  const OUT = employees
-    .filter((e) => e.status === 'INACTIVE' && inMonth(e.endDate))
-    .sort(byCode)
-    .map((e, i) => {
-      const c = common(e);
-      return [i + 1, c.code, c.company, c.name, c.position, c.unit, c.division, e.startDate, e.endDate, e.birthDate || null, c.nid, c.level, c.type, END_REASON_LABEL[e.endReason] ?? ''];
-    });
-  return { IN, OUT };
 }

@@ -7,7 +7,8 @@
 //     ค่าที่อ่านไม่ได้ (บริษัท/หน่วยงาน/ประเภท/วันที่ ไม่รู้จัก) = คงค่าเดิม + แจ้งให้ตรวจ · คอลัมน์ที่ไม่มีในไฟล์ = ไม่แตะ
 //   ทุกอย่างเข้าตารางเป็น "ยังไม่บันทึก" — HR ตรวจแล้วกดบันทึกเอง
 import { COMPANY_CODES, EMPLOYEE_TYPE_LABEL, END_REASON_LABEL, GENDER_LABEL, STATUS_LABEL, TITLES } from '../../domain/labels.js';
-import { probationDueDate } from '../../domain/employee.js';
+import { ageOf, probationDueDate } from '../../domain/employee.js';
+import { todayISO } from '../../domain/date.js';
 import { defaultTypeFor, typeAllows } from '../../domain/catalog.js';
 import { normalizeEmployee } from '../employeeRules.js';
 import { matchDeptGroup, matchSite, toIsoDate } from './employeeImport.js';
@@ -20,8 +21,10 @@ const byLabel = (map, v) => {
 };
 
 /**
- * คอลัมน์ของไฟล์ — key = ฟิลด์ของพนักงาน · kind: text | date | code (ข้อความที่เป็นตัวเลข) | number
+ * คอลัมน์ของไฟล์ — ลำดับเดียวกับตารางพนักงาน (pages/employees.js) · ใช้ทั้งส่งออก / template / ส่งออกเข้า-ออกรายเดือน
+ * key = ฟิลด์ของพนักงาน · kind: text | date | code (ข้อความที่เป็นตัวเลข) | number
  * out(e, ctx) = ค่าที่เขียนลงไฟล์ · in(v, ctx, row) = ค่าที่อ่านกลับ (undefined = อ่านไม่ได้ → คงค่าเดิม + แจ้ง)
+ * readOnly = ค่าที่ระบบคำนวณ (อายุ) — เขียนลงไฟล์ให้ดู แต่นำเข้าไม่อ่าน · note = คำอธิบายที่หัวคอลัมน์ (template)
  */
 export const LIST_COLUMNS = [
   { key: 'empCode', head: 'รหัส', kind: 'code', width: 12, out: (e) => e.empCode, in: (v) => norm(v) || undefined },
@@ -30,6 +33,7 @@ export const LIST_COLUMNS = [
   { key: 'lastName', head: 'นามสกุล', width: 18, out: (e) => e.lastName, in: (v) => norm(v) },
   { key: 'gender', head: 'เพศ', width: 8, list: () => Object.values(GENDER_LABEL), out: (e) => GENDER_LABEL[e.gender] ?? '', in: (v) => byLabel(GENDER_LABEL, v) },
   { key: 'birthDate', head: 'วันเกิด', kind: 'date', width: 12, out: (e) => e.birthDate || null, in: (v) => (norm(v) ? toIsoDate(v) ?? undefined : '') },
+  { key: 'age', head: 'อายุ', kind: 'number', width: 7, readOnly: true, note: 'ระบบคำนวณจากวันเกิด — แก้ช่องนี้ไม่มีผล', out: (e, ctx) => ageOf(e.birthDate, ctx.today ?? todayISO()) },
   { key: 'companyCode', head: 'บริษัท', width: 9, list: () => COMPANY_CODES, out: (e) => e.companyCode, in: (v) => (COMPANY_CODES.includes(norm(v).toUpperCase()) ? norm(v).toUpperCase() : undefined) },
   {
     key: 'siteId',
@@ -74,8 +78,8 @@ export const isListHeader = (row) => {
 };
 
 /** แถวของไฟล์ (ตามลำดับ LIST_COLUMNS · วันที่เป็น YYYY-MM-DD — ผู้เขียนไฟล์แปลงเป็นเซลล์วันที่) */
-export function employeeListRows(employees, sites) {
-  const ctx = { sites };
+export function employeeListRows(employees, sites, today = todayISO()) {
+  const ctx = { sites, today };
   return employees.map((e) => LIST_COLUMNS.map((c) => c.out(e, ctx)));
 }
 
@@ -89,6 +93,7 @@ export function parseEmployeeList(rows) {
   const head = rows[h].map(norm);
   const idx = {};
   for (const c of LIST_COLUMNS) {
+    if (c.readOnly) continue; // ค่าที่ระบบคำนวณ — ไม่อ่านกลับ
     const i = head.indexOf(c.head);
     if (i >= 0) idx[c.key] = i;
   }
@@ -107,7 +112,7 @@ export function parseEmployeeList(rows) {
 /** ช่องที่ต่างจากเดิม (ใช้แสดงในกล่องสรุป) */
 export function changedFields(a, b) {
   const same = (x, y) => (x ?? '') === (y ?? '') || String(x ?? '') === String(y ?? '');
-  return LIST_COLUMNS.filter((c) => !same(a[c.key], b[c.key])).map((c) => c.head);
+  return LIST_COLUMNS.filter((c) => !c.readOnly && !same(a[c.key], b[c.key])).map((c) => c.head);
 }
 
 /**
@@ -180,4 +185,18 @@ export function planEmployeeList(parsed, employees, sites, { deptGroups = [] } =
     } else out.add.push({ rowNo: it.rowNo, row: next, issues });
   }
   return out;
+}
+
+/**
+ * พนักงานเข้า-ออกของเดือน (YYYY-MM) — ส่งออกเป็นไฟล์รายชื่อ 2 ชีต (คอลัมน์เดียวกับตาราง · นำเข้ากลับได้)
+ * เข้าใหม่ = วันเริ่มงานอยู่ในเดือนนั้น · ลาออก = พ้นสภาพ และวันพ้นสภาพอยู่ในเดือนนั้น
+ * @returns {{IN: Object[], OUT: Object[]}}
+ */
+export function monthlyMovers(employees, month) {
+  const inMonth = (d) => !!d && d.slice(0, 7) === month;
+  const byCode = (a, b) => a.empCode.localeCompare(b.empCode);
+  return {
+    IN: employees.filter((e) => inMonth(e.startDate)).sort(byCode),
+    OUT: employees.filter((e) => e.status === 'INACTIVE' && inMonth(e.endDate)).sort(byCode),
+  };
 }

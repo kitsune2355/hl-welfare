@@ -1,7 +1,7 @@
 // ไฟล์รายชื่อพนักงาน (application/usecases/employeeList.js) — ส่งออก → แก้ใน Excel → นำเข้ากลับ · ข้อมูลสมมติ
 import { describe, it } from 'node:test';
 import { expect } from './_expect.js';
-import { employeeListRows, isListHeader, LIST_COLUMNS, parseEmployeeList, planEmployeeList } from '../web/assets/js/application/usecases/employeeList.js';
+import { employeeListRows, isListHeader, LIST_COLUMNS, monthlyMovers, parseEmployeeList, planEmployeeList } from '../web/assets/js/application/usecases/employeeList.js';
 import { parseEmployeeSheet } from '../web/assets/js/application/usecases/employeeImport.js';
 
 const serial = (iso) => (Date.UTC(...iso.split('-').map((x, i) => Number(x) - (i === 1 ? 1 : 0))) - Date.UTC(1899, 11, 30)) / 86_400_000;
@@ -82,5 +82,41 @@ describe('ไฟล์รายชื่อพนักงาน', () => {
     const p = plan(rows);
     expect(p.update[0].row.siteId).toBe(1);
     expect(p.update[0].issues).toEqual(['หน่วยงาน "ไม่มีหน่วยงานนี้" อ่านไม่ได้ — คงค่าเดิม']);
+  });
+});
+
+describe('ไฟล์รายชื่อพนักงาน: คอลัมน์ชุดเดียวกับตาราง + template / ส่งออกเข้า-ออกรายเดือน', () => {
+  it('ลำดับคอลัมน์ = ตารางพนักงาน (pages/employees.js)', () => {
+    expect(LIST_COLUMNS.map((c) => c.head)).toEqual([
+      'รหัส', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'เพศ', 'วันเกิด', 'อายุ', 'บริษัท', 'หน่วยงาน', 'ประเภท', 'กลุ่ม / ฝ่าย', 'ระดับ', 'ตำแหน่ง',
+      'วันเริ่มงาน', 'ผ่านทดลองงาน', 'เลขบัตรประชาชน', 'โทรศัพท์มือถือ', 'อีเมล', 'สถานะ', 'เหตุผลพ้นสภาพ', 'ทำงานวันสุดท้าย', 'วันพ้นสภาพ',
+    ]);
+  });
+  it('อายุ: เขียนลงไฟล์ (คำนวณ ณ วันที่ส่งออก) · นำเข้าไม่อ่าน — แก้ในไฟล์ไม่มีผล', () => {
+    const iAge = LIST_COLUMNS.findIndex((c) => c.key === 'age');
+    expect(employeeListRows(employees, sites, '2026-10-27').map((r) => r[iAge])).toEqual([36, 31]);
+    const rows = asSheet(employees);
+    rows[1][iAge] = 99;
+    expect(parseEmployeeList(rows).columns.includes('age')).toBe(false);
+    const p = plan(rows);
+    expect([p.update.length, p.unchanged]).toEqual([0, 2]);
+  });
+  it('template เปล่า = หัวตารางอย่างเดียว → นำเข้าแล้วไม่มีอะไรเปลี่ยน', () => {
+    const p = plan([LIST_COLUMNS.map((c) => c.head)]);
+    expect([p.add.length, p.update.length, p.skip.length]).toEqual([0, 0, 0]);
+  });
+  it('เข้า-ออกของเดือน: เข้าใหม่ = วันเริ่มงานในเดือน · ลาออก = พ้นสภาพ + วันพ้นสภาพในเดือน · เรียงตามรหัส', () => {
+    const people = [
+      { ...employees[0], empCode: 'B2', startDate: '2026-09-05' },
+      { ...employees[1], empCode: 'B1', startDate: '2026-09-01' },
+      { ...employees[0], id: 3, empCode: 'C1', startDate: '2020-01-01', status: 'INACTIVE', endDate: '2026-09-30', endReason: 'RESIGN' },
+      { ...employees[0], id: 4, empCode: 'D1', startDate: '2026-08-31', status: 'INACTIVE', endDate: '2026-10-01', endReason: 'RESIGN' },
+    ];
+    const mv = monthlyMovers(people, '2026-09');
+    expect([mv.IN.map((e) => e.empCode), mv.OUT.map((e) => e.empCode)]).toEqual([['B1', 'B2'], ['C1']]);
+    // ชีตลาออกนำเข้ากลับ (ระบบยังไม่มีคนนี้) = เพิ่มเป็นพ้นสภาพ ค่าครบ
+    const out = [LIST_COLUMNS.map((c) => c.head), ...employeeListRows(mv.OUT, sites).map((r) => r.map((v, i) => (LIST_COLUMNS[i].kind === 'date' && v ? serial(v) : v)))];
+    const p = plan(out);
+    expect(p.add.map((a) => [a.row.empCode, a.row.status, a.row.endDate, a.row.endReason, a.row.siteId])).toEqual([['C1', 'INACTIVE', '2026-09-30', 'RESIGN', 1]]);
   });
 });
