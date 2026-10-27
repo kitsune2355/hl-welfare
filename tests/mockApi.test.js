@@ -86,7 +86,7 @@ describe('MockApi CRUD + monitoring', () => {
     const [listed] = await api.listInsuranceBatches();
     expect(listed.id).toBe(b.id);
     expect(listed.employees.map((e) => e.empCode).sort()).toEqual(urgent.map((r) => r.employee.empCode).sort());
-    expect(listed.employees[0].salary).toBe(undefined); // ข้อมูลย่อ ไม่ส่งเงินเดือน
+    expect('salary' in listed.employees[0]).toBe(false); // ระบบไม่เก็บเงินเดือน
     const d = await api.getInsuranceBatch(b.id);
     expect(d.items.length).toBe(urgent.length);
     for (const it of d.items) {
@@ -128,7 +128,7 @@ describe('MockApi CRUD + monitoring', () => {
     const [top] = await api.listActivity({ limit: 1 });
     expect(top).toMatchObject({ entity: 'SITE', action: 'CREATE', entityId: String(s.id) });
     const [e] = await api.listEmployees();
-    await api.saveEmployee({ ...e, salary: e.salary + 1 });
+    await api.saveEmployee({ ...e, phone: '0899999999' });
     const mine = await api.listActivity({ employeeId: e.id });
     expect(mine[0].summary).toContain(e.firstName);
   });

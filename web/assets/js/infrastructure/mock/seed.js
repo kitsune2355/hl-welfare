@@ -338,14 +338,6 @@ export function buildSeed(today) {
       random.push({ companyCode: 'CNS', employeeType: 'MAID_CNS', siteId: rnd.pick([7, 7, 8]), startDays, ...end });
     }
   }
-  const salaryFor = (t, level) =>
-    t === 'CENTRAL'
-      ? 15000 + (level ?? 1) * 4500 + rnd.int(0, 20) * 250
-      : t === 'PRO_SITE'
-        ? 14000 + rnd.int(0, 40) * 250
-        : t === 'DAILY'
-          ? 10800 + rnd.int(0, 12) * 100
-          : 11000 + rnd.int(0, 8) * 100;
   const prefix = { HL: 'HL', PRO: 'PR', CNS: 'CN', CIC: 'CI', AS: 'AS' };
   const counters = { HL: 0, PRO: 0, CNS: 0, CIC: 0, AS: 0 };
   const pendingUniform = new Set();
@@ -370,7 +362,6 @@ export function buildSeed(today) {
       deptGroup: d.employeeType === 'CENTRAL' ? (d.deptGroup ?? null) : null,
       position: d.employeeType === 'PRO_SITE' ? (d.position ?? null) : null,
       level,
-      salary: d.salary ?? salaryFor(d.employeeType, level),
       birthDate: d.birthDate ?? birthForAge(rnd.int(20, 58)),
       startDate,
       probationPassDate: !d.skipProbation && pass <= (d.endDate ?? today) ? pass : null,

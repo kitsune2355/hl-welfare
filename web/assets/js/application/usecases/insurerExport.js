@@ -118,7 +118,6 @@ export function cellValue(col, row, seq, form, company, cycleDate) {
     case 'position': return e.position ?? e.deptGroup ?? EMPLOYEE_TYPE_LABEL[e.employeeType] ?? '';
     case 'phone': return e.phone ?? '';
     case 'email': return e.email ?? '';
-    case 'salary': return e.salary ? Number(e.salary) : '';
     case 'startDate': return date(e.startDate);
     case 'companyCode': return e.companyCode;
     case 'siteName': return e.siteName ?? '';

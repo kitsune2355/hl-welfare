@@ -10,7 +10,7 @@
 //   ไม่บันทึกอะไรจนกว่า HR กด "บันทึก" ในตาราง (ExcelGrid.stage)
 import { api } from '../app/api.js';
 import { parseEmployeeSheet, planWorkbookImport } from '../application/usecases/employeeImport.js';
-import { employeeListRows, isListHeader, LIST_COLUMNS, monthlyMovers, parseEmployeeList, planEmployeeList } from '../application/usecases/employeeList.js';
+import { employeeListRows, isListHeader, LIST_COLUMNS, monthlyMovers, parseEmployeeList, planEmployeeList, TEMPLATE_COLUMNS } from '../application/usecases/employeeList.js';
 import { COMPANY_CODES, THAI_MONTHS_FULL } from '../domain/labels.js';
 import { html, raw } from '../shared/dom.js';
 import { downloadBlob, loadExcelJs, loadSheetJs, XLSX_MIME } from '../shared/excel.js';
@@ -233,40 +233,42 @@ const HEAD_NOTE = {
 const HELP = [
   'ไฟล์รายชื่อพนักงาน — กรอก/แก้ในไฟล์นี้แล้วนำเข้าที่หน้าพนักงาน (ปุ่ม "นำเข้า Excel")',
   '',
-  '• คอลัมน์และลำดับเดียวกับตารางพนักงานในระบบ',
+  '• คอลัมน์และลำดับเดียวกับตารางพนักงานในระบบ (template เปล่ามีเฉพาะช่องที่ต้องกรอก)',
   '• จับคู่ตาม "รหัส": มีในระบบ = แก้เฉพาะช่องที่เปลี่ยน · ไม่มีในระบบ = เพิ่มพนักงานใหม่',
   '• ลบคอลัมน์ที่ไม่ต้องการแก้ออกได้ — คอลัมน์ที่ไม่มีในไฟล์ ระบบไม่แตะ',
   '• หน่วยงาน / ประเภท / กลุ่ม-ฝ่าย ใช้ชื่อตามระบบ · วันที่พิมพ์ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ.)',
   '• อายุ (หัวสีเทา) ระบบคำนวณจากวันเกิด — แก้ช่องนี้ไม่มีผล',
+  '• ไม่มีคอลัมน์ไหน = ระบบเติมให้: เพศ จากคำนำหน้า · ผ่านทดลองงาน = วันเริ่มงาน + 119 วัน · แถวใหม่ = ทำงานอยู่',
   '• ค่าที่ระบบอ่านไม่ได้จะคงค่าเดิมและแจ้งให้ตรวจ — ทุกอย่างเข้าตารางเป็น "ยังไม่บันทึก" ตรวจแล้วกดบันทึกเอง',
 ];
 
 /**
  * สมุดงานรายชื่อพนักงาน — sheets = [{ name, employees, color? }] ชีตละตารางเดียว (หัวแถว 1) + ชีต "วิธีใช้"
+ * columns = คอลัมน์ที่เขียน (ค่าเริ่มต้น = ทุกคอลัมน์ของตาราง · template เปล่า = TEMPLATE_COLUMNS)
  * วันที่เป็นเซลล์วันที่ (แสดงปี พ.ศ.) · รหัส/เลขบัตร/โทร เป็นข้อความ · ช่องเลือก บริษัท ประเภท สถานะ ฯลฯ · อายุ = หัวสีเทา (ระบบคำนวณ)
  */
-async function listWorkbook(sheets, { sites, deptGroups = [] }) {
+async function listWorkbook(sheets, { sites, deptGroups = [], columns = LIST_COLUMNS }) {
   const ExcelJS = await loadExcelJs();
   const wb = new ExcelJS.Workbook();
   wb.creator = 'HL Welfare';
   const ctx = { sites, deptGroups };
   for (const sh of sheets) {
     const ws = wb.addWorksheet(sh.name, { views: [{ state: 'frozen', ySplit: 1, xSplit: 1 }] });
-    const head = ws.addRow(LIST_COLUMNS.map((c) => c.head));
+    const head = ws.addRow(columns.map((c) => c.head));
     head.height = 24;
     head.eachCell((cell, n) => {
-      const c = LIST_COLUMNS[n - 1];
+      const c = columns[n - 1];
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c.readOnly ? 'FF94A3B8' : sh.color ?? 'FF0E7490' } };
       cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
       const note = c.note ?? (typeof HEAD_NOTE[c.key] === 'function' ? HEAD_NOTE[c.key]() : HEAD_NOTE[c.key]);
       if (note) cell.note = note;
     });
-    for (const r of employeeListRows(sh.employees, sites)) {
-      ws.addRow(r.map((v, i) => (LIST_COLUMNS[i].kind === 'date' && v ? isoToDate(v) : v)));
+    for (const r of employeeListRows(sh.employees, sites, undefined, columns)) {
+      ws.addRow(r.map((v, i) => (columns[i].kind === 'date' && v ? isoToDate(v) : v)));
     }
     const last = sh.employees.length + 1 + EXTRA_ROWS;
-    LIST_COLUMNS.forEach((c, i) => {
+    columns.forEach((c, i) => {
       const col = ws.getColumn(i + 1);
       col.width = c.width ?? 14;
       for (let r = 2; r <= last; r++) {
@@ -277,7 +279,7 @@ async function listWorkbook(sheets, { sites, deptGroups = [] }) {
       // ช่องเลือก — รายการยาว (เกิน 255 ตัวอักษร) ใส่ใน Excel ไม่ได้ ข้ามไป
       if (values?.length && values.join(',').length < 250) ws.dataValidations.add(`${col.letter}2:${col.letter}${last}`, listRule(values, false));
     });
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: LIST_COLUMNS.length } };
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
   }
   const help = wb.addWorksheet('วิธีใช้');
   help.getColumn(1).width = 110;
@@ -305,11 +307,11 @@ const monthLabel = (ym) => {
 export function openTemplateDialog({ sites, deptGroups = [] }) {
   const m = openModal({
     title: 'Template Excel พนักงาน',
-    description: 'คอลัมน์และลำดับเดียวกับตารางพนักงาน — กรอก/แก้แล้วนำเข้าด้วยปุ่ม "นำเข้า Excel" ได้ทันที',
+    description: 'ลำดับคอลัมน์เดียวกับตารางพนักงาน — กรอก/แก้แล้วนำเข้าด้วยปุ่ม "นำเข้า Excel" ได้ทันที',
     body: html`<div class="tpl-opts">
       <section class="tpl-opt">
         <span class="tile-ic">${raw(icon('file-spreadsheet'))}</span>
-        <div class="grow"><b>Template เปล่า</b><small>กรอกพนักงานใหม่ หรือแก้ข้อมูล (จับคู่ตามรหัส) · มีช่องเลือกบริษัท ประเภท สถานะ ฯลฯ และคำอธิบายที่หัวคอลัมน์</small></div>
+        <div class="grow"><b>Template เปล่า</b><small>เฉพาะช่องที่ต้องกรอก (อายุ เพศ ผ่านทดลองงาน ระบบเติมให้) · มีช่องเลือกบริษัท ประเภท ฯลฯ และคำอธิบายที่หัวคอลัมน์</small></div>
         <button type="button" class="btn btn-sm" data-tpl-blank>${raw(icon('download'))} ดาวน์โหลด</button>
       </section>
       <section class="tpl-opt">
@@ -338,7 +340,7 @@ export function openTemplateDialog({ sites, deptGroups = [] }) {
   };
   m.el.querySelector('[data-tpl-blank]').onclick = (e) =>
     working(e.currentTarget, async () => {
-      saveXlsx(await listWorkbook([{ name: 'พนักงาน', employees: [] }], { sites, deptGroups }), 'template พนักงาน.xlsx');
+      saveXlsx(await listWorkbook([{ name: 'พนักงาน', employees: [] }], { sites, deptGroups, columns: TEMPLATE_COLUMNS }), 'template พนักงาน.xlsx');
       toast.success('ดาวน์โหลด template แล้ว');
     });
   m.el.querySelector('[data-tpl-month-export]').onclick = async (e) => {

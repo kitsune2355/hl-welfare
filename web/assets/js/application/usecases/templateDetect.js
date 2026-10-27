@@ -60,8 +60,7 @@ export function suggestSource(path, kind = 'company') {
   if (/ตำแหน่ง|position/i.test(leaf)) return { source: 'position', ...IN };
   if (/โทร|tel|mobile|phone/i.test(leaf)) return { source: 'phone', ...IN };
   if (/อีเมล|e-?mail/i.test(leaf)) return { source: 'email', ...IN };
-  if (/เงินเดือน|salary/i.test(leaf)) return { source: 'salary', ...IN };
-  if (/สถานะ|ธนาคาร|bank|บัญชี|account|มรณ|death|ใบคำขอ|application|หมายเหตุ|remark|ความคุ้มครอง|จากแผน|เป็นแผน|เปลี่ยนแปลง|changed/i.test(leaf)) return { source: 'blank' };
+  if (/เงินเดือน|salary|สถานะ|ธนาคาร|bank|บัญชี|account|มรณ|death|ใบคำขอ|application|หมายเหตุ|remark|ความคุ้มครอง|จากแผน|เป็นแผน|เปลี่ยนแปลง|changed/i.test(leaf)) return { source: 'blank' };
   if (/วันที่มีผล|มีผลบังคับ|effective/i.test(leaf)) {
     if (/เข้าใหม่|new/i.test(all)) return { source: 'inEffectiveDate' };
     if (/ยกเลิก|ลาออก|retire/i.test(all)) return { source: 'outEffectiveDate' };

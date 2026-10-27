@@ -43,7 +43,7 @@ function validate_employee($e)
     if ($birth && $start && strcmp($birth, $start) >= 0) { $x['birthDate'] = 'วันเกิดต้องก่อนวันเริ่มงาน'; }
     $pass = arr_get($e, 'probationPassDate');
     if ($pass && $start && strcmp($pass, $start) < 0) { $x['probationPassDate'] = 'ต้องไม่ก่อนวันเริ่มงาน'; }
-    // ไม่ตรวจเงินเดือน / ตำแหน่ง — หน้าพนักงานไม่มีคอลัมน์ให้กรอกแล้ว (คู่กับ application/employeeRules.js)
+    // ไม่ตรวจตำแหน่ง (ไม่บังคับ) · ระบบไม่เก็บเงินเดือน (sql/017) — คู่กับ application/employeeRules.js
     if (!arr_get($e, 'siteId')) { $x['siteId'] = 'กรุณาเลือกหน่วยงาน'; }
     $type = arr_get($e, 'employeeType');
     $info = employee_type_info($type);

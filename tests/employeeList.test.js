@@ -1,7 +1,7 @@
 // ไฟล์รายชื่อพนักงาน (application/usecases/employeeList.js) — ส่งออก → แก้ใน Excel → นำเข้ากลับ · ข้อมูลสมมติ
 import { describe, it } from 'node:test';
 import { expect } from './_expect.js';
-import { employeeListRows, isListHeader, LIST_COLUMNS, monthlyMovers, parseEmployeeList, planEmployeeList } from '../web/assets/js/application/usecases/employeeList.js';
+import { employeeListRows, isListHeader, LIST_COLUMNS, monthlyMovers, parseEmployeeList, planEmployeeList, TEMPLATE_COLUMNS } from '../web/assets/js/application/usecases/employeeList.js';
 import { parseEmployeeSheet } from '../web/assets/js/application/usecases/employeeImport.js';
 
 const serial = (iso) => (Date.UTC(...iso.split('-').map((x, i) => Number(x) - (i === 1 ? 1 : 0))) - Date.UTC(1899, 11, 30)) / 86_400_000;
@@ -12,7 +12,7 @@ const sites = [
 ];
 const groups = ['Support Line', 'ฝ่ายขาย'];
 const base = {
-  contractType: 'REGULAR', salary: 0, nationalId: null, phone: null, email: null, lastWorkingDate: null, endDate: null, endReason: null, status: 'ACTIVE',
+  contractType: 'REGULAR', nationalId: null, phone: null, email: null, lastWorkingDate: null, endDate: null, endReason: null, status: 'ACTIVE',
 };
 const employees = [
   { ...base, id: 1, empCode: 'E1', title: 'นาย', firstName: 'หนึ่ง', lastName: 'ทดสอบ', gender: 'M', birthDate: '1990-01-02', companyCode: 'HL', siteId: 1, employeeType: 'CENTRAL', deptGroup: 'ฝ่ายขาย', level: 3, position: 'ธุรการ', startDate: '2024-01-01', probationPassDate: '2024-04-29', phone: '0812345678' },
@@ -101,9 +101,26 @@ describe('ไฟล์รายชื่อพนักงาน: คอลั�
     const p = plan(rows);
     expect([p.update.length, p.unchanged]).toEqual([0, 2]);
   });
-  it('template เปล่า = หัวตารางอย่างเดียว → นำเข้าแล้วไม่มีอะไรเปลี่ยน', () => {
-    const p = plan([LIST_COLUMNS.map((c) => c.head)]);
+  it('template เปล่า = เฉพาะช่องที่ต้องกรอก (ไม่มีค่าที่ระบบคำนวณ / กลุ่มพ้นสภาพ) · ลำดับตามตาราง', () => {
+    expect(TEMPLATE_COLUMNS.map((c) => c.head)).toEqual([
+      'รหัส', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'วันเกิด', 'บริษัท', 'หน่วยงาน', 'ประเภท', 'กลุ่ม / ฝ่าย', 'ระดับ', 'ตำแหน่ง', 'วันเริ่มงาน', 'เลขบัตรประชาชน', 'โทรศัพท์มือถือ', 'อีเมล',
+    ]);
+    expect(isListHeader(TEMPLATE_COLUMNS.map((c) => c.head))).toBe(true); // นำเข้ารู้จักไฟล์ template
+    const p = plan([TEMPLATE_COLUMNS.map((c) => c.head)]);
     expect([p.add.length, p.update.length, p.skip.length]).toEqual([0, 0, 0]);
+  });
+  it('นำเข้า template: ระบบเติม เพศ (จากคำนำหน้า) · ผ่านทดลองงาน · สถานะทำงานอยู่', () => {
+    const head = TEMPLATE_COLUMNS.map((c) => c.head);
+    const row = (code, title) => {
+      const v = { รหัส: code, คำนำหน้า: title, ชื่อ: 'ใหม่', นามสกุล: 'ทดสอบ', วันเกิด: serial('1999-03-04'), บริษัท: 'HL', หน่วยงาน: 'สาขาบางนา', ประเภท: 'ส่วนกลาง', 'กลุ่ม / ฝ่าย': 'ฝ่ายขาย', ระดับ: 2, วันเริ่มงาน: serial('2026-10-01') };
+      return head.map((h) => v[h] ?? null);
+    };
+    const p = plan([head, row('N1', 'นางสาว'), row('N2', 'นาย'), row('N3', 'ว่าที่ร.ต.')]);
+    expect(p.add.map((a) => [a.row.empCode, a.row.gender, a.row.status, a.row.probationPassDate, a.row.siteId])).toEqual([
+      ['N1', 'F', 'ACTIVE', '2027-01-28', 2],
+      ['N2', 'M', 'ACTIVE', '2027-01-28', 2],
+      ['N3', null, 'ACTIVE', '2027-01-28', 2], // คำนำหน้าที่ระบบไม่มี = ไม่เดาเพศ (แจ้งให้ตรวจ)
+    ]);
   });
   it('เข้า-ออกของเดือน: เข้าใหม่ = วันเริ่มงานในเดือน · ลาออก = พ้นสภาพ + วันพ้นสภาพในเดือน · เรียงตามรหัส', () => {
     const people = [

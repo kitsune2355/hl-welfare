@@ -74,7 +74,6 @@ function sampleEmployee(i, companyCode) {
     deptGroup: null,
     phone: '0812345678',
     email: '',
-    salary: 18000,
     startDate: addDays(cycle, -40),
     companyCode,
     siteName: 'สำนักงานใหญ่',

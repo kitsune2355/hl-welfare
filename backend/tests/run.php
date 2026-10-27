@@ -35,7 +35,7 @@ $admin = mysqli_connect($c['db_host'], $c['db_user'], $c['db_pass'], '', (int)$c
 mysqli_query($admin, 'DROP DATABASE IF EXISTS `' . $c['db_name'] . '`');
 mysqli_query($admin, 'CREATE DATABASE `' . $c['db_name'] . '` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci');
 mysqli_select_db($admin, $c['db_name']);
-foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications', '014_dept_groups', '015_org_settings', '016_issue_size_length') as $f) {
+foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications', '014_dept_groups', '015_org_settings', '016_issue_size_length', '017_drop_salary') as $f) {
     $sql = file_get_contents($root . '/backend/sql/' . $f . '.sql');
     if (!mysqli_multi_query($admin, $sql)) { die("$f: " . mysqli_error($admin) . "\n"); }
     do {
@@ -371,10 +371,10 @@ check('หน่วยงานไม่ตรงบริษัท → 422', S(
 $pro = null;
 foreach ($golden['reads']['employees'] as $x) { if ($x['employeeType'] === 'PRO_SITE') { $pro = $x; break; } }
 $np = $pro; unset($np['id']);
-$np['empCode'] = 'TEST0004'; $np['nationalId'] = ''; $np['position'] = ''; $np['salary'] = 0; $np['status'] = 'ACTIVE';
+$np['empCode'] = 'TEST0004'; $np['nationalId'] = ''; $np['position'] = ''; $np['status'] = 'ACTIVE';
 $np['endReason'] = null; $np['endDate'] = null; $np['lastWorkingDate'] = null;
 $r = $hr->req('POST', '/employees', $np);
-check('Pro Site ไม่มีตำแหน่ง + เงินเดือน 0 → 201', $r['status'] === 201, json_encode($r['json']));
+check('Pro Site ไม่มีตำแหน่ง → 201', $r['status'] === 201, json_encode($r['json']));
 if ($r['status'] === 201) { db_exec('DELETE FROM employees WHERE id = ?', array($r['json']['data']['id'])); }
 $upd = $r = $hr->req('GET', '/employees?q=TEST0001');
 $e2 = $upd['json']['data'][0];

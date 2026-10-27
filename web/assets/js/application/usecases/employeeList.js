@@ -24,16 +24,17 @@ const byLabel = (map, v) => {
  * คอลัมน์ของไฟล์ — ลำดับเดียวกับตารางพนักงาน (pages/employees.js) · ใช้ทั้งส่งออก / template / ส่งออกเข้า-ออกรายเดือน
  * key = ฟิลด์ของพนักงาน · kind: text | date | code (ข้อความที่เป็นตัวเลข) | number
  * out(e, ctx) = ค่าที่เขียนลงไฟล์ · in(v, ctx, row) = ค่าที่อ่านกลับ (undefined = อ่านไม่ได้ → คงค่าเดิม + แจ้ง)
- * readOnly = ค่าที่ระบบคำนวณ (อายุ) — เขียนลงไฟล์ให้ดู แต่นำเข้าไม่อ่าน · note = คำอธิบายที่หัวคอลัมน์ (template)
+ * readOnly = ค่าที่ระบบคำนวณ (อายุ) — เขียนลงไฟล์ให้ดู แต่นำเข้าไม่อ่าน · note = คำอธิบายที่หัวคอลัมน์
+ * template: false = ไม่อยู่ใน template เปล่า (ระบบคำนวณ/เติมเอง หรือเป็นเรื่องพ้นสภาพ — ดู TEMPLATE_COLUMNS)
  */
 export const LIST_COLUMNS = [
   { key: 'empCode', head: 'รหัส', kind: 'code', width: 12, out: (e) => e.empCode, in: (v) => norm(v) || undefined },
   { key: 'title', head: 'คำนำหน้า', width: 10, list: () => TITLES, out: (e) => e.title ?? '', in: (v) => (norm(v) ? (TITLES.includes(norm(v)) ? norm(v) : undefined) : null) },
   { key: 'firstName', head: 'ชื่อ', width: 16, out: (e) => e.firstName, in: (v) => norm(v) },
   { key: 'lastName', head: 'นามสกุล', width: 18, out: (e) => e.lastName, in: (v) => norm(v) },
-  { key: 'gender', head: 'เพศ', width: 8, list: () => Object.values(GENDER_LABEL), out: (e) => GENDER_LABEL[e.gender] ?? '', in: (v) => byLabel(GENDER_LABEL, v) },
+  { key: 'gender', head: 'เพศ', width: 8, template: false, list: () => Object.values(GENDER_LABEL), out: (e) => GENDER_LABEL[e.gender] ?? '', in: (v) => byLabel(GENDER_LABEL, v) },
   { key: 'birthDate', head: 'วันเกิด', kind: 'date', width: 12, out: (e) => e.birthDate || null, in: (v) => (norm(v) ? toIsoDate(v) ?? undefined : '') },
-  { key: 'age', head: 'อายุ', kind: 'number', width: 7, readOnly: true, note: 'ระบบคำนวณจากวันเกิด — แก้ช่องนี้ไม่มีผล', out: (e, ctx) => ageOf(e.birthDate, ctx.today ?? todayISO()) },
+  { key: 'age', head: 'อายุ', kind: 'number', width: 7, readOnly: true, template: false, note: 'ระบบคำนวณจากวันเกิด — แก้ช่องนี้ไม่มีผล', out: (e, ctx) => ageOf(e.birthDate, ctx.today ?? todayISO()) },
   { key: 'companyCode', head: 'บริษัท', width: 9, list: () => COMPANY_CODES, out: (e) => e.companyCode, in: (v) => (COMPANY_CODES.includes(norm(v).toUpperCase()) ? norm(v).toUpperCase() : undefined) },
   {
     key: 'siteId',
@@ -60,27 +61,35 @@ export const LIST_COLUMNS = [
   { key: 'level', head: 'ระดับ', kind: 'number', width: 7, out: (e) => e.level ?? null, in: (v) => (norm(v) ? (/^\d+$/.test(norm(v).replace(/^ระดับ\s*/, '')) ? Number(norm(v).replace(/^ระดับ\s*/, '')) : undefined) : null) },
   { key: 'position', head: 'ตำแหน่ง', width: 20, out: (e) => e.position ?? '', in: (v) => norm(v) || null },
   { key: 'startDate', head: 'วันเริ่มงาน', kind: 'date', width: 12, out: (e) => e.startDate || null, in: (v) => (norm(v) ? toIsoDate(v) ?? undefined : '') },
-  { key: 'probationPassDate', head: 'ผ่านทดลองงาน', kind: 'date', width: 13, out: (e) => e.probationPassDate || null, in: (v) => (norm(v) ? toIsoDate(v) ?? undefined : null) },
+  { key: 'probationPassDate', head: 'ผ่านทดลองงาน', kind: 'date', width: 13, template: false, out: (e) => e.probationPassDate || null, in: (v) => (norm(v) ? toIsoDate(v) ?? undefined : null) },
   { key: 'nationalId', head: 'เลขบัตรประชาชน', kind: 'code', width: 16, out: (e) => e.nationalId ?? '', in: (v) => norm(v).replace(/\D/g, '') || null },
   { key: 'phone', head: 'โทรศัพท์มือถือ', kind: 'code', width: 13, out: (e) => e.phone ?? '', in: (v) => norm(v).replace(/\D/g, '') || null },
   { key: 'email', head: 'อีเมล', width: 24, out: (e) => e.email ?? '', in: (v) => norm(v) || null },
-  { key: 'status', head: 'สถานะ', width: 11, list: () => Object.values(STATUS_LABEL), out: (e) => STATUS_LABEL[e.status] ?? e.status, in: (v) => byLabel(STATUS_LABEL, v) ?? (norm(v) ? undefined : 'ACTIVE') },
-  { key: 'endReason', head: 'เหตุผลพ้นสภาพ', width: 15, list: () => Object.values(END_REASON_LABEL), out: (e) => END_REASON_LABEL[e.endReason] ?? '', in: (v) => byLabel(END_REASON_LABEL, v) },
-  { key: 'lastWorkingDate', head: 'ทำงานวันสุดท้าย', kind: 'date', width: 14, out: (e) => e.lastWorkingDate || null, in: (v) => (norm(v) ? toIsoDate(v) ?? undefined : null) },
-  { key: 'endDate', head: 'วันพ้นสภาพ', kind: 'date', width: 12, out: (e) => e.endDate || null, in: (v) => (norm(v) ? toIsoDate(v) ?? undefined : null) },
+  { key: 'status', head: 'สถานะ', width: 11, template: false, list: () => Object.values(STATUS_LABEL), out: (e) => STATUS_LABEL[e.status] ?? e.status, in: (v) => byLabel(STATUS_LABEL, v) ?? (norm(v) ? undefined : 'ACTIVE') },
+  { key: 'endReason', head: 'เหตุผลพ้นสภาพ', width: 15, template: false, list: () => Object.values(END_REASON_LABEL), out: (e) => END_REASON_LABEL[e.endReason] ?? '', in: (v) => byLabel(END_REASON_LABEL, v) },
+  { key: 'lastWorkingDate', head: 'ทำงานวันสุดท้าย', kind: 'date', width: 14, template: false, out: (e) => e.lastWorkingDate || null, in: (v) => (norm(v) ? toIsoDate(v) ?? undefined : null) },
+  { key: 'endDate', head: 'วันพ้นสภาพ', kind: 'date', width: 12, template: false, out: (e) => e.endDate || null, in: (v) => (norm(v) ? toIsoDate(v) ?? undefined : null) },
 ];
 const COL = Object.fromEntries(LIST_COLUMNS.map((c) => [c.key, c]));
+/**
+ * template เปล่า — เฉพาะช่องที่ต้องกรอก: ไม่มีค่าที่ระบบคำนวณ/เติมให้ (อายุ · เพศ จากคำนำหน้า · ผ่านทดลองงาน = วันเริ่มงาน + 119 วัน)
+ * และกลุ่มพ้นสภาพ (แถวใหม่ = ทำงานอยู่ · บันทึกพ้นสภาพที่ตาราง หรือส่งออกเข้า-ออกรายเดือน)
+ */
+export const TEMPLATE_COLUMNS = LIST_COLUMNS.filter((c) => c.template !== false);
+/** คำนำหน้า → เพศ (ไม่ชัด เช่น ว่าที่ ร.ต. = ไม่เดา) */
+const genderOfTitle = (t) => (t === 'นาย' ? 'M' : t === 'นาง' || t === 'นางสาว' ? 'F' : null);
 
-/** หัวตารางแถวนี้เป็นไฟล์รายชื่อพนักงาน (มีทั้ง "ชื่อ" "นามสกุล" "สถานะ") — แยกจากไฟล์เข้าใหม่/ลาออกของ HR */
+/** หัวตารางแถวนี้เป็นไฟล์รายชื่อพนักงานของระบบ (มี "รหัส" "ชื่อ" "นามสกุล" แยกกัน) — แยกจากไฟล์เข้าใหม่/ลาออกของ HR */
 export const isListHeader = (row) => {
   const h = (row ?? []).map(norm);
-  return ['รหัส', 'ชื่อ', 'นามสกุล', 'สถานะ'].every((x) => h.includes(x));
+  // ไฟล์ของ HR ใช้ "รหัสพนักงาน" + "ชื่อพนักงาน" (ชื่อรวม) — ไฟล์ของระบบแยก รหัส / ชื่อ / นามสกุล (template ไม่มีสถานะ)
+  return ['รหัส', 'ชื่อ', 'นามสกุล'].every((x) => h.includes(x));
 };
 
 /** แถวของไฟล์ (ตามลำดับ LIST_COLUMNS · วันที่เป็น YYYY-MM-DD — ผู้เขียนไฟล์แปลงเป็นเซลล์วันที่) */
-export function employeeListRows(employees, sites, today = todayISO()) {
+export function employeeListRows(employees, sites, today = todayISO(), columns = LIST_COLUMNS) {
   const ctx = { sites, today };
-  return employees.map((e) => LIST_COLUMNS.map((c) => c.out(e, ctx)));
+  return employees.map((e) => columns.map((c) => c.out(e, ctx)));
 }
 
 /**
@@ -89,7 +98,7 @@ export function employeeListRows(employees, sites, today = todayISO()) {
  */
 export function parseEmployeeList(rows) {
   const h = rows.slice(0, 15).findIndex(isListHeader);
-  if (h < 0) return { error: 'ไม่พบหัวตาราง "รหัส / ชื่อ / นามสกุล / สถานะ"' };
+  if (h < 0) return { error: 'ไม่พบหัวตาราง "รหัส / ชื่อ / นามสกุล"' };
   const head = rows[h].map(norm);
   const idx = {};
   for (const c of LIST_COLUMNS) {
@@ -141,7 +150,7 @@ export function planEmployeeList(parsed, employees, sites, { deptGroups = [] } =
       ? { ...old }
       : {
           id: 0, empCode: it.empCode, title: null, firstName: '', lastName: '', gender: null, birthDate: '', companyCode: COMPANY_CODES[0], siteId: 0,
-          employeeType: null, contractType: 'REGULAR', deptGroup: null, level: null, position: null, salary: 0, startDate: '', probationPassDate: null,
+          employeeType: null, contractType: 'REGULAR', deptGroup: null, level: null, position: null, startDate: '', probationPassDate: null,
           nationalId: null, phone: null, email: null, status: 'ACTIVE', endReason: null, lastWorkingDate: null, endDate: null,
         };
     const issues = [];
@@ -173,6 +182,7 @@ export function planEmployeeList(parsed, employees, sites, { deptGroups = [] } =
       row.employeeType = defaultTypeFor(row.companyCode);
     }
     if (!old && !row.probationPassDate && row.startDate) row.probationPassDate = probationDueDate(row.startDate);
+    if (!row.gender) row.gender = genderOfTitle(row.title); // ไฟล์ไม่มีคอลัมน์เพศ (template) / เว้นว่าง
     if (row.status === 'ACTIVE') Object.assign(row, { endReason: null, endDate: null, lastWorkingDate: null });
     const next = normalizeEmployee(row, sites);
     if (old) {

@@ -70,9 +70,9 @@ writeFileSync('backend/sql/002_seed_master.sql', master);
 // ---------- 003 ข้อมูลจำลอง ----------
 let demo = header('003_seed_demo.sql', 'พนักงานและประวัติจำลอง (ทดลอง/เทสต์เท่านั้น ไม่ต้องรันบนระบบจริง)');
 demo += insert('employees',
-  ['id', 'emp_code', 'first_name', 'last_name', 'company_code', 'site_id', 'employee_type', 'contract_type', 'dept_group', 'position', 'level', 'salary',
+  ['id', 'emp_code', 'first_name', 'last_name', 'company_code', 'site_id', 'employee_type', 'contract_type', 'dept_group', 'position', 'level',
     'birth_date', 'start_date', 'probation_pass_date', 'status', 'last_working_date', 'end_date', 'end_reason', 'title', 'gender', 'national_id', 'phone', 'email'],
-  db.employees.map((e) => [e.id, e.empCode, e.firstName, e.lastName, e.companyCode, e.siteId, e.employeeType, e.contractType, e.deptGroup, e.position, e.level, e.salary,
+  db.employees.map((e) => [e.id, e.empCode, e.firstName, e.lastName, e.companyCode, e.siteId, e.employeeType, e.contractType, e.deptGroup, e.position, e.level,
     e.birthDate, e.startDate, e.probationPassDate, e.status, e.lastWorkingDate, e.endDate, e.endReason, e.title, e.gender, e.nationalId, e.phone, e.email]));
 demo += insert('insurance_batches', ['id', 'cycle_date', 'insurer_id', 'insurer_name', 'submitted_at', 'submitted_by_user_id', 'submitted_by_name'],
   db.batches.map((b) => [b.id, b.cycleDate, b.insurerId, b.insurerName, b.submittedAt.replace('T', ' '), null, b.submittedBy]));

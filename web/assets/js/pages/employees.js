@@ -297,7 +297,6 @@ function blankEmployee() {
       deptGroup: null,
       position: null,
       level: null,
-      salary: 0,
       birthDate: '',
       startDate: today,
       probationPassDate: probationDueDate(today),
@@ -316,7 +315,7 @@ const grid = new ExcelGrid($('#grid'), {
   readOnly: !can('employees.edit'), // ไม่มีสิทธิ์แก้ = ดูอย่างเดียว
   // นำเข้า Excel (ไฟล์เข้าใหม่ / ลาออกประจำเดือนของ HR) — ใส่เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก
   toolbar: can('employees.edit') ? importButton() : '',
-  // ไม่มีช่องเงินเดือน / ตำแหน่งในตาราง → ไม่ตรวจสองค่านี้ (ตำแหน่งยังเก็บไว้ — มาจากไฟล์นำเข้า ใช้จับคู่ชุดฟอร์ม Pro Site)
+  // ตำแหน่งไม่บังคับ ไม่ตรวจ (มาจากไฟล์นำเข้า ใช้จับคู่ชุดฟอร์ม Pro Site) · ระบบไม่เก็บเงินเดือน
   validate: validateEmployee,
   newRow: blankEmployee,
   pageSize: 25,

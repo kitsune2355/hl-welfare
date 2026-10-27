@@ -19,7 +19,6 @@ const emp = (p = {}) => ({
   deptGroup: 'Support Line',
   position: null,
   level: 3,
-  salary: 30000,
   birthDate: '1990-01-01',
   startDate: '2026-01-01',
   probationPassDate: null,

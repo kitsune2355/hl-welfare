@@ -332,8 +332,7 @@ export function defaultInsurers() {
             col: 7,
             header: 'เงินเดือน',
             group: 'ประกันชีวิตกลุ่มและประกันสุขภาพกลุ่ม > เข้าใหม่',
-            source: 'salary',
-            only: 'IN'
+            source: 'blank'
           },
           {
             col: 8,

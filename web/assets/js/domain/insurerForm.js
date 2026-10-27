@@ -22,7 +22,6 @@ export const COLUMN_SOURCES = {
   position: { label: 'ตำแหน่ง / ฝ่าย' },
   phone: { label: 'โทรศัพท์มือถือ' }, // ไม่บังคับ — ไฟล์จริงก็เว้นว่างได้
   email: { label: 'อีเมล' },
-  salary: { label: 'เงินเดือน' },
   startDate: { label: 'วันเริ่มงาน' },
   companyCode: { label: 'ตัวย่อบริษัท' },
   siteName: { label: 'หน่วยงาน' },

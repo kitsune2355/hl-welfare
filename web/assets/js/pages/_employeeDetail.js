@@ -11,7 +11,7 @@ import { diffDays, todayISO } from '../domain/date.js';
 import { ageOf } from '../domain/employee.js';
 import { formatThaiId } from '../domain/thaiId.js';
 import { html, on, raw, render } from '../shared/dom.js';
-import { money, relativeDays, tenure, thaiDateFull } from '../shared/format.js';
+import { relativeDays, tenure, thaiDateFull } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import {
   CONTRACT_LABEL,
@@ -209,7 +209,6 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
           { label: 'วันเริ่มงาน', value: thaiDateFull(e.startDate) },
           { label: 'ผ่านทดลองงาน', value: thaiDateFull(e.probationPassDate) },
           { label: 'อายุงาน', value: tenure(e.startDate, e.endDate ?? today) },
-          { label: 'เงินเดือน', value: html`<span class="num">${money(e.salary)} ฿</span>` },
           { label: 'วันเกิด / อายุ', value: e.birthDate ? `${thaiDateFull(e.birthDate)} · ${ageOf(e.birthDate, today)} ปี` : '–' },
           { label: 'คำนำหน้า / เพศ', value: [e.title, GENDER_LABEL[e.gender]].filter(Boolean).join(' · ') || missing() },
           { label: 'เลขบัตรประชาชน', value: e.nationalId ? html`<span class="num">${formatThaiId(e.nationalId)}</span>` : missing() },

@@ -139,7 +139,7 @@ describe('อ่านโครงไฟล์จริงของ HR (กร�
   it('หัวตาราง 4 แถว · กลุ่ม "เปลี่ยนแปลง" ที่ไม่ได้ merge ครอบถึงคอลัมน์ L', () => {
     expect([l.headerRow, l.headerEnd, l.dataRow]).toEqual([9, 12, 13]);
     const src = Object.fromEntries(l.columns.map((c) => [T.addr(1, c.col).replace('1', ''), c.source]));
-    expect(src).toEqual({ A: 'seq', B: 'empCode', C: 'titleFullName', D: 'plan', E: 'inEffectiveDate', F: 'birthDate', G: 'nationalId', H: 'salary', I: 'outEffectiveDate', J: 'blank', K: 'blank', L: 'blank' });
+    expect(src).toEqual({ A: 'seq', B: 'empCode', C: 'titleFullName', D: 'plan', E: 'inEffectiveDate', F: 'birthDate', G: 'nationalId', H: 'blank', I: 'outEffectiveDate', J: 'blank', K: 'blank', L: 'blank' });
   });
   it('ช่องจำนวนว่าง → ใช้ช่องว่างแรกหลังป้าย · ป้ายซ้ำ → ข้ามไปหาค่า', () => {
     expect(l.cells).toEqual({ C18: '{in}', G18: '{out}', L18: '{total}', D20: '{signerName}', D21: '{signerDept}', D23: '{signerPhone}' });

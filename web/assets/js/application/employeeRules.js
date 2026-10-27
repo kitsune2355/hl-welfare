@@ -4,7 +4,7 @@ import { digitsOnly, isValidThaiId } from '../domain/thaiId.js';
 
 /**
  * กฎตรวจข้อมูลพนักงาน — ใช้ร่วมกันทั้งฟอร์มและตาราง Excel (คู่กับ backend/domain/rules_check.php)
- * ไม่ตรวจเงินเดือน / ตำแหน่ง — ระบบไม่มีคอลัมน์ให้กรอกแล้ว (ตำแหน่งมาจากไฟล์นำเข้าได้ แต่ไม่บังคับ)
+ * ไม่ตรวจตำแหน่ง (มาจากไฟล์นำเข้าได้ แต่ไม่บังคับ) · ระบบไม่เก็บเงินเดือน
  */
 export function validateEmployee(e) {
   const x = {};

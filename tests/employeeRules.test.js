@@ -16,9 +16,9 @@ const base = {
 };
 
 describe('กฎตรวจข้อมูลพนักงาน', () => {
-  it('ไม่บังคับเงินเดือน / ตำแหน่ง (ไม่มีคอลัมน์ให้กรอกแล้ว)', () => {
-    expect(validateEmployee({ ...base, salary: 0, position: '' })).toEqual({});
-    expect(validateEmployee({ ...base, salary: undefined, position: null })).toEqual({});
+  it('ไม่บังคับตำแหน่ง', () => {
+    expect(validateEmployee({ ...base, position: '' })).toEqual({});
+    expect(validateEmployee({ ...base, position: null })).toEqual({});
   });
   it('ช่องบังคับอื่นยังตรวจ', () => {
     const x = validateEmployee({ ...base, siteId: 0, firstName: '' });

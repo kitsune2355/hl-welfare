@@ -259,7 +259,6 @@ function newEmployee(it, sites, deptGroups) {
       deptGroup,
       position: it.position || null, // มีคอลัมน์ตำแหน่งให้ทุกประเภท (ไม่บังคับ)
       level: info?.usesDeptGroup ? it.level : null,
-      salary: 0,
       birthDate: it.birthDate ?? '',
       startDate: it.startDate ?? '',
       probationPassDate: probationDueDate(it.startDate),

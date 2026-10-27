@@ -35,7 +35,6 @@
  * @property {string|null} deptGroup        กลุ่ม/ฝ่าย (ส่วนกลาง)
  * @property {string|null} position         ตำแหน่ง (Pro Site)
  * @property {number|null} level
- * @property {number} salary
  * @property {ISODate} birthDate
  * @property {ISODate} startDate
  * @property {ISODate|null} probationPassDate

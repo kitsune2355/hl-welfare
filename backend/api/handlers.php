@@ -222,7 +222,6 @@ function employee_input($b)
         'deptGroup' => blank_null(arr_get($b, 'deptGroup')),
         'position' => blank_null(arr_get($b, 'position')),
         'level' => int_or_null(arr_get($b, 'level')),
-        'salary' => (float)arr_get($b, 'salary', 0),
         'birthDate' => blank_null(arr_get($b, 'birthDate')),
         'startDate' => blank_null(arr_get($b, 'startDate')),
         'probationPassDate' => blank_null(arr_get($b, 'probationPassDate')),
@@ -241,7 +240,7 @@ function employee_input($b)
 function employee_values($e)
 {
     return array($e['empCode'], $e['firstName'], $e['lastName'], $e['companyCode'], $e['siteId'], $e['employeeType'],
-        $e['contractType'], $e['deptGroup'], $e['position'], $e['level'], $e['salary'], $e['birthDate'], $e['startDate'],
+        $e['contractType'], $e['deptGroup'], $e['position'], $e['level'], $e['birthDate'], $e['startDate'],
         $e['probationPassDate'], $e['status'], $e['lastWorkingDate'], $e['endDate'], $e['endReason'], $e['title'], $e['gender'],
         $e['nationalId'], $e['phone'], $e['email']);
 }
@@ -278,7 +277,7 @@ function api_employee_save($req, $params)
         $vals[] = $u['username'];
         $vals[] = $id;
         db_exec('UPDATE employees SET emp_code = ?, first_name = ?, last_name = ?, company_code = ?, site_id = ?, employee_type = ?,
-                 contract_type = ?, dept_group = ?, position = ?, level = ?, salary = ?, birth_date = ?, start_date = ?,
+                 contract_type = ?, dept_group = ?, position = ?, level = ?, birth_date = ?, start_date = ?,
                  probation_pass_date = ?, status = ?, last_working_date = ?, end_date = ?, end_reason = ?, title = ?, gender = ?,
                  national_id = ?, phone = ?, email = ?, updated_by = ? WHERE id = ?', $vals);
         $terminated = $old['status'] === 'ACTIVE' && $in['status'] === 'INACTIVE';
@@ -289,9 +288,9 @@ function api_employee_save($req, $params)
         $vals = employee_values($in);
         array_push($vals, db_now(), $u['username'], $u['username']);
         $res = db_exec('INSERT INTO employees (emp_code, first_name, last_name, company_code, site_id, employee_type, contract_type,
-                 dept_group, position, level, salary, birth_date, start_date, probation_pass_date, status, last_working_date,
+                 dept_group, position, level, birth_date, start_date, probation_pass_date, status, last_working_date,
                  end_date, end_reason, title, gender, national_id, phone, email, created_at, created_by, updated_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', $vals);
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', $vals);
         $id = $res['id'];
         audit_write('EMPLOYEE', $id, 'CREATE', 'เพิ่มพนักงาน ' . full_name($in) . ' (' . $in['empCode'] . ')', $id, $u);
     }

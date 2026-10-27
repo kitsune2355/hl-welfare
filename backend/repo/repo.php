@@ -78,7 +78,6 @@ function map_employee($r)
         'deptGroup' => $r['dept_group'],
         'position' => $r['position'],
         'level' => int_or_null($r['level']),
-        'salary' => num($r['salary']),
         'birthDate' => $r['birth_date'],
         'startDate' => $r['start_date'],
         'probationPassDate' => $r['probation_pass_date'],
