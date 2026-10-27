@@ -5301,14 +5301,6 @@ html:has(#ed),
 .perm-table td.perm-changed .perm-cell {
   background: var(--chg-edit-bg);
 }
-.perm-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--chg-edit);
-  vertical-align: middle;
-}
 .perm-table .perm-super {
   color: var(--success);
   background: var(--surface-2);

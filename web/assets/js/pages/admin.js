@@ -523,7 +523,6 @@ function drawPermissions() {
                       </th>
                       ${d.roles.map((r) => {
                         const checked = on.has(r.value);
-                        const isDefault = checked === c.defaultRoles.includes(r.value);
                         // สิทธิ์ที่มีผลทุกบริษัท — บทบาทที่ดูแลบริษัทเดียว (HR บริษัท) ให้ไม่ได้
                         if (c.lockedRoles?.includes(r.value)) {
                           return html`<td class="perm-col${r.value === perm.mobileRole ? ' on' : ''}">
@@ -531,10 +530,9 @@ function drawPermissions() {
                           </td>`;
                         }
                         return html`<td class="perm-col${r.value === perm.mobileRole ? ' on' : ''}${checked !== was.has(r.value) ? ' perm-changed' : ''}">
-                          <label class="perm-cell" title="${r.label} · ${c.label}${isDefault ? '' : ' (ต่างจากค่าเริ่มต้น)'}">
+                          <label class="perm-cell" title="${r.label} · ${c.label}">
                             <input type="checkbox" data-cap="${c.key}" data-role="${r.value}" ${checked ? 'checked' : ''} ${d.ready ? '' : 'disabled'}
                               aria-label="${r.label}: ${c.label}" />
-                            ${isDefault ? '' : html`<span class="perm-dot" aria-hidden="true"></span>`}
                           </label>
                         </td>`;
                       })}
@@ -546,7 +544,7 @@ function drawPermissions() {
         </table>
       </div>
       <p class="small muted admin-note">
-        <span class="perm-dot"></span> = ต่างจากค่าเริ่มต้น · ช่องสีเหลือง = แก้แล้วยังไม่บันทึก ·
+        ช่องสีเหลือง = แก้แล้วยังไม่บันทึก ·
         “เห็นหน้า” ซ่อนเมนูและปิดหน้านั้น · “ทำรายการ” ซ่อนปุ่ม — เซิร์ฟเวอร์ตรวจซ้ำทุกคำขอ ·
         บัญชีผู้ดูแลระบบสูงสุดแก้ไขได้เฉพาะผู้ดูแลระบบสูงสุดเสมอ ${d.updatedAt ? `· บันทึกล่าสุด ${thaiDateTime(d.updatedAt)}` : ''}
       </p>`,
