@@ -259,6 +259,7 @@ export const ACTIVITY_ACTION = {
   UNLOCK: { icon: 'shield-check', tone: 'info', label: 'ปลดล็อก' },
   CLEANUP: { icon: 'trash-2', tone: 'neutral', label: 'ล้างข้อมูลเก่า' },
   SETTINGS: { icon: 'pencil', tone: 'info', label: 'ตั้งค่าระบบ' },
+  TRANSFER: { icon: 'arrow-left-right', tone: 'info', label: 'โอนย้าย' },
 };
 const OTHER_ACTION = { icon: 'activity', tone: 'neutral', label: '' };
 export const activityAction = (code) => ACTIVITY_ACTION[code] ?? { ...OTHER_ACTION, label: code };
@@ -272,6 +273,8 @@ export const ENTITY_ICON = {
   EMPLOYEE_TYPE: 'users',
   UNIFORM_ISSUE: 'shirt',
   STOCK_REQUEST: 'package-check',
+  WELFARE: 'gift',
+  WELFARE_PROGRAM: 'gift',
   USER: 'users',
   SYSTEM: 'activity',
 };

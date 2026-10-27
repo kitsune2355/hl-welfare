@@ -24,6 +24,11 @@ import { CONFIG } from '../../config.js';
 import { StockGateway } from '../http/stockGateway.js';
 import { BATCH_TYPE_LABEL, END_REASON_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
 import { buildSeed } from './seed.js';
+import { typeInfo } from '../../domain/catalog.js';
+import { applyTransfer, assignmentChanges, assignmentOf, dueTransfers, validateTransfer } from '../../domain/transfer.js';
+import { normalizeWelfareProgram, validateWelfareProgram, validateWelfareRecord, welfarePeriodLabel, welfareStatus } from '../../domain/welfare.js';
+import { validateEmployee } from '../../application/employeeRules.js';
+import { buildWelfareRoster, welfareDueList, welfareOfEmployee } from '../../application/usecases/welfare.js';
 import { MOCK_USERS } from './users.js';
 
 const STORAGE_KEY = 'hl-welfare-mock-v6'; // v6: แบบฟอร์มประกันจากไฟล์ Excel ที่อัปโหลด (template) + การผูกบริษัท
@@ -131,6 +136,12 @@ export class MockApi {
     this.db.ruleHistory ??= ruleHistoryOf(this.db.rules);
     // เปิด/ปิดการใช้งาน (= sql/018) — ข้อมูลที่ยังไม่มีค่า = เปิด
     for (const k of ['companies', 'employeeTypes', 'deptGroups', 'sites', 'employees']) for (const x of this.db[k] ?? []) x.active ??= true;
+    // โอนย้าย (= sql/020) + สวัสดิการเพิ่มเติม (= sql/021) — ข้อมูลเดิมในเครื่องยังไม่มี
+    for (const e of this.db.employees) e.benefitStartDate ??= null;
+    this.db.transfers ??= [];
+    this.db.welfarePrograms ??= [];
+    this.db.welfareRecords ??= [];
+    this.applyDueTransfers();
     const h = this.db.ruleHistory;
     const today = this.today();
     this.db.rules = {
@@ -205,7 +216,9 @@ export class MockApi {
   getDashboard() {
     return this.run(() => {
       const { employees, sites, rules, batches, issues } = this.world;
-      return buildDashboard(this.today(), employees, sites, rules, batches, issues);
+      const d = buildDashboard(this.today(), employees, sites, rules, batches, issues);
+      // ตัวนับบนเมนูของสวัสดิการเพิ่มเติม (= api_dashboard)
+      return { ...d, welfareDue: welfareDueList(this.db.welfarePrograms, employees, this.db.welfareRecords, this.today()) };
     });
   }
   getWorkQueue() {
@@ -387,7 +400,12 @@ export class MockApi {
   getEmployeeBenefits(id) {
     return this.run(() => {
       const e = this.employee(id);
-      return benefitsOf(e, this.site(e.siteId), this.db.rules, this.db.issues, this.today());
+      return {
+        ...benefitsOf(e, this.site(e.siteId), this.db.rules, this.db.issues, this.today()),
+        // สวัสดิการเพิ่มเติม + ประวัติการโอนย้าย (= api_employee_benefits)
+        welfare: welfareOfEmployee(e, this.db.welfarePrograms, this.db.welfareRecords, this.today()),
+        transfers: this.transfersOf(e.id),
+      };
     });
   }
   saveEmployee(input) {
@@ -434,6 +452,214 @@ export class MockApi {
       this.log('EMPLOYEE', 'CREATE', created.id, `เพิ่มพนักงาน ${fullName(created)} (${created.empCode})`, created.id);
       this.persist();
       return created;
+    });
+  }
+  // ---------- โอนย้ายพนักงาน = backend/api/transfers.php ----------
+  transfersOf(employeeId) {
+    return this.db.transfers
+      .filter((t) => t.employeeId === employeeId)
+      .sort((a, b) => (a.effectiveDate < b.effectiveDate ? -1 : a.effectiveDate > b.effectiveDate ? 1 : a.id - b.id));
+  }
+  /** "บริษัท HL → PRO · หน่วยงาน ก → ข" — เฉพาะที่เปลี่ยน (= transfer_change_text) */
+  transferChangeText(from, to) {
+    const v = (x) => x ?? '–';
+    const text = {
+      companyCode: () => `บริษัท ${from.companyCode} → ${to.companyCode}`,
+      siteId: () => `หน่วยงาน ${this.site(from.siteId)?.name ?? `#${from.siteId}`} → ${this.site(to.siteId)?.name ?? `#${to.siteId}`}`,
+      employeeType: () => `ประเภท ${typeInfo(from.employeeType)?.name ?? from.employeeType} → ${typeInfo(to.employeeType)?.name ?? to.employeeType}`,
+      deptGroup: () => `กลุ่ม/ฝ่าย ${v(from.deptGroup)} → ${v(to.deptGroup)}`,
+      position: () => `ตำแหน่ง ${v(from.position)} → ${v(to.position)}`,
+      level: () => `ระดับ ${v(from.level)} → ${v(to.level)}`,
+    };
+    return assignmentChanges(from, to).map((k) => text[k]()).join(' · ');
+  }
+  /** ให้การย้ายมีผล (= transfer_apply) — byUser = ผู้กดบันทึก (มีผลทันที) / false = ระบบ (ถึงวันที่ตั้งไว้) */
+  applyTransferNow(t, byUser) {
+    const e = this.db.employees.find((x) => x.id === t.employeeId);
+    if (!e) return;
+    const from = assignmentOf(e);
+    Object.assign(e, applyTransfer(e, t));
+    Object.assign(t, { status: 'APPLIED', from, appliedAt: nowStamp() });
+    const actor = this.actor;
+    if (!byUser) this.actor = 'system';
+    this.log(
+      'EMPLOYEE',
+      'TRANSFER',
+      e.id,
+      `โอนย้าย ${fullName(e)} (${e.empCode}) มีผล ${t.effectiveDate}: ${this.transferChangeText(from, t.to)}${t.resetWait ? ' · นับวันรอสิทธิ์ใหม่' : ''}${byUser ? '' : ` (ถึงวันที่มีผล — ตั้งไว้โดย ${t.createdBy})`}`,
+      e.id,
+    );
+    this.actor = actor;
+  }
+  /** การย้ายที่ตั้งไว้และถึงวันที่มีผลแล้ว → มีผล (= transfers_apply_due — เรียกก่อนทุกคำสั่ง) */
+  applyDueTransfers() {
+    const due = dueTransfers(this.db.transfers, this.today());
+    for (const t of due) this.applyTransferNow(t, false);
+    if (due.length) this.persist();
+  }
+  listEmployeeTransfers(id) {
+    return this.run(() => this.transfersOf(this.employee(id).id));
+  }
+  createTransfer(id, input) {
+    return this.run(() => {
+      const emp = this.employee(id);
+      const raw = input.to ?? {};
+      const to = {
+        companyCode: String(raw.companyCode ?? ''),
+        siteId: Number(raw.siteId) || 0,
+        employeeType: String(raw.employeeType ?? ''),
+        deptGroup: raw.deptGroup || null,
+        position: raw.position || null,
+        level: raw.level === null || raw.level === undefined || raw.level === '' ? null : Number(raw.level),
+      };
+      // ประเภทที่ไม่ใช้กลุ่ม/ฝ่าย = ไม่มีกลุ่มและระดับ (เหมือน normalizeEmployee)
+      if (typeInfo(to.employeeType) && !typeInfo(to.employeeType).usesDeptGroup) Object.assign(to, { deptGroup: null, level: null });
+      const req = { effectiveDate: String(input.effectiveDate ?? ''), to, resetWait: !!input.resetWait, note: String(input.note ?? '').trim().slice(0, 500) };
+      const fail = (errors) => {
+        if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
+      };
+      fail(validateTransfer(req, emp, this.transfersOf(emp.id)));
+      const site = this.site(to.siteId);
+      if (!site) fail({ siteId: 'ไม่พบหน่วยงาน' });
+      if (site.companyCode !== to.companyCode) fail({ siteId: 'หน่วยงานไม่ได้อยู่ในบริษัทที่เลือก' });
+      // ข้อมูลหลังย้ายต้องผ่านกฎพนักงาน และไม่เลือกของที่ปิดใช้งาน
+      fail(validateEmployee({ ...emp, ...to }));
+      fail(inactiveRefs({ ...emp, ...to }, emp, { site, companies: this.db.companies, types: this.db.employeeTypes, groups: this.db.deptGroups }));
+      const t = {
+        id: nextId(this.db.transfers),
+        employeeId: emp.id,
+        effectiveDate: req.effectiveDate,
+        status: 'PENDING',
+        from: assignmentOf(emp),
+        to,
+        resetWait: req.resetWait,
+        note: req.note,
+        appliedAt: null,
+        createdAt: nowStamp(),
+        createdBy: this.actor,
+      };
+      this.db.transfers.push(t);
+      if (t.effectiveDate <= this.today()) this.applyTransferNow(t, true);
+      else
+        this.log(
+          'EMPLOYEE',
+          'TRANSFER',
+          emp.id,
+          `ตั้งโอนย้าย ${fullName(emp)} (${emp.empCode}) มีผล ${t.effectiveDate}: ${this.transferChangeText(t.from, to)}${t.resetWait ? ' · นับวันรอสิทธิ์ใหม่' : ''}`,
+          emp.id,
+        );
+      this.persist();
+      return { employee: emp, transfers: this.transfersOf(emp.id) };
+    });
+  }
+  cancelTransfer(id, transferId) {
+    return this.run(() => {
+      const emp = this.employee(id);
+      const t = this.db.transfers.find((x) => x.id === transferId && x.employeeId === emp.id);
+      if (!t) throw new ApiError('ไม่พบรายการโอนย้าย', 404);
+      if (t.status !== 'PENDING') throw new ApiError('ยกเลิกได้เฉพาะการย้ายที่ยังไม่ถึงวันที่มีผล', 409);
+      t.status = 'CANCELLED';
+      this.log('EMPLOYEE', 'CANCEL', emp.id, `ยกเลิกการโอนย้าย ${fullName(emp)} (${emp.empCode}) ที่จะมีผล ${t.effectiveDate}`, emp.id);
+      this.persist();
+      return this.transfersOf(emp.id);
+    });
+  }
+  // ---------- สวัสดิการเพิ่มเติม = backend/api/welfare.php ----------
+  welfareProgram(id) {
+    const p = this.db.welfarePrograms.find((x) => x.id === id);
+    if (!p) throw new ApiError('ไม่พบสวัสดิการนี้', 404);
+    return p;
+  }
+  listWelfarePrograms() {
+    return this.run(() => [...this.db.welfarePrograms].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id));
+  }
+  saveWelfareProgram(input) {
+    return this.run(() => {
+      const old = input.id ? this.welfareProgram(input.id) : null;
+      const p = normalizeWelfareProgram({ ...input, id: old ? old.id : null });
+      const errors = validateWelfareProgram(p, this.db.welfarePrograms);
+      if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
+      if (old) {
+        const wasActive = old.active;
+        Object.assign(old, p);
+        this.log('WELFARE_PROGRAM', 'UPDATE', old.id, `แก้ไขสวัสดิการ ${p.name}`);
+        if (p.active !== wasActive) this.log('WELFARE_PROGRAM', 'UPDATE', old.id, `${p.active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}สวัสดิการ ${p.name}`);
+        this.persist();
+        return old;
+      }
+      const sortOrder = Math.max(0, ...this.db.welfarePrograms.map((x) => x.sortOrder)) + 10;
+      const created = { ...p, id: nextId(this.db.welfarePrograms), sortOrder };
+      this.db.welfarePrograms.push(created);
+      this.log('WELFARE_PROGRAM', 'CREATE', created.id, `สร้างสวัสดิการ ${created.name}`);
+      this.persist();
+      return created;
+    });
+  }
+  getWelfareRoster(programId) {
+    return this.run(() => {
+      const p = this.welfareProgram(programId);
+      const { employees, sites } = this.world;
+      return buildWelfareRoster(p, employees, sites, this.db.welfareRecords.filter((r) => r.programId === p.id), this.today());
+    });
+  }
+  listWelfareRecords(programId) {
+    return this.run(() => {
+      const p = this.welfareProgram(programId);
+      return this.db.welfareRecords
+        .filter((r) => r.programId === p.id)
+        .map((r) => {
+          const e = this.db.employees.find((x) => x.id === r.employeeId);
+          return { ...r, employee: e ? employeeLite(e) : { id: r.employeeId, empCode: `#${r.employeeId}`, firstName: '(ไม่พบข้อมูลพนักงาน)', lastName: '' } };
+        })
+        .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id));
+    });
+  }
+  createWelfareRecord(programId, input) {
+    return this.run(() => {
+      const p = this.welfareProgram(programId);
+      if (!p.active) throw new ApiError('สวัสดิการนี้ปิดใช้งานแล้ว — บันทึกการให้ไม่ได้', 409);
+      const emp = this.employee(Number(input.employeeId));
+      if (emp.active === false) throw new ApiError('พนักงานคนนี้ปิดใช้งานแล้ว', 409);
+      // ค่าช่องข้อมูลที่เก็บ — เฉพาะช่องที่สวัสดิการกำหนด · ข้อความตัดช่องว่าง · ว่าง = ไม่เก็บ (= welfare_record_data)
+      const data = {};
+      for (const f of p.fields) {
+        let v = input.data?.[f.key];
+        if (typeof v === 'string') v = v.trim().slice(0, 500);
+        if (v !== null && v !== undefined && v !== '') data[f.key] = v;
+      }
+      const req = {
+        periodKey: String(input.periodKey ?? ''),
+        date: String(input.date ?? ''),
+        amount: input.amount === '' || input.amount === undefined ? null : input.amount,
+        data,
+        note: String(input.note ?? '').trim().slice(0, 500),
+      };
+      const status = welfareStatus(emp, p, this.db.welfareRecords, this.today());
+      const errors = validateWelfareRecord(p, status, req);
+      if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
+      const rec = { id: nextId(this.db.welfareRecords), programId: p.id, employeeId: emp.id, ...req, recordedBy: this.actor, createdAt: nowStamp() };
+      this.db.welfareRecords.push(rec);
+      const amountText = req.amount !== null ? ` ${req.amount}${p.unit ? ` ${p.unit}` : ''}` : '';
+      this.log('WELFARE', 'CREATE', rec.id, `ให้สวัสดิการ ${p.name} (${welfarePeriodLabel(req.periodKey)})${amountText} แก่ ${fullName(emp)} (${emp.empCode})`, emp.id);
+      this.persist();
+      return rec;
+    });
+  }
+  cancelWelfareRecord(id) {
+    return this.run(() => {
+      const i = this.db.welfareRecords.findIndex((r) => r.id === id);
+      if (i < 0) throw new ApiError('ไม่พบรายการ', 404);
+      const [rec] = this.db.welfareRecords.splice(i, 1);
+      const p = this.db.welfarePrograms.find((x) => x.id === rec.programId);
+      const emp = this.db.employees.find((x) => x.id === rec.employeeId);
+      this.log(
+        'WELFARE',
+        'CANCEL',
+        rec.id,
+        `ยกเลิกการให้สวัสดิการ ${p?.name ?? `#${rec.programId}`} (${welfarePeriodLabel(rec.periodKey)}) ของ ${emp ? `${fullName(emp)} (${emp.empCode})` : `#${rec.employeeId}`}`,
+        rec.employeeId,
+      );
+      this.persist();
     });
   }
   getRules() {

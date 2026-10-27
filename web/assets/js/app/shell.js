@@ -8,7 +8,7 @@ import { enhanceSelects } from '../ui/combobox.js';
 import { avatar, emptyState } from '../ui/components.js';
 import { toast } from '../ui/overlay.js';
 import { API_MODE, api } from './api.js';
-import './catalog.js'; // บริษัท + ประเภทพนักงานที่ตั้งค่าไว้ — โหลดก่อนหน้าเริ่มวาด (top-level await)
+import { CATALOG_EVENT, welfareMenu } from './catalog.js'; // บริษัท + ประเภทพนักงาน + สวัสดิการเพิ่มเติม — โหลดก่อนหน้าเริ่มวาด (top-level await)
 import { can, isAuthEnabled, logout, refreshSessionUser, requireSession } from './auth.js';
 import { installNavigationProgress, progress } from '../ui/loading.js';
 import { initTour } from './tour.js';
@@ -21,13 +21,27 @@ const MENU = [
   { id: 'insurance', href: 'insurance.html', label: 'ประกันกลุ่ม', icon: 'shield-plus', cap: 'insurance.view', count: (d) => d.urgentPending, tone: 'danger' },
   { id: 'uniform', href: 'uniform.html', label: 'ชุดฟอร์ม', icon: 'shirt', cap: 'uniform.view', count: (d) => d.uniformPending, tone: 'warning' },
 ];
-// "ตั้งค่าสวัสดิการ" = เมนูเดียวของ 2 หน้า (sites.html = องค์กร · rules.html = เงื่อนไขสวัสดิการ)
+// สวัสดิการเพิ่มเติมที่ HR สร้างเอง (ตั้งค่าสวัสดิการ › สวัสดิการเพิ่มเติม) — 1 สวัสดิการที่เปิดใช้งาน = 1 เมนู ต่อจากชุดฟอร์ม
+//   ตัวเลข = จำนวนพนักงานที่ยังค้างให้ (getDashboard().welfareDue) · หน้า welfare.html?id= ใช้ id เมนู "welfare-<id>"
+const WELFARE_PAGE = { id: 'welfare', href: 'welfare.html', label: 'สวัสดิการเพิ่มเติม', cap: 'welfare.view', hidden: true };
+const welfareItems = () =>
+  welfareMenu().map((p) => ({
+    id: `welfare-${p.id}`,
+    href: `welfare.html?id=${p.id}`,
+    label: p.name,
+    icon: icon(p.icon) ? p.icon : 'gift',
+    cap: 'welfare.view',
+    count: (d) => d.welfareDue?.find((x) => x.programId === p.id)?.due ?? 0,
+    tone: 'warning',
+  }));
+// "ตั้งค่าสวัสดิการ" = เมนูเดียวของ 3 หน้า (sites.html = องค์กร · rules.html = เงื่อนไขสวัสดิการ · welfare-setup.html = สวัสดิการเพิ่มเติม)
 //   แถบแท็บร่วมกัน (pages/_settingsTabs.js) · สิทธิ์ยังแยกหน้า: sites.view / rules.view — มีอย่างใดอย่างหนึ่งก็เห็นเมนู
 //   pages = id ของหน้าที่ไฮไลต์เมนูนี้ · hidden = มีไว้ตรวจสิทธิ์ของหน้า (guardPage) ไม่แสดงในเมนู
 const SETTINGS = [
-  { id: 'settings', href: 'sites.html', label: 'ตั้งค่าสวัสดิการ', icon: 'building-2', anyCap: ['sites.view', 'rules.view'], pages: ['sites', 'rules'] },
+  { id: 'settings', href: 'sites.html', label: 'ตั้งค่าสวัสดิการ', icon: 'building-2', anyCap: ['sites.view', 'rules.view'], pages: ['sites', 'rules', 'welfare-setup'] },
   { id: 'sites', href: 'sites.html', label: 'ตั้งค่าสวัสดิการ (องค์กร)', cap: 'sites.view', hidden: true },
   { id: 'rules', href: 'rules.html', label: 'ตั้งค่าสวัสดิการ (เงื่อนไข)', cap: 'rules.view', hidden: true },
+  { id: 'welfare-setup', href: 'welfare-setup.html', label: 'ตั้งค่าสวัสดิการ (สวัสดิการเพิ่มเติม)', cap: 'rules.view', hidden: true },
   { id: 'insurers', href: 'insurers.html', label: 'แบบฟอร์มประกัน', icon: 'file-spreadsheet', cap: 'insurers.view' },
 ];
 // cap = สิทธิ์ที่ต้องมีจึงเห็นเมนู/เปิดหน้าได้ (ตั้งที่ “กำหนดสิทธิ์การใช้งาน”) · anyCap = มีอย่างใดอย่างหนึ่ง · roles = เฉพาะบทบาทเหล่านี้
@@ -56,14 +70,15 @@ const ACCOUNT = [
 
 const allowedFor = (user) => (m) =>
   (!m.roles || m.roles.includes(user.roleCode)) && (!m.cap || can(m.cap)) && (!m.anyCap || m.anyCap.some((c) => can(c)));
-const PAGES = [...MENU, ...SETTINGS, ...ADMIN];
+const PAGES = [...MENU, ...SETTINGS, ...ADMIN, WELFARE_PAGE];
 
 /**
  * ไม่มีสิทธิ์เปิดหน้านี้ → ไปหน้าแรกที่เปิดได้ (?denied=หน้าเดิม แจ้งเตือนที่นั่น) · ไม่มีหน้าไหนเลย → แสดงข้อความในหน้า
  * โยน error เพื่อหยุดสคริปต์ของหน้าที่เปิดไม่ได้ (ไม่ให้ยิง API ต่อ)
  */
 function guardPage(active, user) {
-  const page = PAGES.find((m) => m.id === active);
+  // สวัสดิการเพิ่มเติม (welfare-<id>) ทุกอันตรวจสิทธิ์ welfare.view เหมือนกัน
+  const page = PAGES.find((m) => m.id === (/^welfare-\d+$/.test(active) ? 'welfare' : active));
   if (!page || allowedFor(user)(page)) return;
   const first = PAGES.find(allowedFor(user));
   if (first) location.replace(`${first.href}?denied=${encodeURIComponent(page.label)}`);
@@ -140,6 +155,9 @@ function navLink(item, active) {
   ></a>`;
 }
 
+/** เมนูสวัสดิการเพิ่มเติม (วาดใหม่เมื่อสร้าง / แก้ / เปิด-ปิดสวัสดิการ — CATALOG_EVENT) */
+const welfareNav = (user, active) => welfareItems().filter(allowedFor(user)).map((m) => navLink(m, active));
+
 /**
  * สร้าง sidebar + topbar รอบ <main id="page"> แล้วแปลง <i data-icon> และ <select data-combobox> ในหน้า
  * @param {string} active  id ของเมนูที่เลือก
@@ -166,6 +184,7 @@ export function initPage(active, { tour = active } = {}) {
     </div>
     <nav class="nav" aria-label="เมนูหลัก">
       ${MENU.filter(allowedFor(user)).map((m) => navLink(m, active))}
+      <div class="nav-group" data-welfare-nav>${welfareNav(user, active)}</div>
       ${SETTINGS.some(allowedFor(user)) ? html`<div class="nav-section">ตั้งค่า</div>${SETTINGS.filter((m) => !m.hidden && allowedFor(user)(m)).map((m) => navLink(m, active))}` : ''}
       <div class="nav-section">บัญชีของฉัน</div>
       ${ACCOUNT.map((m) => navLink(m, active))}
@@ -259,6 +278,12 @@ export function initPage(active, { tour = active } = {}) {
   initTour(tour, document.getElementById('help-btn')); // แนะนำการใช้งาน (driver.js)
   installNavigationProgress(); // คลิกลิงก์ → แถบ loading วิ่งทันที
   installEmployeePopup();
+  // สวัสดิการเพิ่มเติมเปลี่ยน (หน้าตั้งค่า / โหลดเบื้องหลัง) → วาดเมนูใหม่ + ตัวนับ
+  window.addEventListener(CATALOG_EVENT, () => {
+    const box = sidebar.querySelector('[data-welfare-nav]');
+    if (box) box.innerHTML = String(html`${welfareNav(user, active)}`);
+    refreshCounts();
+  });
   initNotifications(document.getElementById('noti-btn')); // กระดิ่งแจ้งเตือน (app/notifications.js)
 }
 
@@ -287,7 +312,7 @@ function installEmployeePopup() {
 export async function refreshCounts() {
   try {
     const d = await progress.quiet(() => api.getDashboard()); // ตัวนับในเมนู = งานเบื้องหลัง
-    for (const m of MENU) {
+    for (const m of [...MENU, ...welfareItems()]) {
       if (!m.count) continue;
       const n = m.count(d);
       document.querySelectorAll(`[data-nav="${m.id}"] .nav-count`).forEach((el) => {

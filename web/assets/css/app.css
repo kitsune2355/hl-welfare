@@ -7233,3 +7233,187 @@ button.sev-pill {
   text-decoration: line-through;
   text-decoration-color: var(--muted);
 }
+
+/* ===================== สวัสดิการเพิ่มเติม (welfare.html · welfare-setup.html) + โอนย้ายพนักงาน ===================== */
+/* เมนูของแต่ละสวัสดิการใน sidebar — กล่องห่อไว้วาดใหม่ได้ (shell.js) ไม่ทำให้ระยะห่างของเมนูเปลี่ยน */
+.nav-group {
+  display: contents;
+}
+/* ตัวแก้สวัสดิการ (modal) */
+.welfare-editor {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.welfare-editor:disabled .btn,
+.welfare-editor:disabled .btn-icon {
+  display: none;
+}
+.welfare-rules,
+.welfare-fields {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.welfare-rules > .btn,
+.welfare-fields > .btn {
+  justify-self: start;
+}
+.welfare-rule {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.welfare-rule-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.welfare-rule-head .input {
+  flex: 1;
+  min-width: 0;
+}
+.welfare-fieldrow {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1.6fr auto auto;
+  gap: 8px;
+  align-items: end;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border);
+}
+.welfare-fieldrow-req {
+  min-height: 40px;
+}
+.icon-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.icon-pick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  cursor: pointer;
+}
+.icon-pick input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.icon-pick:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.icon-pick:has(input:focus-visible) {
+  box-shadow: 0 0 0 4px var(--ring);
+}
+.welfare-freqs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.welfare-freq {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.welfare-freq:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.welfare-freq input {
+  margin-top: 4px;
+}
+.welfare-freq span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* รายการสวัสดิการในรายละเอียดพนักงาน */
+.welfare-emp-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.welfare-emp-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+}
+.welfare-emp-list li:first-child {
+  border-top: 0;
+}
+/* ประวัติสังกัด (โอนย้าย) */
+.assign-history {
+  display: grid;
+  gap: 12px;
+}
+.assign-periods {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0 0 0 18px;
+  list-style: none;
+  border-left: 2px solid var(--border);
+}
+.assign-periods li {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 10px 0 10px 12px;
+}
+.assign-periods li::before {
+  content: '';
+  position: absolute;
+  left: -25px;
+  top: 15px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+}
+.assign-periods li.current::before {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+.assign-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.assign-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+@media (max-width: 640px) {
+  .welfare-freqs {
+    grid-template-columns: 1fr;
+  }
+  .welfare-fieldrow {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+/* สวัสดิการที่ปิดใช้งาน (หน้าตั้งค่า) — แถวจาง เหมือนตาราง Excel */
+.table tr.is-off > td:not(:last-child),
+.has-cards li.is-off {
+  opacity: 0.55;
+}

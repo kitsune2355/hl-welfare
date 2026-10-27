@@ -46,6 +46,8 @@ export const ACTIVITY_ENTITY_LABEL = {
   EMPLOYEE_TYPE: 'ประเภทพนักงาน',
   UNIFORM_ISSUE: 'ชุดฟอร์ม',
   STOCK_REQUEST: 'ใบเบิกสต็อก',
+  WELFARE: 'สวัสดิการเพิ่มเติม',
+  WELFARE_PROGRAM: 'ตั้งค่าสวัสดิการเพิ่มเติม',
   USER: 'ผู้ใช้',
   SYSTEM: 'ระบบ',
 };

@@ -707,6 +707,22 @@ HR ใช้บริษัทประกันหลัก 2 ราย แต�
 
 **แบบฟอร์มตั้งต้น** (`assets/templates/`): ไทยประกันชีวิต (เปิดใช้ · ทุกบริษัท) และเมืองไทยประกันชีวิต (ปิดไว้) — โครงเดียวกับไฟล์ที่ HR ใช้ (`1. แจ้งเข้า-ออก 5-2-2569.xls`, `1 PMAV-แจ้งเข้า ยกเลิก ก.พ. 68.xlsx`) สร้างผ่านขั้นตอนเดียวกับการอัปโหลด ไม่มีข้อมูลบุคคล — HR อัปโหลดไฟล์จริงแทนได้
 
+### 7.5 โอนย้ายพนักงาน — ประวัติสังกัด + วันที่มีผล (`domain/transfer.js` ↔ `backend/domain/transfer.php` · sql/020)
+- 1 การย้าย = `employee_transfers` 1 แถว: สังกัดใหม่ (`to`: บริษัท / หน่วยงาน / ประเภท / กลุ่ม-ฝ่าย / ตำแหน่ง / ระดับ) + **วันที่มีผล** + นับวันรอสิทธิ์ใหม่ไหม (`resetWait`) + หมายเหตุ
+- วันที่มีผล ≤ วันนี้ = มีผลทันที · หลังวันนี้ = `PENDING` — **ข้อมูลพนักงานยังเป็นค่าเดิม** จนถึงวัน แล้ว `transfers_apply_due()` (เรียกต้นทุกคำขอใน `api_handle` · mock: `syncRules`) เขียนสังกัดใหม่ให้เอง + บันทึกกิจกรรม `TRANSFER` โดย "system" · ยกเลิกได้ก่อนถึงวัน (`CANCELLED`)
+- ตอนมีผลเก็บ `from` = สังกัดจริง ณ วันนั้น → `assignmentPeriods(emp, transfers)` = "อยู่ที่ไหน ตั้งแต่วันไหนถึงวันไหน" (การ์ด **ประวัติสังกัด / โอนย้าย** ในรายละเอียดพนักงาน)
+- `resetWait` → `employees.benefit_start_date` = วันที่ย้าย · `waitStartDate(emp)` = วันนี้ (ไม่มี = วันเริ่มงาน) ใช้คำนวณ **วันครบสิทธิประกันกลุ่ม** และสวัสดิการเพิ่มเติมที่นับจากวันเริ่มงาน · สิทธิ์ที่แจ้ง / แจก / ให้ไปแล้วไม่เปลี่ยน · ชุดฟอร์มยังนับจากวันเริ่มงาน
+- ตรวจ: พนักงานยังทำงานอยู่ · วันที่มีผลหลังวันเริ่มงานและหลังการย้ายครั้งล่าสุด · รอมีผลได้ทีละ 1 รายการ · ต้องมีอย่างน้อย 1 ช่องที่เปลี่ยน · หน่วยงานอยู่ในบริษัทที่เลือก · ผ่าน `validateEmployee` ของข้อมูลหลังย้าย · ไม่เลือกของที่ปิดใช้งาน · HR บริษัทย้ายไปบริษัทอื่นไม่ได้
+- การแก้ในตารางพนักงานยังเขียนทับได้ (ใช้แก้ข้อมูลที่กรอกผิด) — การย้ายจริงให้ใช้ปุ่ม **โอนย้าย** เพื่อเก็บประวัติ
+
+### 7.6 สวัสดิการเพิ่มเติมที่ HR สร้างเอง (`domain/welfare.js` ↔ `backend/domain/welfare.php` · sql/021)
+- ตั้งค่าที่ **ตั้งค่าสวัสดิการ › สวัสดิการเพิ่มเติม** (`welfare-setup.html` · ดู = `rules.view` · แก้ = `welfare.manage`) — **1 สวัสดิการที่เปิดใช้งาน = 1 เมนูใน sidebar** (`welfare.html?id=` · ตัวเลขบนเมนู = คนที่ค้างให้)
+- `WelfareProgram` = ชื่อ · ไอคอน · คำอธิบาย · `frequency` (`ONCE` ครั้งเดียว / `YEARLY` ปีละครั้ง ย้อนหลัง ≤ 3 ปี / `MONTHLY` เดือนละครั้ง ย้อนหลัง ≤ 12 เดือน / `ANYTIME` เบิกได้หลายครั้งไม่เกินวงเงินต่อปี) · `waitFrom` (วันเริ่มงาน = `waitStartDate` / วันผ่านทดลองงาน) · `unit` (ว่าง = ไม่บันทึกจำนวน) · `rules[]` · `fields[]` · `active`
+- `rules[]` (ตรวจจากบนลงล่าง **ใช้ข้อแรกที่ตรง**): บริษัท / ประเภท / กลุ่ม-ฝ่าย / ตำแหน่ง / เพศ (null = ทุกค่า) · ระดับต่ำสุด-สูงสุด · ทำงานครบกี่วัน (`waitDays`) · จำนวนต่อรอบ (`ANYTIME` = วงเงินต่อปี)
+- `fields[]` = ช่องที่กรอกตอนบันทึกการให้ (ข้อความ / ตัวเลข / วันที่ / ตัวเลือก · บังคับได้) — เก็บใน `welfare_records.data` (JSON) เฉพาะช่องที่กำหนด
+- `welfareStatus(emp, program, records, today)` → `NONE` / `WAITING` (รอครบสิทธิ์) / `DUE` (มีรอบที่ยังไม่ให้ · ANYTIME = ยังมีวงเงิน) / `DONE` + รายการรอบ (`ONCE` · `Y-2026` · `M-2026-03`) · พ้นสภาพแล้วนับถึงวันพ้นสภาพ
+- บันทึกการให้ = `welfare_records` (รอบ · วันที่ · จำนวน · ช่องข้อมูล · หมายเหตุ · ผู้บันทึกจาก session) · ให้ซ้ำรอบเดิม / เกินวงเงิน = 422 · ยกเลิก (บันทึกผิด) = ลบแถว + บันทึกกิจกรรม · ปิดใช้งานแล้วบันทึกไม่ได้ (ประวัติยังดูได้)
+
 ## 8. API Contract
 
 สัญญา API (port) — **MockApi และ HttpApi ต้องมีเมธอดครบตามนี้** · ในโค้ดจริงอยู่ที่ `web/assets/js/application/ports.js` (JSDoc)
@@ -783,7 +799,16 @@ export interface WelfareApi {
 | GET | `/api/employees` | `?q=&company=&type=&status=` | `Employee[]` |
 | POST | `/api/employees` | `Employee` (ไม่มี id) | `Employee` (201) |
 | PUT | `/api/employees/{id}` | `Employee` | `Employee` |
-| GET | `/api/employees/{id}/benefits` | – | `EmployeeBenefits` |
+| GET | `/api/employees/{id}/benefits` | – | `EmployeeBenefits` + `welfare` (สวัสดิการเพิ่มเติมที่เปิด) + `transfers` |
+| GET | `/api/employees/{id}/transfers` | – | `Transfer[]` (เรียงตามวันที่มีผล) — ข้อ 7.5 |
+| POST | `/api/employees/{id}/transfers` | `{effectiveDate, to, resetWait, note}` | `{employee, transfers}` (201) / 422 / 403 นอกขอบเขต · สิทธิ์ `employees.edit` |
+| DELETE | `/api/employees/{id}/transfers/{tid}` | – | `Transfer[]` · 409 ถ้ามีผลแล้ว |
+| GET | `/api/welfare/programs` | – | `WelfareProgram[]` (รวมที่ปิด — เมนู sidebar) — ข้อ 7.6 |
+| POST / PUT | `/api/welfare/programs` · `/{id}` | `WelfareProgram` | `WelfareProgram` (201 / 200) / 422 `errors` (`rules.<i>.<ช่อง>`, `fields.<i>.<ช่อง>`) · สิทธิ์ `welfare.manage` |
+| GET | `/api/welfare/programs/{id}/roster` | – | `[{employee, siteName, status}]` เฉพาะคนที่ตรงเงื่อนไข · สิทธิ์ `welfare.view` |
+| GET | `/api/welfare/programs/{id}/records` | – | `WelfareRecord[]` + `employee` (ใหม่ก่อน) · สิทธิ์ `welfare.view` |
+| POST | `/api/welfare/programs/{id}/records` | `{employeeId, periodKey, date, amount, data, note}` | `WelfareRecord` (201) / 422 / 409 ปิดใช้งาน · สิทธิ์ `welfare.record` |
+| DELETE | `/api/welfare/records/{id}` | – | 204 · สิทธิ์ `welfare.record` |
 | GET | `/api/rules` | – | `RuleSet` |
 | GET | `/api/insurance/cycles/{YYYY-MM-DD}` | – | `InsuranceCycle` |
 | GET | `/api/insurance/batches` | – | `InsuranceBatch[]` (ใหม่ก่อน · แนบ `employees` แบบย่อ) |
@@ -1572,6 +1597,8 @@ C:\AppServ\php5\php.exe backend\tests\run.php          # ใช้ค่าเ�
 ### เฟส 3 (ภายหลัง)
 - [x] สิทธิ์ตาม role / แยกบริษัท (กำหนดสิทธิ์การใช้งาน + HR บริษัทเห็นเฉพาะบริษัทตัวเอง ข้อ 12.5)
 - [x] แก้ไขกฎสวัสดิการผ่านหน้าจอ (มี effective date)
+- [x] โอนย้ายพนักงาน: ประวัติสังกัด + วันที่มีผล + นับวันรอสิทธิ์ใหม่ (ข้อ 7.5 · sql/020)
+- [x] สวัสดิการเพิ่มเติมที่ HR สร้างเอง + เมนูของแต่ละอันใน sidebar (ข้อ 7.6 · sql/021)
 - [ ] นำเข้าพนักงาน/รายชื่อลาออกจาก Excel ของ Payroll (ส่วนกลาง + CNS)
 - [ ] รับ flag ขาดงาน 3 วันจากระบบลงเวลา
 - [x] สต็อกชุดฟอร์ม (ส่งเบิกไปสต็อก Uniform + ส่งข้อมูลหลัก sync_master)

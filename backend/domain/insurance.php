@@ -128,7 +128,8 @@ function insurance_status($emp, $site, $rules)
         return insurance_none('หน่วยงานนี้ไม่ได้รับประกันกลุ่ม', array('ruleId' => $rule['id']));
     }
     // นับวันเริ่มงานเป็นวันที่ 1 — ทำงานครบ 30 วันในวันเริ่มงาน + 29 · ได้สิทธิจริงวันถัดไป (HR: 30 + 1) = วันเริ่มงาน + 30
-    $eligibleDate = add_days($emp['startDate'], $rule['waitDays']);
+    // โอนย้ายแบบ "นับวันรอใหม่" = นับจากวันที่ย้าย (domain/transfer.php)
+    $eligibleDate = add_days(wait_start_date($emp), $rule['waitDays']);
     $enrollCycleDate = next_cycle_date($eligibleDate, cycle_day_of($emp, $settings));
     if (strcmp(birthday_at($emp['birthDate'], $settings['insuranceMaxAge']), $enrollCycleDate) <= 0) {
         return insurance_none('อายุครบ ' . $settings['insuranceMaxAge'] . ' ปีก่อนถึงรอบแจ้งเข้า',

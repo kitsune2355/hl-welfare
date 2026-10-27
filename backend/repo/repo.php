@@ -107,6 +107,8 @@ function map_employee($r)
         'birthDate' => $r['birth_date'],
         'startDate' => $r['start_date'],
         'probationPassDate' => $r['probation_pass_date'],
+        // วันเริ่มนับวันรอสิทธิ์ (โอนย้ายแบบนับใหม่ — sql/020) · null = วันเริ่มงาน
+        'benefitStartDate' => isset($r['benefit_start_date']) ? $r['benefit_start_date'] : null,
         'status' => $r['status'],
         'lastWorkingDate' => $r['last_working_date'],
         'endDate' => $r['end_date'],

@@ -44,6 +44,8 @@ function api_dashboard($req, $params)
         }
         $d['activeByCompany'] = $keep;
     }
+    // ตัวนับบนเมนูของสวัสดิการเพิ่มเติม (api/welfare.php)
+    $d['welfareDue'] = welfare_due_list(repo_welfare_programs(), $w['employees'], repo_welfare_records(), today_iso());
     return $d;
 }
 
@@ -188,7 +190,11 @@ function api_employees($req, $params)
 function api_employee_benefits($req, $params)
 {
     $e = find_or_404(repo_employee(param_id($params)), 'ไม่พบพนักงาน');
-    return benefits_of($e, repo_site($e['siteId']), repo_rules(), repo_issues(), today_iso());
+    $b = benefits_of($e, repo_site($e['siteId']), repo_rules(), repo_issues(), today_iso());
+    // สวัสดิการเพิ่มเติม (api/welfare.php) + ประวัติการโอนย้าย (api/transfers.php)
+    $b['welfare'] = welfare_of_employee($e, repo_welfare_programs(), repo_welfare_records(null, $e['id']), today_iso());
+    $b['transfers'] = repo_transfers($e['id']);
+    return $b;
 }
 
 function blank_null($v)

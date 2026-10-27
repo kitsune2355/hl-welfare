@@ -44,6 +44,10 @@ function api_routes()
     router_add($r, 'POST', '/employees', 'api_employee_save');
     router_add($r, 'PUT', '/employees/{id}', 'api_employee_save');
     router_add($r, 'GET', '/employees/{id}/benefits', 'api_employee_benefits');
+    /* โอนย้ายพนักงาน (ประวัติสังกัด + วันที่มีผล) · api/transfers.php */
+    router_add($r, 'GET', '/employees/{id}/transfers', 'api_employee_transfers');
+    router_add($r, 'POST', '/employees/{id}/transfers', 'api_employee_transfer_create');
+    router_add($r, 'DELETE', '/employees/{id}/transfers/{tid}', 'api_employee_transfer_cancel');
     router_add($r, 'GET', '/rules', 'api_rules');
     /* แก้เงื่อนไขสวัสดิการแบบมีวันที่มีผล · api/rules_edit.php (สิทธิ์ rules.edit — ตรวจใน handler) */
     router_add($r, 'GET', '/rules/history', 'api_rules_history');
@@ -66,6 +70,15 @@ function api_routes()
     router_add($r, 'DELETE', '/insurance/batches/{id}', 'api_batch_cancel');
     router_add($r, 'GET', '/insurance/batches/{id}/export', 'api_batch_export');
     router_add($r, 'POST', '/insurance/exports', 'api_insurance_export');
+
+    /* สวัสดิการเพิ่มเติมที่ HR สร้างเอง · api/welfare.php */
+    router_add($r, 'GET', '/welfare/programs', 'api_welfare_programs');
+    router_add($r, 'POST', '/welfare/programs', 'api_welfare_program_save');
+    router_add($r, 'PUT', '/welfare/programs/{id}', 'api_welfare_program_save');
+    router_add($r, 'GET', '/welfare/programs/{id}/roster', 'api_welfare_roster');
+    router_add($r, 'GET', '/welfare/programs/{id}/records', 'api_welfare_records');
+    router_add($r, 'POST', '/welfare/programs/{id}/records', 'api_welfare_record_create');
+    router_add($r, 'DELETE', '/welfare/records/{id}', 'api_welfare_record_cancel');
 
     router_add($r, 'GET', '/insurers', 'api_insurers');
     router_add($r, 'POST', '/insurers', 'api_insurer_save');

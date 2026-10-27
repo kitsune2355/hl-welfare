@@ -14,6 +14,16 @@
  * @property {(filter?: {q?:string, companyCode?:string, employeeType?:string, status?:string}) => Promise<Employee[]>} listEmployees
  * @property {(id: number) => Promise<import('../domain/types.js').EmployeeBenefits>} getEmployeeBenefits
  * @property {(emp: Omit<Employee,'id'> & {id?: number}) => Promise<Employee>} saveEmployee   ไม่มี id = สร้างใหม่
+ * @property {(id: number) => Promise<Object[]>} listEmployeeTransfers   ประวัติการโอนย้าย + ที่รอมีผล (เรียงตามวันที่)
+ * @property {(id: number, input: {effectiveDate: string, to: Object, resetWait?: boolean, note?: string}) => Promise<{employee: Employee, transfers: Object[]}>} createTransfer
+ *   วันที่มีผล <= วันนี้ = มีผลทันที · หลังวันนี้ = รอมีผล (ถึงวันแล้วระบบเขียนสังกัดใหม่ให้เอง)
+ * @property {(id: number, transferId: number) => Promise<Object[]>} cancelTransfer   ยกเลิกการย้ายที่ยังไม่ถึงวันที่มีผล (409 ถ้ามีผลแล้ว)
+ * @property {() => Promise<Object[]>} listWelfarePrograms                       สวัสดิการเพิ่มเติมทั้งหมด (รวมที่ปิด) — domain/welfare.js
+ * @property {(input: Object) => Promise<Object>} saveWelfareProgram             ไม่มี id = สร้างใหม่ · 422 รายช่อง (rules.<i>.<ช่อง> / fields.<i>.<ช่อง>)
+ * @property {(programId: number) => Promise<Object[]>} getWelfareRoster         ผู้มีสิทธิ์ [{employee, siteName, status}]
+ * @property {(programId: number) => Promise<Object[]>} listWelfareRecords       ประวัติการให้ (ใหม่สุดก่อน) พร้อม employee
+ * @property {(programId: number, input: {employeeId: number, periodKey: string, date: string, amount?: number|null, data?: Object, note?: string}) => Promise<Object>} createWelfareRecord
+ * @property {(id: number) => Promise<void>} cancelWelfareRecord                ยกเลิกการให้ (บันทึกผิด) — รอบกลับเป็นค้างให้
  * @property {() => Promise<Object>} getRules                                  กฎที่มีผล ณ วันนี้
  * @property {() => Promise<Object>} getRuleHistory                            {today, insurance, uniform: [{id, current, pending, history}], settings: [{key, value, effectiveFrom}], uniformItems}
  * @property {(kind: 'insurance'|'uniform', rule: Object) => Promise<Object>} createRule              rule.effectiveFrom (ไม่ส่ง = วันนี้) · คืนประวัติชุดใหม่

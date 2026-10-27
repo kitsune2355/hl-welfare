@@ -74,6 +74,35 @@ export class HttpApi {
   saveEmployee(emp) {
     return emp.id ? this.send('PUT', `/employees/${emp.id}`, emp) : this.send('POST', '/employees', emp);
   }
+  // ---------- โอนย้ายพนักงาน (backend/api/transfers.php) ----------
+  listEmployeeTransfers(id) {
+    return this.req(`/employees/${id}/transfers`);
+  }
+  createTransfer(id, input) {
+    return this.send('POST', `/employees/${id}/transfers`, input);
+  }
+  cancelTransfer(id, transferId) {
+    return this.req(`/employees/${id}/transfers/${transferId}`, { method: 'DELETE' });
+  }
+  // ---------- สวัสดิการเพิ่มเติม (backend/api/welfare.php) ----------
+  listWelfarePrograms() {
+    return this.req('/welfare/programs');
+  }
+  saveWelfareProgram(input) {
+    return input.id ? this.send('PUT', `/welfare/programs/${input.id}`, input) : this.send('POST', '/welfare/programs', input);
+  }
+  getWelfareRoster(programId) {
+    return this.req(`/welfare/programs/${programId}/roster`);
+  }
+  listWelfareRecords(programId) {
+    return this.req(`/welfare/programs/${programId}/records`);
+  }
+  createWelfareRecord(programId, input) {
+    return this.send('POST', `/welfare/programs/${programId}/records`, input);
+  }
+  cancelWelfareRecord(id) {
+    return this.del(`/welfare/records/${id}`);
+  }
   getRules() {
     return this.req('/rules');
   }

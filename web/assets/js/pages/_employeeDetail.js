@@ -29,6 +29,11 @@ import { loader } from '../ui/loading.js';
 import { confirmAction, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 import { STOCK_STAGE, activityFeed, canCancelIssue, enhanceIssueActions, issueAction, stockDocLink, syncStockQuietly, wireIssueActions } from './_shared.js';
+import { assignmentCard, canTransfer, openTransfer } from './_transfer.js';
+import { welfarePrograms } from '../app/catalog.js';
+import { can } from '../app/auth.js';
+import { welfarePeriodLabel } from '../domain/welfare.js';
+import { FREQUENCY_LABEL, amountText, canRecord, openWelfareRecord, stateBadge } from './_welfareShared.js';
 
 const today = todayISO();
 const part = (root, name) => root.querySelector(`[data-part="${name}"]`);
@@ -58,6 +63,8 @@ function insuranceCard(emp, st) {
   }
   const steps = [
     { label: 'เริ่มงาน', date: emp.startDate },
+    // โอนย้ายแบบ "นับวันรอใหม่" — วันรอสิทธิ์นับจากวันที่ย้าย
+    ...(emp.benefitStartDate ? [{ label: 'เริ่มนับวันรอใหม่ (โอนย้าย)', date: emp.benefitStartDate }] : []),
     { label: 'วันที่ได้รับสิทธิประกันกลุ่ม', date: st.eligibleDate },
     { label: 'รอบแจ้งเข้า', date: st.enrollCycleDate },
   ];
@@ -142,12 +149,48 @@ function renderUniform(box, emp, st) {
   t.setRows([...st.entitlements, ...upcoming].reverse());
 }
 
+/** การ์ดสวัสดิการเพิ่มเติม — เฉพาะที่พนักงานตรงเงื่อนไข (ไม่มีสวัสดิการไหนเลย = ไม่แสดงการ์ด) */
+function welfareCard(emp, list) {
+  const rows = list.filter((w) => w.status.state !== 'NONE');
+  if (!rows.length) return '';
+  const programOf = (w) => welfarePrograms().find((p) => p.id === w.programId) ?? { ...w, active: true, fields: [] };
+  return card({
+    title: 'สวัสดิการเพิ่มเติม',
+    description: 'สวัสดิการที่ HR ตั้งเพิ่ม — แต่ละอันมีหน้าของตัวเองในเมนู',
+    iconName: 'gift',
+    padded: false,
+    body: html`<ul class="welfare-emp-list">
+      ${rows.map((w) => {
+        const p = programOf(w);
+        const open = w.status.periods.filter((x) => !x.done);
+        return html`<li>
+          <span class="card-icon">${raw(icon(icon(w.icon) ? w.icon : 'gift'))}</span>
+          <div class="grow" style="min-width:0">
+            <a href="welfare.html?id=${w.programId}"><b style="font-weight:500">${w.name}</b></a>
+            <p class="small muted">
+              ${FREQUENCY_LABEL[w.frequency]}${w.status.amount !== null ? ` · ${amountText(w.status.amount, w.unit)}` : ''} · ครบสิทธิ์ ${thaiDateFull(w.status.eligibleDate)}${w.status.state === 'DUE' && w.frequency !== 'ANYTIME'
+                ? ` · ค้าง ${open.map((x) => welfarePeriodLabel(x.key)).join(', ')}`
+                : ''}
+            </p>
+          </div>
+          ${stateBadge(p, w.status)}
+          ${can('welfare.record') && canRecord(p, w.status)
+            ? html`<button class="btn btn-sm" data-give-welfare="${w.programId}">${raw(icon('check'))} บันทึกการให้</button>`
+            : ''}
+        </li>`;
+      })}
+    </ul>`,
+  });
+}
+
 /** โครงของรายละเอียด (ตำแหน่งแต่ละส่วนเรียกด้วย data-part — ไม่ใช้ id เพราะ popup เปิดซ้อนบนหน้าอื่นได้) */
 const skeleton = (inModal) => html`<div class="emp-detail${inModal ? ' in-modal' : ''}">
   <div class="page-head" data-part="head"><div class="skeleton" style="height:56px;width:320px"></div></div>
   <section class="card"><div class="card-body" data-part="info"><div class="skeleton sk-line"></div></div></section>
   <div data-part="insurance"><div class="skeleton sk-block"></div></div>
   <div data-part="uniform"></div>
+  <div data-part="welfare"></div>
+  <div data-part="assignment"></div>
   <section class="card">
     <header class="card-head">
       <div class="card-title">
@@ -180,7 +223,8 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
     try {
       const warn = await syncStockQuietly();
       if (warn) toast.error(warn);
-      const [b, activity] = await Promise.all([api.getEmployeeBenefits(id), api.listActivity({ employeeId: id, limit: 30 })]);
+      const [b, activity, sites] = await Promise.all([api.getEmployeeBenefits(id), api.listActivity({ employeeId: id, limit: 30 }), api.listSites()]);
+      current = b;
       const e = b.employee;
       // ข้อมูลที่ไฟล์แจ้งประกันใช้ แต่ยังว่าง
       const missing = () => html`<span class="muted">– ยังไม่กรอก</span>`;
@@ -196,6 +240,9 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
             </div>
           </div>
           <div class="page-actions">
+            ${canTransfer(e) && !(b.transfers ?? []).some((t) => t.status === 'PENDING')
+              ? html`<button class="btn" data-transfer>${raw(icon('arrow-left-right'))} โอนย้าย</button>`
+              : ''}
             <a class="btn" href="employees.html?q=${encodeURIComponent(e.empCode)}">${raw(icon('pencil'))} ${e.status === 'ACTIVE' ? 'แก้ไข / บันทึกพ้นสภาพ' : 'แก้ไข'} ในตาราง</a>
           </div>`,
       );
@@ -207,6 +254,7 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
           { label: typeInfo(e.employeeType)?.usesPosition ? 'ตำแหน่ง' : 'ฝ่าย / ระดับ', value: e.position ?? (e.deptGroup ? `${e.deptGroup} · ระดับ ${e.level ?? '–'}` : '–') },
           { label: 'สัญญา', value: CONTRACT_LABEL[e.contractType] },
           { label: 'วันเริ่มงาน', value: thaiDateFull(e.startDate) },
+          ...(e.benefitStartDate ? [{ label: 'เริ่มนับวันรอสิทธิ์', value: html`${thaiDateFull(e.benefitStartDate)} <span class="small muted">(โอนย้าย)</span>` }] : []),
           { label: 'ผ่านทดลองงาน', value: thaiDateFull(e.probationPassDate) },
           { label: 'อายุงาน', value: tenure(e.startDate, e.endDate ?? today) },
           { label: 'วันเกิด / อายุ', value: e.birthDate ? `${thaiDateFull(e.birthDate)} · ${ageOf(e.birthDate, today)} ปี` : '–' },
@@ -224,6 +272,8 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
       );
       render(part(root, 'insurance'), insuranceCard(e, b.insurance));
       renderUniform(part(root, 'uniform'), e, b.uniform);
+      render(part(root, 'welfare'), welfareCard(e, b.welfare ?? []));
+      render(part(root, 'assignment'), assignmentCard(e, b.transfers ?? [], new Map(sites.map((s) => [s.id, s]))));
       render(part(root, 'activity'), activityFeed(activity, { linkEmployee: false }));
       onLoaded?.(e);
     } catch (err) {
@@ -236,6 +286,28 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
       );
     }
   }
+
+  // ----- โอนย้าย (head + การ์ดประวัติสังกัด) / สวัสดิการเพิ่มเติม -----
+  let current = null; // คำตอบ getEmployeeBenefits ล่าสุด
+  on(root, 'click', '[data-transfer]', () => openTransfer({ employee: current.employee, transfers: current.transfers ?? [], onDone: changed }));
+  on(root, 'click', '[data-cancel-transfer]', (_e, b) =>
+    confirmAction({
+      title: 'ยกเลิกการโอนย้ายที่ตั้งไว้?',
+      description: `ที่จะมีผล ${thaiDateFull(b.dataset.date)}`,
+      body: 'พนักงานจะอยู่สังกัดเดิมต่อ — ตั้งใหม่ได้ทันที',
+      confirmLabel: 'ยกเลิกการย้าย',
+      successMessage: 'ยกเลิกการโอนย้ายแล้ว',
+      action: async () => {
+        await api.cancelTransfer(id, Number(b.dataset.cancelTransfer));
+        changed();
+      },
+    }),
+  );
+  on(root, 'click', '[data-give-welfare]', (_e, b) => {
+    const w = current.welfare.find((x) => x.programId === Number(b.dataset.giveWelfare));
+    const program = welfarePrograms().find((p) => p.id === w.programId);
+    if (program) openWelfareRecord({ program, employee: current.employee, status: w.status, onDone: changed });
+  });
 
   const uniformBox = part(root, 'uniform');
   wireIssueActions(uniformBox, { today, onDone: changed });
