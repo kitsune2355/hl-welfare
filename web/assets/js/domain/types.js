@@ -48,7 +48,7 @@
  * @typedef {Object} InsuranceStatus
  * @property {boolean} eligible
  * @property {string[]} reasons            เหตุผลที่ไม่มีสิทธิ (ภาษาไทย)
- * @property {ISODate|null} eligibleDate   วันที่ครบอายุงาน
+ * @property {ISODate|null} eligibleDate   วันที่ได้รับสิทธิประกันกลุ่ม (วันถัดจากวันที่ทำงานครบ waitDays วัน)
  * @property {ISODate|null} enrollCycleDate รอบวันที่ 5 ที่จะแจ้งเข้า
  * @property {ISODate|null} exitDate
  * @property {ISODate|null} exitCycleDate

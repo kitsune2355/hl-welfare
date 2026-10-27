@@ -48,9 +48,9 @@ describe('ตั้งค่าองค์กร: กฎตรวจ', () => {
 
 describe('ตั้งค่าองค์กร: พฤติกรรมตามค่าที่ตั้ง (ไม่เช็กรหัส)', () => {
   it('ค่าตั้งต้น = พฤติกรรมเดิม', () => {
-    expect(EMPLOYEE_TYPES).toEqual(['CENTRAL', 'PRO_SITE', 'DAILY', 'MAID_CNS']);
-    expect(typesFor('HL')).toEqual(['CENTRAL', 'DAILY', 'MAID_CNS']);
-    expect(typesFor('PRO')).toEqual(['CENTRAL', 'PRO_SITE', 'DAILY', 'MAID_CNS']);
+    expect(EMPLOYEE_TYPES).toEqual(['CENTRAL', 'PRO_SITE', 'DAILY', 'MAID_CNS', 'FIXED_TERM']);
+    expect(typesFor('HL')).toEqual(['CENTRAL', 'DAILY', 'MAID_CNS', 'FIXED_TERM']);
+    expect(typesFor('PRO')).toEqual(['CENTRAL', 'PRO_SITE', 'DAILY', 'MAID_CNS', 'FIXED_TERM']);
     expect(cycleDayOf({ employeeType: 'DAILY' }, { insuranceCycleDay: 5, insuranceCycleDayDaily: 6 })).toBe(6);
     expect(validateEmployee(emp({ deptGroup: null })).deptGroup).toBeTruthy();
     expect(validateEmployee(emp({ employeeType: 'PRO_SITE' })).employeeType).toBe('ประเภท Pro Site ใช้กับบริษัทนี้ไม่ได้');
@@ -63,7 +63,7 @@ describe('ตั้งค่าองค์กร: พฤติกรรมต�
     expect(COMPANY_CODES.at(-1)).toBe('NW');
     expect(EMPLOYEE_TYPE_LABEL.CONTRACT).toBe('สัญญาจ้าง');
     expect(/^#[0-9a-f]{6}$/.test(companyColor('NW'))).toBe(true);
-    expect(typesFor('NW')).toEqual(['CENTRAL', 'DAILY', 'MAID_CNS', 'CONTRACT']);
+    expect(typesFor('NW')).toEqual(['CENTRAL', 'DAILY', 'MAID_CNS', 'FIXED_TERM', 'CONTRACT']);
     // รอบรายวันตามที่ตั้ง
     expect(cycleDayOf({ employeeType: 'CONTRACT' }, { insuranceCycleDay: 5, insuranceCycleDayDaily: 6 })).toBe(6);
     // ไม่ต้องมีกลุ่ม/ฝ่าย · ใช้กับบริษัทอื่นไม่ได้
@@ -103,7 +103,7 @@ describe('ตั้งค่าองค์กร: MockApi', () => {
   it('ประเภท: รายการเบา / พร้อมจำนวนที่ใช้ · เพิ่ม · ปิดใช้งาน = เลือกใหม่ไม่ได้ (คนเดิมใช้ต่อ)', async () => {
     const api = make();
     const plain = await api.listEmployeeTypes();
-    expect([plain.length, plain[0].employeeCount]).toEqual([4, undefined]);
+    expect([plain.length, plain[0].employeeCount]).toEqual([5, undefined]);
     const used = await api.listEmployeeTypes({ usage: true });
     expect(used.find((t) => t.code === 'CENTRAL').employeeCount).toBeGreaterThan(0);
     const t = await api.saveEmployeeType({ ...CONTRACT, companies: ['HL'] }, true);

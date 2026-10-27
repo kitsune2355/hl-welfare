@@ -330,6 +330,9 @@ const summaryValue = (source, row, seq) => {
  * @param {ArrayBuffer} buffer   ไฟล์แบบฟอร์ม (templateBuffer)
  * @param {import('../domain/types.js').InsurerExport} data   จาก api.exportInsurance
  */
+/** คอลัมน์ที่จัดกึ่งกลางเสมอ (ค่าสั้น — แผน / เครื่องหมาย) ไม่ว่าแบบฟอร์มต้นฉบับจัดชิดไหน */
+const CENTERED = new Set(['plan', 'inMark', 'outMark']);
+
 export async function fillTemplate(buffer, data, { exportDate }) {
   const form = data.insurer;
   const t = form.template;
@@ -386,7 +389,7 @@ export async function fillTemplate(buffer, data, { exportDate }) {
       cells: resolveCells(t.cells, vars),
       rowValues: (i) =>
         rows[i]
-          ? t.columns.filter((col) => col.source !== 'blank').map((col) => [col.col, cellValue(col, rows[i], i + 1, form, company, data.cycleDate)])
+          ? t.columns.filter((col) => col.source !== 'blank').map((col) => [col.col, cellValue(col, rows[i], i + 1, form, company, data.cycleDate), CENTERED.has(col.source) ? { center: true } : undefined])
           : [],
     });
   }

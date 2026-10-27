@@ -303,7 +303,7 @@ export const CONFIG = {
 
 ```ts
 export type CompanyCode = 'HL' | 'PRO' | 'CNS' | 'CIC' | 'AS';
-export type EmployeeType = 'CENTRAL' | 'PRO_SITE' | 'DAILY' | 'MAID_CNS';
+export type EmployeeType = 'CENTRAL' | 'PRO_SITE' | 'DAILY' | 'MAID_CNS' | 'FIXED_TERM' | string; // ตั้งค่าได้ (ตาราง employee_types) · FIXED_TERM "สัญญาแบบมีกำหนดระยะเวลา" เพิ่มด้วย 019 — ยังไม่มีกฎประกัน/ชุดฟอร์ม (HR เพิ่มเอง)
 export type ContractType = 'REGULAR' | 'SHORT_3PCT';
 export type EmployeeStatus = 'ACTIVE' | 'INACTIVE';
 export type EndReason = 'RESIGN' | 'ABSENT_3D' | 'TERMINATED' | 'MISCONDUCT';
@@ -397,7 +397,7 @@ export interface RuleSet {
 export interface InsuranceStatus {
   eligible: boolean;
   reasons: string[];               // เหตุผลที่ไม่มีสิทธิ (ภาษาไทย)
-  eligibleDate: ISODate | null;    // วันที่ครบอายุงาน
+  eligibleDate: ISODate | null;    // วันที่ได้รับสิทธิประกันกลุ่ม = startDate + waitDays (ครบ N วันแล้วได้สิทธิวันถัดไป)
   enrollCycleDate: ISODate | null; // รอบที่จะแจ้งเข้า (วันที่ 5 · รายวัน = วันที่ 6)
   exitDate: ISODate | null;        // วันที่มีผลออก
   exitCycleDate: ISODate | null;
@@ -466,6 +466,7 @@ export interface InsurerForm {
   dateFormat: 'DD/MM/YYYY' | 'D/M/YYYY' | 'D/M/YY';
   dateEra: 'BE' | 'CE';
   inMark: string; outMark: string; // เครื่องหมายในช่องเข้าใหม่/ลาออก เช่น "✓" (ค่าเริ่มต้น · ช่องที่ใช้ฟอนต์ Wingdings เขียนเป็นตัวอักษรของฟอนต์นั้นให้)
+  // คอลัมน์ plan / inMark / outMark ในไฟล์ที่ส่งออก "จัดกึ่งกลางเสมอ" — เพิ่มรูปแบบเซลล์ใหม่ใน styles.xml ที่เหมือนเดิมทุกอย่าง (ฟอนต์ เส้น สี จัดแนวตั้ง) ต่างแค่ horizontal=center (app/xlsxDirect.js centerStyles)
   sheetName: string;               // ชื่อชีตต่อบริษัท เช่น "{companyCode}"
   fileName: string;                // เช่น "แจ้งเข้า-ออก {insurer} {cycleDate}"
   includeEmptySheets: boolean;
@@ -578,7 +579,7 @@ export interface EmployeeFilter {
    ไม่พบ → ไม่มีสิทธิ "ประเภทพนักงาน/บริษัทนี้ไม่อยู่ในเงื่อนไขประกันกลุ่ม"
 2. contractType อยู่ใน excludeContracts → ไม่มีสิทธิ "สัญญา 3% ระยะสั้น ไม่ได้รับประกันกลุ่ม"
 3. requireSiteInsurance และ site.hasGroupInsurance = false → ไม่มีสิทธิ
-4. eligibleDate    = startDate + waitDays
+4. eligibleDate    = startDate + waitDays   (นับวันเริ่มงานเป็นวันที่ 1 → ครบ N วันในวันเริ่ม + N-1 · ได้สิทธิวันถัดไป "30 + 1")
    enrollCycleDate = วันที่ 5 แรกที่ >= eligibleDate  (พนักงานรายวัน: วันที่ 6 — settings.insuranceCycleDayDaily)
 5. ถ้าพ้นสภาพ และ exitDate < enrollCycleDate → ไม่ต้องแจ้งเข้า/ออก
 6. อายุ ณ enrollCycleDate > 65 → ไม่มีสิทธิ
@@ -1098,6 +1099,7 @@ req(path, init) {
 | ดับเบิลคลิก / Enter / F2 / พิมพ์ตัวอักษร | เริ่มแก้ไข (พิมพ์ = แทนค่าด้วยตัวที่พิมพ์) |
 | Enter / Tab / Shift+Tab | ยืนยันค่าในเซลล์แล้วเลื่อนลง / ขวา / ซ้าย (ยังไม่บันทึกลงระบบ) |
 | Esc | ยกเลิกการแก้ |
+| เซลล์วันที่ (editor `date`) | กล่องกรอกวันที่ (`ui/datePicker.js`): พิมพ์ วว/ดด/ปปปป (หรือ 8 หลักติดกัน) · สลับ **พ.ศ. / ค.ศ.** ได้ (จำไว้ในเครื่อง ค่าเริ่มต้น พ.ศ.) · ปี ≥ 2400 = พ.ศ. / < 2200 = ค.ศ. แปลงให้เองไม่ว่าเลือกยุคไหน · ปี 2 หลัก = ปีของยุคที่เลือก · ใต้ช่องแสดงวันที่ที่อ่านได้ (วันไม่มีจริง = แดง Enter ไม่ปิด) · ปุ่มปฏิทินของเบราว์เซอร์ · พิมพ์ตัวเลขที่เซลล์ = เริ่มพิมพ์ใหม่ |
 | ← ↑ ↓ → | เลื่อนเซลล์ |
 | คลิก / Space บนเซลล์สวิตช์ | สลับค่า |
 | เซลล์ select (คลิกซ้ำ / ดับเบิลคลิก / พิมพ์) | เปิดรายการค้นหาได้ในเซลล์ |
@@ -1143,6 +1145,7 @@ grid.setRows(await api.listSites());
 | ประกันกลุ่ม (แต่ละส่วน) / ชุดฟอร์ม | 25 | ประวัติ batch 10 · เปลี่ยนแท็บ → หน้า 1 |
 | ศูนย์ติดตามงาน: คิวงาน | 15 | |
 | ภาพรวม: จะครบสิทธิใน 30 วัน | 10 | |
+| ตั้งค่าสวัสดิการ: บริษัท · ประเภทพนักงาน · กลุ่ม/ฝ่าย · หน่วยงาน · กฎประกันกลุ่ม · กฎชุดฟอร์ม | 25 | ทุกตารางในหน้าตั้งค่า · ปุ่มเลื่อนขึ้น/ลง (ลำดับบริษัท) ใช้ลำดับรวมทุกหน้า |
 
 **แถบแบ่งหน้า** (`pagerHtml` / `wirePager` ใน `ui/table.js` — ใช้ร่วมกันทั้ง DataTable และ ExcelGrid)
 ```text

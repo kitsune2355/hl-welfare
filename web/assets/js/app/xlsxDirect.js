@@ -154,13 +154,13 @@ function cellXml(ref, s, v) {
   if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}"${sa}><v>${v}</v></c>`;
   return `<c r="${ref}"${sa} t="inlineStr"><is><t xml:space="preserve">${escXml(v)}</t></is></c>`;
 }
-/** ใส่ค่าลงเซลล์ในแถว (สร้างเซลล์ถ้ายังไม่มี — ใช้รูปแบบของแถว/คอลัมน์) */
-function setCell(rowXml, r, col, v, ctx) {
+/** ใส่ค่าลงเซลล์ในแถว (สร้างเซลล์ถ้ายังไม่มี — ใช้รูปแบบของแถว/คอลัมน์) · opt.center = จัดกึ่งกลางแนวนอน (รูปแบบอื่นคงเดิม) */
+function setCell(rowXml, r, col, v, ctx, opt) {
   const cells = cellsOf(rowXml);
   const i = cells.findIndex((c) => c.col === col);
   const s = i >= 0 ? attr(openTag(cells[i].xml), 's') : (attr(openTag(rowXml), 'customFormat') === '1' ? attr(openTag(rowXml), 's') : null) ?? ctx.colStyle(col);
   const value = ctx.glyph ? ctx.glyph(s, v) : v;
-  const x = { col, xml: cellXml(`${colName(col)}${r}`, s, value) };
+  const x = { col, xml: cellXml(`${colName(col)}${r}`, opt?.center && ctx.center ? ctx.center(s) : s, value) };
   if (i >= 0) cells[i] = x;
   else cells.splice(cells.filter((c) => c.col < col).length, 0, x);
   return buildRow(openTag(rowXml), r, cells);
@@ -170,6 +170,40 @@ function clearRow(rowXml, r) {
   const cells = cellsOf(rowXml).map((c) => ({ col: c.col, xml: cellXml(`${colName(c.col)}${r}`, attr(openTag(c.xml), 's'), null) }));
   return buildRow(openTag(rowXml), r, cells);
 }
+/**
+ * styles.xml: รูปแบบ (s) เดิม → รูปแบบใหม่ที่เหมือนเดิมทุกอย่างแต่จัดกึ่งกลางแนวนอน (เพิ่มท้าย cellXfs · ใช้ซ้ำต่อรูปแบบ)
+ * save() เขียน styles.xml เมื่อมีรูปแบบใหม่
+ */
+async function centerStyles(pkg) {
+  const xml = (await pkg.read('xl/styles.xml')) ?? '';
+  const block = xml.match(/<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/);
+  if (!block) return { center: (s) => s, save: () => {} };
+  const xfs = [...block[1].matchAll(/<xf\b[^>]*?(?:\/>|>[\s\S]*?<\/xf>)/g)].map((m) => m[0]);
+  const added = [];
+  const made = new Map();
+  const center = (s) => {
+    const k = String(s ?? 0);
+    if (made.has(k)) return made.get(k);
+    const base = xfs[Number(k)] ?? xfs[0] ?? '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>';
+    const open = setAttr(openTag(base).replace(/\s*\/>$/, '>'), 'applyAlignment', '1');
+    const inner = /\/>$/.test(openTag(base)) ? '' : base.slice(openTag(base).length, -'</xf>'.length);
+    const al = inner.match(/<alignment\b[^>]*?(?:\/>|>[\s\S]*?<\/alignment>)/)?.[0];
+    const next = al
+      ? inner.replace(al, al.replace(/^<alignment\b[^>]*?(?=\/?>)/, (t) => setAttr(t, 'horizontal', 'center')))
+      : `<alignment horizontal="center"/>${inner}`; // alignment ต้องมาก่อน protection
+    const id = String(xfs.length + added.length);
+    added.push(`${open}${next}</xf>`);
+    made.set(k, id);
+    return id;
+  };
+  const save = () => {
+    if (!added.length) return;
+    const all = [...xfs, ...added];
+    const open = setAttr(openTag(block[0]), 'count', String(all.length));
+    pkg.write('xl/styles.xml', xml.replace(block[0], `${open}${all.join('')}</cellXfs>`));
+  };
+  return { center, save };
+}
 function colStyles(head) {
   const cols = [...head.matchAll(/<col\b[^>]*>/g)].map((m) => ({ min: Number(attr(m[0], 'min')), max: Number(attr(m[0], 'max')), style: attr(m[0], 'style') }));
   return (c) => cols.find((x) => c >= x.min && c <= x.max)?.style ?? null;
@@ -178,13 +212,13 @@ function colStyles(head) {
 /**
  * แปลงชีตต้นแบบ → ชีตที่มีแถวข้อมูล n แถว
  * @param {{dataRow:number, footerRow:number}} layout
- * @param {{n:number, clear?:boolean, rowValues?:(i:number)=>[number, any][], cells?:Record<string, any>, glyph?:Function, selected?:boolean}} o
+ * @param {{n:number, clear?:boolean, rowValues?:(i:number)=>[number, any, {center?:boolean}?][], cells?:Record<string, any>, glyph?:Function, center?:Function, selected?:boolean}} o
  *   cells = ค่าที่จะเขียน (ตำแหน่งตามไฟล์ต้นแบบ — ส่วนท้ายเลื่อนให้) · '' = ล้างเซลล์
  */
 function transformSheet(xml, layout, o) {
   const P = plan(layout, o.n);
   const { head, rows, tail } = splitSheet(xml);
-  const ctx = { colStyle: colStyles(head), glyph: o.glyph };
+  const ctx = { colStyle: colStyles(head), glyph: o.glyph, center: o.center };
   const fx = (f) => shiftFormula(f, P);
   fx.ref = (ref) => mapRanges(ref, P) || ref;
   const out = new Map();
@@ -199,7 +233,7 @@ function transformSheet(xml, layout, o) {
     const r = P.dataRow + i;
     const f = (x) => offsetFormula(x, i);
     let x = o.clear ? clearRow(tpl, r) : renumberRow(tpl, r, f).replace(/<f\b[^>]*\bt="shared"[^>]*\/>/g, '').replace(/(<f\b[^>]*?)\s(?:t="shared"|ref="[^"]*"|si="[^"]*")/g, '$1');
-    for (const [col, v] of o.rowValues?.(i) ?? []) x = setCell(x, r, col, v, ctx);
+    for (const [col, v, opt] of o.rowValues?.(i) ?? []) x = setCell(x, r, col, v, ctx, opt);
     out.set(r, x);
   }
   // เซลล์ที่ระบบเติม (ตำแหน่งในส่วนท้ายเลื่อนตาม)
@@ -546,6 +580,8 @@ export async function fillXlsx(buffer, plan) {
   const wb = await workbookOf(pkg);
   const font = await fontOfStyle(pkg);
   const glyph = plan.glyph ? (s, v) => plan.glyph(font(s), v) : null;
+  const styles = await centerStyles(pkg);
+  const center = styles.center;
   const tpl = wb.sheets.find((s) => s.name === plan.template.sheet);
   if (!tpl) throw new Error(`แบบฟอร์มไม่มีชีต “${plan.template.sheet}”`);
   const sum = plan.summary ? wb.sheets.find((s) => s.name === plan.summary.sheet) : null;
@@ -555,7 +591,7 @@ export async function fillXlsx(buffer, plan) {
   const nameOf = new Map(); // ชีตเดิม → ชื่อใหม่ + plan ของแถว
 
   if (sum) {
-    const { xml, P } = transformSheet(await pkg.read(sum.path), plan.summary.layout, { n: plan.summary.n, rowValues: plan.summary.rowValues, cells: plan.summary.cells, glyph, selected: true });
+    const { xml, P } = transformSheet(await pkg.read(sum.path), plan.summary.layout, { n: plan.summary.n, rowValues: plan.summary.rowValues, cells: plan.summary.cells, glyph, center, selected: true });
     pkg.write(sum.path, xml);
     await rewriteParts(pkg, sum.path, sum.path, P, false);
     order.push({ ...sum, tag: setAttr(sum.tag, 'name', plan.summary.name), out: plan.summary.name, from: sum.name, P });
@@ -564,7 +600,7 @@ export async function fillXlsx(buffer, plan) {
   const maxId = Math.max(0, ...wb.sheets.map((s) => Number(s.sheetId)));
   for (const [i, s] of plan.sheets.entries()) {
     const path = i === 0 ? tpl.path : unusedName(pkg, (k) => `xl/worksheets/sheet${k}.xml`);
-    const { xml, P } = transformSheet(tplXml, plan.template.layout, { n: s.n, rowValues: s.rowValues, cells: s.cells, glyph, selected: !sum && i === 0 });
+    const { xml, P } = transformSheet(tplXml, plan.template.layout, { n: s.n, rowValues: s.rowValues, cells: s.cells, glyph, center, selected: !sum && i === 0 });
     if (i > 0) {
       pkg.write(path, xml);
       pkg.override(path, CT_SHEET);
@@ -579,7 +615,7 @@ export async function fillXlsx(buffer, plan) {
     }
   }
   // ชีตต้นแบบเดิมเขียนเป็นบริษัทแรก — แก้ไฟล์หลังทำสำเนาครบ (สำเนาอ่าน drawing เดิมก่อนถูกเลื่อน)
-  pkg.write(tpl.path, transformSheet(tplXml, plan.template.layout, { n: plan.sheets[0].n, rowValues: plan.sheets[0].rowValues, cells: plan.sheets[0].cells, glyph, selected: !sum }).xml);
+  pkg.write(tpl.path, transformSheet(tplXml, plan.template.layout, { n: plan.sheets[0].n, rowValues: plan.sheets[0].rowValues, cells: plan.sheets[0].cells, glyph, center, selected: !sum }).xml);
   await rewriteParts(pkg, tpl.path, tpl.path, order.find((o) => o.from === tpl.name).P, false);
   // ชีตอื่นในไฟล์ (เช่น ไฟล์ที่เพิ่งอัปโหลดยังไม่ได้ล้าง) ไม่อยู่ในไฟล์ส่งออก — ชื่ออาจซ้ำกับชีตบริษัท
   const others = wb.sheets.filter((s) => s !== tpl && s !== sum);
@@ -604,5 +640,6 @@ export async function fillXlsx(buffer, plan) {
   }
   writeWorkbook(pkg, wb, order.map((o) => ({ tag: o.tag })), names);
   await appTitles(pkg, order.map((o) => o.out));
+  styles.save();
   return pkg.generate();
 }

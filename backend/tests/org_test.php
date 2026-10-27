@@ -19,9 +19,10 @@ $types = $r['json']['data'];
 $pro = og_find($types, 'code', 'PRO_SITE');
 $central = og_find($types, 'code', 'CENTRAL');
 $daily = og_find($types, 'code', 'DAILY');
-check('GET /employee-types: 4 ประเภทตั้งต้น + พฤติกรรมเดิม', $r['status'] === 200 && count($types) === 4
+$fixed = og_find($types, 'code', 'FIXED_TERM');
+check('GET /employee-types: 5 ประเภทตั้งต้น (รวม FIXED_TERM จาก 019) + พฤติกรรมเดิม', $r['status'] === 200 && count($types) === 5
     && $pro['companies'] === array('PRO') && $pro['usesPosition'] === true && $central['usesDeptGroup'] === true
-    && $daily['dailyCycle'] === true && !isset($pro['employeeCount']), json_encode($pro));
+    && $daily['dailyCycle'] === true && !isset($pro['employeeCount']) && $fixed['name'] === 'สัญญาแบบมีกำหนดระยะเวลา' && $fixed['active'] === true, json_encode($pro));
 $r = $og->req('GET', '/employee-types?usage=1');
 $c = og_find($r['json']['data'], 'code', 'CENTRAL');
 check('?usage=1: จำนวนพนักงาน / กฎที่ใช้', $c['employeeCount'] === (int)db_value("SELECT COUNT(*) FROM employees WHERE employee_type = 'CENTRAL'") && $c['ruleCount'] > 0);

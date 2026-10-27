@@ -183,6 +183,28 @@ describe('เติมข้อมูลลงแบบฟอร์มตอน�
     const c = d.companies.find((x) => x.companyCode === 'CNS');
     [...c.in, ...c.out].forEach((row, i) => expect(cns.text(11 + i, row.type === 'IN' ? 14 : 15)).toBe(row.type === 'IN' ? 'P' : '✓'));
   });
+  it('แผนประกัน / เข้าใหม่ / ลาออก จัดกึ่งกลางเซลล์ · รูปแบบอื่นของเซลล์ (ฟอนต์) คงเดิม · คอลัมน์อื่นไม่เปลี่ยน', async () => {
+    const api = new MockApi(() => TODAY);
+    const d = await api.exportInsurance({ cycleDate: CYCLE, insurerId: 1 });
+    const t = d.insurer.template;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(seed('thai-life'));
+    const mark = wb.getWorksheet(t.sheet).getCell(t.dataRow, 14);
+    mark.style = { ...mark.style, font: { name: 'Wingdings 2', size: 12 }, alignment: { horizontal: 'left', vertical: 'top' } };
+    const out = await T.fillTemplate(await wb.xlsx.writeBuffer(), d, { exportDate: '2026-10-16' });
+    const res = new ExcelJS.Workbook();
+    await res.xlsx.load(out);
+    const ws = res.getWorksheet('CNS');
+    const centered = t.columns.filter((c) => ['plan', 'inMark', 'outMark'].includes(c.source)).map((c) => c.col);
+    expect(centered.length >= 2).toBe(true);
+    const c = d.companies.find((x) => x.companyCode === 'CNS');
+    [...c.in, ...c.out].forEach((_row, i) => {
+      for (const col of centered) expect(ws.getCell(11 + i, col).alignment?.horizontal).toBe('center');
+      expect(ws.getCell(11 + i, 2).alignment?.horizontal === 'center').toBe(false); // รหัสพนักงาน — คงตามแบบฟอร์ม
+    });
+    expect(ws.getCell(11, 14).font?.name).toBe('Wingdings 2');
+    expect(ws.getCell(11, 14).alignment?.vertical).toBe('top');
+  });
   it('บริษัทประกันที่ไม่มีบริษัทผูก → แจ้งว่าสร้างไม่ได้', async () => {
     const api = new MockApi(() => TODAY);
     const d = await api.exportInsurance({ cycleDate: CYCLE, insurerId: 2 });

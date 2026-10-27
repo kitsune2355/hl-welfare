@@ -86,8 +86,8 @@ export function insuranceStatus(emp, site, rules) {
   if (rule.requireSiteInsurance && !site?.hasGroupInsurance) {
     return none('หน่วยงานนี้ไม่ได้รับประกันกลุ่ม', { ruleId: rule.id });
   }
-  // นับวันเริ่มงานเป็นวันที่ 1 (HR ยืนยัน) — ทำงานครบ 30 วัน = วันเริ่มงาน + 29
-  const eligibleDate = addDays(emp.startDate, rule.waitDays - 1);
+  // นับวันเริ่มงานเป็นวันที่ 1 — ทำงานครบ 30 วันในวันเริ่มงาน + 29 · ได้สิทธิจริงวันถัดไป (HR: 30 + 1) = วันเริ่มงาน + 30
+  const eligibleDate = addDays(emp.startDate, rule.waitDays);
   const enrollCycleDate = nextCycleDate(eligibleDate, cycleDayOf(emp, settings));
   if (birthdayAt(emp.birthDate, settings.insuranceMaxAge) <= enrollCycleDate) {
     return none(`อายุครบ ${settings.insuranceMaxAge} ปีก่อนถึงรอบแจ้งเข้า`, { ruleId: rule.id, eligibleDate });

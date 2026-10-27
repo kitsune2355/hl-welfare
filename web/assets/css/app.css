@@ -1029,6 +1029,51 @@ button.stat:hover {
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.14);
   animation: pop 0.15s ease-out;
 }
+/* กล่องกรอกวันที่ (ตาราง Excel) — ui/datePicker.js */
+.date-pop {
+  padding: 10px;
+  overflow: visible;
+}
+.date-pop-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.date-pop-row .input {
+  flex: 1;
+  height: 34px;
+  letter-spacing: 0.02em;
+}
+.date-pop-row .input.is-invalid {
+  border-color: var(--danger);
+}
+.date-pop-native {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.date-pop-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.date-pop-hint {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.date-pop-hint.bad {
+  color: var(--danger);
+}
 .popover-search {
   display: flex;
   align-items: center;

@@ -73,6 +73,7 @@ let empCount = new Map();
 
 const grid = new ExcelGrid($('#grid'), {
   rowKey: (s) => s.id,
+  pageSize: 25,
   addLabel: 'เพิ่มหน่วยงาน',
   newRow: () => ({ id: 0, companyCode: myCompany() || COMPANY_CODES[0], name: '', hasGroupInsurance: true, poloColor: 'BLACK' }),
   validate: (s) => (s.name.trim() ? {} : { name: 'กรุณาระบุชื่อหน่วยงาน' }),

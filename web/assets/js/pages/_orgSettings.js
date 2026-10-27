@@ -40,6 +40,7 @@ function companyGrid(el) {
   return new ExcelGrid(el, {
     readOnly: !canEditOrg,
     rowKey: (c) => c.code,
+    pageSize: 25,
     addLabel: 'เพิ่มบริษัท',
     // __new = แถวที่ยังไม่บันทึก (ตั้งรหัสได้) — แถวที่บันทึกแล้วมาจาก API ไม่มีค่านี้
     newRow: () => ({ code: '', name: '', legalName: '', color: '', siteCount: 0, employeeCount: 0, ruleCount: 0, insurerCount: 0, userCount: 0, active: true, __new: true }),
@@ -175,6 +176,7 @@ function typeGrid(el) {
   return new ExcelGrid(el, {
     readOnly: !canEditOrg || !typesReady,
     rowKey: (t) => t.code,
+    pageSize: 25,
     addLabel: 'เพิ่มประเภท',
     newRow: () => ({ code: '', name: '', description: '', companies: null, usesDeptGroup: false, usesPosition: false, dailyCycle: false, tone: 'neutral', employeeCount: 0, ruleCount: 0, active: true, __new: true }),
     validate: (t) => validateEmployeeType(t, types, COMPANY_CODES, !!t.__new),
@@ -237,6 +239,7 @@ function groupGrid(el) {
   return new ExcelGrid(el, {
     readOnly: !canEditOrg || !groupsReady,
     rowKey: (g) => g.id,
+    pageSize: 25,
     addLabel: 'เพิ่มกลุ่ม / ฝ่าย',
     newRow: () => ({ id: 0, name: '', employeeCount: 0, ruleCount: 0, active: true }),
     validate: (g) => validateDeptGroup(g.name, groups, g.id),

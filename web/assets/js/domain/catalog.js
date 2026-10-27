@@ -28,6 +28,7 @@ export const DEFAULT_EMPLOYEE_TYPES = [
   { code: 'PRO_SITE', name: 'Pro Site', description: 'พนักงานประจำโครงการของ PRO — แยกชุดฟอร์มตามตำแหน่ง', companies: ['PRO'], usesDeptGroup: false, usesPosition: true, dailyCycle: false, tone: 'info' },
   { code: 'DAILY', name: 'รายวัน', description: 'พนักงานรายวัน — แจ้งประกันรอบรายวัน', companies: null, usesDeptGroup: false, usesPosition: false, dailyCycle: true, tone: 'warning' },
   { code: 'MAID_CNS', name: 'แม่บ้าน CNS', description: 'แม่บ้านของ CNS — ประกันกลุ่มตามหน่วยงาน', companies: null, usesDeptGroup: false, usesPosition: false, dailyCycle: false, tone: 'neutral' },
+  { code: 'FIXED_TERM', name: 'สัญญาแบบมีกำหนดระยะเวลา', description: 'พนักงานสัญญาจ้างที่มีวันสิ้นสุดสัญญา', companies: null, usesDeptGroup: false, usesPosition: false, dailyCycle: false, tone: 'success' },
 ];
 
 /** @type {string[]} รหัสบริษัทตามลำดับ */

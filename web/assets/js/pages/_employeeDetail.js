@@ -58,7 +58,7 @@ function insuranceCard(emp, st) {
   }
   const steps = [
     { label: 'เริ่มงาน', date: emp.startDate },
-    { label: 'ครบอายุงาน', date: st.eligibleDate },
+    { label: 'วันที่ได้รับสิทธิประกันกลุ่ม', date: st.eligibleDate },
     { label: 'รอบแจ้งเข้า', date: st.enrollCycleDate },
   ];
   if (st.exitDate) {

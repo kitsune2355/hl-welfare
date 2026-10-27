@@ -150,6 +150,7 @@ function drawRuleTable(kind) {
   new DataTable($('#rules-table'), {
     rowKey: (t) => t.id,
     rowNumbers: false,
+    pageSize: 25,
     columns: kind === 'insurance' ? insuranceColumns : uniformColumns,
     exportName: kind === 'insurance' ? 'กฎประกันกลุ่ม' : 'กฎชุดฟอร์ม',
     // ดับเบิลคลิกแถว = แก้กฎ (ไม่มีสิทธิ์ = ดูประวัติ) — แก้ในตารางตรง ๆ ไม่ได้เพราะต้องเลือกวันที่มีผล
@@ -374,7 +375,7 @@ function insuranceForm(r) {
     <div class="field" data-field="waitDays">
       <label for="f-wait">ครบสิทธิเมื่อทำงานครบ (วัน)<span class="req">*</span></label>
       <input class="input num" type="number" inputmode="numeric" min="1" max="365" id="f-wait" value="${r.waitDays}" />
-      <span class="hint">นับวันเริ่มงานเป็นวันที่ 1</span>
+      <span class="hint">นับวันเริ่มงานเป็นวันที่ 1 · ได้สิทธิวันถัดจากวันที่ครบ</span>
     </div>
     <div class="field full" data-field="companies">
       <label>บริษัท<span class="req">*</span></label>

@@ -29,19 +29,19 @@ const emp = (p = {}) => ({
   ...p,
 });
 describe('ประกันกลุ่ม', () => {
-  it('ส่วนกลาง ครบ 30 วัน (นับวันเริ่มงานเป็นวันที่ 1) → รอบวันที่ 5 ถัดไป', () => {
+  it('ส่วนกลาง ครบ 30 วัน (นับวันเริ่มงานเป็นวันที่ 1) → ได้สิทธิวันถัดไป (30 + 1) → รอบวันที่ 5 ถัดไป', () => {
     const s = insuranceStatus(emp({ startDate: '2026-10-10' }), site(), rules);
     expect(s.eligible).toBe(true);
-    expect(s.eligibleDate).toBe('2026-11-08');
+    expect(s.eligibleDate).toBe('2026-11-09'); // ครบ 30 วัน 8 พ.ย. → ได้สิทธิ 9 พ.ย.
     expect(s.enrollCycleDate).toBe('2026-12-05');
   });
   it('ครบสิทธิวันที่ 5 พอดี → เข้ารอบนั้นเลย', () => {
-    const s = insuranceStatus(emp({ startDate: '2026-10-07' }), site(), rules);
+    const s = insuranceStatus(emp({ startDate: '2026-10-06' }), site(), rules);
     expect(s.eligibleDate).toBe('2026-11-05');
     expect(s.enrollCycleDate).toBe('2026-11-05');
   });
   it('ครบสิทธิหลังวันที่ 5 → รอบเดือนถัดไป', () => {
-    const s = insuranceStatus(emp({ startDate: '2026-10-08' }), site(), rules);
+    const s = insuranceStatus(emp({ startDate: '2026-10-07' }), site(), rules);
     expect(s.eligibleDate).toBe('2026-11-06');
     expect(s.enrollCycleDate).toBe('2026-12-05');
   });
@@ -57,7 +57,7 @@ describe('ประกันกลุ่ม', () => {
     expect(s.eligible).toBe(false);
   });
   it('ขาดงานแล้วกลับมาทำงาน (ตั้งวันเริ่มงานใหม่) → แจ้งเข้าใหม่ แม้เคยแจ้งเข้า/ออกไปแล้ว', () => {
-    const e = emp({ id: 7, startDate: '2026-09-07' });
+    const e = emp({ id: 7, startDate: '2026-09-06' });
     const old = [
       { id: 1, cycleDate: '2026-03-05', items: [{ employeeId: 7, type: 'IN' }] },
       { id: 2, cycleDate: '2026-08-05', items: [{ employeeId: 7, type: 'OUT' }] },
@@ -96,7 +96,7 @@ describe('ประกันกลุ่ม', () => {
     for (const companyCode of ['CNS', 'CIC', 'PRO']) {
       const s = insuranceStatus(emp({ companyCode, employeeType: 'DAILY', startDate: '2026-01-01' }), site(), rules);
       expect(s.eligible).toBe(true);
-      expect(s.eligibleDate).toBe('2026-04-30');
+      expect(s.eligibleDate).toBe('2026-05-01'); // ครบ 120 วัน 30 เม.ย. → ได้สิทธิ 1 พ.ค.
     }
   });
   it('อายุครบ 65 ก่อนรอบแจ้งเข้า → ไม่มีสิทธิ / ยังไม่ครบ 65 ณ รอบแจ้งเข้า → ได้', () => {
