@@ -10,7 +10,7 @@
 //   ไม่บันทึกอะไรจนกว่า HR กด "บันทึก" ในตาราง (ExcelGrid.stage)
 import { api } from '../app/api.js';
 import { parseEmployeeSheet, planWorkbookImport } from '../application/usecases/employeeImport.js';
-import { employeeListRows, isListHeader, LIST_COLUMNS, monthlyMovers, parseEmployeeList, planEmployeeList, TEMPLATE_COLUMNS } from '../application/usecases/employeeList.js';
+import { employeeListRows, isListHeader, LEAVE_COLUMNS, LIST_COLUMNS, monthlyMovers, parseEmployeeList, planEmployeeList, TEMPLATE_COLUMNS } from '../application/usecases/employeeList.js';
 import { COMPANY_CODES, THAI_MONTHS_FULL } from '../domain/labels.js';
 import { html, raw } from '../shared/dom.js';
 import { downloadBlob, loadExcelJs, loadSheetJs, XLSX_MIME } from '../shared/excel.js';
@@ -239,20 +239,22 @@ const HELP = [
   '• หน่วยงาน / ประเภท / กลุ่ม-ฝ่าย ใช้ชื่อตามระบบ · วันที่พิมพ์ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ.)',
   '• อายุ (หัวสีเทา) ระบบคำนวณจากวันเกิด — แก้ช่องนี้ไม่มีผล',
   '• ไม่มีคอลัมน์ไหน = ระบบเติมให้: เพศ จากคำนำหน้า · ผ่านทดลองงาน = วันเริ่มงาน + 119 วัน · แถวใหม่ = ทำงานอยู่',
+  '• ชีตลาออก (template): ใส่รหัส + เหตุผล + วันพ้นสภาพ → ระบบบันทึกพ้นสภาพให้ · ชื่อ-นามสกุลไว้ดูอ้างอิง (ไม่ถูกนำเข้า) · รหัสที่ไม่มีในระบบ = ข้าม',
   '• ค่าที่ระบบอ่านไม่ได้จะคงค่าเดิมและแจ้งให้ตรวจ — ทุกอย่างเข้าตารางเป็น "ยังไม่บันทึก" ตรวจแล้วกดบันทึกเอง',
 ];
 
 /**
  * สมุดงานรายชื่อพนักงาน — sheets = [{ name, employees, color? }] ชีตละตารางเดียว (หัวแถว 1) + ชีต "วิธีใช้"
- * columns = คอลัมน์ที่เขียน (ค่าเริ่มต้น = ทุกคอลัมน์ของตาราง · template เปล่า = TEMPLATE_COLUMNS)
+ * columns = คอลัมน์ที่เขียน (ค่าเริ่มต้น = ทุกคอลัมน์ของตาราง) · ชีตกำหนดเองได้ (sheet.columns — template: เข้าใหม่ / ลาออก)
  * วันที่เป็นเซลล์วันที่ (แสดงปี พ.ศ.) · รหัส/เลขบัตร/โทร เป็นข้อความ · ช่องเลือก บริษัท ประเภท สถานะ ฯลฯ · อายุ = หัวสีเทา (ระบบคำนวณ)
  */
-async function listWorkbook(sheets, { sites, deptGroups = [], columns = LIST_COLUMNS }) {
+async function listWorkbook(sheets, { sites, deptGroups = [], columns: baseColumns = LIST_COLUMNS }) {
   const ExcelJS = await loadExcelJs();
   const wb = new ExcelJS.Workbook();
   wb.creator = 'HL Welfare';
   const ctx = { sites, deptGroups };
   for (const sh of sheets) {
+    const columns = sh.columns ?? baseColumns;
     const ws = wb.addWorksheet(sh.name, { views: [{ state: 'frozen', ySplit: 1, xSplit: 1 }] });
     const head = ws.addRow(columns.map((c) => c.head));
     head.height = 24;
@@ -311,7 +313,7 @@ export function openTemplateDialog({ sites, deptGroups = [] }) {
     body: html`<div class="tpl-opts">
       <section class="tpl-opt">
         <span class="tile-ic">${raw(icon('file-spreadsheet'))}</span>
-        <div class="grow"><b>Template เปล่า</b><small>เฉพาะช่องที่ต้องกรอก (อายุ เพศ ผ่านทดลองงาน ระบบเติมให้) · มีช่องเลือกบริษัท ประเภท ฯลฯ และคำอธิบายที่หัวคอลัมน์</small></div>
+        <div class="grow"><b>Template เปล่า</b><small>2 ชีต: <b>เข้าใหม่</b> (เฉพาะช่องที่ต้องกรอก — อายุ เพศ ผ่านทดลองงาน ระบบเติมให้) · <b>ลาออก</b> (รหัส เหตุผล วันพ้นสภาพ — จับคู่ตามรหัส) · มีช่องเลือกและคำอธิบายที่หัวคอลัมน์</small></div>
         <button type="button" class="btn btn-sm" data-tpl-blank>${raw(icon('download'))} ดาวน์โหลด</button>
       </section>
       <section class="tpl-opt">
@@ -340,7 +342,11 @@ export function openTemplateDialog({ sites, deptGroups = [] }) {
   };
   m.el.querySelector('[data-tpl-blank]').onclick = (e) =>
     working(e.currentTarget, async () => {
-      saveXlsx(await listWorkbook([{ name: 'พนักงาน', employees: [] }], { sites, deptGroups, columns: TEMPLATE_COLUMNS }), 'template พนักงาน.xlsx');
+      const sheets = [
+        { name: 'เข้าใหม่', employees: [], columns: TEMPLATE_COLUMNS },
+        { name: 'ลาออก', employees: [], columns: LEAVE_COLUMNS, color: 'FFB45309' },
+      ];
+      saveXlsx(await listWorkbook(sheets, { sites, deptGroups }), 'template พนักงานเข้า-ออก.xlsx');
       toast.success('ดาวน์โหลด template แล้ว');
     });
   m.el.querySelector('[data-tpl-month-export]').onclick = async (e) => {

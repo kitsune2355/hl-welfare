@@ -10,7 +10,7 @@ import { UNIFORM_EVENTS } from '../domain/uniform.js';
 import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import { COMPANY_CODES, EMPLOYEE_TYPE_LABEL, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
-import { badge, emptyState, errorState } from '../ui/components.js';
+import { badge, companyChip, emptyState, errorState } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { loader } from '../ui/loading.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
@@ -85,6 +85,7 @@ const grid = new ExcelGrid($('#grid'), {
       hint: 'เลือกได้ตอนเพิ่มเท่านั้น — สร้างแล้วย้ายบริษัทไม่ได้ (พนักงานผูกอยู่)',
       editable: (s) => s.id === 0,
       value: (s) => s.companyCode,
+      display: (s) => companyChip(s.companyCode),
       options: () => companyChoices(COMPANY_CODES).map((c) => ({ value: c, label: c })),
       set: (s, v) => ({ ...s, companyCode: String(v) }),
     },

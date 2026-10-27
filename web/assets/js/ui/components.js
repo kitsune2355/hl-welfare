@@ -1,10 +1,17 @@
 // ชิ้นส่วน UI ที่ใช้ซ้ำ — ทุกฟังก์ชันคืนค่า HTML (ใช้ใน html`...` ได้ทันที)
 import { html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
+import { companyColor } from '../domain/catalog.js';
 
 /** tone: success | warning | danger | info | neutral | primary */
 export function badge(text, tone = 'neutral', { dot = true, lg = false } = {}) {
   return html`<span class="badge tone-${tone}${dot ? ' dot' : ''}${lg ? ' lg' : ''}">${text}</span>`;
+}
+
+/** ป้ายบริษัท — สีตามที่ตั้งไว้ที่ ตั้งค่าสวัสดิการ → 1 บริษัท (ไม่ได้ตั้ง = สีตามลำดับ) · text = ข้อความ (ค่าเริ่มต้น = รหัส) */
+export function companyChip(code, text = code) {
+  if (!code) return '';
+  return html`<span class="co-chip" style="--co:${companyColor(code)}">${text}</span>`;
 }
 
 const AVATAR_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];

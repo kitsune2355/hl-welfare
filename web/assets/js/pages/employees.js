@@ -20,7 +20,7 @@ import {
   STATUS_LABEL,
   STATUS_TONE,
 } from '../shared/labels.js';
-import { badge, emptyState, errorState } from '../ui/components.js';
+import { badge, companyChip, emptyState, errorState } from '../ui/components.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { openModal, toast } from '../ui/overlay.js';
 import { openEmployeeDetail } from './_employeeDetail.js';
@@ -120,6 +120,7 @@ const columns = [
     required: true,
     editor: 'select',
     value: (e) => e.companyCode,
+    display: (e) => companyChip(e.companyCode),
     options: () => companyChoices(COMPANY_CODES).map((c) => ({ value: c, label: c })),
     set: setField('companyCode', str),
   },

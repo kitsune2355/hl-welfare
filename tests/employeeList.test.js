@@ -1,7 +1,7 @@
 // ไฟล์รายชื่อพนักงาน (application/usecases/employeeList.js) — ส่งออก → แก้ใน Excel → นำเข้ากลับ · ข้อมูลสมมติ
 import { describe, it } from 'node:test';
 import { expect } from './_expect.js';
-import { employeeListRows, isListHeader, LIST_COLUMNS, monthlyMovers, parseEmployeeList, planEmployeeList, TEMPLATE_COLUMNS } from '../web/assets/js/application/usecases/employeeList.js';
+import { employeeListRows, isListHeader, LEAVE_COLUMNS, LIST_COLUMNS, monthlyMovers, parseEmployeeList, planEmployeeList, TEMPLATE_COLUMNS } from '../web/assets/js/application/usecases/employeeList.js';
 import { parseEmployeeSheet } from '../web/assets/js/application/usecases/employeeImport.js';
 
 const serial = (iso) => (Date.UTC(...iso.split('-').map((x, i) => Number(x) - (i === 1 ? 1 : 0))) - Date.UTC(1899, 11, 30)) / 86_400_000;
@@ -121,6 +121,17 @@ describe('ไฟล์รายชื่อพนักงาน: คอลั�
       ['N2', 'M', 'ACTIVE', '2027-01-28', 2],
       ['N3', null, 'ACTIVE', '2027-01-28', 2], // คำนำหน้าที่ระบบไม่มี = ไม่เดาเพศ (แจ้งให้ตรวจ)
     ]);
+  });
+  it('template ชีตลาออก: รหัส + เหตุผล + วันพ้นสภาพ → บันทึกพ้นสภาพ · ชื่อในไฟล์ไม่แก้ชื่อในระบบ · รหัสที่ไม่มี = ข้าม', () => {
+    const head = LEAVE_COLUMNS.map((c) => c.head);
+    expect(head).toEqual(['รหัส', 'ชื่อ - นามสกุล', 'เหตุผลพ้นสภาพ', 'ทำงานวันสุดท้าย', 'วันพ้นสภาพ']);
+    expect(isListHeader(head)).toBe(true);
+    expect(isListHeader(['ลำดับ', 'รหัสพนักงาน', 'ชื่อพนักงาน', 'วันพ้นสภาพ', 'หมายเหตุ'])).toBe(false); // ไฟล์ลาออกแบบ HR
+    const p = plan([head, ['E1', 'ชื่อพิมพ์ผิด', 'ลาออก', serial('2026-10-10'), serial('2026-10-11')], ['X9', 'ไม่มีคนนี้', 'ลาออก', null, serial('2026-10-11')]]);
+    expect(p.update.map((u) => [u.row.empCode, u.row.status, u.row.endReason, u.row.lastWorkingDate, u.row.endDate, u.row.firstName])).toEqual([
+      ['E1', 'INACTIVE', 'RESIGN', '2026-10-10', '2026-10-11', 'หนึ่ง'],
+    ]);
+    expect(p.skip.map((x) => [x.empCode, x.reason])).toEqual([['X9', 'ไม่พบรหัสนี้ในระบบ']]);
   });
   it('เข้า-ออกของเดือน: เข้าใหม่ = วันเริ่มงานในเดือน · ลาออก = พ้นสภาพ + วันพ้นสภาพในเดือน · เรียงตามรหัส', () => {
     const people = [

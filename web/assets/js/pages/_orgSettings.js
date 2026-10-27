@@ -70,7 +70,16 @@ function companyGrid(el) {
         display: (c) => (c.code ? html`<span class="org-code"><i class="org-dot" style="background:${c.color || companyColor(c.code)}"></i><b>${c.code}</b></span>` : ''),
         set: (c, v) => ({ ...c, code: str(v).toUpperCase() }),
       },
-      { key: 'name', header: 'ชื่อ', width: 200, required: true, editor: 'text', value: (c) => c.name, set: (c, v) => ({ ...c, name: str(v) }) },
+      {
+        key: 'name',
+        header: 'ชื่อ',
+        width: 200,
+        required: true,
+        editor: 'text',
+        value: (c) => c.name,
+        display: (c) => (c.name ? html`<span class="co-chip" style="--co:${c.color || companyColor(c.code)}">${c.name}</span>` : ''),
+        set: (c, v) => ({ ...c, name: str(v) }),
+      },
       { key: 'legalName', header: 'ชื่อตามทะเบียน', width: 280, editor: 'text', value: (c) => c.legalName, set: (c, v) => ({ ...c, legalName: str(v) }) },
       {
         key: 'color',

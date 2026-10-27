@@ -76,14 +76,28 @@ const COL = Object.fromEntries(LIST_COLUMNS.map((c) => [c.key, c]));
  * และกลุ่มพ้นสภาพ (แถวใหม่ = ทำงานอยู่ · บันทึกพ้นสภาพที่ตาราง หรือส่งออกเข้า-ออกรายเดือน)
  */
 export const TEMPLATE_COLUMNS = LIST_COLUMNS.filter((c) => c.template !== false);
+/**
+ * template ชีต "ลาออก" — จับคู่ตามรหัส แล้วบันทึกพ้นสภาพ (ไม่มีคอลัมน์สถานะ: มีเหตุผล/วันพ้นสภาพ = พ้นสภาพ)
+ * "ชื่อ - นามสกุล" ไว้ให้ HR ดูอ้างอิงเท่านั้น — หัวไม่ตรงคอลัมน์ไหนของระบบ นำเข้าจึงไม่อ่าน (ชื่อในระบบไม่ถูกแก้)
+ */
+export const LEAVE_COLUMNS = [
+  COL.empCode,
+  { key: 'refName', head: 'ชื่อ - นามสกุล', width: 26, readOnly: true, note: 'ไว้ดูอ้างอิง — ระบบจับคู่ตามรหัส ไม่อ่านช่องนี้', out: (e) => `${e.title ?? ''}${e.firstName} ${e.lastName}`.trim() },
+  COL.endReason,
+  COL.lastWorkingDate,
+  COL.endDate,
+];
 /** คำนำหน้า → เพศ (ไม่ชัด เช่น ว่าที่ ร.ต. = ไม่เดา) */
 const genderOfTitle = (t) => (t === 'นาย' ? 'M' : t === 'นาง' || t === 'นางสาว' ? 'F' : null);
 
-/** หัวตารางแถวนี้เป็นไฟล์รายชื่อพนักงานของระบบ (มี "รหัส" "ชื่อ" "นามสกุล" แยกกัน) — แยกจากไฟล์เข้าใหม่/ลาออกของ HR */
+/**
+ * หัวตารางแถวนี้เป็นไฟล์รายชื่อพนักงานของระบบ — "รหัส" + ("ชื่อ" "นามสกุล" แยกกัน หรือ "เหตุผลพ้นสภาพ" ของชีตลาออก)
+ * แยกจากไฟล์เข้าใหม่/ลาออกของ HR ("รหัสพนักงาน" · ชื่อรวม · เหตุผลอยู่ใน "หมายเหตุ")
+ */
 export const isListHeader = (row) => {
   const h = (row ?? []).map(norm);
   // ไฟล์ของ HR ใช้ "รหัสพนักงาน" + "ชื่อพนักงาน" (ชื่อรวม) — ไฟล์ของระบบแยก รหัส / ชื่อ / นามสกุล (template ไม่มีสถานะ)
-  return ['รหัส', 'ชื่อ', 'นามสกุล'].every((x) => h.includes(x));
+  return h.includes('รหัส') && ((h.includes('ชื่อ') && h.includes('นามสกุล')) || h.includes('เหตุผลพ้นสภาพ'));
 };
 
 /** แถวของไฟล์ (ตามลำดับ LIST_COLUMNS · วันที่เป็น YYYY-MM-DD — ผู้เขียนไฟล์แปลงเป็นเซลล์วันที่) */
@@ -146,6 +160,10 @@ export function planEmployeeList(parsed, employees, sites, { deptGroups = [] } =
     }
     seen.add(it.empCode);
     const old = byCode.get(it.empCode) ?? null;
+    if (!old && !parsed.columns.includes('companyCode')) {
+      out.skip.push({ rowNo: it.rowNo, empCode: it.empCode, name, reason: 'ไม่พบรหัสนี้ในระบบ' });
+      continue;
+    }
     const row = old
       ? { ...old }
       : {
@@ -181,6 +199,7 @@ export function planEmployeeList(parsed, employees, sites, { deptGroups = [] } =
       if (row.employeeType) issues.push(`ประเภท ${EMPLOYEE_TYPE_LABEL[row.employeeType]} ใช้กับบริษัท ${row.companyCode} ไม่ได้ — เปลี่ยนเป็นประเภทแรกที่ใช้ได้`);
       row.employeeType = defaultTypeFor(row.companyCode);
     }
+    if (!parsed.columns.includes('status') && (row.endReason || row.endDate)) row.status = 'INACTIVE'; // ชีตลาออกของ template
     if (!old && !row.probationPassDate && row.startDate) row.probationPassDate = probationDueDate(row.startDate);
     if (!row.gender) row.gender = genderOfTitle(row.title); // ไฟล์ไม่มีคอลัมน์เพศ (template) / เว้นว่าง
     if (row.status === 'ACTIVE') Object.assign(row, { endReason: null, endDate: null, lastWorkingDate: null });
