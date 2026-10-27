@@ -6899,6 +6899,32 @@ button.sev-pill {
 }
 
 /* ตั้งค่าองค์กร — ตาราง Excel (pages/_orgSettings.js) */
+/* desktop: ตารางสูงพอดีจอ (เหมือนตารางพนักงาน/หน่วยงาน) — ตารางเลื่อนภายใน · แถบแบ่งหน้าอยู่ท้ายการ์ดเสมอ */
+@media (min-width: 1024px) {
+  .org-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .org-panel > * {
+    flex: none;
+  }
+  .org-panel > .org-grid:not(.hidden) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .org-grid > .xgrid-wrap {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }  /* จอเตี้ย (กล่องคำอธิบายเปิดอยู่) → ตารางไม่บีบเหลือไม่กี่แถว · หน้าเลื่อนแทน */
+  .page.fit > #panel-org.fill {
+    min-height: 440px;
+  }
+}
 .org-hint {
   max-width: 900px;
 }
