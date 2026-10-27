@@ -56,7 +56,6 @@ import {
   wireColumnResize,
 } from './columnFilter.js';
 import { openPicker } from './combobox.js';
-import { openDatePicker } from './datePicker.js';
 import { busy, spinner } from './loading.js';
 import { exportButton, wireExport } from './exportExcel.js';
 import { confirmAction, errorMessage, toast } from './overlay.js';
@@ -589,29 +588,7 @@ export class ExcelGrid {
       return;
     }
 
-    // วันที่: กล่องกรอกที่เลือกได้ว่าพิมพ์ปี พ.ศ. หรือ ค.ศ. (ui/datePicker.js)
-    if (col.editor === 'date') {
-      openDatePicker({
-        anchor: td,
-        value: fmt(col.value(entry.row)),
-        initial,
-        label: col.header,
-        onPick: (v) => {
-          this.editing = false;
-          this.commit(r, c, v);
-        },
-        onClose: (_picked, move) => {
-          this.editing = false;
-          td.classList.remove('editing');
-          this.render();
-          if (move) this.move(...move);
-          this.focusGrid();
-        },
-      });
-      return;
-    }
-
-    const type = col.editor === 'number' ? 'number' : 'text';
+    const type = col.editor === 'number' ? 'number' : col.editor === 'date' ? 'date' : 'text';
     td.innerHTML = '';
     const input = document.createElement('input');
     input.type = type;
@@ -814,7 +791,7 @@ export class ExcelGrid {
       else if (k.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (ed === 'text' || ed === 'number') this.startEdit(k);
         else if (ed === 'select') this.startEdit(k);
-        else if (ed === 'date') this.startEdit(/\d/.test(k) ? k : undefined); // พิมพ์ตัวเลข = เริ่มพิมพ์วันที่ใหม่
+        else if (ed === 'date') this.startEdit();
         else return;
       } else return;
       e.preventDefault();
