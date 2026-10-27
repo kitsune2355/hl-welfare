@@ -50,13 +50,13 @@ function build_master_payload($companies, $sites, $rules, $siteIds = null, $remo
     $c = array();
     foreach ($companies as $co) {
         $name = isset($co['legalName']) && $co['legalName'] !== null && $co['legalName'] !== '' ? $co['legalName'] : $co['name'];
-        $c[] = array('code' => $co['code'], 'name' => $name, 'active' => true);
+        $c[] = array('code' => $co['code'], 'name' => $name, 'active' => isset($co['active']) ? (bool)$co['active'] : true);
     }
     $s = array();
     $u = array();
     foreach ($sites as $site) {
         if ($siteIds !== null && !in_array((int)$site['id'], $siteIds, true)) { continue; }
-        $s[] = array('id' => (int)$site['id'], 'company_code' => $site['companyCode'], 'name' => $site['name'], 'active' => true);
+        $s[] = array('id' => (int)$site['id'], 'company_code' => $site['companyCode'], 'name' => $site['name'], 'active' => isset($site['active']) ? (bool)$site['active'] : true);
         $u[] = array('site_id' => (int)$site['id'], 'rules' => master_site_uniform_start($site, $rules));
     }
     foreach ($removed as $site) {

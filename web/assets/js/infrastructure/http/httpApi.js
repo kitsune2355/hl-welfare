@@ -44,17 +44,11 @@ export class HttpApi {
   saveCompanyOrder(order) {
     return this.send('PUT', '/companies/order', { order });
   }
-  deleteCompany(code) {
-    return this.del(`/companies/${encodeURIComponent(code)}`);
-  }
   listEmployeeTypes({ usage = false } = {}) {
     return this.req(usage ? '/employee-types?usage=1' : '/employee-types');
   }
   saveEmployeeType(input, creating) {
     return creating ? this.send('POST', '/employee-types', input) : this.send('PUT', `/employee-types/${encodeURIComponent(input.code)}`, input);
-  }
-  deleteEmployeeType(code) {
-    return this.del(`/employee-types/${encodeURIComponent(code)}`);
   }
   listSites() {
     return this.req('/sites');
@@ -64,9 +58,6 @@ export class HttpApi {
   }
   updateSite(id, patch) {
     return this.send('PATCH', `/sites/${id}`, patch);
-  }
-  deleteSite(id) {
-    return this.del(`/sites/${id}`);
   }
   listEmployees(filter = {}) {
     const qs = new URLSearchParams();
@@ -82,9 +73,6 @@ export class HttpApi {
   }
   saveEmployee(emp) {
     return emp.id ? this.send('PUT', `/employees/${emp.id}`, emp) : this.send('POST', '/employees', emp);
-  }
-  deleteEmployee(id) {
-    return this.del(`/employees/${id}`);
   }
   getRules() {
     return this.req('/rules');
@@ -107,9 +95,6 @@ export class HttpApi {
   }
   saveDeptGroup(input) {
     return input.id ? this.send('PUT', `/dept-groups/${input.id}`, input) : this.send('POST', '/dept-groups', input);
-  }
-  deleteDeptGroup(id) {
-    return this.del(`/dept-groups/${id}`);
   }
   // ---------- แบบฟอร์มบริษัทประกัน + ส่งออกไฟล์ ----------
   listInsurers() {

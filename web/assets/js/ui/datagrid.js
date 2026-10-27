@@ -13,7 +13,8 @@
 //     rowKey: (r) => r.id,
 //     validate: (r) => (r.name ? {} : { name: 'กรุณากรอกชื่อ' }),
 //     onSave: async (row, isNew) => api.save(row),   // ต้องคืนแถวที่บันทึกแล้ว
-//     onRemove: async (row) => api.delete(row.id),   // ลบจริงตอนกดบันทึก (ไม่ใส่ = ลบไม่ได้)
+//     onRemove: async (row) => api.delete(row.id),   // ลบจริงตอนกดบันทึก (ไม่ใส่ = ลบไม่ได้ — ข้อมูลหลักใช้ "ปิดใช้งาน" แทน: ui/activeColumn.js)
+//     rowClass: (row) => 'is-off',                   // class เพิ่มของแถว (เช่น แถวที่ปิดใช้งาน = จาง)
 //     rowLabel: (row) => row.name,                   // ชื่อแถวในกล่องยืนยันการลบ
 //     onSaved: ({ added, edited, deleted }) => {},   // หลังบันทึกครบ
 //     newRow: () => ({ id: 0, name: '' }),
@@ -825,7 +826,8 @@ export class ExcelGrid {
     const p = this.pendingCounts();
     const errors = [...this.status.values()].filter((s) => s.state === 'error').length;
     if (!p.total)
-      return html`<span class="gp-legend" aria-hidden="true"><i class="add"></i>เพิ่ม <i class="edit"></i>แก้ไข <i class="del"></i>ลบ</span>`;
+      // ตารางที่ลบไม่ได้ (ข้อมูลหลัก — ปิดใช้งานแทน) ไม่มีสีแดง "ลบ"
+      return html`<span class="gp-legend" aria-hidden="true"><i class="add"></i>เพิ่ม <i class="edit"></i>แก้ไข${this.o.onRemove || this.o.onDelete ? html` <i class="del"></i>ลบ` : ''}</span>`;
     return html`<div class="grid-pending" role="status">
       <span class="gp-title">${raw(icon('alert-circle'))} ยังไม่บันทึก</span>
       ${p.added ? html`<span class="chg-tag add">เพิ่ม ${p.added}</span>` : ''}
@@ -868,7 +870,8 @@ export class ExcelGrid {
           // แถวใหม่/แถวที่แก้: ตรวจข้อมูลทันที (เห็นช่องที่ยังไม่ครบก่อนกดบันทึก)
           const errs = !entry.isDeleted && (entry.isNew || entry.isEdited || st?.state === 'error') ? this.errorsOf(entry.row) : {};
           const rowCls = [entry.isNew ? 'is-new' : '', entry.isEdited && !entry.isDeleted ? 'is-edited' : '', entry.isDeleted ? 'is-deleted' : '', st?.state === 'error' ? 'has-error' : ''].join(' ');
-          return html`<tr class="${rowCls}${this.sel.has(entry.key) ? ' is-selected' : ''}">
+          const extra = this.o.rowClass?.(entry.row) ?? '';
+          return html`<tr class="${rowCls}${extra ? ` ${extra}` : ''}${this.sel.has(entry.key) ? ' is-selected' : ''}">
             <td class="stick-left"><span class="rowhead">${rowCheck(entry.key, this.sel.has(entry.key))}${this.statusCell(entry, offset + r - this.newRows.length + 1)}</span></td>
             ${this.cols.map((col, c) => {
               const editable = !entry.isDeleted && this.canEdit(col, entry.row);

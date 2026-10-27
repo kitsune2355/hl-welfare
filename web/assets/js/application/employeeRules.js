@@ -51,7 +51,7 @@ export function normalizeEmployee(e, sites) {
   // ยังไม่ได้เลือก (0 — เช่น นำเข้า Excel แล้วหาหน่วยงานไม่เจอ) = ปล่อยว่างให้เลือกเอง ไม่เดาให้เงียบ ๆ
   const site = sites.find((s) => s.id === n.siteId);
   if (n.siteId && (!site || site.companyCode !== n.companyCode))
-    n.siteId = sites.find((s) => s.companyCode === n.companyCode)?.id ?? 0;
+    n.siteId = (sites.find((s) => s.companyCode === n.companyCode && s.active !== false) ?? sites.find((s) => s.companyCode === n.companyCode))?.id ?? 0;
   if (type?.usesDeptGroup) {
     n.level ??= 1; // กลุ่ม / ฝ่ายไม่เดาให้ — ว่าง = ช่องแดงให้เลือก
   } else {

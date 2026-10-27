@@ -1,5 +1,6 @@
 import { ApiError } from '../../application/errors.js';
 import { buildDashboard } from '../../application/usecases/dashboard.js';
+import { inactiveRefs } from '../../application/activeRules.js';
 import { batchCounts, batchIds, buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex } from '../../application/usecases/insuranceCycle.js';
 import { buildBatchExport, buildInsurerExport } from '../../application/usecases/insurerExport.js';
 import { buildUniformPending } from '../../application/usecases/uniformPending.js';
@@ -128,6 +129,8 @@ export class MockApi {
   syncRules() {
     // db ที่ถูกแทนทั้งก้อน (เช่น scripts/export-seed.mjs ใส่ buildSeed() ตรง ๆ) ยังไม่มีประวัติ
     this.db.ruleHistory ??= ruleHistoryOf(this.db.rules);
+    // เปิด/ปิดการใช้งาน (= sql/018) — ข้อมูลที่ยังไม่มีค่า = เปิด
+    for (const k of ['companies', 'employeeTypes', 'deptGroups', 'sites', 'employees']) for (const x of this.db[k] ?? []) x.active ??= true;
     const h = this.db.ruleHistory;
     const today = this.today();
     this.db.rules = {
@@ -185,16 +188,29 @@ export class MockApi {
     if (!e) throw new ApiError('ไม่พบพนักงาน', 404);
     return e;
   }
+  /** ข้อมูลที่ use-case คำนวณ (= repo_world ฝั่ง PHP) — พนักงานที่ปิดใช้งานไม่อยู่ในการคำนวณใดเลย */
+  get world() {
+    return { ...this.db, employees: this.db.employees.filter((e) => e.active !== false) };
+  }
+  /**
+   * เปิด/ปิดการใช้งานในคำขอบันทึกนี้ (= org_active_change) — คืนค่าใหม่ หรือ null = ไม่เปลี่ยน
+   * ปิดตัวสุดท้ายที่เปิดอยู่ไม่ได้ · ของใหม่เปิดเสมอ
+   */
+  activeChange(input, old, list, same, lastMsg) {
+    if (!old || input.active === undefined || !!input.active === (old.active !== false)) return null;
+    if (!input.active && !list.some((x) => x.active !== false && !same(x))) throw new ApiError(lastMsg, 409);
+    return !!input.active;
+  }
   // ---------- Dashboard / Monitor ----------
   getDashboard() {
     return this.run(() => {
-      const { employees, sites, rules, batches, issues } = this.db;
+      const { employees, sites, rules, batches, issues } = this.world;
       return buildDashboard(this.today(), employees, sites, rules, batches, issues);
     });
   }
   getWorkQueue() {
     return this.run(() => {
-      const { employees, sites, rules, batches, issues } = this.db;
+      const { employees, sites, rules, batches, issues } = this.world;
       return buildWorkQueue(this.today(), employees, sites, rules, batches, issues);
     });
   }
@@ -218,7 +234,7 @@ export class MockApi {
   /** usage = true → พร้อมจำนวนที่ใช้ (หน้าตั้งค่า) */
   listCompanies({ usage = false } = {}) {
     return this.run(() =>
-      usage ? this.companyUsage() : this.sortedCompanies().map(({ code, name, legalName, color, sortOrder }) => ({ code, name, legalName, color, sortOrder })),
+      usage ? this.companyUsage() : this.sortedCompanies().map(({ code, name, legalName, color, sortOrder, active }) => ({ code, name, legalName, color, sortOrder, active })),
     );
   }
   companyUsage() {
@@ -234,6 +250,7 @@ export class MockApi {
       legalName: c.legalName,
       color: c.color,
       sortOrder: c.sortOrder,
+      active: c.active !== false,
       siteCount: sites.get(c.code) ?? 0,
       employeeCount: emps.get(c.code) ?? 0,
       userCount: 0, // โหมด mock ไม่มีผู้ใช้ HR บริษัทจริง
@@ -249,12 +266,17 @@ export class MockApi {
       if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
       const fields = { name: input.name.trim(), legalName: (input.legalName ?? '').trim(), color: (input.color ?? '').toLowerCase() };
       const code = creating ? input.code.trim().toUpperCase() : old.code;
+      const toggle = this.activeChange(input, old, this.db.companies, (x) => x.code === code, 'ต้องเปิดใช้งานอย่างน้อย 1 บริษัท');
       if (creating) {
-        this.db.companies.push({ code, ...fields, sortOrder: Math.max(0, ...this.db.companies.map((c) => c.sortOrder)) + 1 });
+        this.db.companies.push({ code, ...fields, sortOrder: Math.max(0, ...this.db.companies.map((c) => c.sortOrder)) + 1, active: true });
         this.log('COMPANY', 'CREATE', code, `เพิ่มบริษัท ${code} — ${fields.name}`);
       } else {
         Object.assign(old, fields);
         this.log('COMPANY', 'UPDATE', code, `แก้ไขบริษัท ${code} — ${fields.name}`);
+      }
+      if (toggle !== null) {
+        old.active = toggle;
+        this.log('COMPANY', 'UPDATE', code, `${toggle ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}บริษัท ${code} — ${fields.name}`);
       }
       this.persist();
       return this.companyUsage().find((c) => c.code === code);
@@ -267,25 +289,6 @@ export class MockApi {
       this.log('COMPANY', 'UPDATE', '-', `จัดลำดับบริษัท: ${order.join(', ')}`);
       this.persist();
       return this.companyUsage();
-    });
-  }
-  deleteCompany(code) {
-    return this.run(() => {
-      const c = this.companyUsage().find((x) => x.code === code);
-      if (!c) throw new ApiError('ไม่พบบริษัท', 404);
-      const why = [
-        ['siteCount', 'หน่วยงาน'],
-        ['employeeCount', 'พนักงาน'],
-        ['userCount', 'ผู้ใช้ HR บริษัท'],
-        ['ruleCount', 'กฎสวัสดิการ'],
-        ['insurerCount', 'บริษัทประกันที่ผูก'],
-      ]
-        .filter(([k]) => c[k] > 0)
-        .map(([k, label]) => `${label} ${c[k]}`);
-      if (why.length) throw new ApiError(`ลบไม่ได้ — ยังมี${why.join(' · ')} ที่ใช้อยู่`, 409);
-      this.db.companies = this.db.companies.filter((x) => x.code !== code);
-      this.log('COMPANY', 'DELETE', code, `ลบบริษัท ${code} — ${c.name}`);
-      this.persist();
     });
   }
   sortedTypes() {
@@ -315,32 +318,20 @@ export class MockApi {
         tone: input.tone,
       };
       const code = creating ? input.code.trim().toUpperCase() : old.code;
+      const toggle = this.activeChange(input, old, this.db.employeeTypes, (x) => x.code === code, 'ต้องเปิดใช้งานอย่างน้อย 1 ประเภท');
       if (creating) {
-        this.db.employeeTypes.push({ code, ...fields, sortOrder: Math.max(0, ...this.db.employeeTypes.map((t) => t.sortOrder)) + 10 });
+        this.db.employeeTypes.push({ code, ...fields, sortOrder: Math.max(0, ...this.db.employeeTypes.map((t) => t.sortOrder)) + 10, active: true });
         this.log('EMPLOYEE_TYPE', 'CREATE', code, `เพิ่มประเภทพนักงาน ${fields.name} (${code})`);
       } else {
         Object.assign(old, fields);
         this.log('EMPLOYEE_TYPE', 'UPDATE', code, `แก้ไขประเภทพนักงาน ${fields.name} (${code})`);
       }
+      if (toggle !== null) {
+        old.active = toggle;
+        this.log('EMPLOYEE_TYPE', 'UPDATE', code, `${toggle ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}ประเภทพนักงาน ${fields.name} (${code})`);
+      }
       this.persist();
       return this.typeUsage().find((t) => t.code === code);
-    });
-  }
-  deleteEmployeeType(code) {
-    return this.run(() => {
-      const t = this.typeUsage().find((x) => x.code === code);
-      if (!t) throw new ApiError('ไม่พบประเภทพนักงาน', 404);
-      const why = [
-        ['employeeCount', 'พนักงาน'],
-        ['ruleCount', 'กฎสวัสดิการ'],
-      ]
-        .filter(([k]) => t[k] > 0)
-        .map(([k, label]) => `${label} ${t[k]}`);
-      if (why.length) throw new ApiError(`ลบไม่ได้ — ยังมี${why.join(' · ')} ที่ใช้อยู่`, 409);
-      if (this.db.employeeTypes.length <= 1) throw new ApiError('ต้องมีประเภทพนักงานอย่างน้อย 1 ประเภท', 409);
-      this.db.employeeTypes = this.db.employeeTypes.filter((x) => x.code !== code);
-      this.log('EMPLOYEE_TYPE', 'DELETE', code, `ลบประเภทพนักงาน ${t.name} (${code})`);
-      this.persist();
     });
   }
   listSites() {
@@ -352,7 +343,7 @@ export class MockApi {
       if (this.db.sites.some((s) => s.companyCode === input.companyCode && s.name === input.name.trim())) {
         throw new ApiError('มีหน่วยงานชื่อนี้ในบริษัทแล้ว', 409);
       }
-      const site = { ...input, name: input.name.trim(), id: nextId(this.db.sites), uniformOverrides: [] };
+      const site = { ...input, name: input.name.trim(), id: nextId(this.db.sites), uniformOverrides: [], active: true };
       this.db.sites.push(site);
       this.log('SITE', 'CREATE', site.id, `เพิ่มหน่วยงาน “${site.name}” (${site.companyCode})`);
       this.persist();
@@ -370,21 +361,12 @@ export class MockApi {
         changes.push(patch.hasGroupInsurance ? 'ได้รับประกันกลุ่ม' : 'ไม่ได้รับประกันกลุ่ม');
       if (patch.poloColor !== undefined && patch.poloColor !== s.poloColor)
         changes.push(`โปโลสี${patch.poloColor === 'NAVY' ? 'น้ำเงิน' : 'ดำ'}`);
+      // ปิดใช้งาน = แทนการลบ — พนักงานเดิมยังอยู่ได้ แต่เลือกใหม่ไม่ได้
+      if (patch.active !== undefined && !!patch.active !== (s.active !== false)) changes.push(patch.active ? 'เปิดใช้งาน' : 'ปิดใช้งาน');
       Object.assign(s, patch);
       if (changes.length) this.log('SITE', 'UPDATE', s.id, `แก้ไขหน่วยงาน “${s.name}”: ${changes.join(', ')}`);
       this.persist();
       return s;
-    });
-  }
-  deleteSite(id) {
-    return this.run(() => {
-      const s = this.db.sites.find((x) => x.id === id);
-      if (!s) throw new ApiError('ไม่พบหน่วยงาน', 404);
-      const n = this.db.employees.filter((e) => e.siteId === id).length;
-      if (n > 0) throw new ApiError(`ลบไม่ได้ — ยังมีพนักงานในหน่วยงานนี้ ${n} คน`, 409);
-      this.db.sites = this.db.sites.filter((x) => x.id !== id);
-      this.log('SITE', 'DELETE', id, `ลบหน่วยงาน “${s.name}”`);
-      this.persist();
     });
   }
   // ---------- Employees ----------
@@ -417,6 +399,17 @@ export class MockApi {
       const site = this.site(input.siteId);
       if (!site) throw new ApiError('ไม่พบหน่วยงาน', 422);
       if (site.companyCode !== input.companyCode) throw new ApiError('หน่วยงานไม่ได้อยู่ในบริษัทที่เลือก', 422);
+      const prev = input.id ? this.employee(input.id) : null;
+      const off = inactiveRefs(input, prev, { site, companies: this.db.companies, types: this.db.employeeTypes, groups: this.db.deptGroups });
+      if (Object.keys(off).length) throw new ApiError(Object.values(off)[0], 422, off);
+      // เปิด/ปิดการใช้งาน (แทนการลบ) — ไม่ส่งมา = คงค่าเดิม · ใหม่ = เปิด
+      const active = input.active === undefined ? (prev ? prev.active !== false : true) : !!input.active;
+      const toggle = (prev ? active !== (prev.active !== false) : !active) ? active : null;
+      if (toggle === false && prev) {
+        const hasHistory = this.db.batches.some((b) => b.items.some((i) => i.employeeId === prev.id)) || this.db.issues.some((i) => i.employeeId === prev.id);
+        if (hasHistory) throw new ApiError('ปิดใช้งานไม่ได้ — มีประวัติแจ้งประกัน/แจกชุดแล้ว ให้ใช้ “บันทึกพ้นสภาพ” แทน', 409);
+      }
+      input = { ...input, active };
       if (input.id) {
         const e = this.employee(input.id);
         const wasActive = e.status === 'ACTIVE';
@@ -432,6 +425,7 @@ export class MockApi {
           terminated ? `บันทึกพ้นสภาพ ${fullName(e)} (${e.empCode})` : `แก้ไขข้อมูล ${fullName(e)} (${e.empCode})`,
           e.id,
         );
+        if (toggle !== null) this.log('EMPLOYEE', 'UPDATE', e.id, `${toggle ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} ${fullName(e)} (${e.empCode})`, e.id);
         this.persist();
         return e;
       }
@@ -440,17 +434,6 @@ export class MockApi {
       this.log('EMPLOYEE', 'CREATE', created.id, `เพิ่มพนักงาน ${fullName(created)} (${created.empCode})`, created.id);
       this.persist();
       return created;
-    });
-  }
-  deleteEmployee(id) {
-    return this.run(() => {
-      const e = this.employee(id);
-      const hasHistory =
-        this.db.batches.some((b) => b.items.some((i) => i.employeeId === id)) || this.db.issues.some((i) => i.employeeId === id);
-      if (hasHistory) throw new ApiError('ลบไม่ได้ — มีประวัติแจ้งประกัน/แจกชุดแล้ว ให้ใช้ “บันทึกพ้นสภาพ” แทน', 409);
-      this.db.employees = this.db.employees.filter((x) => x.id !== id);
-      this.log('EMPLOYEE', 'DELETE', id, `ลบพนักงาน ${fullName(e)} (${e.empCode})`);
-      this.persist();
     });
   }
   getRules() {
@@ -592,7 +575,7 @@ export class MockApi {
   // ---------- Insurance ----------
   getInsuranceCycle(cycleDate) {
     return this.run(() => {
-      const { employees, sites, rules, batches } = this.db;
+      const { employees, sites, rules, batches } = this.world;
       return buildInsuranceCycle(cycleDate, employees, sites, rules, batches);
     });
   }
@@ -612,7 +595,7 @@ export class MockApi {
       if (!batch) throw new ApiError('ไม่พบรายการส่งออก', 404);
       const insurer = this.db.insurers.find((x) => x.id === batch.insurerId);
       if (!insurer) throw new ApiError(`ไม่พบแบบฟอร์มของ${batch.insurerName ?? 'บริษัทประกัน'}แล้ว — ดาวน์โหลดเป็น CSV จากหน้ารายชื่อแทน`, 404);
-      const { employees, sites, rules, batches, companies } = this.db;
+      const { employees, sites, rules, batches, companies } = this.world;
       return buildBatchExport({ batch, insurer, employees, sites, rules, batches, companies });
     });
   }
@@ -620,7 +603,7 @@ export class MockApi {
     return this.run(() => {
       const b = this.db.batches.find((x) => x.id === id);
       if (!b) throw new ApiError('ไม่พบรายการส่งแจ้ง', 404);
-      const { employees, sites, rules, batches } = this.db;
+      const { employees, sites, rules, batches } = this.world;
       return buildBatchDetail(b, employees, sites, rules, batches);
     });
   }
@@ -696,8 +679,9 @@ export class MockApi {
       const errors = validateDeptGroup(input.name, this.db.deptGroups, input.id);
       if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
       const name = input.name.trim();
+      const toggle = this.activeChange(input, old, this.db.deptGroups, (x) => x.id === old?.id, 'ต้องเปิดใช้งานอย่างน้อย 1 กลุ่ม / ฝ่าย');
       if (!old) {
-        const g = { id: nextId(this.db.deptGroups), name, sortOrder: Math.max(0, ...this.db.deptGroups.map((x) => x.sortOrder)) + 10 };
+        const g = { id: nextId(this.db.deptGroups), name, sortOrder: Math.max(0, ...this.db.deptGroups.map((x) => x.sortOrder)) + 10, active: true };
         this.db.deptGroups.push(g);
         this.log('DEPT_GROUP', 'CREATE', g.id, `เพิ่มกลุ่ม / ฝ่าย ${name}`);
         this.persist();
@@ -715,19 +699,12 @@ export class MockApi {
         this.log('DEPT_GROUP', 'UPDATE', old.id, `เปลี่ยนชื่อกลุ่ม / ฝ่าย ${old.name} → ${name} (พนักงาน ${emp} คน · กฎชุดฟอร์ม ${rules} ฉบับ)`);
         this.persist();
       }
-      return this.deptGroup(old.id);
-    });
-  }
-  deleteDeptGroup(id) {
-    return this.run(() => {
-      const g = this.deptGroup(id);
-      if (g.employeeCount || g.ruleCount) {
-        const why = [g.employeeCount && `พนักงาน ${g.employeeCount} คน`, g.ruleCount && `กฎชุดฟอร์ม ${g.ruleCount} ข้อ`].filter(Boolean);
-        throw new ApiError(`ลบไม่ได้ — ยังมี${why.join(' และ')}ใช้กลุ่มนี้อยู่ ย้ายออกก่อน หรือเปลี่ยนชื่อแทน`, 409);
+      if (toggle !== null) {
+        this.db.deptGroups.find((x) => x.id === old.id).active = toggle;
+        this.log('DEPT_GROUP', 'UPDATE', old.id, `${toggle ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}กลุ่ม / ฝ่าย ${name}`);
+        this.persist();
       }
-      this.db.deptGroups = this.db.deptGroups.filter((x) => x.id !== id);
-      this.log('DEPT_GROUP', 'DELETE', id, `ลบกลุ่ม / ฝ่าย ${g.name}`);
-      this.persist();
+      return this.deptGroup(old.id);
     });
   }
   listInsurers() {
@@ -787,7 +764,7 @@ export class MockApi {
   exportInsurance({ cycleDate, insurerId, record = false }) {
     return this.run(() => {
       const insurer = this.insurer(insurerId);
-      const { employees, sites, rules, companies } = this.db;
+      const { employees, sites, rules, companies } = this.world;
       const data = buildInsurerExport({ cycleDate, insurer, employees, sites, rules, batches: this.db.batches, companies });
       if (!record) return { ...data, batches: [] };
       const replaced = this.db.batches.filter((b) => b.cycleDate === cycleDate && b.insurerId === insurerId);
@@ -1001,7 +978,7 @@ export class MockApi {
   }
   listUniformPending() {
     return this.run(() => {
-      const { employees, sites, rules, issues } = this.db;
+      const { employees, sites, rules, issues } = this.world;
       return buildUniformPending(employees, sites, rules, issues, this.today());
     });
   }

@@ -11,6 +11,8 @@ import { $, getParam, html, on, raw, render, setParams } from '../shared/dom.js'
 import { icon } from '../shared/icons.js';
 import { COMPANY_CODES, EMPLOYEE_TYPE_LABEL, UNIFORM_EVENT_LABEL, UNIFORM_ITEM_LABEL } from '../shared/labels.js';
 import { badge, companyChip, emptyState, errorState } from '../ui/components.js';
+import { activeBulkActions, activeColumn, activeRowClass } from '../ui/activeColumn.js';
+import { isCompanyActive } from '../domain/catalog.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { loader } from '../ui/loading.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
@@ -86,7 +88,7 @@ const grid = new ExcelGrid($('#grid'), {
       editable: (s) => s.id === 0,
       value: (s) => s.companyCode,
       display: (s) => companyChip(s.companyCode),
-      options: () => companyChoices(COMPANY_CODES).map((c) => ({ value: c, label: c })),
+      options: (s) => companyChoices(COMPANY_CODES).filter((c) => isCompanyActive(c) || c === s.companyCode).map((c) => ({ value: c, label: c })),
       set: (s, v) => ({ ...s, companyCode: String(v) }),
     },
     {
@@ -102,7 +104,7 @@ const grid = new ExcelGrid($('#grid'), {
     {
       key: 'employees',
       header: 'พนักงาน',
-      hint: 'จำนวนพนักงานที่ทำงานอยู่ — มีพนักงานแล้วลบหน่วยงานไม่ได้',
+      hint: 'จำนวนพนักงานที่ทำงานอยู่',
       width: 104,
       align: 'right',
       value: (s) => empCount.get(s.id) ?? 0,
@@ -144,6 +146,7 @@ const grid = new ExcelGrid($('#grid'), {
               <button class="btn btn-ghost btn-sm" data-site-uniform="${s.id}" title="ตั้งชุดฟอร์มของหน่วยงานนี้">${raw(icon('shirt'))} ${canEdit ? 'ตั้งค่า' : 'ดู'}</button>
             </span>`,
     },
+    activeColumn('ปิด = เลือกหน่วยงานนี้ให้พนักงานใหม่/ย้ายเข้าไม่ได้ · พนักงานเดิมอยู่ต่อได้ · แผนกในสต็อกปิดตาม'),
   ],
   onSave: async (row, isNew) => {
     let saved;
@@ -151,18 +154,19 @@ const grid = new ExcelGrid($('#grid'), {
       const { id: _id, ...input } = row;
       saved = await api.createSite(input);
     } else {
-      saved = await api.updateSite(row.id, { name: row.name, hasGroupInsurance: row.hasGroupInsurance, poloColor: row.poloColor });
+      saved = await api.updateSite(row.id, { name: row.name, hasGroupInsurance: row.hasGroupInsurance, poloColor: row.poloColor, active: row.active !== false });
     }
     // ส่งไปสต็อกไม่สำเร็จ — บันทึกในระบบนี้แล้ว แจ้งให้กดส่งเองอีกครั้ง
     if (saved?.stockWarning) toast.error(saved.stockWarning);
     const { stockWarning: _w, ...clean } = saved;
     return clean;
   },
-  // ลบจริงตอนกดบันทึก — ลบได้เฉพาะหน่วยงานที่ไม่มีพนักงานอยู่ (API แจ้งเหตุผลถ้าลบไม่ได้)
-  onRemove: (s) => api.deleteSite(s.id),
-  // เลือกหลายหน่วยงาน → ตั้งค่าพร้อมกัน (เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก) · "ลบที่เลือก" มีให้อยู่แล้ว
+  // ไม่มีการลบ — ปิดใช้งานแทน (คอลัมน์ "ใช้งาน") · หน่วยงานที่ปิด: พนักงานเดิมอยู่ต่อได้ เลือกใหม่ไม่ได้ · แผนกในสต็อกปิดตาม
+  rowClass: activeRowClass,
+  // เลือกหลายหน่วยงาน → ตั้งค่าพร้อมกัน (เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก)
   bulkActions: can('sites.edit')
     ? [
+        ...activeBulkActions('หน่วยงาน'),
         { id: 'ins-on', label: 'ได้รับประกันกลุ่ม', icon: 'shield-plus', when: (s) => !s.hasGroupInsurance, run: (rows, g) => stageAll(g, rows, { hasGroupInsurance: true }) },
         { id: 'ins-off', label: 'ไม่ได้รับประกันกลุ่ม', icon: 'shield-off', when: (s) => s.hasGroupInsurance, run: (rows, g) => stageAll(g, rows, { hasGroupInsurance: false }) },
         { id: 'polo-black', label: 'โปโลสีดำ', when: (s) => s.poloColor !== 'BLACK', run: (rows, g) => stageAll(g, rows, { poloColor: 'BLACK' }) },

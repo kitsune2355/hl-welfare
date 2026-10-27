@@ -36,19 +36,26 @@ describe('กลุ่ม / ฝ่าย: MockApi', () => {
     expect(sl.ruleCount).toBe(2);
     expect(sl.employeeCount).toBe(emps.filter((e) => e.deptGroup === 'Support Line').length);
   });
-  it('เพิ่ม → ต่อท้าย · ซ้ำ → 422 · ลบกลุ่มที่ไม่มีใครใช้ได้', async () => {
+  it('เพิ่ม → ต่อท้าย (เปิดใช้งาน) · ซ้ำ → 422 · ปิดใช้งาน = ยังอยู่ในรายการ', async () => {
     const api = make();
     const g = await api.saveDeptGroup({ name: ' ฝ่ายทดสอบ ' });
     expect(g.name).toBe('ฝ่ายทดสอบ');
     expect((await api.listDeptGroups()).at(-1).id).toBe(g.id);
     await expect(api.saveDeptGroup({ name: 'ฝ่ายทดสอบ' })).rejects.toMatchObject({ status: 422 });
-    await api.deleteDeptGroup(g.id);
-    expect((await api.listDeptGroups()).some((x) => x.id === g.id)).toBe(false);
+    expect(g.active).toBe(true);
+    const off = await api.saveDeptGroup({ id: g.id, name: g.name, active: false });
+    expect([off.active, (await api.listDeptGroups()).find((x) => x.id === g.id)?.active]).toEqual([false, false]);
+    expect('deleteDeptGroup' in api).toBe(false); // ไม่มีการลบแล้ว
   });
-  it('ลบกลุ่มที่มีพนักงาน / กฎใช้อยู่ → 409', async () => {
+  it('กลุ่มที่ปิด: พนักงานเดิมแก้ได้ · ย้ายพนักงานอื่นเข้ากลุ่มนี้ไม่ได้ (422)', async () => {
     const api = make();
     const sl = (await api.listDeptGroups()).find((g) => g.name === 'Support Line');
-    await expect(api.deleteDeptGroup(sl.id)).rejects.toMatchObject({ status: 409 });
+    await api.saveDeptGroup({ id: sl.id, name: sl.name, active: false });
+    const emps = await api.listEmployees({ employeeType: 'CENTRAL' });
+    const inSl = emps.find((e) => e.deptGroup === 'Support Line');
+    const other = emps.find((e) => e.deptGroup && e.deptGroup !== 'Support Line');
+    expect((await api.saveEmployee({ ...inSl, phone: '0811111111' })).deptGroup).toBe('Support Line');
+    await expect(api.saveEmployee({ ...other, deptGroup: 'Support Line' })).rejects.toMatchObject({ status: 422 });
   });
   it('เปลี่ยนชื่อ → พนักงาน + กฎชุดฟอร์มทุกฉบับเปลี่ยนตาม', async () => {
     const api = make();

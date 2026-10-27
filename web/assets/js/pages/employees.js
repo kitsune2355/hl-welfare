@@ -1,5 +1,5 @@
 // หน้า: พนักงาน (employees.html) — ตาราง Excel เพิ่ม / แก้ไข / ลบ / บันทึกพ้นสภาพ ในตารางทั้งหมด (ไม่มีฟอร์มแยก)
-import { defaultTypeFor, typeAllows, typeInfo, typesFor } from '../domain/catalog.js';
+import { defaultTypeFor, isCompanyActive, isTypeActive, typeAllows, typeInfo, typesFor } from '../domain/catalog.js';
 import { api } from '../app/api.js';
 import { can, companyChoices, myCompany } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
@@ -21,6 +21,7 @@ import {
   STATUS_TONE,
 } from '../shared/labels.js';
 import { badge, companyChip, emptyState, errorState } from '../ui/components.js';
+import { activeBulkActions, activeColumn, activeRowClass } from '../ui/activeColumn.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { openModal, toast } from '../ui/overlay.js';
 import { openEmployeeDetail } from './_employeeDetail.js';
@@ -36,8 +37,13 @@ const str = (v) => (v === null || v === undefined ? '' : String(v));
 let sites = [];
 /** ชื่อกลุ่ม / ฝ่ายที่ตั้งค่าไว้ (หน้าเงื่อนไขสวัสดิการ แท็บค่าตั้งค่า) — โหลดไม่ได้/ยังไม่รัน sql/014 = รายการตั้งต้น */
 let deptGroups = [...DEPT_GROUPS];
+/** กลุ่มที่ปิดใช้งาน — ไม่อยู่ในตัวเลือก (ค่าเดิมของแถวยังแสดง) */
+let offGroups = new Set();
 api.listDeptGroups().then(
-  (list) => (deptGroups = list.map((g) => g.name)),
+  (list) => {
+    deptGroups = list.map((g) => g.name);
+    offGroups = new Set(list.filter((g) => g.active === false).map((g) => g.name));
+  },
   () => {},
 );
 
@@ -121,7 +127,8 @@ const columns = [
     editor: 'select',
     value: (e) => e.companyCode,
     display: (e) => companyChip(e.companyCode),
-    options: () => companyChoices(COMPANY_CODES).map((c) => ({ value: c, label: c })),
+    // เฉพาะที่เปิดใช้งาน + ค่าเดิมของแถว (ปิดแล้ว = ข้อมูลเดิมใช้ต่อ เลือกใหม่ไม่ได้)
+    options: (e) => companyChoices(COMPANY_CODES).filter((c) => isCompanyActive(c) || c === e.companyCode).map((c) => ({ value: c, label: c })),
     set: setField('companyCode', str),
   },
   {
@@ -132,7 +139,7 @@ const columns = [
     editor: 'select',
     value: (e) => String(e.siteId),
     display: (e) => html`<span class="truncate">${sites.find((s) => s.id === e.siteId)?.name ?? '–'}</span>`,
-    options: (e) => sites.filter((s) => s.companyCode === e.companyCode).map((s) => ({ value: String(s.id), label: s.name })),
+    options: (e) => sites.filter((s) => s.companyCode === e.companyCode && (s.active !== false || s.id === e.siteId)).map((s) => ({ value: String(s.id), label: s.name })),
     set: setField('siteId', Number),
   },
   {
@@ -144,7 +151,7 @@ const columns = [
     value: (e) => e.employeeType,
     display: (e) => badge(EMPLOYEE_TYPE_LABEL[e.employeeType], EMPLOYEE_TYPE_TONE[e.employeeType], { dot: false }),
     // เฉพาะประเภทที่ใช้กับบริษัทของแถวนี้ได้ (ตั้งที่ sites.html แท็บประเภทพนักงาน)
-    options: (e) => typesFor(e.companyCode).map((t) => ({ value: t, label: EMPLOYEE_TYPE_LABEL[t] })),
+    options: (e) => typesFor(e.companyCode).filter((t) => isTypeActive(t) || t === e.employeeType).map((t) => ({ value: t, label: EMPLOYEE_TYPE_LABEL[t] })),
     set: setField('employeeType', str),
   },
   {
@@ -155,7 +162,7 @@ const columns = [
     editable: (e) => !!typeInfo(e.employeeType)?.usesDeptGroup,
     value: (e) => e.deptGroup,
     // ค่าที่พนักงานมีอยู่แต่ไม่อยู่ในรายการแล้ว (ข้อมูลเดิม) ยังแสดงเป็นตัวเลือก ไม่หายจากช่อง
-    options: (e) => [...deptGroups, ...(e.deptGroup && !deptGroups.includes(e.deptGroup) ? [e.deptGroup] : [])].map((d) => ({ value: d, label: d })),
+    options: (e) => [...deptGroups.filter((d) => !offGroups.has(d) || d === e.deptGroup), ...(e.deptGroup && !deptGroups.includes(e.deptGroup) ? [e.deptGroup] : [])].map((d) => ({ value: d, label: d })),
     set: setField('deptGroup', (v) => str(v) || null),
   },
   {
@@ -239,6 +246,7 @@ const columns = [
     display: (e) => (e.endDate ? thaiDate(e.endDate) : ''),
     set: setField('endDate', (v) => str(v) || null),
   },
+  activeColumn('ปิด = ไม่อยู่ในการคำนวณใดเลย (ประกัน ชุดฟอร์ม ภาพรวม) — สำหรับแถวที่กรอกผิด · คนที่ออกจากงานใช้ "พ้นสภาพ" · มีประวัติแจ้งประกัน/แจกชุดแล้วปิดไม่ได้'),
 ];
 
 /** กล่องเลือกเหตุผล + วันพ้นสภาพ → แก้หลายคนเป็น "ยังไม่บันทึก" */
@@ -298,6 +306,7 @@ function blankEmployee() {
       deptGroup: null,
       position: null,
       level: null,
+      active: true,
       birthDate: '',
       startDate: today,
       probationPassDate: probationDueDate(today),
@@ -337,14 +346,14 @@ const grid = new ExcelGrid($('#grid'), {
     if (!sites.length) sites = await api.listSites();
     return exportEmployeeList(rows, { sites, deptGroups });
   },
-  // เลือกหลายคน → บันทึกพ้นสภาพพร้อมกัน (เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก)
+  // เลือกหลายคน → บันทึกพ้นสภาพ / เปิด-ปิดใช้งาน พร้อมกัน (เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก)
   bulkActions: can('employees.edit')
-    ? [{ id: 'terminate', label: 'บันทึกพ้นสภาพ', icon: 'user-x', when: (e) => e.status === 'ACTIVE', run: (rows) => bulkTerminate(rows) }]
+    ? [{ id: 'terminate', label: 'บันทึกพ้นสภาพ', icon: 'user-x', when: (e) => e.status === 'ACTIVE', run: (rows) => bulkTerminate(rows) }, ...activeBulkActions('คน')]
     : [],
   // มือถือก็ใช้ตารางเดียวกัน (เลื่อนแนวนอน) — เพิ่ม/แก้ได้ในตารางทุกขนาดจอ
-  // ลบ = ทำเครื่องหมายไว้ ลบจริงตอนกดบันทึก (มีกล่องยืนยันรายชื่อก่อน)
-  // ลบได้เฉพาะข้อมูลที่บันทึกผิด — ถ้ามีประวัติแจ้งประกัน/แจกชุดแล้ว API ไม่ให้ลบ (ใช้ "พ้นสภาพ" แทน)
-  onRemove: (e) => api.deleteEmployee(e.id),
+  // ไม่มีการลบ — ปิดใช้งานแทน (คอลัมน์ "ใช้งาน"): ไม่อยู่ในการคำนวณใดเลย เปิดกลับได้
+  // ปิดได้เฉพาะข้อมูลที่บันทึกผิด — มีประวัติแจ้งประกัน/แจกชุดแล้ว API ไม่ให้ปิด (ใช้ "พ้นสภาพ" แทน)
+  rowClass: activeRowClass,
   rowLabel: (e) => `${e.empCode} · ${e.firstName} ${e.lastName}`,
   onSaved: () => refreshCounts(),
   empty: emptyState({ iconName: 'user-x', title: 'ไม่พบพนักงาน', description: 'ลองเปลี่ยนคำค้นหรือล้างตัวกรอง / กด “เพิ่มแถว” เพื่อเริ่มกรอกข้อมูล' }),

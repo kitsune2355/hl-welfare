@@ -75,7 +75,10 @@ export const typeAllows = (code, companyCode) => {
 };
 /** ประเภทที่ใช้กับบริษัทนี้ได้ (ตามลำดับ) */
 export const typesFor = (companyCode) => types.filter((t) => t.companies === null || t.companies.includes(companyCode)).map((t) => t.code);
-/** ประเภทตั้งต้นของแถวใหม่ / เมื่อประเภทเดิมใช้กับบริษัทไม่ได้ — ประเภทแรกที่ใช้ได้ */
-export const defaultTypeFor = (companyCode) => typesFor(companyCode)[0] ?? types[0]?.code ?? 'CENTRAL';
+/** เปิดใช้งานไหม (sql/018 — ปิดแล้ว: ข้อมูลเดิมใช้ต่อ แต่เลือกใหม่ไม่ได้) */
+export const isCompanyActive = (code) => companyOf(code)?.active !== false;
+export const isTypeActive = (code) => typeInfo(code)?.active !== false;
+/** ประเภทตั้งต้นของแถวใหม่ / เมื่อประเภทเดิมใช้กับบริษัทไม่ได้ — ประเภทแรกที่ใช้ได้ (ที่เปิดใช้งานก่อน) */
+export const defaultTypeFor = (companyCode) => typesFor(companyCode).find(isTypeActive) ?? typesFor(companyCode)[0] ?? types[0]?.code ?? 'CENTRAL';
 /** สีบริษัท (แถบพนักงานหน้าภาพรวม) — ไม่ได้ตั้ง = สีตามลำดับ */
 export const companyColor = (code) => companyOf(code)?.color || COMPANY_PALETTE[Math.max(0, COMPANY_CODES.indexOf(code)) % COMPANY_PALETTE.length];

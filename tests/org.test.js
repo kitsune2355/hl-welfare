@@ -85,7 +85,7 @@ describe('ตั้งค่าองค์กร: พฤติกรรมต�
 });
 
 describe('ตั้งค่าองค์กร: MockApi', () => {
-  it('บริษัท: เพิ่ม → ต่อท้าย · จัดลำดับ · ลบที่มีหน่วยงาน = 409 · ลบที่ว่าง', async () => {
+  it('บริษัท: เพิ่ม → ต่อท้าย · จัดลำดับ · ปิดใช้งาน (ไม่มีลบ) · ปิดตัวสุดท้ายไม่ได้', async () => {
     const api = make();
     const c = await api.saveCompany({ code: 'nw', name: 'นิวเวิลด์', legalName: '', color: '#EF4444' }, true);
     expect([c.code, c.color, c.siteCount]).toEqual(['NW', '#ef4444', 0]);
@@ -93,11 +93,14 @@ describe('ตั้งค่าองค์กร: MockApi', () => {
     const order = ['NW', 'HL', 'PRO', 'CNS', 'CIC', 'AS'];
     await api.saveCompanyOrder(order);
     expect((await api.listCompanies()).map((x) => x.code)).toEqual(order);
-    await expect(api.deleteCompany('HL')).rejects.toMatchObject({ status: 409 });
-    await api.deleteCompany('NW');
-    expect((await api.listCompanies()).some((x) => x.code === 'NW')).toBe(false);
+    const off = await api.saveCompany({ ...c, active: false }, false);
+    expect([off.active, (await api.listCompanies()).find((x) => x.code === 'NW').active]).toEqual([false, false]);
+    for (const x of await api.listCompanies({ usage: true })) if (x.code !== 'HL') await api.saveCompany({ ...x, active: false }, false);
+    const hl = (await api.listCompanies({ usage: true })).find((x) => x.code === 'HL');
+    await expect(api.saveCompany({ ...hl, active: false }, false)).rejects.toMatchObject({ status: 409 }); // ต้องเปิดอย่างน้อย 1
+    expect('deleteCompany' in api).toBe(false);
   });
-  it('ประเภท: รายการเบา / พร้อมจำนวนที่ใช้ · เพิ่ม · ลบที่มีพนักงาน = 409', async () => {
+  it('ประเภท: รายการเบา / พร้อมจำนวนที่ใช้ · เพิ่ม · ปิดใช้งาน = เลือกใหม่ไม่ได้ (คนเดิมใช้ต่อ)', async () => {
     const api = make();
     const plain = await api.listEmployeeTypes();
     expect([plain.length, plain[0].employeeCount]).toEqual([4, undefined]);
@@ -105,8 +108,12 @@ describe('ตั้งค่าองค์กร: MockApi', () => {
     expect(used.find((t) => t.code === 'CENTRAL').employeeCount).toBeGreaterThan(0);
     const t = await api.saveEmployeeType({ ...CONTRACT, companies: ['HL'] }, true);
     expect([t.code, t.employeeCount, t.ruleCount]).toEqual(['CONTRACT', 0, 0]);
-    await expect(api.deleteEmployeeType('CENTRAL')).rejects.toMatchObject({ status: 409 });
-    await api.deleteEmployeeType('CONTRACT');
-    expect((await api.listEmployeeTypes()).length).toBe(4);
+    const daily = (await api.listEmployeeTypes({ usage: true })).find((x) => x.code === 'DAILY');
+    await api.saveEmployeeType({ ...daily, active: false }, false);
+    const [d] = await api.listEmployees({ employeeType: 'DAILY' });
+    expect((await api.saveEmployee({ ...d, phone: '0822222222' })).employeeType).toBe('DAILY'); // คนเดิมแก้ได้
+    const [c] = await api.listEmployees({ employeeType: 'CENTRAL', companyCode: 'HL' });
+    await expect(api.saveEmployee({ ...c, employeeType: 'DAILY', deptGroup: null, level: null })).rejects.toMatchObject({ status: 422 });
+    expect('deleteEmployeeType' in api).toBe(false);
   });
 });

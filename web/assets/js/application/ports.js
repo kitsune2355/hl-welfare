@@ -11,11 +11,9 @@
  * @property {() => Promise<Site[]>} listSites
  * @property {(input: Omit<Site,'id'>) => Promise<Site>} createSite
  * @property {(id: number, patch: Partial<Pick<Site,'name'|'hasGroupInsurance'|'poloColor'>>) => Promise<Site>} updateSite
- * @property {(id: number) => Promise<void>} deleteSite                         409 ถ้ายังมีพนักงาน
  * @property {(filter?: {q?:string, companyCode?:string, employeeType?:string, status?:string}) => Promise<Employee[]>} listEmployees
  * @property {(id: number) => Promise<import('../domain/types.js').EmployeeBenefits>} getEmployeeBenefits
  * @property {(emp: Omit<Employee,'id'> & {id?: number}) => Promise<Employee>} saveEmployee   ไม่มี id = สร้างใหม่
- * @property {(id: number) => Promise<void>} deleteEmployee                     409 ถ้ามีประวัติแจ้งประกัน/แจกชุด
  * @property {() => Promise<Object>} getRules                                  กฎที่มีผล ณ วันนี้
  * @property {() => Promise<Object>} getRuleHistory                            {today, insurance, uniform: [{id, current, pending, history}], settings: [{key, value, effectiveFrom}], uniformItems}
  * @property {(kind: 'insurance'|'uniform', rule: Object) => Promise<Object>} createRule              rule.effectiveFrom (ไม่ส่ง = วันนี้) · คืนประวัติชุดใหม่

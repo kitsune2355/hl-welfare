@@ -33,20 +33,16 @@ function api_routes()
     router_add($r, 'POST', '/companies', 'api_company_save');
     router_add($r, 'PUT', '/companies/order', 'api_company_order');
     router_add($r, 'PUT', '/companies/{code}', 'api_company_save');
-    router_add($r, 'DELETE', '/companies/{code}', 'api_company_delete');
     router_add($r, 'GET', '/employee-types', 'api_employee_types');
     router_add($r, 'POST', '/employee-types', 'api_employee_type_save');
     router_add($r, 'PUT', '/employee-types/{code}', 'api_employee_type_save');
-    router_add($r, 'DELETE', '/employee-types/{code}', 'api_employee_type_delete');
     router_add($r, 'GET', '/sites', 'api_sites');
     router_add($r, 'POST', '/sites', 'api_site_create');
     router_add($r, 'PATCH', '/sites/{id}', 'api_site_update');
-    router_add($r, 'DELETE', '/sites/{id}', 'api_site_delete');
 
     router_add($r, 'GET', '/employees', 'api_employees');
     router_add($r, 'POST', '/employees', 'api_employee_save');
     router_add($r, 'PUT', '/employees/{id}', 'api_employee_save');
-    router_add($r, 'DELETE', '/employees/{id}', 'api_employee_delete');
     router_add($r, 'GET', '/employees/{id}/benefits', 'api_employee_benefits');
     router_add($r, 'GET', '/rules', 'api_rules');
     /* แก้เงื่อนไขสวัสดิการแบบมีวันที่มีผล · api/rules_edit.php (สิทธิ์ rules.edit — ตรวจใน handler) */
@@ -62,7 +58,6 @@ function api_routes()
     router_add($r, 'GET', '/dept-groups', 'api_dept_groups');
     router_add($r, 'POST', '/dept-groups', 'api_dept_group_save');
     router_add($r, 'PUT', '/dept-groups/{id}', 'api_dept_group_save');
-    router_add($r, 'DELETE', '/dept-groups/{id}', 'api_dept_group_delete');
 
     router_add($r, 'GET', '/insurance/cycles/{date}', 'api_insurance_cycle');
     router_add($r, 'GET', '/insurance/batches', 'api_batches');

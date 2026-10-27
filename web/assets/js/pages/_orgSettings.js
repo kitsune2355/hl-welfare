@@ -15,6 +15,7 @@ import { html, raw, render } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import { DEPT_GROUPS } from '../shared/labels.js';
 import { alertBox, badge, emptyState, errorState } from '../ui/components.js';
+import { activeBulkActions, activeColumn, activeRowClass } from '../ui/activeColumn.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { loader } from '../ui/loading.js';
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
@@ -41,7 +42,7 @@ function companyGrid(el) {
     rowKey: (c) => c.code,
     addLabel: 'เพิ่มบริษัท',
     // __new = แถวที่ยังไม่บันทึก (ตั้งรหัสได้) — แถวที่บันทึกแล้วมาจาก API ไม่มีค่านี้
-    newRow: () => ({ code: '', name: '', legalName: '', color: '', siteCount: 0, employeeCount: 0, ruleCount: 0, insurerCount: 0, userCount: 0, __new: true }),
+    newRow: () => ({ code: '', name: '', legalName: '', color: '', siteCount: 0, employeeCount: 0, ruleCount: 0, insurerCount: 0, userCount: 0, active: true, __new: true }),
     validate: (c) => validateCompany(c, companies, !!c.__new),
     columns: [
       {
@@ -94,9 +95,11 @@ function companyGrid(el) {
       { key: 'siteCount', header: 'หน่วยงาน', width: 96, align: 'right', value: (c) => c.siteCount, display: (c) => count(c.siteCount) },
       { key: 'employeeCount', header: 'พนักงาน', width: 96, align: 'right', value: (c) => c.employeeCount, display: (c) => count(c.employeeCount) },
       { key: 'ruleCount', header: 'กฎ', width: 70, align: 'right', value: (c) => c.ruleCount, display: (c) => count(c.ruleCount) },
+      activeColumn('ปิด = เลือกบริษัทนี้ให้พนักงาน/หน่วยงานใหม่ไม่ได้ · ข้อมูลเดิมยังใช้และคำนวณตามเดิม · บริษัทในสต็อกปิดตาม'),
     ],
+    rowClass: activeRowClass,
+    bulkActions: canEditOrg ? activeBulkActions('บริษัท') : [],
     onSave: async (c, isNew) => api.saveCompany(c, isNew),
-    onRemove: (c) => api.deleteCompany(c.code),
     rowLabel: (c) => `${c.code} — ${c.name}`,
     onSaved: () => reload(),
     exportName: 'บริษัท',
@@ -173,7 +176,7 @@ function typeGrid(el) {
     readOnly: !canEditOrg || !typesReady,
     rowKey: (t) => t.code,
     addLabel: 'เพิ่มประเภท',
-    newRow: () => ({ code: '', name: '', description: '', companies: null, usesDeptGroup: false, usesPosition: false, dailyCycle: false, tone: 'neutral', employeeCount: 0, ruleCount: 0, __new: true }),
+    newRow: () => ({ code: '', name: '', description: '', companies: null, usesDeptGroup: false, usesPosition: false, dailyCycle: false, tone: 'neutral', employeeCount: 0, ruleCount: 0, active: true, __new: true }),
     validate: (t) => validateEmployeeType(t, types, COMPANY_CODES, !!t.__new),
     columns: [
       {
@@ -213,9 +216,11 @@ function typeGrid(el) {
       { key: 'description', header: 'คำอธิบาย', width: 260, editor: 'text', value: (t) => t.description, set: (t, v) => ({ ...t, description: str(v) }) },
       { key: 'employeeCount', header: 'พนักงาน', width: 90, align: 'right', value: (t) => t.employeeCount, display: (t) => count(t.employeeCount) },
       { key: 'ruleCount', header: 'กฎ', width: 70, align: 'right', value: (t) => t.ruleCount, display: (t) => count(t.ruleCount) },
+      activeColumn('ปิด = เลือกประเภทนี้ให้พนักงาน/กฎใหม่ไม่ได้ · พนักงานและกฎเดิมยังใช้และคำนวณตามเดิม'),
     ],
+    rowClass: activeRowClass,
+    bulkActions: canEditOrg ? activeBulkActions('ประเภท') : [],
     onSave: async (t, isNew) => api.saveEmployeeType(t, isNew),
-    onRemove: (t) => api.deleteEmployeeType(t.code),
     rowLabel: (t) => `${t.name} (${t.code})`,
     onSaved: () => reload(),
     exportName: 'ประเภทพนักงาน',
@@ -233,16 +238,18 @@ function groupGrid(el) {
     readOnly: !canEditOrg || !groupsReady,
     rowKey: (g) => g.id,
     addLabel: 'เพิ่มกลุ่ม / ฝ่าย',
-    newRow: () => ({ id: 0, name: '', employeeCount: 0, ruleCount: 0 }),
+    newRow: () => ({ id: 0, name: '', employeeCount: 0, ruleCount: 0, active: true }),
     validate: (g) => validateDeptGroup(g.name, groups, g.id),
     columns: [
       { key: 'name', header: 'ชื่อกลุ่ม / ฝ่าย', width: 320, required: true, editor: 'text', value: (g) => g.name, set: (g, v) => ({ ...g, name: str(v) }) },
       { key: 'employeeCount', header: 'พนักงาน', width: 96, align: 'right', value: (g) => g.employeeCount, display: (g) => count(g.employeeCount) },
       { key: 'ruleCount', header: 'กฎชุดฟอร์ม', width: 110, align: 'right', value: (g) => g.ruleCount, display: (g) => count(g.ruleCount) },
+      activeColumn('ปิด = เลือกกลุ่มนี้ให้พนักงาน/กฎใหม่ไม่ได้ · พนักงานและกฎเดิมยังใช้ตามเดิม'),
     ],
+    rowClass: activeRowClass,
+    bulkActions: canEditOrg && groupsReady ? activeBulkActions('กลุ่ม') : [],
     // เปลี่ยนชื่อ = แก้ชื่อในพนักงาน + กฎชุดฟอร์มทุกฉบับ (backend ทำให้)
-    onSave: async (g, isNew) => api.saveDeptGroup({ id: isNew ? undefined : g.id, name: g.name }),
-    onRemove: (g) => api.deleteDeptGroup(g.id),
+    onSave: async (g, isNew) => api.saveDeptGroup({ id: isNew ? undefined : g.id, name: g.name, active: g.active }),
     rowLabel: (g) => g.name,
     onSaved: () => reload(),
     exportName: 'กลุ่ม-ฝ่าย',
@@ -255,9 +262,9 @@ let root = null;
 let current = 'companies';
 const HINT = {
   companies:
-    'ดับเบิลคลิกเพื่อแก้ · รหัสตั้งตอนเพิ่มเท่านั้น (ใช้ทั้งระบบ — ตัวกรอง สิทธิ์ HR บริษัท กฎ ไฟล์แจ้งประกัน) · ชื่อตามทะเบียนใช้ในไฟล์แจ้งประกัน · ลำดับ = ปุ่มขึ้น/ลง · ลบได้เมื่อไม่มีหน่วยงาน/พนักงาน/ผู้ใช้/กฎ/บริษัทประกันที่ผูก',
-  types: 'ดับเบิลคลิกเพื่อแก้ · ติ๊กพฤติกรรมในตารางได้เลย (ชี้ที่หัวคอลัมน์ดูคำอธิบาย) · รหัสตั้งตอนเพิ่มเท่านั้น · ลบได้เมื่อไม่มีพนักงาน/กฎที่ใช้',
-  groups: 'ใช้กับประเภทที่ติ๊ก “กลุ่ม/ฝ่าย + ระดับ” · ดับเบิลคลิกเพื่อเปลี่ยนชื่อ — ชื่อในพนักงานและกฎชุดฟอร์มทุกฉบับเปลี่ยนตาม · ลบได้เมื่อไม่มีพนักงาน/กฎที่ใช้',
+    'ดับเบิลคลิกเพื่อแก้ · รหัสตั้งตอนเพิ่มเท่านั้น (ใช้ทั้งระบบ — ตัวกรอง สิทธิ์ HR บริษัท กฎ ไฟล์แจ้งประกัน) · ชื่อตามทะเบียนใช้ในไฟล์แจ้งประกัน · ลำดับ = ปุ่มขึ้น/ลง · ไม่มีการลบ — ปิดที่คอลัมน์ “ใช้งาน” (ข้อมูลเดิมใช้ต่อ เลือกใหม่ไม่ได้)',
+  types: 'ดับเบิลคลิกเพื่อแก้ · ติ๊กพฤติกรรมในตารางได้เลย (ชี้ที่หัวคอลัมน์ดูคำอธิบาย) · รหัสตั้งตอนเพิ่มเท่านั้น · ไม่มีการลบ — ปิดที่คอลัมน์ “ใช้งาน”',
+  groups: 'ใช้กับประเภทที่ติ๊ก “กลุ่ม/ฝ่าย + ระดับ” · ดับเบิลคลิกเพื่อเปลี่ยนชื่อ — ชื่อในพนักงานและกฎชุดฟอร์มทุกฉบับเปลี่ยนตาม · ไม่มีการลบ — ปิดที่คอลัมน์ “ใช้งาน”',
 };
 
 async function loadTypes() {

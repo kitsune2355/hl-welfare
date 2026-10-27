@@ -7,10 +7,36 @@
  *  ข้อมูลหลักร้อยแถว จึงโหลดทั้งตารางแล้วคำนวณในหน่วยความจำแบบเดียวกับ mock (สเปกข้อ 10.7)
  * ============================================================ */
 
+/** เปิดใช้งานไหม (sql/018) — ยังไม่ได้รัน migration = เปิดทั้งหมด */
+function row_active($r)
+{
+    return isset($r['active']) ? (bool)$r['active'] : true;
+}
+
+/** ตารางนี้มีคอลัมน์ active ไหม (sql/018) */
+function db_has_active($table)
+{
+    static $seen = array();
+    if (!isset($seen[$table])) {
+        $seen[$table] = db_value('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            array($table, 'active')) > 0;
+    }
+    return $seen[$table];
+}
+
+/** เปิด/ปิดการใช้งาน (แทนการลบ) — ยังไม่ได้รัน sql/018 = แจ้งให้รันก่อน */
+function set_active($table, $keyCol, $key, $active, $u)
+{
+    if (!db_has_active($table)) {
+        throw new ApiError('ยังเปิด/ปิดการใช้งานไม่ได้ — ผู้ดูแลระบบต้องรัน backend/sql/018_active_flags.sql ก่อน', 503);
+    }
+    db_exec('UPDATE `' . $table . '` SET active = ?, updated_by = ? WHERE `' . $keyCol . '` = ?', array($active ? 1 : 0, $u['username'], $key));
+}
+
 function map_company($r)
 {
     return array('code' => $r['code'], 'name' => $r['name'], 'legalName' => $r['legal_name'],
-        'color' => isset($r['color']) ? $r['color'] : '', 'sortOrder' => (int)$r['sort_order']);
+        'color' => isset($r['color']) ? $r['color'] : '', 'sortOrder' => (int)$r['sort_order'], 'active' => row_active($r));
 }
 
 function map_employee_type($r)
@@ -18,7 +44,7 @@ function map_employee_type($r)
     return array('code' => $r['code'], 'name' => $r['name'], 'description' => $r['description'],
         'companies' => json_in($r['companies'], null), 'usesDeptGroup' => (bool)$r['uses_dept_group'],
         'usesPosition' => (bool)$r['uses_position'], 'dailyCycle' => (bool)$r['daily_cycle'],
-        'tone' => $r['tone'], 'sortOrder' => (int)$r['sort_order']);
+        'tone' => $r['tone'], 'sortOrder' => (int)$r['sort_order'], 'active' => row_active($r));
 }
 
 /** ประเภทพนักงาน (sql/015) — ใช้ผ่าน employee_types_all() ใน domain/labels.php */
@@ -33,7 +59,7 @@ function map_site($r, $overrides = array())
 {
     return array('id' => (int)$r['id'], 'companyCode' => $r['company_code'], 'name' => $r['name'],
         'hasGroupInsurance' => (bool)$r['has_group_insurance'], 'poloColor' => $r['polo_color'],
-        'uniformOverrides' => $overrides);
+        'uniformOverrides' => $overrides, 'active' => row_active($r));
 }
 
 /** มีตารางนี้ไหม (จำผลไว้ต่อคำขอ) — ใช้กับตารางของ migration ที่อาจยังไม่ได้รัน */
@@ -90,6 +116,7 @@ function map_employee($r)
         'nationalId' => $r['national_id'],
         'phone' => $r['phone'],
         'email' => $r['email'],
+        'active' => row_active($r),
     );
 }
 
@@ -336,11 +363,19 @@ function repo_insurer($id)
     return $r ? map_insurer($r) : null;
 }
 
-/** ข้อมูลทั้งหมดที่ use-case ต้องใช้ (แบบเดียวกับ this.db ของ MockApi) */
+/** พนักงานที่เปิดใช้งาน — ที่ปิดไม่อยู่ในการคำนวณใดเลย (ประกัน ชุดฟอร์ม ภาพรวม คิวงาน) */
+function repo_active_employees()
+{
+    $out = array();
+    foreach (repo_employees() as $e) { if ($e['active']) { $out[] = $e; } }
+    return $out;
+}
+
+/** ข้อมูลทั้งหมดที่ use-case ต้องใช้ (แบบเดียวกับ MockApi.world) */
 function repo_world()
 {
     return array(
-        'employees' => repo_employees(),
+        'employees' => repo_active_employees(),
         'sites' => repo_sites(),
         'rules' => repo_rules(),
         'batches' => repo_batches(),

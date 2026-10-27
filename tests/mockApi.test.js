@@ -64,19 +64,30 @@ describe('MockApi CRUD + monitoring', () => {
       api.createSite({ companyCode: 'HL', name: 'สาขาทดสอบ', hasGroupInsurance: true, poloColor: 'BLACK' }),
     ).rejects.toMatchObject({ status: 409 });
     expect((await api.updateSite(s.id, { name: 'สาขาใหม่' })).name).toBe('สาขาใหม่');
-    await api.deleteSite(s.id);
-    expect((await api.listSites()).some((x) => x.id === s.id)).toBe(false);
-    await expect(api.deleteSite(1)).rejects.toMatchObject({ status: 409 });
+    expect(s.active).toBe(true);
+    const off = await api.updateSite(s.id, { active: false });
+    expect([off.active, (await api.listSites()).find((x) => x.id === s.id)?.active]).toEqual([false, false]);
+    const [e] = await api.listEmployees({ companyCode: 'HL' });
+    await expect(api.saveEmployee({ ...e, siteId: s.id })).rejects.toMatchObject({ status: 422 }); // ย้ายเข้าหน่วยงานที่ปิดไม่ได้
+    expect('deleteSite' in api).toBe(false);
   });
-  it('พนักงาน: ลบได้ถ้ายังไม่มีประวัติ / มีประวัติ → 409', async () => {
+  it('พนักงาน: ปิดใช้งาน = ไม่อยู่ในการคำนวณ · เปิดกลับได้ · มีประวัติแล้วปิดไม่ได้ (409)', async () => {
     const api = make();
     const [base] = await api.listEmployees();
     const { id: _id, ...rest } = base;
     const created = await api.saveEmployee({ ...rest, empCode: 'NEW001' });
-    await api.deleteEmployee(created.id);
-    await expect(api.getEmployeeBenefits(created.id)).rejects.toMatchObject({ status: 404 });
+    expect(created.active).toBe(true);
+    const before = (await api.getDashboard()).activeEmployees;
+    const off = await api.saveEmployee({ ...created, active: false });
+    expect(off.active).toBe(false);
+    expect((await api.listEmployees({ q: 'NEW001' }))[0].active).toBe(false); // ยังอยู่ในตาราง
+    if (created.status === 'ACTIVE' && before !== undefined) expect((await api.getDashboard()).activeEmployees).toBe(before - 1);
+    expect(api.world.employees.some((e) => e.id === created.id)).toBe(false);
+    expect((await api.saveEmployee({ ...off, active: true })).active).toBe(true);
     const batches = await api.listInsuranceBatches();
-    await expect(api.deleteEmployee(batches[0].items[0].employeeId)).rejects.toMatchObject({ status: 409 });
+    const withHistory = (await api.listEmployees()).find((e) => e.id === batches[0].items[0].employeeId);
+    await expect(api.saveEmployee({ ...withHistory, active: false })).rejects.toMatchObject({ status: 409 });
+    expect('deleteEmployee' in api).toBe(false);
   });
   it('ประวัติการส่ง: รายชื่อย่อในรายการ + รายละเอียด batch (วันมีผล/เหตุผลตรงกับหน้ารอบ)', async () => {
     const api = make();

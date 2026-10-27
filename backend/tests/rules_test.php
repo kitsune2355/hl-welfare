@@ -145,7 +145,8 @@ $GLOBALS['stock_sync_fail'] = false;
 $r = $ed->req('POST', '/sites', array('companyCode' => 'HL', 'name' => 'ทดสอบส่งสต็อก', 'hasGroupInsurance' => true));
 $newSite = $r['json']['data']['id'];
 $GLOBALS['stock_log'] = array();
-$ed->req('DELETE', '/sites/' . $newSite);
+$ed->req('PATCH', '/sites/' . $newSite, array('active' => false));
 $last = end($GLOBALS['stock_log']);
-check('ลบหน่วยงาน → สต็อกปิดใช้งาน (active = false)', $last && $last['action'] === 'sync_master' && $last['sites'][0]['id'] === $newSite
+check('ปิดใช้งานหน่วยงาน → สต็อกปิดใช้งาน (active = false)', $last && $last['action'] === 'sync_master' && $last['sites'][0]['id'] === $newSite
     && $last['sites'][0]['active'] === false);
+db_exec('DELETE FROM sites WHERE id = ?', array($newSite));   // เก็บกวาด

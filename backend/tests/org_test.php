@@ -45,8 +45,7 @@ check('บริษัทใหม่อยู่ท้ายรายการ 
     && S($og->req('POST', '/sites', array('companyCode' => 'NW', 'name' => 'สำนักงาน NW', 'hasGroupInsurance' => true, 'poloColor' => 'BLACK'))) === 201);
 $r = $og->req('PUT', '/companies/NW', array('name' => 'นิวเวิลด์ (NW)', 'legalName' => '', 'color' => ''));
 check('แก้ชื่อบริษัท (รหัสคงเดิม)', $r['status'] === 200 && $r['json']['data']['name'] === 'นิวเวิลด์ (NW)' && $r['json']['data']['code'] === 'NW');
-$r = $og->req('DELETE', '/companies/NW');
-check('ลบบริษัทที่มีหน่วยงาน → 409', $r['status'] === 409 && strpos($r['json']['error'], 'หน่วยงาน 1') !== false, json_encode($r['json']));
+check('ลบบริษัท → ไม่มี endpoint (405)', S($og->req('DELETE', '/companies/NW')) === 405);
 $order = array('NW', 'HL', 'PRO', 'CNS', 'CIC', 'AS');
 $r = $og->req('PUT', '/companies/order', array('order' => $order));
 $codes = array();
@@ -81,16 +80,42 @@ org_cache_reset();
 check('รอบรายวันตามพฤติกรรมที่ตั้ง (ไม่ใช่รหัส DAILY)', cycle_day_of(array('employeeType' => 'CONTRACT_NW'), array('insuranceCycleDay' => 5, 'insuranceCycleDayDaily' => 6)) === 6
     && cycle_day_of(array('employeeType' => 'CENTRAL'), array('insuranceCycleDay' => 5, 'insuranceCycleDayDaily' => 6)) === 5);
 
-$r = $og->req('DELETE', '/employee-types/CONTRACT_NW');
-check('ลบประเภทที่มีพนักงาน → 409', $r['status'] === 409);
+check('ลบประเภท → ไม่มี endpoint (405)', S($og->req('DELETE', '/employee-types/CONTRACT_NW')) === 405);
+$t = $og->req('GET', '/employee-types?usage=1');
+foreach ($t['json']['data'] as $x) { if ($x['code'] === 'CONTRACT_NW') { $t = $x; break; } }
+$t['active'] = false;
+$r = $og->req('PUT', '/employee-types/CONTRACT_NW', $t);
+check('ปิดใช้งานประเภท → 200 · active = false', $r['status'] === 200 && $r['json']['data']['active'] === false, json_encode($r['json']));
+org_cache_reset();
+$keep = $og->req('GET', '/employees?q=NW0001');
+$keep = $keep['json']['data'][0];
+$keep['firstName'] = 'แก้ได้';
+check('พนักงานเดิมของประเภทที่ปิด แก้ข้อมูลได้ (ค่าเดิมใช้ต่อ)', S($og->req('PUT', '/employees/' . $nwId, $keep)) === 200);
+$ne2 = $ne; $ne2['empCode'] = 'NW0003';
+$r = $og->req('POST', '/employees', $ne2);
+check('เพิ่มพนักงานด้วยประเภทที่ปิดใช้งาน → 422 errors.employeeType', $r['status'] === 422 && isset($r['json']['errors']['employeeType']), json_encode($r['json']));
+$t['active'] = true;
+$og->req('PUT', '/employee-types/CONTRACT_NW', $t);
 $r = $og->req('PUT', '/employee-types/CONTRACT_NW', array('name' => 'สัญญาจ้าง (NW)', 'description' => '', 'companies' => null,
     'usesDeptGroup' => false, 'usesPosition' => false, 'dailyCycle' => false, 'tone' => 'danger'));
 check('แก้ประเภท (รหัสคงเดิม)', $r['status'] === 200 && $r['json']['data']['name'] === 'สัญญาจ้าง (NW)' && $r['json']['data']['companies'] === null);
 
-/* ---------- เก็บกวาด: ลบได้เมื่อไม่มีใครใช้ ---------- */
+/* ---------- ปิดใช้งานบริษัท · ตัวสุดท้ายปิดไม่ได้ ---------- */
+$co = org_find_company('NW');
+$co['active'] = false;
+$r = $og->req('PUT', '/companies/NW', $co);
+check('ปิดใช้งานบริษัท → 200 · active = false', $r['status'] === 200 && $r['json']['data']['active'] === false, json_encode($r['json']));
+db_exec("UPDATE companies SET active = 0 WHERE code IN ('PRO', 'CNS', 'CIC', 'AS')");
+$hl = org_find_company('HL');
+$hl['active'] = false;
+check('ปิดบริษัทสุดท้ายที่เปิดอยู่ → 409', S($og->req('PUT', '/companies/HL', $hl)) === 409);
+db_exec("UPDATE companies SET active = 1");
+
+/* ---------- เก็บกวาด (ตรงฐานข้อมูล — ระบบไม่มีการลบแล้ว) ---------- */
 db_exec('DELETE FROM employees WHERE id = ?', array($nwId));
-check('ลบประเภทที่ไม่มีใครใช้ → 204', S($og->req('DELETE', '/employee-types/CONTRACT_NW')) === 204);
+db_exec("DELETE FROM employee_types WHERE code = 'CONTRACT_NW'");
 db_exec("DELETE FROM sites WHERE company_code = 'NW'");
-check('ลบบริษัทที่ไม่มีใครใช้ → 204', S($og->req('DELETE', '/companies/NW')) === 204);
+db_exec("DELETE FROM companies WHERE code = 'NW'");
+org_cache_reset();
 $og->req('PUT', '/companies/order', array('order' => array('HL', 'PRO', 'CNS', 'CIC', 'AS')));
 check('บันทึกกิจกรรม COMPANY / EMPLOYEE_TYPE', (int)db_value("SELECT COUNT(*) FROM audit_log WHERE entity IN ('COMPANY', 'EMPLOYEE_TYPE')") >= 8);

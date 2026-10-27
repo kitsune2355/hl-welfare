@@ -7205,3 +7205,13 @@ button.sev-pill {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* แถวที่ปิดใช้งาน (ui/activeColumn.js) — จางทั้งแถว ยกเว้นสวิตช์ "ใช้งาน" */
+.xgrid tr.is-off > td:not([data-col='active']):not(.stick-left):not(.stick-right) > .cell {
+  opacity: 0.5;
+}
+.xgrid tr.is-off > td[data-col='name'] > .cell,
+.xgrid tr.is-off > td[data-col='firstName'] > .cell {
+  text-decoration: line-through;
+  text-decoration-color: var(--muted);
+}

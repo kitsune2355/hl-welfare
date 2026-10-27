@@ -32,8 +32,7 @@ $last = $dg->req('GET', '/dept-groups');
 $last = end($last['json']['data']);
 check('กลุ่มใหม่อยู่ท้ายรายการ', $last['id'] === $new['id']);
 
-$r = $dg->req('DELETE', '/dept-groups/' . $sl['id']);
-check('ลบกลุ่มที่มีพนักงาน/กฎใช้อยู่ → 409', $r['status'] === 409 && strpos($r['json']['error'], 'ลบไม่ได้') === 0, json_encode($r['json']));
+check('ลบกลุ่ม → ไม่มี endpoint (405)', S($dg->req('DELETE', '/dept-groups/' . $sl['id'])) === 405);
 
 /* เปลี่ยนชื่อ → ชื่อในพนักงานและกฎชุดฟอร์มทุกฉบับเปลี่ยนตาม */
 $empBefore = $sl['employeeCount'];
@@ -51,6 +50,9 @@ check('เปลี่ยนชื่อ: บันทึกกิจกรร�
     strpos(db_value("SELECT summary FROM audit_log WHERE entity = 'DEPT_GROUP' ORDER BY id DESC LIMIT 1"), 'เปลี่ยนชื่อกลุ่ม / ฝ่าย Support Line → Support Line (ใหม่)') === 0);
 $dg->req('PUT', '/dept-groups/' . $sl['id'], array('name' => 'Support Line'));     // คืนชื่อเดิมให้เทสต์อื่น
 
-$r = $dg->req('DELETE', '/dept-groups/' . $new['id']);
+$r = $dg->req('PUT', '/dept-groups/' . $new['id'], array('name' => 'ฝ่ายทดสอบ', 'active' => false));
 $after = $dg->req('GET', '/dept-groups');
-check('ลบกลุ่มที่ไม่มีใครใช้ → 204', $r['status'] === 204 && !dg_find($after['json']['data'], 'ฝ่ายทดสอบ'));
+$f = dg_find($after['json']['data'], 'ฝ่ายทดสอบ');
+check('ปิดใช้งานกลุ่ม → 200 · ยังอยู่ในรายการ (active = false) · audit', $r['status'] === 200 && $f && $f['active'] === false
+    && strpos(db_value("SELECT summary FROM audit_log WHERE entity = 'DEPT_GROUP' ORDER BY id DESC LIMIT 1"), 'ปิดใช้งานกลุ่ม / ฝ่าย ฝ่ายทดสอบ') === 0, json_encode($r['json']));
+db_exec('DELETE FROM dept_groups WHERE id = ?', array($new['id']));   // เก็บกวาด

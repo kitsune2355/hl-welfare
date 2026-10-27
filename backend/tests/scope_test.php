@@ -50,7 +50,8 @@ $hlBody = map_employee($hlEmp);
 $hlBody['firstName'] = 'แก้ข้ามบริษัท';
 check('แก้พนักงานบริษัทอื่น → 404 (ไม่บอกว่ามีอยู่)', S($cns->req('PUT', '/employees/' . $hlEmp['id'], $hlBody)) === 404
     && db_value('SELECT first_name FROM employees WHERE id = ?', array($hlEmp['id'])) === $hlEmp['first_name']);
-check('ลบพนักงานบริษัทอื่น → 404', S($cns->req('DELETE', '/employees/' . $hlEmp['id'])) === 404);
+$off = $hlBody; $off['active'] = false;
+check('ปิดใช้งานพนักงานบริษัทอื่น → 404', S($cns->req('PUT', '/employees/' . $hlEmp['id'], $off)) === 404);
 
 $move = map_employee($cnsEmp);
 $hlSite = db_one("SELECT id FROM sites WHERE company_code = 'HL' ORDER BY id LIMIT 1");
@@ -71,7 +72,7 @@ check('GET /sites: เฉพาะหน่วยงาน CNS', scope_codes($si
 check('เพิ่มหน่วยงานให้บริษัทอื่น → 403 · แก้หน่วยงานบริษัทอื่น → 404',
     S($cns->req('POST', '/sites', array('companyCode' => 'HL', 'name' => 'ข้ามบริษัท'))) === 403
     && S($cns->req('PATCH', '/sites/' . $hlSite['id'], array('name' => 'ข้ามบริษัท'))) === 404
-    && S($cns->req('DELETE', '/sites/' . $hlSite['id'])) === 404);
+    && S($cns->req('PATCH', '/sites/' . $hlSite['id'], array('active' => false))) === 404);
 
 $pend = $cns->req('GET', '/uniform/pending');
 $iss = $cns->req('GET', '/uniform/issues');

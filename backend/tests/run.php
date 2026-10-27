@@ -35,7 +35,7 @@ $admin = mysqli_connect($c['db_host'], $c['db_user'], $c['db_pass'], '', (int)$c
 mysqli_query($admin, 'DROP DATABASE IF EXISTS `' . $c['db_name'] . '`');
 mysqli_query($admin, 'CREATE DATABASE `' . $c['db_name'] . '` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci');
 mysqli_select_db($admin, $c['db_name']);
-foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications', '014_dept_groups', '015_org_settings', '016_issue_size_length', '017_drop_salary') as $f) {
+foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications', '014_dept_groups', '015_org_settings', '016_issue_size_length', '017_drop_salary', '018_active_flags') as $f) {
     $sql = file_get_contents($root . '/backend/sql/' . $f . '.sql');
     if (!mysqli_multi_query($admin, $sql)) { die("$f: " . mysqli_error($admin) . "\n"); }
     do {
@@ -383,8 +383,30 @@ $r = $hr->req('PUT', '/employees/' . $newId, $e2);
 check('บันทึกพ้นสภาพ → audit "บันทึกพ้นสภาพ" + ชื่อผู้ใช้', $r['status'] === 200
     && db_value("SELECT user_name FROM audit_log WHERE entity = 'EMPLOYEE' AND entity_id = ? ORDER BY id DESC LIMIT 1", array((string)$newId)) === 'สมใจ ใจดี'
     && strpos(db_value("SELECT summary FROM audit_log WHERE entity = 'EMPLOYEE' AND entity_id = ? ORDER BY id DESC LIMIT 1", array((string)$newId)), 'บันทึกพ้นสภาพ') === 0);
-check('ลบพนักงานที่ไม่มีประวัติ → 204', S($hr->req('DELETE', '/employees/' . $newId)) === 204);
-check('ลบพนักงานที่มีประวัติ → 409', S($hr->req('DELETE', '/employees/30')) === 409);
+/* ไม่มีการลบพนักงานแล้ว — เปิด/ปิดการใช้งานแทน (sql/018) */
+check('ลบพนักงาน → ไม่มี endpoint (405)', S($hr->req('DELETE', '/employees/' . $newId)) === 405);
+$e3 = $hr->req('GET', '/employees?q=TEST0001');
+$e3 = $e3['json']['data'][0];
+$e3['active'] = false;
+$r = $hr->req('PUT', '/employees/' . $newId, $e3);
+$dash = $hr->req('GET', '/dashboard');
+$all = $hr->req('GET', '/employees?q=TEST0001');
+check('ปิดใช้งานพนักงาน (ไม่มีประวัติ) → 200 · ยังอยู่ในรายการ (active = false) · audit "ปิดใช้งาน"', $r['status'] === 200 && $r['json']['data']['active'] === false
+    && $all['json']['data'][0]['active'] === false
+    && strpos(db_value("SELECT summary FROM audit_log WHERE entity = 'EMPLOYEE' AND entity_id = ? ORDER BY id DESC LIMIT 1", array((string)$newId)), 'ปิดใช้งาน') === 0,
+    json_encode($r['json']));
+$world = repo_world();
+$inWorld = false;
+foreach ($world['employees'] as $x) { if ($x['id'] === $newId) { $inWorld = true; } }
+check('พนักงานที่ปิดใช้งานไม่อยู่ในการคำนวณ (repo_world)', !$inWorld && $dash['status'] === 200);
+$e3['active'] = true;
+check('เปิดใช้งานกลับ → 200', S($hr->req('PUT', '/employees/' . $newId, $e3)) === 200 && db_value('SELECT active FROM employees WHERE id = ?', array($newId)) == 1);
+$e30 = $hr->req('GET', '/employees');
+foreach ($e30['json']['data'] as $x) { if ($x['id'] === 30) { $e30 = $x; break; } }
+$e30['active'] = false;
+$r = $hr->req('PUT', '/employees/30', $e30);
+check('ปิดใช้งานพนักงานที่มีประวัติแจ้งประกัน/แจกชุด → 409 (ให้บันทึกพ้นสภาพ)', $r['status'] === 409 && strpos($r['json']['error'], 'บันทึกพ้นสภาพ') !== false, json_encode($r['json']));
+db_exec('DELETE FROM employees WHERE id = ?', array($newId));   // เก็บกวาด (เทสต์ถัดไปนับพนักงาน)
 
 $r = $hr->req('POST', '/sites', array('companyCode' => 'HL', 'name' => 'ไซต์ทดสอบ', 'hasGroupInsurance' => true, 'poloColor' => 'NAVY'));
 check('เพิ่มหน่วยงาน → 201', $r['status'] === 201 && $r['json']['data']['poloColor'] === 'NAVY');
@@ -392,8 +414,17 @@ $sid = $r['json']['data']['id'];
 check('ชื่อซ้ำในบริษัท → 409', S($hr->req('POST', '/sites', array('companyCode' => 'HL', 'name' => 'ไซต์ทดสอบ'))) === 409);
 $r = $hr->req('PATCH', '/sites/' . $sid, array('hasGroupInsurance' => false));
 check('แก้หน่วยงาน', $r['status'] === 200 && $r['json']['data']['hasGroupInsurance'] === false);
-check('ลบหน่วยงานที่มีพนักงาน → 409', S($hr->req('DELETE', '/sites/1')) === 409);
-check('ลบหน่วยงานว่าง → 204', S($hr->req('DELETE', '/sites/' . $sid)) === 204);
+check('ลบหน่วยงาน → ไม่มี endpoint (405)', S($hr->req('DELETE', '/sites/' . $sid)) === 405);
+$r = $hr->req('PATCH', '/sites/' . $sid, array('active' => false));
+check('ปิดใช้งานหน่วยงาน → 200 · active = false', $r['status'] === 200 && $r['json']['data']['active'] === false, json_encode($r['json']));
+$mv = $hr->req('GET', '/employees');
+$mv = $mv['json']['data'][0];
+$mvOld = $mv['siteId'];
+$mv['companyCode'] = 'HL'; $mv['siteId'] = $sid;
+$r = $hr->req('PUT', '/employees/' . $mv['id'], $mv);
+check('ย้ายพนักงานไปหน่วยงานที่ปิดใช้งาน → 422 errors.siteId', $r['status'] === 422 && isset($r['json']['errors']['siteId']), json_encode($r['json']));
+check('เปิดใช้งานหน่วยงานกลับ → 200', S($hr->req('PATCH', '/sites/' . $sid, array('active' => true))) === 200);
+db_exec('DELETE FROM sites WHERE id = ?', array($sid));   // เก็บกวาด
 
 /* แจ้งประกัน: ส่งออกรอบ 2026-11-05 แบบบันทึก แล้วรอบเดิมซ้ำต้องแทนที่ */
 $before = $hr->req('POST', '/insurance/exports', array('cycleDate' => '2026-11-05', 'insurerId' => 1, 'record' => false));
@@ -778,7 +809,7 @@ $r = $boss->req('PUT', '/admin/permissions', array('matrix' => array(
 check('บันทึกสิทธิ์ → changed 3', $r['status'] === 200 && $r['json']['data']['changed'] === 3, json_encode($r['json']));
 $r = $pb->req('PUT', '/employees/' . $emp2['id'], $emp2);
 check('เอา employees.edit ออก → แก้พนักงาน 403 ข้อความบอกสิทธิ์', $r['status'] === 403 && $r['json']['code'] === 'FORBIDDEN'
-    && strpos($r['json']['error'], 'เพิ่ม / แก้ไข / ลบพนักงาน') !== false && S($pb->req('DELETE', '/employees/' . $emp2['id'])) === 403);
+    && strpos($r['json']['error'], 'เพิ่ม / แก้ไข / เปิด-ปิดใช้งานพนักงาน') !== false);
 check('รายการที่หลายหน้าใช้ร่วมยังอ่านได้ (พนักงาน หน่วยงาน กฎ ภาพรวม)', S($pb->req('GET', '/employees')) === 200 && S($pb->req('GET', '/sites')) === 200
     && S($pb->req('GET', '/rules')) === 200 && S($pb->req('GET', '/dashboard')) === 200);
 check('เอา insurance.view ออก → endpoint ของหน้าประกัน 403', S($pb->req('GET', '/insurance/batches')) === 403

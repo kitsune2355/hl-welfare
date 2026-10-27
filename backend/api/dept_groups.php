@@ -68,6 +68,7 @@ function repo_dept_groups()
             'id' => (int)$r['id'],
             'name' => $r['name'],
             'sortOrder' => (int)$r['sort_order'],
+            'active' => row_active($r),
             'employeeCount' => isset($emp[$r['name']]) ? $emp[$r['name']] : 0,
             'ruleCount' => isset($rules[$r['name']]) ? count($rules[$r['name']]) : 0,
         );
@@ -119,6 +120,7 @@ function api_dept_group_save($req, $params)
     if (count($errors)) { throw new ApiError(reset($errors), 422, $errors); }
     $name = str_trim($b['name']);
     $now = db_now();
+    $toggle = org_active_change($b, $old, $all, 'id', $id, 'ต้องเปิดใช้งานอย่างน้อย 1 กลุ่ม / ฝ่าย');
 
     db_begin();
     if (!$old) {
@@ -134,26 +136,12 @@ function api_dept_group_save($req, $params)
         audit_write('DEPT_GROUP', $id, 'UPDATE', 'เปลี่ยนชื่อกลุ่ม / ฝ่าย ' . $old['name'] . ' → ' . $name
             . ' (พนักงาน ' . $emp['affected'] . ' คน · กฎชุดฟอร์ม ' . $rules . ' ฉบับ)', null, $u);
     }
+    if ($toggle !== null) {
+        set_active('dept_groups', 'id', $id, $toggle, $u);
+        audit_write('DEPT_GROUP', $id, 'UPDATE', ($toggle ? 'เปิดใช้งาน' : 'ปิดใช้งาน') . 'กลุ่ม / ฝ่าย ' . $name, null, $u);
+    }
     db_commit();
     $g = repo_dept_group($id);
     return $old ? $g : http_data($g, 201);
 }
 
-function api_dept_group_delete($req, $params)
-{
-    $u = org_edit_require($req);
-    dept_groups_need_table();
-    $id = param_id($params);
-    $g = find_or_404(repo_dept_group($id), 'ไม่พบกลุ่ม / ฝ่าย');
-    if ($g['employeeCount'] > 0 || $g['ruleCount'] > 0) {
-        $why = array();
-        if ($g['employeeCount'] > 0) { $why[] = 'พนักงาน ' . $g['employeeCount'] . ' คน'; }
-        if ($g['ruleCount'] > 0) { $why[] = 'กฎชุดฟอร์ม ' . $g['ruleCount'] . ' ข้อ'; }
-        throw new ApiError('ลบไม่ได้ — ยังมี' . implode(' และ', $why) . 'ใช้กลุ่มนี้อยู่ ย้ายออกก่อน หรือเปลี่ยนชื่อแทน', 409);
-    }
-    db_begin();
-    db_exec('DELETE FROM dept_groups WHERE id = ?', array($id));
-    audit_write('DEPT_GROUP', $id, 'DELETE', 'ลบกลุ่ม / ฝ่าย ' . $g['name'], null, $u);
-    db_commit();
-    return http_no_content();
-}

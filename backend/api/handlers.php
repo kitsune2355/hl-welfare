@@ -147,31 +147,19 @@ function api_site_update($req, $params)
         $changes[] = 'โปโลสี' . ($patch['poloColor'] === 'NAVY' ? 'น้ำเงิน' : 'ดำ');
         $next['poloColor'] = $patch['poloColor'] === 'NAVY' ? 'NAVY' : 'BLACK';
     }
+    // ปิดใช้งาน = แทนการลบ — พนักงานเดิมยังอยู่ในหน่วยงานนี้ได้ แต่เลือกใหม่ไม่ได้ · แผนกในสต็อกปิดตาม
+    $toggle = (array_key_exists('active', $patch) && (bool)$patch['active'] !== $s['active']) ? (bool)$patch['active'] : null;
+    if ($toggle !== null) { $changes[] = $toggle ? 'เปิดใช้งาน' : 'ปิดใช้งาน'; }
     db_begin();
     db_exec('UPDATE sites SET name = ?, has_group_insurance = ?, polo_color = ?, updated_by = ? WHERE id = ?',
         array($next['name'], $next['hasGroupInsurance'], $next['poloColor'], $u['username'], $id));
+    if ($toggle !== null) { set_active('sites', 'id', $id, $toggle, $u); }
     if (count($changes)) {
         audit_write('SITE', $id, 'UPDATE', 'แก้ไขหน่วยงาน “' . $next['name'] . '”: ' . implode(', ', $changes), null, $u);
     }
     db_commit();
     // ชื่อ/สีโปโลเปลี่ยน = ชื่อหน่วยงานและชุดฟอร์มรอบเริ่มงานในสต็อกเปลี่ยนตาม
     return site_with_sync(repo_site($id), count($changes) ? master_sync_after_change($u, array($id)) : null);
-}
-
-function api_site_delete($req, $params)
-{
-    $u = auth_require($req);
-    $id = param_id($params);
-    $s = scoped_site_or_404($id);
-    $n = (int)db_value('SELECT COUNT(*) FROM employees WHERE site_id = ?', array($id));
-    if ($n > 0) { throw new ApiError('ลบไม่ได้ — ยังมีพนักงานในหน่วยงานนี้ ' . $n . ' คน', 409); }
-    db_begin();
-    db_exec('DELETE FROM sites WHERE id = ?', array($id));
-    audit_write('SITE', $id, 'DELETE', 'ลบหน่วยงาน “' . $s['name'] . '”', null, $u);
-    db_commit();
-    // สต็อกปิดใช้งานหน่วยงานนี้ (ไม่ลบ — ใบเบิกเก่าอ้างอยู่) · ส่งไม่สำเร็จก็ไม่เป็นไร กดส่งทั้งหมดทีหลังได้
-    master_sync_after_change($u, array(), array($s));
-    return http_no_content();
 }
 
 /* ============================================================
@@ -234,7 +222,33 @@ function employee_input($b)
         'nationalId' => arr_get($b, 'nationalId') ? digits_only($b['nationalId']) : null,
         'phone' => arr_get($b, 'phone') ? digits_only($b['phone']) : null,
         'email' => blank_null(arr_get($b, 'email')),
+        'active' => array_key_exists('active', $b) ? (bool)$b['active'] : null,   // null = คงค่าเดิม (ใหม่ = เปิด)
     );
+}
+
+/** เลือกบริษัท / หน่วยงาน / ประเภท / กลุ่ม ที่ปิดใช้งานแล้วไม่ได้ — ยกเว้นค่าเดิมของพนักงานคนนี้ (ข้อมูลเดิมยังใช้ได้) */
+function employee_inactive_refs($in, $prev, $site)
+{
+    $x = array();
+    if ($site && !$site['active'] && (!$prev || $prev['siteId'] !== $in['siteId'])) { $x['siteId'] = 'หน่วยงานนี้ปิดใช้งานแล้ว'; }
+    foreach (repo_companies() as $c) {
+        if ($c['code'] === $in['companyCode'] && !$c['active'] && (!$prev || $prev['companyCode'] !== $in['companyCode'])) { $x['companyCode'] = 'บริษัทนี้ปิดใช้งานแล้ว'; }
+    }
+    $t = employee_type_info($in['employeeType']);
+    if ($t && isset($t['active']) && !$t['active'] && (!$prev || $prev['employeeType'] !== $in['employeeType'])) { $x['employeeType'] = 'ประเภทนี้ปิดใช้งานแล้ว'; }
+    if ($in['deptGroup'] !== null && db_table_exists('dept_groups') && (!$prev || $prev['deptGroup'] !== $in['deptGroup'])) {
+        foreach (repo_dept_groups() as $g) {
+            if ($g['name'] === $in['deptGroup'] && !$g['active']) { $x['deptGroup'] = 'กลุ่ม / ฝ่ายนี้ปิดใช้งานแล้ว'; }
+        }
+    }
+    return $x;
+}
+
+/** มีประวัติแจ้งประกัน / แจกชุดไหม — มีแล้วปิดใช้งานไม่ได้ (ต้องบันทึกพ้นสภาพ — ไม่งั้นหลุดจากการแจ้งออกประกัน) */
+function employee_has_history($id)
+{
+    return db_value('SELECT 1 FROM insurance_batch_items WHERE employee_id = ? LIMIT 1', array($id))
+        || db_value('SELECT 1 FROM uniform_issues WHERE employee_id = ? LIMIT 1', array($id));
 }
 
 function employee_values($e)
@@ -257,7 +271,7 @@ function api_employee_save($req, $params)
     if ($in['endReason'] !== null && !in_array($in['endReason'], array('RESIGN', 'ABSENT_3D', 'TERMINATED', 'MISCONDUCT'), true)) {
         throw new ApiError('เหตุผลพ้นสภาพไม่ถูกต้อง', 422, array('endReason' => 'เหตุผลพ้นสภาพไม่ถูกต้อง'));
     }
-    if ($id) { find_or_404(repo_employee($id), 'ไม่พบพนักงาน'); }     // พนักงานนอกบริษัทของ HR บริษัท = ไม่พบ
+    $prev = $id ? find_or_404(repo_employee($id), 'ไม่พบพนักงาน') : null;     // พนักงานนอกบริษัทของ HR บริษัท = ไม่พบ
     $errors = validate_employee($in);
     if (count($errors)) {
         $first = reset($errors);
@@ -269,6 +283,14 @@ function api_employee_save($req, $params)
     $site = repo_site($in['siteId']);
     if (!$site) { throw new ApiError('ไม่พบหน่วยงาน', 422); }
     if ($site['companyCode'] !== $in['companyCode']) { throw new ApiError('หน่วยงานไม่ได้อยู่ในบริษัทที่เลือก', 422); }
+    $off = employee_inactive_refs($in, $prev, $site);
+    if (count($off)) { throw new ApiError(reset($off), 422, $off); }
+    // เปิด/ปิดการใช้งาน (แทนการลบ) — ไม่ส่งมา = คงค่าเดิม · ใหม่ = เปิด
+    $active = $in['active'] === null ? ($prev ? $prev['active'] : true) : $in['active'];
+    $toggle = ($prev ? $active !== $prev['active'] : !$active) ? $active : null;
+    if ($toggle === false && $prev && employee_has_history($id)) {
+        throw new ApiError('ปิดใช้งานไม่ได้ — มีประวัติแจ้งประกัน/แจกชุดแล้ว ให้ใช้ “บันทึกพ้นสภาพ” แทน', 409);
+    }
 
     db_begin();
     if ($id) {
@@ -294,25 +316,14 @@ function api_employee_save($req, $params)
         $id = $res['id'];
         audit_write('EMPLOYEE', $id, 'CREATE', 'เพิ่มพนักงาน ' . full_name($in) . ' (' . $in['empCode'] . ')', $id, $u);
     }
+    if ($toggle !== null) {
+        set_active('employees', 'id', $id, $toggle, $u);
+        audit_write('EMPLOYEE', $id, 'UPDATE', ($toggle ? 'เปิดใช้งาน ' : 'ปิดใช้งาน ') . full_name($in) . ' (' . $in['empCode'] . ')', $id, $u);
+    }
     db_commit();
     $e = repo_employee($id);
     if (!empty($urgent) && $e) { notify_insurance_urgent($e, $u); }
     return isset($params['id']) ? $e : http_data($e, 201);
-}
-
-function api_employee_delete($req, $params)
-{
-    $u = auth_require($req);
-    $id = param_id($params);
-    $e = find_or_404(repo_employee($id), 'ไม่พบพนักงาน');
-    $has = db_value('SELECT 1 FROM insurance_batch_items WHERE employee_id = ? LIMIT 1', array($id))
-        || db_value('SELECT 1 FROM uniform_issues WHERE employee_id = ? LIMIT 1', array($id));
-    if ($has) { throw new ApiError('ลบไม่ได้ — มีประวัติแจ้งประกัน/แจกชุดแล้ว ให้ใช้ “บันทึกพ้นสภาพ” แทน', 409); }
-    db_begin();
-    db_exec('DELETE FROM employees WHERE id = ?', array($id));
-    audit_write('EMPLOYEE', $id, 'DELETE', 'ลบพนักงาน ' . full_name($e) . ' (' . $e['empCode'] . ')', null, $u);
-    db_commit();
-    return http_no_content();
 }
 
 function api_rules($req, $params) { return repo_rules(); }

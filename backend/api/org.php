@@ -45,6 +45,22 @@ function org_rule_usage($pickKey)
     return $out;
 }
 
+/**
+ * ขอเปิด/ปิดการใช้งานในคำขอบันทึกนี้ไหม — คืนค่าใหม่ (true/false) หรือ null = ไม่เปลี่ยน
+ * ปิดตัวสุดท้ายที่เปิดอยู่ไม่ได้ · ของใหม่เปิดเสมอ (ไม่สนค่าที่ส่งมา)
+ */
+function org_active_change($b, $old, $all, $keyField, $key, $lastMsg)
+{
+    if (!$old || !array_key_exists('active', $b) || (bool)$b['active'] === $old['active']) { return null; }
+    $next = (bool)$b['active'];
+    if (!$next) {
+        $left = 0;
+        foreach ($all as $x) { if ($x['active'] && $x[$keyField] !== $key) { $left++; } }
+        if ($left === 0) { throw new ApiError($lastMsg, 409); }
+    }
+    return $next;
+}
+
 function org_count_by($sql)
 {
     $out = array();
@@ -123,6 +139,7 @@ function api_company_save($req, $params)
     $name = str_trim($b['name']);
     $legal = str_trim(arr_get($b, 'legalName', ''));
     $color = strtolower((string)arr_get($b, 'color', ''));
+    $toggle = org_active_change($b, $old, repo_companies(), 'code', $code, 'ต้องเปิดใช้งานอย่างน้อย 1 บริษัท');
     db_begin();
     if ($creating) {
         $max = (int)db_value('SELECT COALESCE(MAX(sort_order), 0) FROM companies');
@@ -134,7 +151,12 @@ function api_company_save($req, $params)
             array($name, $legal, $color, $u['username'], $code));
         audit_write('COMPANY', $code, 'UPDATE', 'แก้ไขบริษัท ' . $code . ' — ' . $name, null, $u);
     }
+    if ($toggle !== null) {
+        set_active('companies', 'code', $code, $toggle, $u);
+        audit_write('COMPANY', $code, 'UPDATE', ($toggle ? 'เปิดใช้งาน' : 'ปิดใช้งาน') . 'บริษัท ' . $code . ' — ' . $name, null, $u);
+    }
     db_commit();
+    if ($toggle !== null) { master_sync_after_change($u, array()); }   // บริษัทในสต็อกเปิด/ปิดตาม
     org_cache_reset();
     $c = org_find_company($code);
     return $creating ? http_data($c, 201) : $c;
@@ -159,24 +181,6 @@ function api_company_order($req, $params)
     db_commit();
     org_cache_reset();
     return repo_companies_usage();
-}
-
-function api_company_delete($req, $params)
-{
-    $u = org_edit_require($req);
-    $c = find_or_404(org_find_company(strtoupper((string)$params['code'])), 'ไม่พบบริษัท');
-    $why = array();
-    foreach (array('siteCount' => 'หน่วยงาน', 'employeeCount' => 'พนักงาน', 'userCount' => 'ผู้ใช้ HR บริษัท',
-        'ruleCount' => 'กฎสวัสดิการ', 'insurerCount' => 'บริษัทประกันที่ผูก') as $k => $label) {
-        if ($c[$k] > 0) { $why[] = $label . ' ' . $c[$k]; }
-    }
-    if (count($why)) { throw new ApiError('ลบไม่ได้ — ยังมี' . implode(' · ', $why) . ' ที่ใช้อยู่', 409); }
-    db_begin();
-    db_exec('DELETE FROM companies WHERE code = ?', array($c['code']));
-    audit_write('COMPANY', $c['code'], 'DELETE', 'ลบบริษัท ' . $c['code'] . ' — ' . $c['name'], null, $u);
-    db_commit();
-    org_cache_reset();
-    return http_no_content();
 }
 
 /* ============================================================
@@ -250,6 +254,7 @@ function api_employee_type_save($req, $params)
     $cos = arr_get($b, 'companies');
     $vals = array(str_trim($b['name']), str_trim(arr_get($b, 'description', '')), $cos === null ? null : json_encode(array_values($cos)),
         arr_get($b, 'usesDeptGroup') ? 1 : 0, arr_get($b, 'usesPosition') ? 1 : 0, arr_get($b, 'dailyCycle') ? 1 : 0, $b['tone']);
+    $toggle = org_active_change($b, $old, repo_employee_types(), 'code', $code, 'ต้องเปิดใช้งานอย่างน้อย 1 ประเภท');
     db_begin();
     if ($creating) {
         $max = (int)db_value('SELECT COALESCE(MAX(sort_order), 0) FROM employee_types');
@@ -262,26 +267,13 @@ function api_employee_type_save($req, $params)
             array_merge($vals, array($u['username'], $code)));
         audit_write('EMPLOYEE_TYPE', $code, 'UPDATE', 'แก้ไขประเภทพนักงาน ' . $vals[0] . ' (' . $code . ')', null, $u);
     }
+    if ($toggle !== null) {
+        set_active('employee_types', 'code', $code, $toggle, $u);
+        audit_write('EMPLOYEE_TYPE', $code, 'UPDATE', ($toggle ? 'เปิดใช้งาน' : 'ปิดใช้งาน') . 'ประเภทพนักงาน ' . $vals[0] . ' (' . $code . ')', null, $u);
+    }
     db_commit();
     org_cache_reset();
     $t = org_find_type($code);
     return $creating ? http_data($t, 201) : $t;
 }
 
-function api_employee_type_delete($req, $params)
-{
-    $u = org_edit_require($req);
-    org_need_types_table();
-    $t = find_or_404(org_find_type(strtoupper((string)$params['code'])), 'ไม่พบประเภทพนักงาน');
-    $why = array();
-    if ($t['employeeCount'] > 0) { $why[] = 'พนักงาน ' . $t['employeeCount']; }
-    if ($t['ruleCount'] > 0) { $why[] = 'กฎสวัสดิการ ' . $t['ruleCount']; }
-    if (count($why)) { throw new ApiError('ลบไม่ได้ — ยังมี' . implode(' · ', $why) . ' ที่ใช้อยู่', 409); }
-    if (count(employee_types_all()) <= 1) { throw new ApiError('ต้องมีประเภทพนักงานอย่างน้อย 1 ประเภท', 409); }
-    db_begin();
-    db_exec('DELETE FROM employee_types WHERE code = ?', array($t['code']));
-    audit_write('EMPLOYEE_TYPE', $t['code'], 'DELETE', 'ลบประเภทพนักงาน ' . $t['name'] . ' (' . $t['code'] . ')', null, $u);
-    db_commit();
-    org_cache_reset();
-    return http_no_content();
-}

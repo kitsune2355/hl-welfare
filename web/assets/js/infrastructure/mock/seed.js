@@ -456,5 +456,7 @@ export function buildSeed(today) {
   const activities = raw.sort((a, b) => a.at.localeCompare(b.at)).map((a, i) => ({ ...a, id: i + 1 }));
   // uniformOverrides = ชุดฟอร์มที่หน่วยงานตั้งทับกฎ [{ ruleId, quantities }] — ตั้งต้นไม่มี
   const sites = SITES.map((s) => ({ ...s, uniformOverrides: [] }));
-  return { companies: COMPANIES, sites, employees, batches, issues, rules, activities, insurers, marksV2: true };
+  // เปิดใช้งานทั้งหมด (= ค่าเริ่มต้นของ sql/018)
+  const on = (list) => list.map((x) => ({ ...x, active: true }));
+  return { companies: on(COMPANIES), sites: on(sites), employees: on(employees), batches, issues, rules, activities, insurers, marksV2: true };
 }

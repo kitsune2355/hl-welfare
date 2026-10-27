@@ -49,7 +49,7 @@ export const TOUR_STEPS = {
   },
 
   employees: {
-    version: 2,
+    version: 3,
     ready: '.xgrid td[data-r], .xgrid-wrap .empty',
     steps: [
       { element: '#filters .search-box', title: 'ค้นหา', text: 'พิมพ์ <b>รหัส</b> หรือ <b>ชื่อ-สกุล</b> ผลลัพธ์กรองทันที', side: 'bottom', align: 'start' },
@@ -59,11 +59,12 @@ export const TOUR_STEPS = {
       { element: '.xgrid tbody tr:first-child td[data-col="firstName"]', title: 'แก้ไขเหมือน Excel', text: '<b>ดับเบิลคลิก</b> หรือเลือกเซลล์แล้ว <b>พิมพ์ได้เลย</b><br><kbd>Enter</kbd> / <kbd>Tab</kbd> = ยืนยัน · <kbd>Esc</kbd> = ยกเลิก · ลูกศร = เลื่อนเซลล์', side: 'bottom' },
       { element: '.grid-toolbar', title: 'ยังไม่บันทึก → กดบันทึก', text: 'ที่แก้ในตารางยังไม่บันทึกจนกว่าจะกด <b>บันทึก</b> (หรือ <kbd>Ctrl</kbd>+<kbd>S</kbd>) · สีแถว: <b style="color:#16a34a">เขียว</b> = เพิ่ม · <b style="color:#d97706">เหลือง</b> = แก้ไข (เซลล์ที่เปลี่ยนมีขีด ชี้ดูค่าเดิมได้) · <b style="color:#dc2626">แดง</b> = จะลบ · ปุ่ม ↶ ท้ายแถว = คืนค่าเดิม · “ยกเลิกทั้งหมด” = ทิ้งทุกอย่างที่ยังไม่บันทึก', side: 'bottom' },
       { element: '[data-grid-act="add"]', title: 'เพิ่มพนักงาน', text: 'เพิ่มแถวใหม่ด้านบน (สีเขียว) — ใส่จำนวนแถวข้างปุ่มได้ · กรอกให้ครบทุกช่องที่มี * แล้วกด <b>บันทึก</b>', side: 'bottom', align: 'start' },
-      selectStep('#grid', '<b>บันทึกพ้นสภาพ</b> หลายคนพร้อมกัน (เลือกเหตุผล + วันที่) · <b>ลบที่เลือก</b> — ทุกอย่างเป็นแถว “ยังไม่บันทึก” ให้ตรวจก่อนกดบันทึก'),
+      selectStep('#grid', '<b>บันทึกพ้นสภาพ</b> หลายคนพร้อมกัน (เลือกเหตุผล + วันที่) · <b>ปิด / เปิดใช้งาน</b> — ทุกอย่างเป็นแถว “ยังไม่บันทึก” ให้ตรวจก่อนกดบันทึก'),
       { element: '.grid-toolbar [data-export-excel]', title: 'ส่งออก Excel → แก้ → นำเข้ากลับ', text: 'ได้ <b>ไฟล์รายชื่อพนักงาน</b> คอลัมน์เดียวกับตาราง (ตามตัวกรอง) · แก้หลายคนใน Excel แล้วนำเข้ากลับด้วยปุ่ม “นำเข้า Excel” — ระบบจับคู่ตามรหัส แก้เฉพาะช่องที่เปลี่ยน รหัสใหม่ = เพิ่ม · ลบคอลัมน์ที่ไม่แก้ออกจากไฟล์ได้', side: 'bottom', align: 'end' },
       { element: '[data-import-excel]', title: 'นำเข้า Excel', text: 'รับได้ 3 แบบ: <b>ไฟล์รายชื่อพนักงาน</b> (ส่งออกจากตารางนี้) · <b>ไฟล์เข้าใหม่ / ลาออก</b> ประจำเดือนของ HR · <b>template 2 ชีต</b> — มีกล่องสรุปให้ตรวจก่อน แล้วเข้าตารางเป็นแถวยังไม่บันทึก', side: 'bottom', align: 'start' },
       { element: '[data-template-excel]', title: 'Template / ส่งออกรายเดือน', text: 'ดาวน์โหลด template 2 ชีต (เข้าใหม่ + ลาออก) ไว้กรอก หรือส่งออกพนักงานเข้า-ออกของเดือนในรูปแบบเดียวกัน', side: 'bottom', align: 'start' },
-      { element: '.xgrid tbody tr:first-child .row-actions', title: 'เปิดรายละเอียด / ลบ', text: 'ดูสิทธิสวัสดิการรายคน หรือลบข้อมูลที่บันทึกผิด (ลบได้เฉพาะคนที่ยังไม่มีประวัติ)', side: 'left' },
+      { element: '.xgrid tbody tr:first-child .row-actions', title: 'เปิดรายละเอียด', text: 'ดูสิทธิสวัสดิการรายคน', side: 'left' },
+      { element: '.xgrid tbody tr:first-child td[data-col="active"]', title: 'ใช้งาน (แทนการลบ)', text: 'ไม่มีการลบพนักงาน — <b>ปิดใช้งาน</b> สำหรับแถวที่กรอกผิด: ไม่อยู่ในการคำนวณใดเลย (ประกัน ชุดฟอร์ม ภาพรวม) เปิดกลับได้ · คนที่ออกจากงานใช้ “พ้นสภาพ” · มีประวัติแจ้งประกัน/แจกชุดแล้วปิดไม่ได้', side: 'left' },
       { element: '#grid .pager', title: 'แบ่งหน้า', text: 'ปุ่ม ⟪ ‹ › ⟫ = หน้าแรก / ก่อนหน้า / ถัดไป / สุดท้าย · แตะ <b>10 / 25 / 50 / 100</b> เพื่อเปลี่ยนจำนวนแถวต่อหน้า · ข้อมูลเยอะพิมพ์เลขที่ช่อง <b>ไปหน้า</b> แล้วกด Enter', side: 'top' },
       { element: '.xgrid thead th[data-col="status"]', title: 'บันทึกพ้นสภาพ', text: 'รายคน: เปลี่ยน <b>สถานะ</b> เป็น “พ้นสภาพ” แล้วกรอก <b>เหตุผล</b> + <b>วันพ้นสภาพ</b> ในแถวเดียวกัน · หลายคน: เลือกแถวแล้วกด “บันทึกพ้นสภาพ” · เลิกจ้าง/กระทำผิด ต้องแจ้งออกประกันกลุ่ม <b>ทันที</b>', side: 'bottom', align: 'end' },
     ],
@@ -180,7 +181,7 @@ export const TOUR_STEPS = {
 
   // ===================== ตั้งค่าสวัสดิการ: แท็บองค์กร (sites.html?tab=…) — แท็บหน่วยงาน = "sites" · แท็บอื่น = sites-<แท็บ> =====================
   sites: {
-    version: 5,
+    version: 6,
     ready: '#grid .xgrid td[data-r], #grid .xgrid-wrap .empty',
     steps: [
       { element: '#about', title: 'หน่วยงานคืออะไร', text: 'สำนักงาน / โครงการ / ไซต์ ที่พนักงานประจำ — พนักงานทุกคนสังกัด 1 หน่วยงาน · เป็นแผนกในระบบสต็อก (ผู้อนุมัติใบเบิกชุดฟอร์ม + ลงค่าใช้จ่าย) · กล่องนี้ซ่อนได้ (ปุ่ม ×)', side: 'bottom', align: 'start' },
@@ -192,41 +193,44 @@ export const TOUR_STEPS = {
       selectStep('#grid', 'ตั้ง <b>ได้ / ไม่ได้รับประกันกลุ่ม</b> · <b>สีโปโล</b> หลายหน่วยงานพร้อมกัน · <b>ลบที่เลือก</b>'),
       { element: '#grid .grid-toolbar', title: 'กดบันทึก', text: 'ที่แก้ในตารางยังไม่บันทึกจนกว่าจะกด <b>บันทึก</b> (หรือ <kbd>Ctrl</kbd>+<kbd>S</kbd>) · แถวสีเหลือง = แก้แล้วยังไม่บันทึก', side: 'bottom' },
       { element: '#sync-stock', title: 'ส่งข้อมูลไปสต็อก', text: 'บริษัท หน่วยงาน และชุดฟอร์มรอบเริ่มงาน ส่งให้สต็อก Uniform <b>อัตโนมัติ</b>ทุกครั้งที่บันทึก · กดปุ่มนี้เมื่อเห็นคำเตือนว่าส่งไม่สำเร็จ', side: 'bottom', align: 'end' },
-      { element: '#grid .xgrid tbody tr:first-child [data-grid-act="delete"]', title: 'ลบหน่วยงาน', text: 'ลบได้เฉพาะหน่วยงานที่ไม่มีพนักงาน · ในสต็อกจะถูกปิดใช้งาน (ไม่ลบ)', side: 'left' },
+      { element: '#grid .xgrid tbody tr:first-child td[data-col="active"]', title: 'ใช้งาน (แทนการลบ)', text: 'ไม่มีการลบหน่วยงาน — <b>ปิดใช้งาน</b>: พนักงานเดิมอยู่ต่อได้ แต่เลือกให้คนใหม่ไม่ได้ · แผนกในสต็อกปิดตาม · เปิดกลับได้', side: 'left' },
     ],
   },
 
   // แท็บแรกของหน้า (ค่าเริ่มต้น) — เริ่มด้วยภาพรวมของแถบแท็บ
   'sites-companies': {
-    version: 2,
+    version: 3,
     ready: '[data-org="companies"] .xgrid td[data-r]',
     steps: [
       { element: '#tabs', title: 'ตั้งค่าสวัสดิการ', text: 'เมนูเดียวรวมการตั้งค่าทั้งหมด แท็บเรียงตามลำดับที่ต้องทำ: <b>องค์กร</b> 1 บริษัท → 2 ประเภทพนักงาน → 3 กลุ่ม/ฝ่าย → 4 หน่วยงาน แล้ว <b>เงื่อนไขสวัสดิการ</b> 5 ประกันกลุ่ม → 6 ชุดฟอร์ม · ทุกแท็บมีกล่องอธิบายว่าคืออะไร ใช้ทำอะไร ต้องมีอะไรก่อน', side: 'bottom', align: 'start' },
       { element: '[data-org="companies"] [data-grid-act="add"]', title: 'เพิ่มบริษัท', text: 'ตั้ง<b>รหัส</b> (2–10 ตัว เช่น HLM) ชื่อ และชื่อตามทะเบียน แล้วกด <b>บันทึก</b> · รหัสตั้งได้ตอนเพิ่มเท่านั้น — ใช้ทั้งระบบ (ตัวกรอง สิทธิ์ HR บริษัท กฎ ไฟล์แจ้งประกัน)', side: 'bottom', align: 'start' },
       { element: '[data-org="companies"] .xgrid tbody tr:first-child td[data-col="legalName"]', title: 'ดับเบิลคลิกเพื่อแก้', text: '<b>ชื่อตามทะเบียน</b> ใช้ในชีตสรุปของไฟล์แจ้งประกัน · <b>สี</b> ใช้ในแถบพนักงานหน้าภาพรวม (ว่าง = สีอัตโนมัติ)', side: 'bottom' },
       { element: '[data-org="companies"] [data-co-move]', title: 'ลำดับบริษัท', text: 'ปุ่มขึ้น/ลง จัดลำดับบริษัททั้งระบบ (แท็กกรอง ตัวเลือก แถบหน้าภาพรวม) · บันทึกทันที', side: 'right' },
-      { element: '[data-org="companies"] .xgrid tbody tr:first-child td[data-col="siteCount"]', title: 'จำนวนที่ใช้', text: 'หน่วยงาน / พนักงาน / กฎ ที่ใช้บริษัทนี้ · <b>ลบได้เมื่อไม่มีใครใช้</b> (รวมผู้ใช้ HR บริษัทและบริษัทประกันที่ผูก) — ลบไม่ได้ แถวจะแดงพร้อมเหตุผล', side: 'bottom' },
-      selectStep('[data-org="companies"]', '<b>ลบที่เลือก</b> (ลบจริงตอนกดบันทึก)'),
+      { element: '[data-org="companies"] .xgrid tbody tr:first-child td[data-col="siteCount"]', title: 'จำนวนที่ใช้', text: 'หน่วยงาน / พนักงาน / กฎ ที่ใช้บริษัทนี้', side: 'bottom' },
+      { element: '[data-org="companies"] .xgrid tbody tr:first-child td[data-col="active"]', title: 'ใช้งาน (แทนการลบ)', text: 'ไม่มีการลบบริษัท — <b>ปิดใช้งาน</b>: ข้อมูลเดิมยังใช้และคำนวณตามเดิม แต่เลือกให้พนักงาน/หน่วยงานใหม่ไม่ได้ · ปิดบริษัทสุดท้ายไม่ได้', side: 'left' },
+      selectStep('[data-org="companies"]', '<b>ปิด / เปิดใช้งาน</b> หลายบริษัทพร้อมกัน (มีผลตอนกดบันทึก)'),
     ],
   },
 
   'sites-types': {
+    version: 2,
     ready: '[data-org="types"] .xgrid td[data-r]',
     steps: [
       { element: '[data-org="types"] .xgrid thead', title: 'ประเภทพนักงาน', text: 'ใช้แยกกฎประกันกลุ่ม / ชุดฟอร์ม · <b>ดับเบิลคลิก</b>เพื่อแก้ชื่อ สีป้าย คำอธิบาย · รหัสตั้งได้ตอนเพิ่มเท่านั้น', side: 'bottom' },
       { element: '[data-org="types"] .xgrid tbody tr:first-child td[data-col="companies"]', title: 'ใช้กับบริษัท', text: 'ดับเบิลคลิกเพื่อเลือก<b>หลายบริษัท</b> หรือ “ทุกบริษัท” — ประเภทที่จำกัดบริษัทจะไม่ขึ้นให้เลือกในบริษัทอื่น (เช่น Pro Site = PRO)', side: 'bottom' },
       { element: '[data-org="types"] .xgrid tbody tr:first-child td[data-col="usesDeptGroup"]', title: 'พฤติกรรม (ติ๊กในตาราง)', text: '<b>กลุ่ม/ฝ่าย + ระดับ</b> = ต้องเลือกกลุ่มและระดับ (แบบส่วนกลาง) · <b>ตำแหน่ง</b> = กฎชุดฟอร์มเดิมที่แยกตามตำแหน่งจับได้ · <b>รอบแจ้งรายวัน</b> = แจ้งประกันรอบวันที่ 6 แทนวันที่ 5 · ชี้ที่หัวคอลัมน์ดูคำอธิบาย', side: 'bottom' },
-      { element: '[data-org="types"] [data-grid-act="add"]', title: 'เพิ่มประเภท', text: 'เพิ่มแล้วตั้งกฎประกัน/ชุดฟอร์มของประเภทนี้ที่แท็บ 5 ประกันกลุ่ม / 6 ชุดฟอร์ม · ลบได้เมื่อไม่มีพนักงาน/กฎที่ใช้', side: 'bottom', align: 'start' },
-      selectStep('[data-org="types"]', '<b>ลบที่เลือก</b> (ลบจริงตอนกดบันทึก)'),
+      { element: '[data-org="types"] [data-grid-act="add"]', title: 'เพิ่มประเภท', text: 'เพิ่มแล้วตั้งกฎประกัน/ชุดฟอร์มของประเภทนี้ที่แท็บ 5 ประกันกลุ่ม / 6 ชุดฟอร์ม · ไม่ใช้แล้ว = ปิดที่คอลัมน์ “ใช้งาน” (คนเดิมใช้ต่อ เลือกใหม่ไม่ได้)', side: 'bottom', align: 'start' },
+      selectStep('[data-org="types"]', '<b>ปิด / เปิดใช้งาน</b> หลายประเภทพร้อมกัน (มีผลตอนกดบันทึก)'),
     ],
   },
 
   'sites-groups': {
+    version: 2,
     ready: '[data-org="groups"] .xgrid td[data-r]',
     steps: [
       { element: '[data-org="groups"] .xgrid tbody tr:first-child td[data-col="name"]', title: 'กลุ่ม / ฝ่าย', text: 'ใช้กับประเภทที่ติ๊ก “กลุ่ม/ฝ่าย + ระดับ” · <b>ดับเบิลคลิกเพื่อเปลี่ยนชื่อ</b> — ชื่อในพนักงานและกฎชุดฟอร์มทุกฉบับเปลี่ยนตามเมื่อกดบันทึก', side: 'bottom' },
       { element: '[data-org="groups"] [data-grid-act="add"]', title: 'เพิ่มกลุ่ม / ฝ่าย', text: 'เพิ่มแล้วเลือกได้ทันทีในตารางพนักงาน กฎชุดฟอร์ม และการนำเข้า Excel', side: 'bottom', align: 'start' },
-      selectStep('[data-org="groups"]', '<b>ลบที่เลือก</b> — ลบได้เมื่อไม่มีพนักงาน/กฎที่ใช้'),
+      selectStep('[data-org="groups"]', '<b>ปิด / เปิดใช้งาน</b> หลายกลุ่มพร้อมกัน — ปิดแล้วพนักงาน/กฎเดิมใช้ต่อ เลือกใหม่ไม่ได้'),
     ],
   },
 
