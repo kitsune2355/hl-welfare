@@ -1,7 +1,7 @@
 // ชิ้นส่วน UI ที่ใช้ซ้ำ — ทุกฟังก์ชันคืนค่า HTML (ใช้ใน html`...` ได้ทันที)
 import { html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
-import { companyColor } from '../domain/catalog.js';
+import { companyColor, EMPLOYEE_TYPE_LABEL, typeColor } from '../domain/catalog.js';
 
 /** tone: success | warning | danger | info | neutral | primary */
 export function badge(text, tone = 'neutral', { dot = true, lg = false } = {}) {
@@ -12,6 +12,12 @@ export function badge(text, tone = 'neutral', { dot = true, lg = false } = {}) {
 export function companyChip(code, text = code) {
   if (!code) return '';
   return html`<span class="co-chip" style="--co:${companyColor(code)}">${text}</span>`;
+}
+
+/** ป้ายประเภทพนักงาน — chip แบบเดียวกับป้ายบริษัท สีตามที่ตั้งไว้ที่ ตั้งค่าสวัสดิการ → 2 ประเภทพนักงาน */
+export function typeChip(code, text = EMPLOYEE_TYPE_LABEL[code] ?? code) {
+  if (!code) return '';
+  return html`<span class="co-chip" style="--co:${typeColor(code)}">${text}</span>`;
 }
 
 const AVATAR_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];

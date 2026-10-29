@@ -12,6 +12,13 @@
 
 /** สีป้ายประเภทที่เลือกได้ (= ui/components.js badge tone) */
 export const TYPE_TONES = ['primary', 'info', 'success', 'warning', 'danger', 'neutral'];
+/** สีของชื่อสีแบบเดิม (ค่าที่บันทึกก่อนเลือกสีอิสระได้) — ประเภทใหม่/ที่แก้สีแล้วเก็บเป็น #rrggbb */
+const TONE_HEX = { primary: '#0e7490', info: '#0369a1', success: '#059669', warning: '#d97706', danger: '#dc2626', neutral: '#64748b' };
+const HEX = /^#[0-9a-f]{6}$/i;
+/** สีป้ายประเภทที่ใช้ได้: #rrggbb หรือชื่อสีแบบเดิม */
+export const isTypeTone = (t) => TYPE_TONES.includes(t) || HEX.test(String(t ?? ''));
+/** สีป้ายประเภท → #rrggbb */
+export const toneColor = (t) => (HEX.test(String(t ?? '')) ? t.toLowerCase() : TONE_HEX[t] ?? TONE_HEX.neutral);
 /** สีบริษัทเมื่อไม่ได้ตั้ง — ตามลำดับบริษัท */
 const COMPANY_PALETTE = ['#2563eb', '#0891b2', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6', '#6366f1', '#84cc16', '#ec4899'];
 
@@ -59,7 +66,7 @@ export function applyCatalog({ companies: cs, employeeTypes: ts } = {}) {
     types = ts.map((t) => ({ ...t, companies: t.companies ?? null }));
     refill(EMPLOYEE_TYPES, types.map((t) => t.code));
     refillObj(EMPLOYEE_TYPE_LABEL, types.map((t) => [t.code, t.name]));
-    refillObj(EMPLOYEE_TYPE_TONE, types.map((t) => [t.code, TYPE_TONES.includes(t.tone) ? t.tone : 'neutral']));
+    refillObj(EMPLOYEE_TYPE_TONE, types.map((t) => [t.code, isTypeTone(t.tone) ? t.tone : 'neutral']));
   }
 }
 applyCatalog({ companies: DEFAULT_COMPANIES, employeeTypes: DEFAULT_EMPLOYEE_TYPES });
@@ -82,4 +89,6 @@ export const isTypeActive = (code) => typeInfo(code)?.active !== false;
 /** ประเภทตั้งต้นของแถวใหม่ / เมื่อประเภทเดิมใช้กับบริษัทไม่ได้ — ประเภทแรกที่ใช้ได้ (ที่เปิดใช้งานก่อน) */
 export const defaultTypeFor = (companyCode) => typesFor(companyCode).find(isTypeActive) ?? typesFor(companyCode)[0] ?? types[0]?.code ?? 'CENTRAL';
 /** สีบริษัท (แถบพนักงานหน้าภาพรวม) — ไม่ได้ตั้ง = สีตามลำดับ */
+/** สีป้ายประเภทพนักงาน (#rrggbb) — ตั้งที่ ตั้งค่าสวัสดิการ → 2 ประเภทพนักงาน */
+export const typeColor = (code) => toneColor(EMPLOYEE_TYPE_TONE[code]);
 export const companyColor = (code) => companyOf(code)?.color || COMPANY_PALETTE[Math.max(0, COMPANY_CODES.indexOf(code)) % COMPANY_PALETTE.length];

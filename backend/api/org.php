@@ -209,7 +209,9 @@ function validate_employee_type($b, $all, $creating)
         if ($ok) { foreach ($cos as $c) { if (!in_array($c, company_codes(), true)) { $ok = false; } } }
         if (!$ok) { $x['companies'] = 'เลือกบริษัทอย่างน้อย 1 บริษัท หรือ "ทุกบริษัท"'; }
     }
-    if (!in_array(arr_get($b, 'tone'), org_tones(), true)) { $x['tone'] = 'เลือกสีป้าย'; }
+    // สีป้าย: #rrggbb (เลือกสีอิสระ) หรือชื่อสีแบบเดิม
+    $tone = arr_get($b, 'tone');
+    if (!in_array($tone, org_tones(), true) && !(is_string($tone) && preg_match('/^#[0-9a-fA-F]{6}$/', $tone))) { $x['tone'] = 'เลือกสีป้าย'; }
     return $x;
 }
 
@@ -253,7 +255,7 @@ function api_employee_type_save($req, $params)
     $code = strtoupper(str_trim($b['code']));
     $cos = arr_get($b, 'companies');
     $vals = array(str_trim($b['name']), str_trim(arr_get($b, 'description', '')), $cos === null ? null : json_encode(array_values($cos)),
-        arr_get($b, 'usesDeptGroup') ? 1 : 0, arr_get($b, 'usesPosition') ? 1 : 0, arr_get($b, 'dailyCycle') ? 1 : 0, $b['tone']);
+        arr_get($b, 'usesDeptGroup') ? 1 : 0, arr_get($b, 'usesPosition') ? 1 : 0, arr_get($b, 'dailyCycle') ? 1 : 0, strtolower($b['tone']));
     $toggle = org_active_change($b, $old, repo_employee_types(), 'code', $code, 'ต้องเปิดใช้งานอย่างน้อย 1 ประเภท');
     db_begin();
     if ($creating) {

@@ -99,6 +99,9 @@ $t['active'] = true;
 $og->req('PUT', '/employee-types/CONTRACT_NW', $t);
 $r = $og->req('PUT', '/employee-types/CONTRACT_NW', array('name' => 'สัญญาจ้าง (NW)', 'description' => '', 'companies' => null,
     'usesDeptGroup' => false, 'usesPosition' => false, 'dailyCycle' => false, 'tone' => 'danger'));
+$rc = $og->req('PUT', '/employee-types/CONTRACT_NW', array_merge($r['json']['data'], array('tone' => '#A1B2C3')));
+$rbad = $og->req('PUT', '/employee-types/CONTRACT_NW', array_merge($r['json']['data'], array('tone' => 'pink')));
+check('สีป้ายเป็นรหัสสี #rrggbb ได้ (เก็บตัวพิมพ์เล็ก) · ค่าอื่น → 422', $rc['status'] === 200 && $rc['json']['data']['tone'] === '#a1b2c3' && $rbad['status'] === 422, json_encode($rc['json']));
 check('แก้ประเภท (รหัสคงเดิม)', $r['status'] === 200 && $r['json']['data']['name'] === 'สัญญาจ้าง (NW)' && $r['json']['data']['companies'] === null);
 
 /* ---------- ปิดใช้งานบริษัท · ตัวสุดท้ายปิดไม่ได้ ---------- */

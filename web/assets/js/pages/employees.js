@@ -13,14 +13,13 @@ import {
   COMPANY_CODES,
   DEPT_GROUPS,
   EMPLOYEE_TYPE_LABEL,
-  EMPLOYEE_TYPE_TONE,
   END_REASON_LABEL,
   GENDER_LABEL,
   TITLES,
   STATUS_LABEL,
   STATUS_TONE,
 } from '../shared/labels.js';
-import { badge, companyChip, emptyState, errorState } from '../ui/components.js';
+import { badge, companyChip, emptyState, errorState, typeChip } from '../ui/components.js';
 import { activeBulkActions, activeColumn, activeRowClass } from '../ui/activeColumn.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { openModal, toast } from '../ui/overlay.js';
@@ -149,7 +148,7 @@ const columns = [
     required: true,
     editor: 'select',
     value: (e) => e.employeeType,
-    display: (e) => badge(EMPLOYEE_TYPE_LABEL[e.employeeType], EMPLOYEE_TYPE_TONE[e.employeeType], { dot: false }),
+    display: (e) => typeChip(e.employeeType),
     // เฉพาะประเภทที่ใช้กับบริษัทของแถวนี้ได้ (ตั้งที่ sites.html แท็บประเภทพนักงาน)
     options: (e) => typesFor(e.companyCode).filter((t) => isTypeActive(t) || t === e.employeeType).map((t) => ({ value: t, label: EMPLOYEE_TYPE_LABEL[t] })),
     set: setField('employeeType', str),

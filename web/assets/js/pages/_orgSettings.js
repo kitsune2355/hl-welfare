@@ -10,11 +10,11 @@ import { can } from '../app/auth.js';
 import { refreshCatalog } from '../app/catalog.js';
 import { validateDeptGroup } from '../application/deptGroupRules.js';
 import { validateCompany, validateEmployeeType } from '../application/orgRules.js';
-import { COMPANY_CODES, companyColor, employeeTypeList, TYPE_TONES } from '../domain/catalog.js';
+import { COMPANY_CODES, companyColor, employeeTypeList, toneColor } from '../domain/catalog.js';
 import { html, raw, render } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import { DEPT_GROUPS } from '../shared/labels.js';
-import { alertBox, badge, emptyState, errorState } from '../ui/components.js';
+import { alertBox, emptyState, errorState } from '../ui/components.js';
 import { activeBulkActions, activeColumn, activeRowClass } from '../ui/activeColumn.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { loader } from '../ui/loading.js';
@@ -22,8 +22,6 @@ import { errorMessage, openModal, toast } from '../ui/overlay.js';
 
 export const canEditOrg = can('org.edit');
 
-/** ชื่อสีป้าย — ตามสีที่เห็นจริงของป้าย (tone-* ใน app.css: primary = #0e7490 · info = #0369a1) */
-const TONE_LABEL = { primary: 'เขียวหัวเป็ด', info: 'น้ำเงิน', success: 'เขียว', warning: 'ส้ม', danger: 'แดง', neutral: 'เทา' };
 /** พฤติกรรมของประเภท: [field, หัวคอลัมน์, คำอธิบาย (tooltip)] */
 const BEHAVIORS = [
   ['usesDeptGroup', 'กลุ่ม/ฝ่าย + ระดับ', 'ต้องเลือกกลุ่ม / ฝ่าย และระดับ 1–9 — กฎชุดฟอร์มแยกจำนวนตามกลุ่มและระดับได้ (แบบส่วนกลาง)'],
@@ -131,6 +129,29 @@ function pickColor(c) {
   });
 }
 
+/** สีป้ายประเภท: เลือกสี (เก็บ #rrggbb) */
+function pickTypeColor(t) {
+  return new Promise((resolve) => {
+    let picked;
+    const m = openModal({
+      title: `สีป้ายของประเภท ${t.name || t.code || 'ใหม่'}`,
+      description: 'ป้ายประเภทในตารางพนักงานและรายละเอียดพนักงาน',
+      body: html`<div class="row" style="gap:12px">
+        <input type="color" id="ty-color" value="${toneColor(t.tone)}" class="org-color" />
+        <span class="co-chip" id="ty-sample" style="--co:${toneColor(t.tone)}">${t.name || 'ตัวอย่าง'}</span>
+      </div>`,
+      footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button><button class="btn btn-primary" data-ok>ใช้สีนี้</button>`,
+      onClose: () => resolve(picked),
+    });
+    const input = m.el.querySelector('#ty-color');
+    input.addEventListener('input', () => m.el.querySelector('#ty-sample').style.setProperty('--co', input.value));
+    m.el.querySelector('[data-ok]').onclick = () => {
+      picked = input.value.toLowerCase();
+      m.close();
+    };
+  });
+}
+
 async function moveCompany(i, dir) {
   if (coGrid.hasPending()) return toast.error('บันทึกหรือยกเลิกการแก้ไขในตารางก่อนจัดลำดับ');
   const order = companies.map((c) => c.code);
@@ -193,16 +214,16 @@ function typeGrid(el) {
         display: (t) => (t.code ? html`<code class="org-code-text">${t.code}</code>` : ''),
         set: (t, v) => ({ ...t, code: str(v).toUpperCase() }),
       },
-      { key: 'name', header: 'ชื่อ', width: 150, required: true, editor: 'text', value: (t) => t.name, display: (t) => (t.name ? badge(t.name, t.tone, { dot: false }) : ''), set: (t, v) => ({ ...t, name: str(v) }) },
+      { key: 'name', header: 'ชื่อ', width: 150, required: true, editor: 'text', value: (t) => t.name, display: (t) => (t.name ? html`<span class="co-chip" style="--co:${toneColor(t.tone)}">${t.name}</span>` : ''), set: (t, v) => ({ ...t, name: str(v) }) },
       {
         key: 'tone',
-        header: 'สีป้าย',
-        width: 96,
-        editor: 'select',
+        header: 'สี',
+        width: 110,
+        editor: 'custom',
         value: (t) => t.tone,
-        options: () => TYPE_TONES.map((x) => ({ value: x, label: TONE_LABEL[x] })),
-        // ป้ายตัวอย่างหน้าตาเดียวกับป้ายชื่อ (สีพื้น + สีตัวอักษรชุดเดียวกัน) — เทียบกับคอลัมน์ชื่อได้ตรง ๆ
-        display: (t) => badge(TONE_LABEL[t.tone] ?? t.tone, t.tone, { dot: false }),
+        // แบบเดียวกับคอลัมน์สีของแท็บบริษัท — ค่าเดิมที่เป็นชื่อสี แสดงเป็นรหัสสีที่ใช้จริง
+        display: (t) => html`<span class="row" style="gap:6px"><i class="org-dot" style="background:${toneColor(t.tone)}"></i><span class="num small">${toneColor(t.tone)}</span></span>`,
+        edit: (t) => pickTypeColor(t),
         set: (t, v) => ({ ...t, tone: str(v) }),
       },
       {

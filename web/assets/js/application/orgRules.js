@@ -1,7 +1,7 @@
 // ตั้งค่าองค์กร (sites.html) — กฎตรวจบริษัท / ประเภทพนักงาน + นับการใช้งาน
 // คู่กับ backend/api/org.php (แก้ที่หนึ่งต้องแก้อีกที่)
 import { ruleTimeline } from '../domain/ruleVersions.js';
-import { TYPE_TONES } from '../domain/catalog.js';
+import { isTypeTone } from '../domain/catalog.js';
 
 const fold = (s) => String(s ?? '').trim().toLocaleLowerCase('th');
 
@@ -48,7 +48,7 @@ export function validateEmployeeType(t, all, companyCodes, creating) {
   if (t.companies !== null && !(Array.isArray(t.companies) && t.companies.length && t.companies.every((c) => companyCodes.includes(c)))) {
     x.companies = 'เลือกบริษัทอย่างน้อย 1 บริษัท หรือ "ทุกบริษัท"';
   }
-  if (!TYPE_TONES.includes(t.tone)) x.tone = 'เลือกสีป้าย';
+  if (!isTypeTone(t.tone)) x.tone = 'เลือกสีป้าย';
   return x;
 }
 

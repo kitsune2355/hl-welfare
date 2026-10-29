@@ -16,7 +16,6 @@ import { icon } from '../shared/icons.js';
 import {
   CONTRACT_LABEL,
   EMPLOYEE_TYPE_LABEL,
-  EMPLOYEE_TYPE_TONE,
   END_REASON_LABEL,
   GENDER_LABEL,
   STATUS_LABEL,
@@ -24,7 +23,7 @@ import {
   UNIFORM_EVENT_LABEL,
   UNIFORM_ITEM_LABEL,
 } from '../shared/labels.js';
-import { alertBox, avatar, badge, card, emptyState, errorState, infoList } from '../ui/components.js';
+import { alertBox, avatar, badge, card, emptyState, errorState, infoList, typeChip } from '../ui/components.js';
 import { loader } from '../ui/loading.js';
 import { confirmAction, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
@@ -203,7 +202,7 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
         part(root, 'info'),
         infoList([
           { label: 'หน่วยงาน', value: b.site?.name ?? '–' },
-          { label: 'ประเภท', value: badge(EMPLOYEE_TYPE_LABEL[e.employeeType], EMPLOYEE_TYPE_TONE[e.employeeType], { dot: false }) },
+          { label: 'ประเภท', value: typeChip(e.employeeType) },
           { label: typeInfo(e.employeeType)?.usesPosition ? 'ตำแหน่ง' : 'ฝ่าย / ระดับ', value: e.position ?? (e.deptGroup ? `${e.deptGroup} · ระดับ ${e.level ?? '–'}` : '–') },
           { label: 'สัญญา', value: CONTRACT_LABEL[e.contractType] },
           { label: 'วันเริ่มงาน', value: thaiDateFull(e.startDate) },

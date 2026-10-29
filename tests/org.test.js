@@ -13,6 +13,7 @@ import {
   defaultTypeFor,
   EMPLOYEE_TYPE_LABEL,
   EMPLOYEE_TYPES,
+  toneColor,
   typesFor,
 } from '../web/assets/js/domain/catalog.js';
 import { cycleDayOf } from '../web/assets/js/domain/insurance.js';
@@ -43,6 +44,12 @@ describe('ตั้งค่าองค์กร: กฎตรวจ', () => {
       tone: 'เลือกสีป้าย',
     });
     expect(validateEmployeeType({ ...CONTRACT, companies: ['HL'] }, DEFAULT_EMPLOYEE_TYPES, codes, true)).toEqual({});
+  });
+  it('สีป้ายประเภท: เลือกสีอิสระ (#rrggbb) ได้ · ชื่อสีแบบเดิมแปลงเป็นรหัสสี', () => {
+    const codes = DEFAULT_COMPANIES.map((c) => c.code);
+    expect(validateEmployeeType({ ...CONTRACT, companies: ['HL'], tone: '#A1B2C3' }, DEFAULT_EMPLOYEE_TYPES, codes, true)).toEqual({});
+    expect(validateEmployeeType({ ...CONTRACT, companies: ['HL'], tone: '#abc' }, DEFAULT_EMPLOYEE_TYPES, codes, true).tone).toBe('เลือกสีป้าย');
+    expect([toneColor('#A1B2C3'), toneColor('primary'), toneColor('warning'), toneColor('zzz')]).toEqual(['#a1b2c3', '#0e7490', '#d97706', '#64748b']);
   });
 });
 
