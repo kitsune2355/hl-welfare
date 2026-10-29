@@ -6928,19 +6928,6 @@ button.sev-pill {
   display: inline-flex;
   gap: 2px;
 }
-.org-tone-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--muted);
-  vertical-align: middle;
-}
-.org-tone-dot.tone-primary { background: var(--primary); }
-.org-tone-dot.tone-info { background: var(--info, #0891b2); }
-.org-tone-dot.tone-success { background: var(--success); }
-.org-tone-dot.tone-warning { background: var(--warning); }
-.org-tone-dot.tone-danger { background: var(--danger); }
 .org-color {
   width: 56px;
   height: 40px;

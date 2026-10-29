@@ -22,7 +22,8 @@ import { errorMessage, openModal, toast } from '../ui/overlay.js';
 
 export const canEditOrg = can('org.edit');
 
-const TONE_LABEL = { primary: 'น้ำเงิน', info: 'ฟ้า', success: 'เขียว', warning: 'ส้ม', danger: 'แดง', neutral: 'เทา' };
+/** ชื่อสีป้าย — ตามสีที่เห็นจริงของป้าย (tone-* ใน app.css: primary = #0e7490 · info = #0369a1) */
+const TONE_LABEL = { primary: 'เขียวหัวเป็ด', info: 'น้ำเงิน', success: 'เขียว', warning: 'ส้ม', danger: 'แดง', neutral: 'เทา' };
 /** พฤติกรรมของประเภท: [field, หัวคอลัมน์, คำอธิบาย (tooltip)] */
 const BEHAVIORS = [
   ['usesDeptGroup', 'กลุ่ม/ฝ่าย + ระดับ', 'ต้องเลือกกลุ่ม / ฝ่าย และระดับ 1–9 — กฎชุดฟอร์มแยกจำนวนตามกลุ่มและระดับได้ (แบบส่วนกลาง)'],
@@ -200,7 +201,8 @@ function typeGrid(el) {
         editor: 'select',
         value: (t) => t.tone,
         options: () => TYPE_TONES.map((x) => ({ value: x, label: TONE_LABEL[x] })),
-        display: (t) => html`<span class="org-tone-dot tone-${t.tone}"></span> ${TONE_LABEL[t.tone] ?? t.tone}`,
+        // ป้ายตัวอย่างหน้าตาเดียวกับป้ายชื่อ (สีพื้น + สีตัวอักษรชุดเดียวกัน) — เทียบกับคอลัมน์ชื่อได้ตรง ๆ
+        display: (t) => badge(TONE_LABEL[t.tone] ?? t.tone, t.tone, { dot: false }),
         set: (t, v) => ({ ...t, tone: str(v) }),
       },
       {
