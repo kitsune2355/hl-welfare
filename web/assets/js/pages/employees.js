@@ -19,7 +19,7 @@ import {
   STATUS_LABEL,
   STATUS_TONE,
 } from '../shared/labels.js';
-import { badge, companyChip, emptyState, errorState, typeChip } from '../ui/components.js';
+import { badge, companyChip, emptyState, errorState, genderChip, typeChip } from '../ui/components.js';
 import { activeBulkActions, activeColumn, activeRowClass } from '../ui/activeColumn.js';
 import { ExcelGrid } from '../ui/datagrid.js';
 import { openModal, toast } from '../ui/overlay.js';
@@ -113,7 +113,7 @@ const columns = [
   },
   { key: 'firstName', header: 'ชื่อ', width: 130, required: true, editor: 'text', value: (e) => e.firstName, set: setField('firstName', (v) => str(v).trim()) },
   { key: 'lastName', header: 'นามสกุล', width: 140, required: true, editor: 'text', value: (e) => e.lastName, set: setField('lastName', (v) => str(v).trim()) },
-  { key: 'gender', header: 'เพศ', width: 70, editor: 'select', value: (e) => e.gender, display: (e) => GENDER_LABEL[e.gender] ?? '', options: () => opts(GENDER_LABEL), set: setField('gender', (v) => str(v) || null) },
+  { key: 'gender', header: 'เพศ', width: 70, editor: 'select', value: (e) => e.gender, display: (e) => genderChip(e.gender), options: () => opts(GENDER_LABEL), set: setField('gender', (v) => str(v) || null) },
   { key: 'birthDate', header: 'วันเกิด', width: 110, required: true, editor: 'date', value: (e) => e.birthDate, display: (e) => (e.birthDate ? thaiDate(e.birthDate) : ''), set: setField('birthDate', str) },
   // อายุ: คำนวณจากวันเกิด ณ วันนี้ (แก้ไม่ได้)
   { key: 'age', header: 'อายุ', width: 70, align: 'right', value: (e) => ageOf(e.birthDate, today), display: (e) => (e.birthDate ? `${ageOf(e.birthDate, today)} ปี` : '') },

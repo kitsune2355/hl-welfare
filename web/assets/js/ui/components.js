@@ -2,6 +2,7 @@
 import { html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 import { companyColor, EMPLOYEE_TYPE_LABEL, typeColor } from '../domain/catalog.js';
+import { GENDER_LABEL } from '../domain/labels.js';
 
 /** tone: success | warning | danger | info | neutral | primary */
 export function badge(text, tone = 'neutral', { dot = true, lg = false } = {}) {
@@ -18,6 +19,13 @@ export function companyChip(code, text = code) {
 export function typeChip(code, text = EMPLOYEE_TYPE_LABEL[code] ?? code) {
   if (!code) return '';
   return html`<span class="co-chip" style="--co:${typeColor(code)}">${text}</span>`;
+}
+
+/** ป้ายเพศ — chip แบบป้ายบริษัท: ชาย = น้ำเงิน · หญิง = ชมพู */
+const GENDER_COLOR = { M: '#2563eb', F: '#db2777' };
+export function genderChip(g) {
+  if (!GENDER_LABEL[g]) return '';
+  return html`<span class="co-chip" style="--co:${GENDER_COLOR[g] ?? '#64748b'}">${GENDER_LABEL[g]}</span>`;
 }
 
 const AVATAR_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
