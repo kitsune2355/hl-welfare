@@ -143,7 +143,7 @@ function navLink(item, active) {
 /**
  * สร้าง sidebar + topbar รอบ <main id="page"> แล้วแปลง <i data-icon> และ <select data-combobox> ในหน้า
  * @param {string} active  id ของเมนูที่เลือก
- * @param {{ tour?: string | (() => string) }} [opts]  tour = id ของเนื้อหาแนะนำใน tour/steps.js (ค่าเริ่มต้น = active)
+ * @param {{ tour?: string | (() => string) }} [opts]  tour = id ของหน้า/แท็บ ที่คู่มือใน tour/guides.js อ้าง (ค่าเริ่มต้น = active)
  *   ใส่เป็นฟังก์ชันได้ เมื่อหน้ามีหลายแท็บและแต่ละแท็บมีคำแนะนำของตัวเอง
  */
 export function initPage(active, { tour = active } = {}) {

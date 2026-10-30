@@ -24,7 +24,7 @@ import { DataTable } from '../ui/table.js';
 import { busy, loader, progress } from '../ui/loading.js';
 import { openEmployeeDetail } from './_employeeDetail.js';
 
-/** แท็บประวัติการส่งออกมีคำแนะนำของตัวเอง (tour/steps.js) */
+/** แท็บประวัติการส่งออกมีคำแนะนำของตัวเอง (tour/guides.js) */
 const tourId = () => (getParam('tab') === 'history' ? 'insurance-history' : 'insurance');
 initPage('insurance', { tour: tourId });
 

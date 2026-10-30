@@ -17,7 +17,7 @@ import { alertBox } from '../ui/components.js';
 import { STOCK_STAGE, canCancelIssue, enhanceIssueActions, issueAction, issueSequence, stockDocLink, syncStockQuietly, wireIssueActions } from './_shared.js';
 import { openEmployeeDetail } from './_employeeDetail.js';
 
-/** คำแนะนำการใช้งานตามแท็บ (tour/steps.js) */
+/** คำแนะนำการใช้งานตามแท็บ (tour/guides.js) */
 const tourId = () => ({ waiting: 'uniform-waiting', history: 'uniform-history' })[getParam('tab')] ?? 'uniform';
 initPage('uniform', { tour: tourId });
 

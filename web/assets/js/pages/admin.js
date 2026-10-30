@@ -57,7 +57,7 @@ const groupKeyOf = (t) => Object.keys(GROUPS).find((k) => GROUPS[k].tabs.include
 const asked = getParam('tab') || 'users';
 const group = GROUPS[groupKeyOf(asked) ?? (GROUPS[asked] ? asked : 'users')];
 let tab = TAB_CAN[asked]?.() ? asked : (group.tabs.find((t) => TAB_CAN[t]()) ?? group.tabs[0]);
-initPage(group.nav, { tour: () => `admin-${tab}` }); // ไม่มีสิทธิ์เมนูนี้เลย → shell พาไปหน้าที่เปิดได้ · แนะนำการใช้งานต่อแท็บ (tour/steps.js)
+initPage(group.nav, { tour: () => `admin-${tab}` }); // ไม่มีสิทธิ์เมนูนี้เลย → shell พาไปหน้าที่เปิดได้ · แนะนำการใช้งานต่อแท็บ (tour/guides.js)
 
 render($('#title'), group.title);
 render($('#subtitle'), group.subtitle);

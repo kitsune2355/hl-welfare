@@ -3,9 +3,10 @@
 // โหลดไม่ได้ (เช่น ยังไม่รัน sql/015) = ใช้ค่าตั้งต้นใน domain/catalog.js
 import { applyCatalog } from '../domain/catalog.js';
 import { progress } from '../ui/loading.js';
-import { api } from './api.js';
+import { api, PRACTICE } from './api.js';
 
-const KEY = 'hl-catalog';
+// โหมดฝึก = บริษัท/ประเภทของข้อมูลตัวอย่าง — เก็บแยก ไม่ปนกับของจริง
+const KEY = PRACTICE ? 'hl-catalog-practice' : 'hl-catalog';
 
 /** โหลดใหม่จาก API แล้วใช้ทันที (หน้าตั้งค่าองค์กรเรียกหลังแก้) */
 export async function refreshCatalog() {

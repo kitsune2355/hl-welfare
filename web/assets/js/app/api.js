@@ -7,6 +7,7 @@ import { ServerAuth } from '../infrastructure/http/serverAuth.js';
 import { StockGateway } from '../infrastructure/http/stockGateway.js';
 import { MockApi } from '../infrastructure/mock/mockApi.js';
 import { progress } from '../ui/loading.js';
+import { isPractice, practiceStock, PRACTICE_STORAGE_KEY } from './practice.js';
 
 export const API_MODE = CONFIG.apiMode === 'http' ? 'http' : 'mock';
 
@@ -21,8 +22,12 @@ export const UNAUTHORIZED_EVENT = 'hl:unauthorized';
 const serverAuth = AUTH_PROVIDER === 'server' ? new ServerAuth(CONFIG.apiBaseUrl) : null;
 if (serverAuth) serverAuth.onUnauthorized = () => window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
 
-const raw =
-  API_MODE === 'http'
+/** โหมดฝึกของคู่มือ (app/practice.js) — ข้อมูลตัวอย่างในเบราว์เซอร์ ไม่แตะข้อมูลจริง/ระบบสต็อกจริง · การเข้าสู่ระบบยังเป็นของจริง */
+export const PRACTICE = isPractice();
+
+const raw = PRACTICE
+  ? new MockApi(undefined, practiceStock(), { storageKey: PRACTICE_STORAGE_KEY })
+  : API_MODE === 'http'
     ? new HttpApi(CONFIG.apiBaseUrl, serverAuth)
     : new MockApi(undefined, new StockGateway(CONFIG.stock.bridgeUrl, serverAuth));
 

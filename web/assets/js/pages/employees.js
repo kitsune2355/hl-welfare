@@ -3,6 +3,7 @@ import { defaultTypeFor, isCompanyActive, isTypeActive, typeAllows, typeInfo, ty
 import { api } from '../app/api.js';
 import { can, companyChoices, myCompany } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
+import { exposeForTour } from '../app/tour.js';
 import { normalizeEmployee, validateEmployee } from '../application/employeeRules.js';
 import { todayISO } from '../domain/date.js';
 import { ageOf, probationDueDate } from '../domain/employee.js';
@@ -357,6 +358,7 @@ const grid = new ExcelGrid($('#grid'), {
   onSaved: () => refreshCounts(),
   empty: emptyState({ iconName: 'user-x', title: 'ไม่พบพนักงาน', description: 'ลองเปลี่ยนคำค้นหรือล้างตัวกรอง / กด “เพิ่มแถว” เพื่อเริ่มกรอกข้อมูล' }),
 });
+exposeForTour('grid', grid); // คู่มือ "เพิ่มพนักงานใหม่" ใส่แถวตัวอย่างให้ดู (tour/guides.js)
 
 async function load() {
   grid.setRows(null);

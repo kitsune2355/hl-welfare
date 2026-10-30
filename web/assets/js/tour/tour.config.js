@@ -1,29 +1,27 @@
-// ===== ตั้งค่า "แนะนำการใช้งาน" (driver.js) — dev ปรับได้ที่ไฟล์นี้ไฟล์เดียว =====
-// เนื้อหาของแต่ละหน้าอยู่ที่ tour/steps.js · ธีมสี/ฟอนต์อยู่ใน app.css หัวข้อ "Tour"
+// ===== ตั้งค่า "คู่มือทีละขั้น" (driver.js) — dev ปรับได้ที่ไฟล์นี้ไฟล์เดียว =====
+// เนื้อหาอยู่ที่ tour/guides.js · ธีมสี/ฟอนต์อยู่ใน app.css หัวข้อ "Tour"
 // เอกสาร driver.js: https://driverjs.com/docs/configuration
 
 export const TOUR_CONFIG = {
   /** ปิดทั้งระบบ = false (ปุ่ม ? จะหายไปด้วย) */
   enabled: true,
 
-  /** เปิดแนะนำอัตโนมัติเมื่อผู้ใช้เข้าหน้านั้นครั้งแรก */
+  /** เข้าหน้า/แท็บครั้งแรก → การ์ดเล็กมุมขวาล่างเสนอคู่มือของหน้านั้น (ไม่เปิดคู่มือเอง) */
   autoStart: true,
 
-  /** รอ (ms) หลังข้อมูลในหน้าโหลดเสร็จ ก่อนเริ่มแนะนำอัตโนมัติ */
+  /** รอ (ms) ก่อนแสดงการ์ดเสนอคู่มือ */
   autoStartDelay: 600,
 
-  /** รอข้อมูลในหน้าโหลด (selector `ready` ใน steps.js) ได้นานสุดกี่ ms */
+  /** รอข้อมูลในหน้าโหลด (element ของขั้น) ได้นานสุดกี่ ms */
   readyTimeout: 6000,
 
   /**
-   * เวอร์ชันของเนื้อหาแนะนำ — แก้ steps.js แล้วอยากให้ผู้ใช้ทุกคนเห็นใหม่อีกครั้ง ให้เพิ่มเลขนี้
-   * (ระบบจำว่า "เคยดูแล้ว" แยกต่อหน้า ใน localStorage: `${storageKey}:${หน้า}` = version)
-   * แก้เฉพาะบางหน้า → ใส่ version ที่หน้านั้นใน steps.js แทน (หน้าอื่นไม่เด้งซ้ำ)
+   * เพิ่มเลขนี้ = เสนอคู่มือใหม่อีกครั้งทุกหน้า (ระบบจำว่า "เสนอแล้ว" แยกต่อหน้า ใน localStorage: `${storageKey}:${หน้า}`)
    */
   version: 1,
-  storageKey: 'hl-tour-seen',
+  storageKey: 'hl-guide-offer',
 
-  /** แสดงปุ่ม ? (แนะนำการใช้งาน) ที่แถบด้านบน */
+  /** แสดงปุ่ม ? (คู่มือ) ที่แถบด้านบน */
   showHelpButton: true,
 
   /** ที่อยู่ไฟล์ driver.js (โหลดเมื่อใช้งานจริงเท่านั้น ไม่ทำให้หน้าช้า) */
@@ -35,13 +33,13 @@ export const TOUR_CONFIG = {
    */
   driver: {
     showProgress: true,
-    progressText: '{{current}} / {{total}}',
+    progressText: 'ขั้น {{current}} จาก {{total}}',
     nextBtnText: 'ถัดไป',
     prevBtnText: 'ย้อนกลับ',
-    doneBtnText: 'เข้าใจแล้ว',
+    doneBtnText: 'เสร็จ',
     showButtons: ['next', 'previous', 'close'],
-    allowClose: true, // กด Esc / ปุ่ม × / คลิกพื้นหลัง เพื่อปิด
-    overlayClickBehavior: 'close',
+    allowClose: true, // กด Esc / ปุ่ม × เพื่อปิด
+    overlayClickBehavior: () => {}, // คลิกพื้นหลังโดยไม่ตั้งใจ = ไม่ปิด (ผู้ใช้มือใหม่)
     allowKeyboardControl: true, // ← → เปลี่ยนขั้น, Esc ปิด
     overlayColor: '#0f172a',
     overlayOpacity: 0.55,
@@ -57,9 +55,9 @@ export const TOUR_CONFIG = {
 
 /*
  * ตัวช่วยสำหรับ dev / ผู้ทดสอบ (พิมพ์ใน Console ของเบราว์เซอร์ F12):
- *   localStorage.setItem('hl-tour-disabled', '1')   → ปิดการแนะนำอัตโนมัติในเครื่องนี้ (เช่น ตอนทดสอบอัตโนมัติ)
+ *   localStorage.setItem('hl-tour-disabled', '1')   → ไม่เสนอคู่มืออัตโนมัติในเครื่องนี้ (เช่น ตอนทดสอบอัตโนมัติ)
  *   localStorage.removeItem('hl-tour-disabled')     → เปิดกลับ
- *   Object.keys(localStorage).filter(k => k.startsWith('hl-tour-seen')).forEach(k => localStorage.removeItem(k))
- *                                                   → ให้แนะนำอัตโนมัติทุกหน้าอีกครั้ง
- * หรือเปิดหน้าด้วย ?tour=1 เพื่อเริ่มแนะนำทันที เช่น employees.html?tour=1
+ *   Object.keys(localStorage).filter(k => k.startsWith('hl-guide-offer')).forEach(k => localStorage.removeItem(k))
+ *                                                   → เสนอคู่มือทุกหน้าอีกครั้ง
+ * หรือเปิดหน้าด้วย ?tour=1 เพื่อเริ่มคู่มือของหน้านั้นทันที เช่น employees.html?tour=1
  */

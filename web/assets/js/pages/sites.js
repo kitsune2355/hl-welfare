@@ -21,7 +21,7 @@ import { showOrgTab } from './_orgSettings.js';
 import { aboutBox, wireAbout } from './_settingsAbout.js';
 import { revealActiveTab, settingsTab, settingsTabs, wireSettingsTabs } from './_settingsTabs.js';
 
-/** คู่มือตามแท็บ (tour/steps.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
+/** คู่มือตามแท็บ (tour/guides.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
 const tourId = () => ({ sites: 'sites', types: 'sites-types', groups: 'sites-groups' })[getParam('tab')] ?? 'sites-companies';
 initPage('sites', { tour: tourId });
 

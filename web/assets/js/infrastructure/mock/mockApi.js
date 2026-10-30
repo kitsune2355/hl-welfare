@@ -31,9 +31,9 @@ const STORAGE_KEY = 'hl-welfare-mock-v6'; // v6: แบบฟอร์มปร�
 const LATENCY_MS = 150;
 
 
-function load(today) {
+function load(today, key) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const s = JSON.parse(raw);
       if (s?.db?.employees && s.db.activities) {
@@ -110,10 +110,12 @@ export class MockApi {
   db;
   today;
   stock;
-  constructor(today = () => todayISO(), stock = new StockGateway(CONFIG.stock.bridgeUrl)) {
+  /** storageKey = ที่เก็บใน localStorage (โหมดฝึกของคู่มือใช้ที่เก็บแยก — app/practice.js) */
+  constructor(today = () => todayISO(), stock = new StockGateway(CONFIG.stock.bridgeUrl), { storageKey = STORAGE_KEY } = {}) {
     this.today = today;
     this.stock = stock;
-    this.db = load(this.today());
+    this.storageKey = storageKey;
+    this.db = load(this.today(), storageKey);
     this.db.ruleHistory ??= ruleHistoryOf(this.db.rules);
     this.db.deptGroups ??= seedDeptGroups(this.db.employees);
     // ตั้งค่าองค์กร (= sql/015): ประเภทพนักงาน + สี/ลำดับบริษัท — ข้อมูลเดิมในเครื่องยังไม่มี
@@ -153,7 +155,7 @@ export class MockApi {
   }
   persist() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ seededFor: this.today(), db: this.db }));
+      localStorage.setItem(this.storageKey, JSON.stringify({ seededFor: this.today(), db: this.db }));
     } catch {
       /* เต็ม / ถูกบล็อก → ทำงานต่อในหน่วยความจำ */
     }
@@ -1007,7 +1009,7 @@ export class MockApi {
   reset() {
     return this.run(() => {
       try {
-        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(this.storageKey);
       } catch {
         /* ignore */
       }

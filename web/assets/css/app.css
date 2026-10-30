@@ -2695,8 +2695,144 @@ ol.questions {
 }
 
 /* =====================================================================
+   คู่มือทีละขั้น (app/tour.js) — แถบโหมดฝึก · เมนู "อยากทำอะไร?" · การ์ดเสนอคู่มือ
+   ===================================================================== */
+.practice-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+  background: color-mix(in srgb, #facc15 22%, var(--surface));
+  color: var(--fg);
+  font-size: 13.5px;
+}
+.practice-bar > .icon {
+  flex: none;
+  color: var(--warning);
+}
+.practice-bar > span {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.guide-menu {
+  display: grid;
+  gap: 6px;
+}
+.guide-group {
+  margin: 8px 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.guide-group:first-child {
+  margin-top: 0;
+}
+.guide-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.guide-item:hover,
+.guide-item:focus-visible {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.guide-item.rec {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+.guide-ic {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.guide-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+.guide-text b {
+  font-weight: 600;
+}
+.guide-text small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.guide-meta {
+  display: grid;
+  flex: none;
+  justify-items: end;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.guide-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--success);
+}
+.guide-done .icon {
+  width: 13px;
+  height: 13px;
+}
+.guide-offer {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.18);
+  animation: pop 0.2s ease-out;
+}
+.guide-offer-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+@media (max-width: 1023px) {
+  .guide-offer {
+    right: 16px;
+    bottom: 80px; /* เหนือเมนูด้านล่าง */
+    left: 16px;
+  }
+}
+/* กล่องคู่มือ: ตัวใหญ่ขึ้นสำหรับผู้ใช้มือใหม่ */
+.driver-popover.hl-tour .driver-popover-description {
+  font-size: 14.5px;
+  line-height: 1.75;
+}
+
+/* =====================================================================
    Tour — กล่องแนะนำการใช้งาน (driver.js) ให้เข้ากับธีมของระบบ
-   ตั้งค่าพฤติกรรม: assets/js/tour/tour.config.js · เนื้อหา: tour/steps.js
+   ตั้งค่าพฤติกรรม: assets/js/tour/tour.config.js · เนื้อหา: tour/guides.js
    ===================================================================== */
 .driver-popover.hl-tour {
   min-width: 280px;

@@ -17,7 +17,7 @@ import { revealActiveTab, settingsTab, settingsTabs, wireSettingsTabs } from './
 import { errorMessage, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 
-/** คำแนะนำการใช้งานตามแท็บ (tour/steps.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
+/** คำแนะนำการใช้งานตามแท็บ (tour/guides.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
 const tourId = () => ({ settings: 'rules-settings', pending: 'rules-pending' })[getParam('tab')] ?? 'rules';
 initPage('rules', { tour: tourId });
 
