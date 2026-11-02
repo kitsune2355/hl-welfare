@@ -29,10 +29,8 @@
           <h1 id="greeting">สวัสดี 👋</h1>
           <p id="today">กำลังโหลด…</p>
         </div>
-        <div class="page-actions">
-          <span class="row small muted"><span class="live-dot" id="live-dot"></span><span id="updated" class="hide-sm"></span></span>
-          <button class="btn btn-sm" id="refresh" title="รีเฟรช" aria-label="รีเฟรช"><i data-icon="refresh-cw"></i><span class="hide-sm">รีเฟรช</span></button>
-        </div>
+        <!-- อัปเดตเองเมื่อมีข้อมูลใหม่ — แสดงเฉพาะตอนขาดการเชื่อมต่อ (pages/dashboard.js) -->
+        <div class="page-actions" id="live-status" role="status"></div>
       </div>
 
       <!-- ===== ทั้งหน้าเป็น bento เดียว (grid 12 คอลัมน์ · สูงตามเนื้อหา) =====

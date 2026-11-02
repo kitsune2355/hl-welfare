@@ -11,7 +11,7 @@ import { initPage, refreshCounts } from '../app/shell.js';
 import { progress } from '../ui/loading.js';
 import { diffDays, todayISO } from '../domain/date.js';
 import { $, debounce, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
-import { clock, int, relativeDays, thaiDate, thaiDateLong } from '../shared/format.js';
+import { int, relativeDays, thaiDate, thaiDateLong } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 import { SEVERITY_LABEL, SEVERITY_TONE, TASK_KIND_LABEL } from '../shared/labels.js';
 import { badge, emptyState, employeeCell, errorState, skeletonLines } from '../ui/components.js';
@@ -303,38 +303,40 @@ function refresh() {
   return running;
 }
 async function load() {
-  $('#refresh').disabled = true;
   try {
     const [dash, tasks] = await Promise.all([api.getDashboard(), api.getWorkQueue()]);
     state.dash = dash;
     state.tasks = tasks;
     drawSummary(dash);
     drawQueue();
-    render($('#updated'), `อัปเดต ${clock(new Date())}`);
   } catch (e) {
     render($('#t-cycle'), errorState(e));
   }
   await loadActivity();
-  $('#refresh').disabled = false;
   refreshCounts();
 }
 
-// จุดเขียว = กำลังรอข้อมูลใหม่ · จุดเทา + "ขาดการเชื่อมต่อ" = เชื่อมต่อไม่ได้ (ลองใหม่เองเมื่อเน็ตกลับ / กดรีเฟรช)
+// ปกติไม่แสดงอะไร (อัปเดตเอง) · เชื่อมต่อไม่ได้ → "ขาดการเชื่อมต่อ" + ปุ่มลองใหม่ (ลองเองด้วยเมื่อเน็ตกลับ / กลับมาที่แท็บ)
 const live = watchChanges(
   () => {
     progress.quiet(refresh); // เบื้องหลัง ไม่ขึ้น loading กลางจอ
     window.dispatchEvent(new Event('hl:notifications-refresh')); // กระดิ่งด้วย
   },
-  (status) => {
-    $('#live-dot').classList.toggle('on', status === 'live');
-    $('#live-dot').title = status === 'live' ? 'อัปเดตทันทีเมื่อมีข้อมูลใหม่' : 'ขาดการเชื่อมต่อ — กดรีเฟรช';
-    if (status === 'offline') render($('#updated'), 'ขาดการเชื่อมต่อ');
-  },
+  (status) =>
+    render(
+      $('#live-status'),
+      status === 'offline'
+        ? html`<span class="row small muted"><span class="live-dot"></span>ขาดการเชื่อมต่อ</span>
+            <button class="btn btn-sm" data-retry>${raw(icon('refresh-cw'))}ลองใหม่</button>`
+        : '',
+    ),
 );
-$('#refresh').onclick = () => {
+on($('#live-status'), 'click', '[data-retry]', () => {
   live.resume();
   refresh();
-};
+});
+// กลับมาที่แท็บ → โหลดใหม่ด้วย (ข้อมูลที่ไม่ได้มาจากการบันทึก เช่น สถานะใบเบิกจากระบบสต็อก ขึ้นวันใหม่)
+document.addEventListener('visibilitychange', () => !document.hidden && progress.quiet(refresh));
 
 refresh().then(() => {
   if (!jumpTo) return;
