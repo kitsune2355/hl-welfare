@@ -2131,7 +2131,6 @@ button.stat:hover {
   position: relative;
   overflow: hidden;
   border-radius: 6px;
-  background: var(--surface-2);
 }
 .skeleton::after {
   content: '';
