@@ -2853,10 +2853,28 @@ ol.questions {
   width: 16px;
   height: 16px;
 }
+/* กล่องเมนูคู่มือกว้างกว่ากล่องทั่วไป — แนะนำ 2 คอลัมน์ · เรื่องอื่น 3 คอลัมน์ (จอแคบลดเอง) */
+.modal-md:has(.guide-menu) {
+  max-width: 880px;
+}
+.guide-rec {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.guide-rec > .guide-group {
+  grid-column: 1 / -1;
+}
 .guide-others {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+}
+@media (max-width: 900px) {
+  .guide-rec {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .guide-others {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 640px) {
   .guide-others {
