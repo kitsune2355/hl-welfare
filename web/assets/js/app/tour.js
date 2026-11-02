@@ -17,7 +17,7 @@ import { enterPractice, exitPractice } from './practice.js';
  * @typedef {{page: string, href?: string | ((h: object) => Promise<string>), before?: (h: object) => any,
  *   key?: string, backTo?: string, undo?: (h: object) => any,
  *   element?: string, title: string, text: string, side?: string, align?: string}} GuideStep
- * @typedef {{id: string, title: string, summary: string, icon: string, minutes: number, pages: string[],
+ * @typedef {{id: string, title: string, summary: string, icon: string, pages: string[],
  *   practice?: boolean, need?: string, steps: GuideStep[]}} Guide
  */
 
@@ -316,11 +316,11 @@ export function openGuideMenu() {
   const list = GUIDES.filter(allowed);
   const here = list.filter((g) => g.pages.some((p) => p === page || page.startsWith(`${p}-`)));
   const others = list.filter((g) => !here.includes(g));
-  // รายการเรียบ + สีประจำเรื่อง (ไอคอนบนพื้นจางสีนั้น · hover = พื้นจางสีนั้น) · เคยดูแล้ว = ✓ เขียวข้างเวลา
+  // รายการเรียบ + สีประจำเรื่อง (ไอคอนบนพื้นจางสีนั้น · hover = พื้นจางสีนั้น) · เคยดูแล้ว = ✓ เขียวท้ายแถว
   const row = (g, withSummary) => html`<button type="button" class="gm-row" data-guide="${g.id}" title="${g.summary}" style="--gc:${g.color ?? 'var(--primary)'}">
     <span class="gm-ic">${raw(icon(g.icon))}</span>
     <span class="gm-text"><span class="gm-title">${g.title}</span>${withSummary ? html`<span class="gm-sum">${g.summary}</span>` : ''}</span>
-    <span class="gm-meta">${store.get(`hl-guide-done:${g.id}`, localStorage) ? html`<span class="gm-seen" title="เคยดูแล้ว" aria-label="เคยดูแล้ว">${raw(icon('check'))}</span>` : ''}${g.minutes} นาที</span>
+    <span class="gm-meta">${store.get(`hl-guide-done:${g.id}`, localStorage) ? html`<span class="gm-seen" title="เคยดูแล้ว" aria-label="เคยดูแล้ว">${raw(icon('check'))}</span>` : ''}</span>
   </button>`;
   const m = openModal({
     title: 'คู่มือการใช้งาน',

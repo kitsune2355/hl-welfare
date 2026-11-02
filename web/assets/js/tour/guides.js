@@ -4,7 +4,7 @@
 // เปิดจากปุ่ม ? ที่แถบด้านบน → เลือกเรื่อง · ตัวขับเคลื่อน: app/tour.js · ตั้งค่า: tour/tour.config.js
 //
 // คู่มือ (GUIDES):
-//   id, title, summary (1 บรรทัด), icon, minutes (เวลาโดยประมาณ)
+//   id, title, summary (1 บรรทัด), icon
 //   pages    : หน้า/แท็บที่แนะนำเรื่องนี้ (id เดียวกับ initPage / tour ของหน้า) — เรื่องแรกที่ตรงหน้าแสดงเป็น "แนะนำ"
 //   practice : true (ค่าเริ่มต้น) = เปิดใน "โหมดฝึก" ข้อมูลตัวอย่าง ไม่กระทบข้อมูลจริง (app/practice.js)
 //              false = ใช้ข้อมูลจริง แค่ชี้ให้ดู (หน้าผู้ดูแลระบบ · บัญชีของฉัน)
@@ -54,7 +54,6 @@ export const GUIDES = [
     summary: 'ระบบนี้ทำอะไร · เมนูอยู่ตรงไหน · ดูงานที่ต้องทำวันนี้',
     icon: 'compass',
     color: '#6366f1',
-    minutes: 1,
     pages: ['dashboard'],
     steps: [
       {
@@ -110,7 +109,6 @@ export const GUIDES = [
     summary: 'กดเพิ่มแถว → กรอกข้อมูล → กดบันทึก แล้วดูสิทธิที่ระบบคำนวณให้',
     icon: 'user-plus',
     color: '#0ea5e9',
-    minutes: 2,
     pages: ['employees', 'dashboard'],
     need: 'employees.edit',
     steps: [
@@ -236,7 +234,6 @@ export const GUIDES = [
     summary: 'ค้นหาชื่อ → ติ๊กเลือก → บันทึกพ้นสภาพ → กดบันทึก',
     icon: 'user-x',
     color: '#f43f5e',
-    minutes: 1,
     pages: ['employees'],
     need: 'employees.edit',
     steps: [
@@ -396,7 +393,6 @@ export const GUIDES = [
     summary: 'ดาวน์โหลดแบบฟอร์ม → กรอกใน Excel → นำเข้า → ตรวจ → บันทึก',
     icon: 'file-spreadsheet',
     color: '#10b981',
-    minutes: 1,
     pages: ['employees'],
     need: 'employees.edit',
     steps: [
@@ -470,7 +466,6 @@ export const GUIDES = [
     summary: 'ดูรายชื่อแจ้งเข้า/ออก → ส่งออกไฟล์ → ส่งให้บริษัทประกัน',
     icon: 'shield-plus',
     color: '#14b8a6',
-    minutes: 2,
     pages: ['insurance', 'insurance-history', 'dashboard'],
     need: 'insurance.view',
     steps: [
@@ -571,7 +566,6 @@ export const GUIDES = [
     summary: 'ดูคนที่ต้องได้ชุด → ส่งเบิกคลัง → รอคลังจ่าย',
     icon: 'shirt',
     color: '#f59e0b',
-    minutes: 2,
     pages: ['uniform', 'uniform-waiting', 'uniform-history', 'dashboard'],
     need: 'uniform.view',
     steps: [
@@ -696,7 +690,6 @@ export const GUIDES = [
     summary: 'ตั้งบริษัท ประเภท หน่วยงาน และเงื่อนไขประกัน/ชุดฟอร์ม ตามลำดับเลข',
     icon: 'building-2',
     color: '#8b5cf6',
-    minutes: 2,
     pages: ['sites', 'sites-companies', 'sites-types', 'sites-groups', 'rules', 'rules-settings', 'rules-pending'],
     need: 'sites.view',
     steps: [
@@ -760,7 +753,6 @@ export const GUIDES = [
     summary: 'อัปโหลดไฟล์ Excel ของบริษัทประกัน แล้วเลือกว่าบริษัทไหนส่งกับใคร',
     icon: 'file-spreadsheet',
     color: '#06b6d4',
-    minutes: 1,
     pages: ['insurers', 'insurer-edit'],
     need: 'insurers.view',
     steps: [
@@ -839,7 +831,6 @@ export const GUIDES = [
     summary: 'ตั้งรหัสผ่านใหม่ และขยายตัวหนังสือให้อ่านง่าย',
     icon: 'key-round',
     color: '#64748b',
-    minutes: 1,
     pages: ['account', 'account-password', 'account-font'],
     practice: false,
     steps: [
@@ -869,7 +860,6 @@ export const GUIDES = [
     summary: 'เพิ่มผู้ใช้ · แก้บทบาท · ปิดบัญชี',
     icon: 'users',
     color: '#ec4899',
-    minutes: 1,
     pages: ['admin-users'],
     practice: false,
     need: 'users.manage',
@@ -884,7 +874,6 @@ export const GUIDES = [
     summary: 'บัญชีที่ถูกล็อก · ใครเข้าระบบอยู่ · ระบบทำงานปกติไหม',
     icon: 'shield-check',
     color: '#3b82f6',
-    minutes: 1,
     pages: ['admin-access', 'admin-health', 'admin-settings', 'admin-audit', 'admin-permissions'],
     practice: false,
     need: 'security.view',

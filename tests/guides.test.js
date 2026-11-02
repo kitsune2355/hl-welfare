@@ -17,7 +17,7 @@ describe('คู่มือทีละขั้น', () => {
   it('id ไม่ซ้ำ · มีหัวข้อ/สรุป/ไอคอน/สีประจำเรื่อง · หน้าที่เสนอเป็นหน้าที่มีจริง', () => {
     expect(new Set(GUIDES.map((g) => g.id)).size).toBe(GUIDES.length);
     for (const g of GUIDES) {
-      expect([g.id, !!g.title, !!g.summary, !!g.icon, /^#[0-9a-f]{6}$/.test(g.color), g.minutes > 0, g.steps.length > 0].join()).toBe(`${g.id},true,true,true,true,true,true`);
+      expect([g.id, !!g.title, !!g.summary, !!g.icon, /^#[0-9a-f]{6}$/.test(g.color), g.steps.length > 0].join()).toBe(`${g.id},true,true,true,true,true`);
       for (const p of g.pages) expect(`${g.id}:${PAGES.includes(p)}`).toBe(`${g.id}:true`);
     }
   });
