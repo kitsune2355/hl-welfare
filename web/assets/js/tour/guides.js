@@ -13,7 +13,9 @@
 //     page    : หน้าที่ขั้นนี้อยู่ (id หน้า) · href : ไปหน้านี้ก่อน (string หรือ async (h) => string)
 //     before  : async (h) => {} ทำก่อนชี้ เช่น กดแท็บ ใส่ข้อมูลตัวอย่าง (h = ตัวช่วยใน app/tour.js)
 //               ต้องทำซ้ำได้ — กด "ย้อนกลับ" จะทำ before ของขั้นนั้นอีกครั้ง (h.open / h.close / h.clickTab ทำซ้ำได้อยู่แล้ว)
-//     noBack  : true = ไม่มีปุ่มย้อนกลับ (ขั้นหลังจากที่ระบบบันทึก/ส่งแทนไปแล้ว ย้อนไปทำซ้ำไม่ได้)
+//     key     : ชื่อขั้น (ให้ backTo อ้าง)
+//     backTo / undo : ขั้นหลังจากที่ระบบบันทึก/ใส่ในตารางแทนไปแล้ว — กด "ย้อนกลับ" = undo(h) แล้วกลับไปขั้น key = backTo
+//               (ย้อนไปขั้นก่อนหน้าตรง ๆ ไม่ได้ เช่น บันทึกแล้วปุ่มบันทึกหายไป)
 //     element : selector ของสิ่งที่ชี้ (หลายตัวคั่นด้วย , = ตัวแรกที่มองเห็น) · ไม่ใส่/ไม่เจอ = กล่องกลางจอ
 //     title, text : หัวข้อ / คำอธิบาย (ใส่ <b> <br> ได้) · side / align : ตำแหน่งกล่อง
 //
@@ -118,6 +120,12 @@ export const GUIDES = [
       },
       {
         page: 'employees',
+        key: 'add',
+        before: async (h) => {
+          // ย้อนกลับมา (บันทึกไปแล้ว) — ล้างช่องค้นหาให้เห็นตารางตามปกติ
+          const q = document.querySelector('#filters input[name="q"]');
+          if (q?.value) await h.type('#filters input[name="q"]', '');
+        },
         element: '[data-grid-act="add"]',
         title: 'ขั้นที่ 1 · กด “เพิ่มแถว”',
         text: 'จะมีแถวว่างสีเขียวขึ้นมาด้านบนสุดของตาราง',
@@ -184,7 +192,7 @@ export const GUIDES = [
           await h.type('#filters input[name="q"]', sampleCode);
           await h.wait('.xgrid tbody tr:first-child td[data-col="empCode"]');
         },
-        noBack: true, // บันทึกไปแล้ว — ปุ่มบันทึกหายแล้ว
+        backTo: 'add', // บันทึกไปแล้ว (ปุ่มบันทึกหายแล้ว) — ย้อนกลับ = เริ่มเพิ่มแถวใหม่อีกรอบ
         element: '.xgrid tbody tr:first-child td[data-col="firstName"]',
         title: 'บันทึกแล้ว ✓',
         text: 'สมชาย ตัวอย่าง อยู่ในระบบแล้ว<br>ช่องค้นหาด้านบนใช้หาพนักงานด้วยชื่อหรือรหัส',
@@ -304,6 +312,7 @@ export const GUIDES = [
       },
       {
         page: 'employees',
+        key: 'put',
         before: (h) => h.open('[data-bulk="terminate"]', '#bt-reason'),
         element: '.modal [data-ok]',
         title: 'กด “ใส่ในตาราง”',
@@ -327,7 +336,14 @@ export const GUIDES = [
           }
           await h.wait('[data-grid-act="save-all"]');
         },
-        noBack: true, // ใส่ในตารางไปแล้ว — ย้อนกลับไปเปิดกล่องซ้ำไม่ได้ (คนนี้พ้นสภาพแล้ว)
+        backTo: 'put', // ใส่ในตารางไปแล้ว — ย้อนกลับ = ยกเลิกที่ใส่ แล้วเปิดกล่องอีกครั้ง
+        undo: async (h) => {
+          h.get('grid')?.discardAll();
+          await h.sleep(200);
+          const box = document.querySelector('.xgrid tbody tr:first-child [data-row-check]');
+          if (box && !box.checked) box.click();
+          await h.wait('[data-bulk="terminate"]');
+        },
         element: '.xgrid tbody tr:first-child td[data-col="status"]',
         title: 'แถวเปลี่ยนเป็น “พ้นสภาพ”',
         text: 'แถวสีเหลือง = แก้แล้วแต่ <b>ยังไม่บันทึก</b><br>ตรวจข้อมูลในช่องถัดไปก่อนกดบันทึก',

@@ -14,7 +14,8 @@ import { can } from './auth.js';
 import { enterPractice, exitPractice } from './practice.js';
 
 /**
- * @typedef {{page: string, href?: string | ((h: object) => Promise<string>), before?: (h: object) => any, noBack?: boolean,
+ * @typedef {{page: string, href?: string | ((h: object) => Promise<string>), before?: (h: object) => any,
+ *   key?: string, backTo?: string, undo?: (h: object) => any,
  *   element?: string, title: string, text: string, side?: string, align?: string}} GuideStep
  * @typedef {{id: string, title: string, summary: string, icon: string, minutes: number, pages: string[],
  *   practice?: boolean, need?: string, steps: GuideStep[]}} Guide
@@ -234,10 +235,20 @@ async function drive(guide, i) {
     for (let j = k; j >= 0; j--) if (steps[j].page) return steps[j].page;
     return '';
   };
-  const back = async (to) => {
+  /** ย้อนกลับ — ขั้นที่มี backTo (ระบบบันทึก/ใส่ในตารางแทนไปแล้ว): undo ก่อน แล้วกลับไปขั้น backTo */
+  const back = async (from) => {
+    const s = steps[from];
+    const to = s?.backTo ? steps.findIndex((x) => x.key === s.backTo) : from - 1;
     if (busy || to < 0) return;
     busy = true;
     waiting();
+    if (s.backTo) {
+      try {
+        await s.undo?.(helpers);
+      } catch (err) {
+        console.warn('[คู่มือ] ย้อนการทำตัวอย่างไม่สำเร็จ', err);
+      }
+    }
     await runBefore(steps[to]);
     store.set(STATE_KEY, { id: guide.id, i: to });
     busy = false;
@@ -254,14 +265,14 @@ async function drive(guide, i) {
         side: s.side,
         align: s.align,
         // ย้อนกลับได้เฉพาะขั้นที่อยู่หน้าเดียวกัน
-        // ย้อนกลับไม่ได้: ขั้นแรก · ขั้นที่ต้องเปลี่ยนหน้า · ขั้นก่อนหน้าอยู่อีกหน้า · noBack (ขั้นที่ระบบทำแทนไปแล้ว เช่น บันทึก — ย้อนไปทำซ้ำไม่ได้)
-        showButtons: k > 0 && !s.noBack && !needsNav(s) && pageAt(k - 1) === pageAt(k) ? ['next', 'previous', 'close'] : ['next', 'close'],
+        // ย้อนกลับไม่ได้: ขั้นแรก · ขั้นที่ต้องเปลี่ยนหน้า · ขั้นก่อนหน้าอยู่อีกหน้า (ขั้นที่มี backTo ย้อนได้เสมอ)
+        showButtons: k > 0 && (s.backTo || (!needsNav(s) && pageAt(k - 1) === pageAt(k))) ? ['next', 'previous', 'close'] : ['next', 'close'],
       },
     })),
     onNextClick: () => move(active.getActiveIndex() + 1),
     // ย้อนกลับ: ทำ before ของขั้นนั้นอีกครั้ง (เปิด/ปิดกล่อง กดแท็บ — ทุก before ทำซ้ำได้) แล้วชี้ใหม่
     // ไม่งั้นย้อนไปขั้นที่อยู่ในกล่องที่ปิดไปแล้ว / แท็บอื่น จะชี้ไม่เจอ
-    onPrevClick: () => back(active.getActiveIndex() - 1),
+    onPrevClick: () => back(active.getActiveIndex()),
     onHighlightStarted: (el) => reveal(el),
     onDestroyed: () => {
       document.removeEventListener('scroll', onAnyScroll, true);

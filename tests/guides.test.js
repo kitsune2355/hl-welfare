@@ -42,6 +42,13 @@ describe('คู่มือทีละขั้น', () => {
       expect(`${g.id}#${i}:${(s.element ?? '').startsWith('.tab[data-tab=') && s.side !== 'top'}`).toBe(`${g.id}#${i}:true`);
     });
   });
+  it('backTo อ้างขั้นที่มีอยู่จริง (key) และอยู่ก่อนหน้า', () => {
+    for (const g of GUIDES) g.steps.forEach((s, i) => {
+      if (!s.backTo) return;
+      const to = g.steps.findIndex((x) => x.key === s.backTo);
+      expect(`${g.id}#${i}:${to >= 0 && to < i}`).toBe(`${g.id}#${i}:true`);
+    });
+  });
   it('คำอธิบายสั้น อ่านง่าย (ไม่เกิน 260 ตัวอักษรต่อขั้น ไม่นับแท็ก)', () => {
     for (const g of GUIDES) g.steps.forEach((s, i) => expect(`${g.id}#${i}:${s.text.replace(/<[^>]+>/g, '').length <= 260}`).toBe(`${g.id}#${i}:true`));
   });
