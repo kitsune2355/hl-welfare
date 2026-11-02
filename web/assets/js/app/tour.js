@@ -1,7 +1,7 @@
 // ตัวขับเคลื่อน "คู่มือทีละขั้น" (driver.js) — ปกติไม่ต้องแก้ไฟล์นี้
 // เนื้อหา: tour/guides.js · ตั้งค่า: tour/tour.config.js · ธีม: app.css หัวข้อ "Tour" · โหมดฝึก: app/practice.js
 //
-//   ปุ่ม ?  → เมนู "อยากทำอะไร?" (เรื่องของหน้านี้อยู่บนสุด) → เลือก → เข้าโหมดฝึก (ข้อมูลตัวอย่าง) → พาทำทีละขั้น
+//   ปุ่ม ?  → เมนู "คู่มือการใช้งาน" (เรื่องของหน้านี้อยู่บนสุด) → เลือก → เข้าโหมดฝึก (ข้อมูลตัวอย่าง) → พาทำทีละขั้น
 //   ขั้นที่อยู่อีกหน้า → จำว่าถึงขั้นไหน (sessionStorage) แล้วไปหน้านั้น → หน้านั้นทำต่อเอง
 //   เข้าหน้าครั้งแรก → การ์ดเล็กมุมขวาล่าง "มีคู่มือเรื่อง …" (ไม่เปิดเอง — ผู้ใช้เลือกเอง)
 import { getParam, html, raw } from '../shared/dom.js';
@@ -254,7 +254,7 @@ export async function startGuide(id) {
   drive(guide, 0);
 }
 
-// ---------- เมนู "อยากทำอะไร?" ----------
+// ---------- เมนู "คู่มือการใช้งาน" ----------
 export function openGuideMenu() {
   const page = currentPage();
   const list = GUIDES.filter(allowed);
@@ -272,7 +272,7 @@ export function openGuideMenu() {
     <span class="guide-text"><b>${g.title}</b><span class="guide-sub">${done(g)}<small>${g.minutes} นาที</small></span></span>
   </button>`;
   const m = openModal({
-    title: 'อยากทำอะไร?',
+    title: 'คู่มือการใช้งาน',
     description: 'เลือกเรื่อง แล้วระบบจะพาทำทีละขั้น — ฝึกกับข้อมูลตัวอย่าง ไม่กระทบข้อมูลจริง',
     size: 'md',
     body: html`<div class="guide-menu">
