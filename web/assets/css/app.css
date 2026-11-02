@@ -2722,70 +2722,106 @@ ol.questions {
   flex: 1 1 260px;
   min-width: 0;
 }
-.guide-menu {
+/* เมนูคู่มือ (openGuideMenu) — มินิมอล: รายการเรียบ ไม่มีกรอบ hover = พื้นจาง */
+.gm {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
-.guide-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 2px;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--primary);
-}
-.guide-group .icon {
-  width: 15px;
-  height: 15px;
-}
-.guide-group.other {
-  margin-top: 10px;
-  font-weight: 600;
+.gm-label {
+  margin: 8px 0 2px;
+  padding: 0 10px;
   color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
 }
-/* แนะนำสำหรับหน้านี้ — กล่องพื้นสีหลักอ่อน การ์ดใหญ่ ปุ่ม "เริ่ม" */
-.guide-rec {
+.gm-label:first-child {
+  margin-top: 0;
+}
+.gm-list {
   display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  gap: 2px;
 }
-.guide-item {
+.gm-cols {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 8px;
+}
+.gm-row {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
   color: var(--fg);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition: background 0.12s;
 }
-.guide-item.rec {
-  padding: 12px 14px;
-  border-color: color-mix(in srgb, var(--primary) 25%, var(--border));
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
-}
-.guide-item.rec:hover,
-.guide-item.rec:focus-visible {
-  border-color: var(--primary);
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-.guide-item.compact {
-  padding: 8px 10px;
-  gap: 10px;
-}
-.guide-item.compact:hover,
-.guide-item.compact:focus-visible {
-  border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+.gm-row:hover,
+.gm-row:focus-visible {
   background: var(--surface-2);
 }
+.gm-ic {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--muted);
+}
+.gm-ic .icon {
+  width: 18px;
+  height: 18px;
+}
+.gm-row:hover .gm-ic,
+.gm-row:focus-visible .gm-ic {
+  color: var(--primary);
+}
+.gm-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.gm-title,
+.gm-sum {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.gm-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.gm-sum {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.gm-meta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.gm-seen {
+  display: inline-flex;
+  color: var(--success);
+}
+.gm-seen .icon {
+  width: 14px;
+  height: 14px;
+}
+.modal-md:has(.gm) {
+  max-width: 640px;
+}
+@media (max-width: 640px) {
+  .gm-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* ไอคอนของการ์ด "มีคู่มือ" (startTourIfNew) */
 .guide-ic {
   display: grid;
   flex: none;
@@ -2795,113 +2831,6 @@ ol.questions {
   border-radius: 10px;
   background: var(--primary);
   color: var(--primary-fg);
-}
-.guide-item.compact .guide-ic {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--muted);
-}
-.guide-item.compact .guide-ic .icon {
-  width: 16px;
-  height: 16px;
-}
-.guide-text {
-  display: grid;
-  flex: 1;
-  min-width: 0;
-  gap: 2px;
-}
-.guide-text b {
-  font-weight: 600;
-}
-.guide-item.rec .guide-text b {
-  font-size: 15px;
-}
-.guide-item.compact .guide-text b {
-  overflow: hidden;
-  font-size: 13.5px;
-  font-weight: 500;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.guide-text small {
-  color: var(--muted);
-  font-size: 12.5px;
-}
-.guide-sub {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-}
-.guide-sub small {
-  font-size: 12px;
-}
-.guide-go {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 10px 6px 14px;
-  border-radius: 999px;
-  background: var(--primary);
-  color: var(--primary-fg);
-  font-size: 13px;
-  font-weight: 600;
-}
-.guide-go .icon {
-  width: 16px;
-  height: 16px;
-}
-/* กล่องเมนูคู่มือกว้างกว่ากล่องทั่วไป — แนะนำ 2 คอลัมน์ · เรื่องอื่น 3 คอลัมน์ (จอแคบลดเอง) */
-.modal-md:has(.guide-menu) {
-  max-width: 880px;
-}
-.guide-rec {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.guide-rec > .guide-group {
-  grid-column: 1 / -1;
-}
-.guide-others {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-@media (max-width: 900px) {
-  .guide-rec {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .guide-others {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 640px) {
-  .guide-others {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-/* "เคยดูแล้ว" เป็น chip สีเขียวอ่อน (แบบเดียวกับ .badge.tone-success) เห็นแยกจากเวลาอ่านด้านล่างชัด */
-.guide-done {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 8px 1px 6px;
-  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
-  border-radius: 999px;
-  background: var(--success-soft);
-  color: var(--success);
-  font-size: 11.5px;
-  font-weight: 500;
-  line-height: 1.6;
-  white-space: nowrap;
-}
-.guide-done .icon {
-  width: 12px;
-  height: 12px;
 }
 .guide-offer {
   position: fixed;
@@ -2919,6 +2848,19 @@ ol.questions {
   background: var(--surface);
   box-shadow: 0 16px 40px rgb(0 0 0 / 0.18);
   animation: pop 0.2s ease-out;
+}
+.guide-offer .guide-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+.guide-offer .guide-text b {
+  font-weight: 600;
+}
+.guide-offer .guide-text small {
+  color: var(--muted);
+  font-size: 12.5px;
 }
 .guide-offer-actions {
   display: flex;

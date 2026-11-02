@@ -316,29 +316,19 @@ export function openGuideMenu() {
   const list = GUIDES.filter(allowed);
   const here = list.filter((g) => g.pages.some((p) => p === page || page.startsWith(`${p}-`)));
   const others = list.filter((g) => !here.includes(g));
-  const done = (g) => (store.get(`hl-guide-done:${g.id}`, localStorage) ? html`<span class="guide-done">${raw(icon('check'))} เคยดูแล้ว</span>` : '');
-  // แนะนำ = การ์ดใหญ่ ไอคอนสีหลัก ปุ่ม "เริ่ม" ชัด ๆ · เรื่องอื่น = รายการย่อ 2 คอลัมน์ สีเรียบ
-  const rec = (g) => html`<button type="button" class="guide-item rec" data-guide="${g.id}">
-    <span class="guide-ic">${raw(icon(g.icon))}</span>
-    <span class="guide-text"><b>${g.title}</b><small>${g.summary}</small><span class="guide-sub">${done(g)}<small>ใช้เวลา ${g.minutes} นาที</small></span></span>
-    <span class="guide-go">เริ่ม ${raw(icon('chevron-right'))}</span>
-  </button>`;
-  const other = (g) => html`<button type="button" class="guide-item compact" data-guide="${g.id}" title="${g.summary}">
-    <span class="guide-ic">${raw(icon(g.icon))}</span>
-    <span class="guide-text"><b>${g.title}</b><span class="guide-sub">${done(g)}<small>${g.minutes} นาที</small></span></span>
+  // มินิมอล: รายการเรียบ ไม่มีกรอบ/พื้นสี — hover = พื้นจาง · เคยดูแล้ว = ✓ เขียวเล็ก ๆ ข้างเวลา
+  const row = (g, withSummary) => html`<button type="button" class="gm-row" data-guide="${g.id}" title="${g.summary}">
+    <span class="gm-ic">${raw(icon(g.icon))}</span>
+    <span class="gm-text"><span class="gm-title">${g.title}</span>${withSummary ? html`<span class="gm-sum">${g.summary}</span>` : ''}</span>
+    <span class="gm-meta">${store.get(`hl-guide-done:${g.id}`, localStorage) ? html`<span class="gm-seen" title="เคยดูแล้ว" aria-label="เคยดูแล้ว">${raw(icon('check'))}</span>` : ''}${g.minutes} นาที</span>
   </button>`;
   const m = openModal({
     title: 'คู่มือการใช้งาน',
-    description: 'เลือกเรื่อง แล้วระบบจะพาทำทีละขั้น — ฝึกกับข้อมูลตัวอย่าง ไม่กระทบข้อมูลจริง',
+    description: 'ระบบพาทำทีละขั้นกับข้อมูลตัวอย่าง — ไม่กระทบข้อมูลจริง',
     size: 'md',
-    body: html`<div class="guide-menu">
-      ${here.length
-        ? html`<section class="guide-rec" aria-label="แนะนำสำหรับหน้านี้">
-            <p class="guide-group">${raw(icon('sparkles'))} แนะนำสำหรับหน้านี้</p>
-            ${here.map(rec)}
-          </section>`
-        : ''}
-      ${others.length ? html`<p class="guide-group other">เรื่องอื่น ๆ</p><div class="guide-others">${others.map(other)}</div>` : ''}
+    body: html`<div class="gm">
+      ${here.length ? html`<p class="gm-label">สำหรับหน้านี้</p><div class="gm-list">${here.map((g) => row(g, true))}</div>` : ''}
+      ${others.length ? html`<p class="gm-label">เรื่องอื่น</p><div class="gm-list gm-cols">${others.map((g) => row(g, false))}</div>` : ''}
     </div>`,
     // ไม่มี footer — ปิดด้วยกากบาท · ออกจากโหมดฝึกใช้แถบเหลืองด้านบน
   });
