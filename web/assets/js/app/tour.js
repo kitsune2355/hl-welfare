@@ -14,7 +14,7 @@ import { can } from './auth.js';
 import { enterPractice, exitPractice } from './practice.js';
 
 /**
- * @typedef {{page: string, href?: string | ((h: object) => Promise<string>), before?: (h: object) => any,
+ * @typedef {{page: string, href?: string | ((h: object) => Promise<string>), before?: (h: object) => any, noBack?: boolean,
  *   element?: string, title: string, text: string, side?: string, align?: string}} GuideStep
  * @typedef {{id: string, title: string, summary: string, icon: string, minutes: number, pages: string[],
  *   practice?: boolean, need?: string, steps: GuideStep[]}} Guide
@@ -122,6 +122,17 @@ const helpers = {
     select.value = o.value;
     select.dispatchEvent(new Event('change', { bubbles: true }));
   },
+  /** เปิดกล่อง (กดปุ่ม button) ถ้ายังไม่เปิด แล้วรอจนเห็น ready — ใช้ซ้ำได้ (ขั้นย้อนกลับ) */
+  async open(button, ready) {
+    if (find(ready)) return;
+    if (document.querySelector('.modal-layer')) helpers.close();
+    document.querySelector(button)?.click();
+    await helpers.wait(ready, 6000);
+  },
+  /** ปิดกล่องที่เปิดอยู่ (ถ้ามี) */
+  close() {
+    document.querySelector('.modal-layer [data-close]')?.click();
+  },
   /** กดแท็บ (ui/components.js tabs) แล้วรอวาดใหม่ */
   async clickTab(value) {
     const tab = document.querySelector(`.tab[data-tab="${value}"]`);
@@ -201,16 +212,32 @@ async function drive(guide, i) {
     if (busy) return;
     if (to >= steps.length) return finish(guide);
     busy = true;
-    // ระหว่างทำตัวอย่าง/เปลี่ยนหน้า — ปุ่มถัดไปกดไม่ได้ (ผู้ใช้รู้ว่าระบบกำลังทำ)
-    const next = document.querySelector('.driver-popover-next-btn');
-    if (next) {
-      next.disabled = true;
-      next.textContent = 'รอสักครู่…';
-    }
+    waiting();
     if (needsNav(steps[to])) {
       leaving = true;
       return goTo(guide, to);
     }
+    await runBefore(steps[to]);
+    store.set(STATE_KEY, { id: guide.id, i: to });
+    busy = false;
+    active.moveTo(to);
+  };
+
+  /** ระหว่างทำตัวอย่าง/เตรียมหน้า/เปลี่ยนหน้า — ปุ่มกดไม่ได้ และบอกว่า "รอสักครู่…" (ผู้ใช้รู้ว่าระบบกำลังทำ) */
+  const waiting = () => {
+    for (const b of document.querySelectorAll('.driver-popover-footer button')) b.disabled = true;
+    const next = document.querySelector('.driver-popover-next-btn');
+    if (next) next.textContent = 'รอสักครู่…';
+  };
+  /** หน้าของขั้น k — ขั้นที่ไม่ระบุหน้า (เช่น ขั้นปิดท้าย) = หน้าเดียวกับขั้นก่อนหน้า */
+  const pageAt = (k) => {
+    for (let j = k; j >= 0; j--) if (steps[j].page) return steps[j].page;
+    return '';
+  };
+  const back = async (to) => {
+    if (busy || to < 0) return;
+    busy = true;
+    waiting();
     await runBefore(steps[to]);
     store.set(STATE_KEY, { id: guide.id, i: to });
     busy = false;
@@ -227,14 +254,14 @@ async function drive(guide, i) {
         side: s.side,
         align: s.align,
         // ย้อนกลับได้เฉพาะขั้นที่อยู่หน้าเดียวกัน
-        showButtons: k > 0 && !needsNav(s) && (steps[k - 1].page ?? s.page) === s.page ? ['next', 'previous', 'close'] : ['next', 'close'],
+        // ย้อนกลับไม่ได้: ขั้นแรก · ขั้นที่ต้องเปลี่ยนหน้า · ขั้นก่อนหน้าอยู่อีกหน้า · noBack (ขั้นที่ระบบทำแทนไปแล้ว เช่น บันทึก — ย้อนไปทำซ้ำไม่ได้)
+        showButtons: k > 0 && !s.noBack && !needsNav(s) && pageAt(k - 1) === pageAt(k) ? ['next', 'previous', 'close'] : ['next', 'close'],
       },
     })),
     onNextClick: () => move(active.getActiveIndex() + 1),
-    onPrevClick: () => {
-      const k = active.getActiveIndex();
-      if (k > 0 && !busy) active.moveTo(k - 1);
-    },
+    // ย้อนกลับ: ทำ before ของขั้นนั้นอีกครั้ง (เปิด/ปิดกล่อง กดแท็บ — ทุก before ทำซ้ำได้) แล้วชี้ใหม่
+    // ไม่งั้นย้อนไปขั้นที่อยู่ในกล่องที่ปิดไปแล้ว / แท็บอื่น จะชี้ไม่เจอ
+    onPrevClick: () => back(active.getActiveIndex() - 1),
     onHighlightStarted: (el) => reveal(el),
     onDestroyed: () => {
       document.removeEventListener('scroll', onAnyScroll, true);

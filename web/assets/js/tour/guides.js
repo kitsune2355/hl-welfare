@@ -12,6 +12,8 @@
 //   steps    : ขั้น
 //     page    : หน้าที่ขั้นนี้อยู่ (id หน้า) · href : ไปหน้านี้ก่อน (string หรือ async (h) => string)
 //     before  : async (h) => {} ทำก่อนชี้ เช่น กดแท็บ ใส่ข้อมูลตัวอย่าง (h = ตัวช่วยใน app/tour.js)
+//               ต้องทำซ้ำได้ — กด "ย้อนกลับ" จะทำ before ของขั้นนั้นอีกครั้ง (h.open / h.close / h.clickTab ทำซ้ำได้อยู่แล้ว)
+//     noBack  : true = ไม่มีปุ่มย้อนกลับ (ขั้นหลังจากที่ระบบบันทึก/ส่งแทนไปแล้ว ย้อนไปทำซ้ำไม่ได้)
 //     element : selector ของสิ่งที่ชี้ (หลายตัวคั่นด้วย , = ตัวแรกที่มองเห็น) · ไม่ใส่/ไม่เจอ = กล่องกลางจอ
 //     title, text : หัวข้อ / คำอธิบาย (ใส่ <b> <br> ได้) · side / align : ตำแหน่งกล่อง
 //
@@ -182,6 +184,7 @@ export const GUIDES = [
           await h.type('#filters input[name="q"]', sampleCode);
           await h.wait('.xgrid tbody tr:first-child td[data-col="empCode"]');
         },
+        noBack: true, // บันทึกไปแล้ว — ปุ่มบันทึกหายแล้ว
         element: '.xgrid tbody tr:first-child td[data-col="firstName"]',
         title: 'บันทึกแล้ว ✓',
         text: 'สมชาย ตัวอย่าง อยู่ในระบบแล้ว<br>ช่องค้นหาด้านบนใช้หาพนักงานด้วยชื่อหรือรหัส',
@@ -259,6 +262,16 @@ export const GUIDES = [
       },
       {
         page: 'employees',
+        before: async (h) => {
+          // ปิดกล่อง (ย้อนกลับมา) — ปิดแล้วตารางล้างการเลือก → ติ๊กแถวกลับให้ แถบปุ่มจะขึ้นอีกครั้ง
+          if (document.querySelector('.modal-layer')) {
+            h.close();
+            await h.sleep(300);
+          }
+          const box = document.querySelector('.xgrid tbody tr:first-child [data-row-check]');
+          if (box && !box.checked) box.click();
+          await h.wait('[data-bulk="terminate"]');
+        },
         element: '[data-bulk="terminate"]',
         title: 'ขั้นที่ 3 · กด “บันทึกพ้นสภาพ”',
         text: 'จะมีกล่องให้เลือกเหตุผลและวันที่',
@@ -267,10 +280,7 @@ export const GUIDES = [
       // ---- ในกล่อง "บันทึกพ้นสภาพ" (pages/employees.js bulkTerminate) ----
       {
         page: 'employees',
-        before: async (h) => {
-          if (!document.querySelector('#bt-reason')) h.click('[data-bulk="terminate"]');
-          await h.wait('#bt-reason', 4000);
-        },
+        before: (h) => h.open('[data-bulk="terminate"]', '#bt-reason'),
         element: '#bt-reason',
         title: 'เลือกเหตุผล',
         text: '<b>ลาออก</b> · <b>ขาดงาน 3 วันติด</b> · <b>เลิกจ้าง</b> · <b>กระทำผิด</b><br>เลิกจ้าง / กระทำผิด = ต้องแจ้งออกประกันทันที',
@@ -278,6 +288,7 @@ export const GUIDES = [
       },
       {
         page: 'employees',
+        before: (h) => h.open('[data-bulk="terminate"]', '#bt-end'),
         element: '#bt-end',
         title: 'วันพ้นสภาพ',
         text: 'วันที่ออกจากบริษัท (ระบบใส่วันนี้ไว้ให้ เปลี่ยนได้)',
@@ -285,6 +296,7 @@ export const GUIDES = [
       },
       {
         page: 'employees',
+        before: (h) => h.open('[data-bulk="terminate"]', '#bt-last'),
         element: '#bt-last',
         title: 'ทำงานวันสุดท้าย',
         text: 'วันสุดท้ายที่มาทำงาน — ว่างไว้ = วันเดียวกับวันพ้นสภาพ<br><b>ขาดงาน 3 วันติด</b> ต้องกรอกช่องนี้',
@@ -292,6 +304,7 @@ export const GUIDES = [
       },
       {
         page: 'employees',
+        before: (h) => h.open('[data-bulk="terminate"]', '#bt-reason'),
         element: '.modal [data-ok]',
         title: 'กด “ใส่ในตาราง”',
         text: 'ยังไม่บันทึกเข้าระบบ — ใส่ในตารางเป็นแถวสีเหลืองให้ตรวจก่อน',
@@ -314,6 +327,7 @@ export const GUIDES = [
           }
           await h.wait('[data-grid-act="save-all"]');
         },
+        noBack: true, // ใส่ในตารางไปแล้ว — ย้อนกลับไปเปิดกล่องซ้ำไม่ได้ (คนนี้พ้นสภาพแล้ว)
         element: '.xgrid tbody tr:first-child td[data-col="status"]',
         title: 'แถวเปลี่ยนเป็น “พ้นสภาพ”',
         text: 'แถวสีเหลือง = แก้แล้วแต่ <b>ยังไม่บันทึก</b><br>ตรวจข้อมูลในช่องถัดไปก่อนกดบันทึก',
@@ -374,13 +388,40 @@ export const GUIDES = [
       },
       {
         page: 'employees',
+        before: (h) => h.close(),
         element: '[data-template-excel]',
-        title: 'ขั้นที่ 1 · ดาวน์โหลดแบบฟอร์ม',
-        text: 'กดปุ่มนี้ แล้วเลือก <b>Template เปล่า</b><br>ไฟล์มี 2 ชีต: <b>เข้าใหม่</b> และ <b>ลาออก</b>',
+        title: 'ขั้นที่ 1 · กด “Template / ส่งออกรายเดือน”',
+        text: 'จะมีกล่องให้เลือกว่าจะดาวน์โหลดแบบไหน',
+        side: 'bottom',
+      },
+      // ---- ในกล่อง "Template Excel พนักงาน" (pages/_employeeImport.js openTemplateDialog) ----
+      {
+        page: 'employees',
+        before: (h) => h.open('[data-template-excel]', '.modal [data-tpl-blank]'),
+        element: '.modal .tpl-opt:has([data-tpl-blank])',
+        title: 'Template เปล่า — ใช้กรอกคนเข้า-ออกใหม่',
+        text: 'ไฟล์มี 2 ชีต<br><b>เข้าใหม่</b> = 1 แถวต่อ 1 คน (อายุ เพศ ผ่านทดลองงาน ระบบเติมให้)<br><b>ลาออก</b> = รหัส เหตุผล วันพ้นสภาพ',
         side: 'bottom',
       },
       {
         page: 'employees',
+        before: (h) => h.open('[data-template-excel]', '.modal [data-tpl-blank]'),
+        element: '.modal [data-tpl-blank]',
+        title: 'กด “ดาวน์โหลด”',
+        text: 'ได้ไฟล์ Excel เปล่าไปกรอก — หัวคอลัมน์มีช่องเลือกและคำอธิบายให้',
+        side: 'left',
+      },
+      {
+        page: 'employees',
+        before: (h) => h.open('[data-template-excel]', '.modal [data-tpl-month]'),
+        element: '.modal .tpl-opt:has([data-tpl-month-export])',
+        title: 'ส่งออกเข้า-ออกประจำเดือน',
+        text: 'อยากได้รายชื่อคนเข้า/ออกของเดือนไหน → เลือกเดือน แล้วกด <b>ส่งออก</b><br>ใช้ส่งรายงาน หรือแก้แล้วนำเข้ากลับได้',
+        side: 'bottom',
+      },
+      {
+        page: 'employees',
+        before: (h) => h.close(),
         title: 'ขั้นที่ 2 · กรอกใน Excel',
         text: 'ชีต <b>เข้าใหม่</b> = 1 แถวต่อ 1 คน<br>ชีต <b>ลาออก</b> = ใส่รหัสพนักงาน เหตุผล และวันที่<br><br>บันทึกไฟล์ไว้ในเครื่อง',
       },
@@ -452,6 +493,7 @@ export const GUIDES = [
       },
       {
         page: 'insurance',
+        before: (h) => h.close(),
         element: '#export',
         title: 'ขั้นที่ 5 · กด “ส่งออกไฟล์แจ้งประกัน”',
         text: 'จะมีกล่องให้ดาวน์โหลดไฟล์ของแต่ละบริษัทประกัน',
@@ -461,10 +503,7 @@ export const GUIDES = [
       // ---- ในกล่อง "ส่งออกไฟล์แจ้งประกัน" (pages/insurance.js openExport) ----
       {
         page: 'insurance',
-        before: async (h) => {
-          if (!document.querySelector('.modal [data-export-body]')) h.click('#export');
-          await h.wait('.modal .export-record', 6000);
-        },
+        before: (h) => h.open('#export', '.modal .export-record'),
         element: '.modal .export-record',
         title: 'ติ๊ก “บันทึกว่าแจ้งรอบนี้แล้ว”',
         text: 'ติ๊กไว้ = คนที่ส่งแล้วจะไม่ขึ้นซ้ำในรอบหน้า<br>ไม่ติ๊ก = ดาวน์โหลดดูเฉย ๆ<br><br>ตอนส่งจริง <b>ติ๊กไว้เสมอ</b>',
@@ -472,6 +511,7 @@ export const GUIDES = [
       },
       {
         page: 'insurance',
+        before: (h) => h.open('#export', '.modal .export-co'),
         element: '.modal .export-co',
         title: 'ตรวจจำนวนคนของแต่ละบริษัท',
         text: 'แต่ละบรรทัด = 1 บริษัทในเครือ: เลขกรมธรรม์ · เข้ากี่คน · ออกกี่คน<br>“ยังไม่ระบุเลขกรมธรรม์” = ไปใส่ที่เมนู <b>แบบฟอร์มประกัน</b>',
@@ -479,6 +519,7 @@ export const GUIDES = [
       },
       {
         page: 'insurance',
+        before: (h) => h.open('#export', '.modal [data-export="xlsx"]'),
         element: '.modal [data-export="xlsx"]',
         title: 'กด “ดาวน์โหลดไฟล์ Excel ที่เติมแล้ว”',
         text: 'ได้ไฟล์ Excel หน้าตาเหมือนแบบฟอร์มของบริษัทประกัน มีรายชื่อเติมให้แล้ว<br>มีหลายบริษัทประกัน = กดดาวน์โหลดทีละกล่อง',
@@ -486,7 +527,7 @@ export const GUIDES = [
       },
       {
         page: 'insurance',
-        before: (h) => h.click('.modal [data-close]'),
+        before: (h) => h.close(),
         title: 'ขั้นที่ 6 · ส่งไฟล์ให้บริษัทประกัน',
         text: 'แนบไฟล์ที่ดาวน์โหลด ส่งอีเมลให้บริษัทประกันตามปกติ',
       },
@@ -528,6 +569,7 @@ export const GUIDES = [
       },
       {
         page: 'uniform',
+        before: (h) => h.close(),
         element: '#pending [data-stock-request]',
         title: 'ขั้นที่ 2 · กด “ส่งเบิกคลัง”',
         text: 'กดที่แถวของพนักงาน จะมีกล่องให้เลือกแบบและไซซ์',
@@ -553,6 +595,7 @@ export const GUIDES = [
       },
       {
         page: 'uniform',
+        before: (h) => h.wait('.modal .stock-line', 3000),
         element: '.modal .stock-line [data-variant], .modal .stock-line-head',
         title: 'เลือกแบบ',
         text: '<b>ผู้ชาย / ผู้หญิง</b> — ระบบเลือกตามเพศของพนักงานไว้ให้แล้ว เปลี่ยนได้ถ้าไม่ตรง',
