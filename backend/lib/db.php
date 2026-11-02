@@ -151,6 +151,7 @@ function db_commit()
     if ($GLOBALS['hlw_tx_depth'] === 0) {
         mysqli_commit(db());
         mysqli_autocommit(db(), true);
+        changes_flush();   /* เวอร์ชันข้อมูลใหม่ (lib/changes.php) — หลังข้อมูลเข้าฐานจริง */
     }
 }
 
@@ -160,6 +161,7 @@ function db_rollback()
         $GLOBALS['hlw_tx_depth'] = 0;
         mysqli_rollback(db());
         mysqli_autocommit(db(), true);
+        changes_discard();
     }
 }
 

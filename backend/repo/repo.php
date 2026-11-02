@@ -389,11 +389,12 @@ function audit_write($entity, $entityId, $action, $summary, $employeeId, $actor,
 {
     $by = $actor ? $actor['username'] : 'system';
     $now = db_now();
-    db_exec('INSERT INTO audit_log (entity, entity_id, action, summary, employee_id, user_id, user_name, at,
+    $r = db_exec('INSERT INTO audit_log (entity, entity_id, action, summary, employee_id, user_id, user_name, at,
              created_at, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         array($entity, (string)$entityId, $action, function_exists('mb_substr') ? mb_substr($summary, 0, 500, 'UTF-8') : $summary,
             $employeeId === null ? null : (int)$employeeId, $actor ? (int)$actor['id'] : null,
             $actor ? $actor['name'] : ($actorName !== null ? $actorName : 'system'), $now, $now, $by, $by));
+    if (!changes_ignored($entity)) { changes_note($r['id']); }   /* หน้าภาพรวมรู้ว่ามีข้อมูลใหม่ */
 }
 
 function map_activity($r)

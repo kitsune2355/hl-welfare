@@ -26,6 +26,8 @@ $hlw_config['db_name'] = getenv('HLW_TEST_DB') ? getenv('HLW_TEST_DB') : 'hl_wel
 if (strpos($hlw_config['db_name'], 'test') === false) { die("ฐานข้อมูลทดสอบต้องมีคำว่า test\n"); }
 $hlw_config['today_override'] = $golden['today'];
 $hlw_config['cookie_secure'] = false;
+$hlw_config['var_dir'] = dirname(__FILE__) . '/../var/test';   /* เวอร์ชันข้อมูล + cache ของฐานทดสอบ — ล้างทุกรอบ */
+foreach ((array)glob($hlw_config['var_dir'] . '/*') as $old) { if ($old) { @unlink($old); } }
 $GLOBALS['hlw_config'] = $hlw_config;
 require $root . '/backend/bootstrap.php';
 
@@ -892,8 +894,8 @@ check('HR Admin รีเซ็ตรหัส SUPER_ADMIN ไม่ได้', 
 check('SUPER_ADMIN รีเซ็ตได้ + ตั้งรหัสที่แข็งแรงให้ได้ (ก็ต้องเปลี่ยนเอง)', S($boss->req('POST', '/admin/users/' . $freshId . '/password', array('password' => 'Strong-12345'))) === 200
     && (int)db_value('SELECT must_change_password FROM users WHERE id = ?', array($freshId)) === 1);
 
-section('GET /monitor/changes — long-polling ภาพรวม (เวอร์ชัน = id ล่าสุดของ audit_log)');
-$top = (string)db_value('SELECT MAX(id) FROM audit_log');
+section('GET /monitor/changes — long-polling ภาพรวม (lib/changes.php: เวอร์ชัน = id audit_log ล่าสุดที่ไม่ใช่ USER/SYSTEM)');
+$top = (string)db_value("SELECT MAX(id) FROM audit_log WHERE entity NOT IN ('USER', 'SYSTEM')");
 $r = $hr->req('GET', '/monitor/changes');
 check('ไม่ส่ง since → เวอร์ชันปัจจุบันทันที', $r['status'] === 200 && $r['json']['data']['version'] === $top && $r['json']['data']['changed'] === false);
 $r = $hr->req('GET', '/monitor/changes?since=1&wait=25');
@@ -902,6 +904,32 @@ $t0 = time();
 $r = $hr->req('GET', '/monitor/changes?since=' . $top . '&wait=0');
 check('since = ปัจจุบัน + wait=0 → ไม่รอ changed = false', $r['json']['data']['changed'] === false && time() - $t0 < 2);
 check('ไม่ได้ login → 401', S($anon->req('GET', '/monitor/changes')) === 401);
+
+new_browser_login('hr', 'Secret-1234');   // เข้าระบบ (USER) ไม่นับเป็นข้อมูลใหม่
+$r = $hr->req('GET', '/monitor/changes');
+check('เข้าสู่ระบบ ไม่เปลี่ยนเวอร์ชัน', $r['json']['data']['version'] === $top);
+$t0 = time();
+$r = $hr->req('GET', '/monitor/changes?since=' . $top . '&wait=2');
+check('ไม่มีอะไรเปลี่ยน → รอจนครบ wait แล้วตอบ changed = false (ต่อฐานข้อมูลใหม่ได้หลังรอ)', $r['json']['data']['changed'] === false
+    && time() - $t0 >= 2 && db_value('SELECT 1') == 1);
+
+db_begin();
+audit_write('EMPLOYEE', '1', 'UPDATE', 'ทดสอบเวอร์ชัน', null, null);
+$mid = changes_read_file();
+db_rollback();
+check('ยกเลิก transaction → ไม่เขียนเวอร์ชันลงไฟล์', $mid === changes_read_file() && changes_db_version() === $top);
+db_begin();
+audit_write('EMPLOYEE', '1', 'UPDATE', 'ทดสอบเวอร์ชัน', null, null);
+$beforeCommit = changes_read_file();
+db_commit();
+$new = changes_db_version();
+check('เขียนไฟล์เวอร์ชันตอน commit (ไม่ใช่กลาง transaction)', $beforeCommit !== $new && changes_read_file() === $new && $new !== $top);
+$r = $hr->req('GET', '/monitor/changes?since=' . $top . '&wait=10');
+check('ข้อมูลเปลี่ยน → changed = true + เวอร์ชันใหม่', $r['json']['data']['changed'] === true && $r['json']['data']['version'] === $new);
+
+$d1 = $hr->req('GET', '/dashboard');
+$d2 = $hr->req('GET', '/dashboard');
+check('ภาพรวม: cache ให้ผลเหมือนคำนวณสด', $d1['json']['data'] === $d2['json']['data'] && $d1['json']['data'] === dashboard_build());
 
 require dirname(__FILE__) . '/rules_test.php';
 require dirname(__FILE__) . '/scope_test.php';

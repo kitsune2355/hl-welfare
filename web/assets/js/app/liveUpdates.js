@@ -1,10 +1,10 @@
 // อัปเดตเมื่อมีข้อมูลใหม่ (หน้าภาพรวม) — jQuery long-polling ไม่ใช้ตัวจับเวลา (setTimeout / setInterval)
-//   ส่ง GET /monitor/changes?since=เวอร์ชัน → เซิร์ฟเวอร์ค้างคำขอไว้จนมีการเปลี่ยนแปลง (หรือครบ 25 วิ) แล้วตอบ
+//   ส่ง GET /monitor/changes?since=เวอร์ชัน → เซิร์ฟเวอร์ค้างคำขอไว้จนมีการเปลี่ยนแปลง (หรือครบ 50 วิ) แล้วตอบ
 //   ได้คำตอบ = ส่งคำขอถัดไปทันที · มีการเปลี่ยนแปลง = onChange() (หน้าวาดใหม่เฉพาะส่วน ไม่โหลดทั้งหน้า)
 //   แท็บซ่อน = เลิกรอ · กลับมาที่แท็บ = ถามต่อจากเวอร์ชันเดิม (มีอะไรเปลี่ยนระหว่างนั้นจะตอบทันที)
 //   เชื่อมต่อไม่ได้ = หยุด แล้วลองใหม่เมื่อเน็ตกลับมา (online) / กลับมาที่แท็บ / resume() (ปุ่มรีเฟรช)
 //   โหมด mock / ฝึก: ไม่มีเซิร์ฟเวอร์ → ฟังข้อมูลจำลองที่แท็บอื่นแก้ (storage event)
-// เวอร์ชัน = id ล่าสุดของ audit_log (backend/api/handlers.php api_monitor_changes)
+// เวอร์ชัน = id ล่าสุดของ audit_log ที่ไม่ใช่เข้า-ออกระบบ (backend/lib/changes.php · api_monitor_changes)
 import { CONFIG } from '../config.js';
 import { API_MODE, PRACTICE, sessionAuth } from './api.js';
 
@@ -59,10 +59,10 @@ export function watchChanges(onChange, onStatus = () => {}) {
     onStatus('live');
     xhr = $.ajax({
       url,
-      data: version === null ? {} : { since: version, wait: 25 },
+      data: version === null ? {} : { since: version, wait: 50 },
       dataType: 'json',
       cache: false,
-      timeout: 40_000,
+      timeout: 80_000, // เซิร์ฟเวอร์รอได้ถึง 50 วิ + รอให้นิ่ง 3 วิ
       xhrFields: { withCredentials: true },
     });
     xhr.then(

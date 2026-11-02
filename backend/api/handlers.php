@@ -35,6 +35,12 @@ function assert_iso_date($d, $message = 'วันที่ไม่ถูกต
  * ============================================================ */
 function api_dashboard($req, $params)
 {
+    return changes_cached('dashboard', data_scope(), 'dashboard_build', array());
+}
+
+/** ภาพรวม — คำนวณจากข้อมูลทั้งหมด (หนัก) จึงเก็บผลไว้ใช้ร่วมกันจนกว่าข้อมูลจะเปลี่ยน (lib/changes.php) */
+function dashboard_build()
+{
     $w = repo_world();
     $d = build_dashboard(today_iso(), $w['employees'], $w['sites'], $w['rules'], $w['batches'], $w['issues']);
     if (data_scope() !== null) {     // HR บริษัท: กราฟแยกบริษัทเหลือบริษัทของตัวเอง
@@ -49,29 +55,56 @@ function api_dashboard($req, $params)
 
 function api_work_queue($req, $params)
 {
+    return changes_cached('work_queue', null, 'work_queue_build', array());
+}
+
+function work_queue_build()
+{
     $w = repo_world();
     return build_work_queue(today_iso(), $w['employees'], $w['sites'], $w['rules'], $w['batches'], $w['issues']);
 }
 
 /**
- * มีข้อมูลใหม่ไหม (long-polling ของหน้าภาพรวม — web/assets/js/app/liveUpdates.js)
- *  เวอร์ชัน = id ล่าสุดของ audit_log (ทุกการเปลี่ยนข้อมูลเขียน audit_log)
- *  ?since= ต่างจากปัจจุบัน → ตอบทันที · เท่ากัน → รอ (เช็กทุก 2 วิ) จนเปลี่ยนหรือครบ ?wait= วินาที (สูงสุด 25)
- *  ไม่ส่ง since = ตอบเวอร์ชันปัจจุบันทันที (เริ่มต้น)
+ * มีข้อมูลใหม่ไหม (long-polling ของหน้าภาพรวม — web/assets/js/app/liveUpdates.js) · เวอร์ชัน = lib/changes.php
+ *  ไม่ส่ง since = ตอบเวอร์ชันปัจจุบันทันที (เริ่มต้น) · since ต่างจากปัจจุบัน = ตอบทันที
+ *  เท่ากัน = รอจนเปลี่ยนหรือครบ ?wait= วินาที (สูงสุด 50):
+ *    - ปล่อยการเชื่อมต่อฐานข้อมูลระหว่างรอ · อ่านไฟล์เวอร์ชันทุก 1 วิ (ไม่แตะฐาน)
+ *    - ถามฐานข้อมูลทุก 15 วิ (ไม่มีไฟล์ = ทุก 3 วิ) — เผื่อเครื่องอื่นเขียนฐานเดียวกัน
+ *    - เจอการเปลี่ยนแปลง → รอให้นิ่ง 1 วิ (สูงสุด 3 วิ) ก่อนตอบ: นำเข้า Excel 100 แถว = หน้าเว็บโหลดใหม่ครั้งเดียว
+ *  เข้า/ออกระบบ จัดการผู้ใช้ ไม่นับ (changes_ignored)
  */
 function api_monitor_changes($req, $params)
 {
     $since = req_query($req, 'since');
-    $wait = max(0, min((int)req_query($req, 'wait', 25), 25));
-    @set_time_limit($wait + 15);
-    $deadline = time() + $wait;
-    while (true) {
-        $v = (string)db_value('SELECT MAX(id) FROM audit_log');
-        if ($v === '') { $v = '0'; }
-        if ($since === null || $since !== $v || time() >= $deadline) { break; }
-        sleep(2);
+    $wait = max(0, min((int)req_query($req, 'wait', 50), 50));
+    $v = changes_max(changes_db_version(), changes_read_file());
+    if ($since === null || $since !== $v || $wait === 0) {
+        return array('version' => $v, 'changed' => $since !== null && $since !== $v);
     }
-    return array('version' => $v, 'changed' => $since !== null && $since !== $v);
+    @set_time_limit($wait + 20);
+    db_reset_connection();
+    $start = time();
+    $nextDb = 0;
+    $changedAt = 0;
+    $lastChange = 0;
+    while (true) {
+        sleep(1);
+        $now = time();
+        $file = changes_read_file();
+        $cur = changes_max($v, $file);
+        if ($now >= $nextDb) {
+            $cur = changes_max($cur, changes_db_version());
+            db_reset_connection();
+            $nextDb = $now + ($file === null ? 3 : 15);
+        }
+        if ($cur !== $v) {
+            $v = $cur;
+            $lastChange = $now;
+            if (!$changedAt) { $changedAt = $now; }
+        }
+        if ($changedAt ? ($now - $lastChange >= 1 || $now - $changedAt >= 3) : $now - $start >= $wait) { break; }
+    }
+    return array('version' => $v, 'changed' => $v !== $since);
 }
 
 function api_activity($req, $params)

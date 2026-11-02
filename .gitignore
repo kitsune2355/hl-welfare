@@ -16,3 +16,6 @@ backend/LOCAL_ACCOUNTS.txt
 # ไฟล์ Excel ของ HR ที่วางไว้ที่โฟลเดอร์โปรเจกต์ (มีข้อมูลบุคคล) — ห้ามขึ้น repo
 /*.xlsx
 /*.xls
+
+# backend: ไฟล์ชั่วคราว (เวอร์ชันข้อมูล + cache ภาพรวม — lib/changes.php)
+backend/var/
