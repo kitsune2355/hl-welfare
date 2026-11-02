@@ -179,7 +179,12 @@ async function drive(guide, i) {
   let busy = false;
   let leaving = false;
 
-  const onAnyScroll = () => active?.refresh();
+  // ระหว่างทำตัวอย่าง (busy) หรือสิ่งที่ชี้ถูกวาดใหม่ไปแล้ว — ไม่คำนวณตำแหน่งใหม่ (ไม่งั้นกล่องลอยไปมุมซ้ายบนของจอ)
+  const onAnyScroll = () => {
+    const el = active?.getActiveElement?.();
+    if (busy || (el && !el.isConnected)) return;
+    active?.refresh();
+  };
   document.addEventListener('scroll', onAnyScroll, true);
   // หน้าวาดใหม่ (เช่น ตารางหลังบันทึก) → element ที่ชี้ถูกแทนด้วยตัวใหม่ → หาใหม่แล้วชี้อีกครั้ง (ไม่งั้นกรอบหาย/ชี้ผิดที่)
   // ขั้นที่ควรชี้ของแต่ยังชี้กลางจอ (ตอนชี้ หน้ากำลังวาดใหม่พอดี หาไม่เจอชั่วขณะ) → หาเจอแล้วชี้ให้ถูก

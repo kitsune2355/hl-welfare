@@ -40,7 +40,7 @@ export const TOUR_CONFIG = {
     showButtons: ['next', 'previous', 'close'],
     allowClose: true, // กด Esc / ปุ่ม × เพื่อปิด
     overlayClickBehavior: () => {}, // คลิกพื้นหลังโดยไม่ตั้งใจ = ไม่ปิด (ผู้ใช้มือใหม่)
-    allowKeyboardControl: true, // ← → เปลี่ยนขั้น, Esc ปิด
+    allowKeyboardControl: false, // ไม่ใช้ลูกศรเปลี่ยนขั้น — ผู้ใช้กดลูกศรในตาราง/ช่องกรอก แล้วคู่มือไปขั้นถัดไปเองโดยไม่ตั้งใจ
     overlayColor: '#0f172a',
     overlayOpacity: 0.55,
     stagePadding: 6,

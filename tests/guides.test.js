@@ -36,6 +36,12 @@ describe('คู่มือทีละขั้น', () => {
       expect(`${g.id}#${i}:${rows.join('|')}`).toBe(`${g.id}#${i}:`);
     });
   });
+  it('ขั้นที่เปลี่ยนแท็บ ชี้ที่ตัวแท็บ (ผู้ใช้รู้ว่าย้ายแท็บแล้ว) และกล่องไม่อยู่ด้านบน (ไม่บังแถบแท็บ)', () => {
+    for (const g of GUIDES) g.steps.forEach((s, i) => {
+      if (!String(s.before ?? '').includes('clickTab')) return;
+      expect(`${g.id}#${i}:${(s.element ?? '').startsWith('.tab[data-tab=') && s.side !== 'top'}`).toBe(`${g.id}#${i}:true`);
+    });
+  });
   it('คำอธิบายสั้น อ่านง่าย (ไม่เกิน 260 ตัวอักษรต่อขั้น ไม่นับแท็ก)', () => {
     for (const g of GUIDES) g.steps.forEach((s, i) => expect(`${g.id}#${i}:${s.text.replace(/<[^>]+>/g, '').length <= 260}`).toBe(`${g.id}#${i}:true`));
   });

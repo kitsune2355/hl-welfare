@@ -26,6 +26,14 @@ const sampleId = (() => {
   return first12 + thaiIdCheckDigit(first12);
 })();
 export const SAMPLE_EMP_CODE = 'HL9001';
+/** รหัสพนักงานตัวอย่างของรอบนี้ — ฝึกซ้ำ (HL9001 มีแล้ว) = ใช้เลขถัดไป ไม่งั้นบันทึกไม่ผ่านเพราะรหัสซ้ำ */
+let sampleCode = SAMPLE_EMP_CODE;
+async function freeSampleCode(api) {
+  const used = new Set((await api.listEmployees({ q: 'HL9' }).catch(() => [])).map((e) => e.empCode));
+  let n = 9001;
+  while (used.has(`HL${n}`)) n++;
+  return `HL${n}`;
+}
 
 /** ขั้นปิดท้ายของทุกเรื่องที่ฝึกในโหมดฝึก */
 const practiceEnd = (what) => ({
@@ -119,6 +127,7 @@ export const GUIDES = [
         before: async (h) => {
           const grid = h.get('grid');
           if (!grid || grid.newRows.length) return;
+          sampleCode = await freeSampleCode(h.api);
           const [group] = (await h.api.listDeptGroups()).filter((g) => g.active !== false);
           const row = grid.o.newRow();
           const start = addDays(today, -10);
@@ -126,7 +135,7 @@ export const GUIDES = [
             add: [
               {
                 ...row,
-                empCode: SAMPLE_EMP_CODE,
+                empCode: sampleCode,
                 title: 'นาย',
                 firstName: 'สมชาย',
                 lastName: 'ตัวอย่าง',
@@ -170,7 +179,7 @@ export const GUIDES = [
             h.click('[data-grid-act="save-all"]');
             await h.until(() => !grid.newRows.length && !grid.saving, 5000);
           }
-          await h.type('#filters input[name="q"]', SAMPLE_EMP_CODE);
+          await h.type('#filters input[name="q"]', sampleCode);
           await h.wait('.xgrid tbody tr:first-child td[data-col="empCode"]');
         },
         element: '.xgrid tbody tr:first-child td[data-col="firstName"]',
@@ -188,7 +197,7 @@ export const GUIDES = [
       {
         page: 'employee',
         href: async (h) => {
-          const [e] = await h.api.listEmployees({ q: SAMPLE_EMP_CODE });
+          const [e] = await h.api.listEmployees({ q: sampleCode });
           return e ? `employee.html?id=${e.id}` : 'employees.html';
         },
         element: '[data-part="insurance"]',
@@ -353,46 +362,73 @@ export const GUIDES = [
         page: 'insurance',
         before: (h) => h.clickTab('urgent'),
         element: '.tab[data-tab="urgent"]',
-        title: 'ขั้นที่ 2 · ดูแจ้งออกทันที (ถ้ามี)',
-        text: 'คนที่ <b>เลิกจ้าง / กระทำผิด</b> ต้องแจ้งออกด่วน ไม่รอรอบ<br>ตัวเลขสีแดงบนแท็บ = ยังไม่ได้แจ้ง',
-        side: 'bottom',
+        title: 'ขั้นที่ 2 · แท็บ “แจ้งออกทันที”',
+        text: 'ตอนนี้อยู่แท็บนี้ — คนที่ <b>เลิกจ้าง / กระทำผิด</b> ต้องแจ้งออกด่วน ไม่รอรอบ<br>ตัวเลขสีแดงบนแท็บ = ยังไม่ได้แจ้ง · รายชื่ออยู่ด้านล่าง',
+        side: 'right',
       },
       {
         page: 'insurance',
         before: (h) => h.clickTab('in'),
-        element: '#sections .card:not(.hidden)',
-        title: 'ขั้นที่ 3 · ตรวจรายชื่อแจ้งเข้า',
-        text: 'คนที่ทำงานครบตามกำหนดแล้ว ได้สิทธิประกันกลุ่ม<br>ถ้าข้อมูลใครผิด (เช่น เลขบัตร) แก้ที่หน้า <b>พนักงาน</b> ก่อน',
-        side: 'top',
+        element: '.tab[data-tab="in"]',
+        title: 'ขั้นที่ 3 · ย้ายไปแท็บ “แจ้งเข้า”',
+        text: 'รายชื่อด้านล่าง = คนที่ทำงานครบตามกำหนด ได้สิทธิประกันกลุ่มแล้ว<br>ข้อมูลใครผิด (เช่น เลขบัตร) แก้ที่หน้า <b>พนักงาน</b> ก่อน',
+        side: 'right',
       },
       {
         page: 'insurance',
         before: (h) => h.clickTab('out'),
-        element: '#sections .card:not(.hidden)',
-        title: 'ขั้นที่ 4 · ตรวจรายชื่อแจ้งออก',
-        text: 'คนที่ลาออก / ขาดงาน — มาจากการบันทึกพ้นสภาพในหน้าพนักงาน',
-        side: 'top',
+        element: '.tab[data-tab="out"]',
+        title: 'ขั้นที่ 4 · ย้ายไปแท็บ “แจ้งออก”',
+        text: 'รายชื่อด้านล่าง = คนที่ลาออก / ขาดงาน — มาจากการบันทึกพ้นสภาพในหน้าพนักงาน',
+        side: 'right',
       },
       {
         page: 'insurance',
         element: '#export',
         title: 'ขั้นที่ 5 · กด “ส่งออกไฟล์แจ้งประกัน”',
-        text: 'ระบบทำไฟล์ Excel ตามแบบฟอร์มของบริษัทประกันให้<br>ติ๊ก <b>บันทึกว่าแจ้งรอบนี้แล้ว</b> แล้วกด <b>ดาวน์โหลด</b>',
+        text: 'จะมีกล่องให้ดาวน์โหลดไฟล์ของแต่ละบริษัทประกัน',
         side: 'bottom',
         align: 'end',
       },
+      // ---- ในกล่อง "ส่งออกไฟล์แจ้งประกัน" (pages/insurance.js openExport) ----
       {
         page: 'insurance',
+        before: async (h) => {
+          if (!document.querySelector('.modal [data-export-body]')) h.click('#export');
+          await h.wait('.modal .export-record', 6000);
+        },
+        element: '.modal .export-record',
+        title: 'ติ๊ก “บันทึกว่าแจ้งรอบนี้แล้ว”',
+        text: 'ติ๊กไว้ = คนที่ส่งแล้วจะไม่ขึ้นซ้ำในรอบหน้า<br>ไม่ติ๊ก = ดาวน์โหลดดูเฉย ๆ<br><br>ตอนส่งจริง <b>ติ๊กไว้เสมอ</b>',
+        side: 'bottom',
+      },
+      {
+        page: 'insurance',
+        element: '.modal .export-co',
+        title: 'ตรวจจำนวนคนของแต่ละบริษัท',
+        text: 'แต่ละบรรทัด = 1 บริษัทในเครือ: เลขกรมธรรม์ · เข้ากี่คน · ออกกี่คน<br>“ยังไม่ระบุเลขกรมธรรม์” = ไปใส่ที่เมนู <b>แบบฟอร์มประกัน</b>',
+        side: 'bottom',
+      },
+      {
+        page: 'insurance',
+        element: '.modal [data-export="xlsx"]',
+        title: 'กด “ดาวน์โหลดไฟล์ Excel ที่เติมแล้ว”',
+        text: 'ได้ไฟล์ Excel หน้าตาเหมือนแบบฟอร์มของบริษัทประกัน มีรายชื่อเติมให้แล้ว<br>มีหลายบริษัทประกัน = กดดาวน์โหลดทีละกล่อง',
+        side: 'top',
+      },
+      {
+        page: 'insurance',
+        before: (h) => h.click('.modal [data-close]'),
         title: 'ขั้นที่ 6 · ส่งไฟล์ให้บริษัทประกัน',
-        text: 'แนบไฟล์ที่ดาวน์โหลด ส่งอีเมลให้บริษัทประกันตามปกติ<br>รายชื่อที่ส่งแล้วจะไม่ขึ้นซ้ำในรอบหน้า',
+        text: 'แนบไฟล์ที่ดาวน์โหลด ส่งอีเมลให้บริษัทประกันตามปกติ',
       },
       {
         page: 'insurance',
         before: (h) => h.clickTab('history'),
-        element: '#sections .card:not(.hidden)',
-        title: 'ดูย้อนหลัง / ดาวน์โหลดซ้ำ',
-        text: 'แท็บ <b>ประวัติการส่งออก</b> เก็บทุกครั้งที่ส่ง ไฟล์หายก็ดาวน์โหลดใหม่ได้',
-        side: 'top',
+        element: '.tab[data-tab="history"]',
+        title: 'ย้ายไปแท็บ “ประวัติการส่งออก”',
+        text: 'เก็บทุกครั้งที่ส่ง (รายการด้านล่าง) ไฟล์หายก็ดาวน์โหลดใหม่ได้',
+        side: 'left',
       },
       practiceEnd('ส่งออกไฟล์'),
     ],
@@ -417,10 +453,10 @@ export const GUIDES = [
       {
         page: 'uniform',
         before: (h) => h.clickTab('pending'),
-        element: '#pending',
+        element: '.tab[data-tab="pending"]',
         title: 'ขั้นที่ 1 · แท็บ “ค้างแจก”',
-        text: 'รายชื่อคนที่ถึงเวลาได้ชุดแล้ว ระบบคำนวณให้จากวันเริ่มงาน',
-        side: 'top',
+        text: 'ตอนนี้อยู่แท็บนี้ — รายชื่อด้านล่าง = คนที่ถึงเวลาได้ชุดแล้ว ระบบคำนวณให้จากวันเริ่มงาน',
+        side: 'right',
       },
       {
         page: 'uniform',
@@ -503,10 +539,10 @@ export const GUIDES = [
           return 'uniform.html?tab=waiting';
         },
         page: 'uniform-waiting',
-        element: '#waiting',
-        title: 'ขั้นที่ 3 · รอคลังจ่าย',
-        text: 'ส่งแล้ว ชื่อย้ายมาอยู่แท็บ <b>ส่งเบิกแล้ว</b><br>สถานะเปลี่ยนเองเมื่อ หัวหน้าอนุมัติ → คลังจ่ายของ → พนักงานเซ็นรับ',
-        side: 'top',
+        element: '.tab[data-tab="waiting"]',
+        title: 'ขั้นที่ 3 · ย้ายมาแท็บ “ส่งเบิกแล้ว”',
+        text: 'ส่งแล้ว ชื่อย้ายมาอยู่แท็บนี้ (รายการด้านล่าง) รอคลังจ่าย<br>สถานะเปลี่ยนเองเมื่อ หัวหน้าอนุมัติ → คลังจ่ายของ → พนักงานเซ็นรับ',
+        side: 'right',
       },
       {
         page: 'uniform-waiting',
@@ -567,6 +603,13 @@ export const GUIDES = [
       {
         page: 'rules',
         href: 'rules.html',
+        element: '.tab[data-tab="insurance"]',
+        title: 'ย้ายไปแท็บ “5 ประกันกลุ่ม”',
+        text: 'กลุ่ม <b>เงื่อนไขสวัสดิการ</b> (แท็บ 5 – 6) อยู่ด้านขวาของแถบแท็บ',
+        side: 'bottom',
+      },
+      {
+        page: 'rules',
         element: '#add',
         title: 'เงื่อนไขสวัสดิการ',
         text: 'กำหนดว่า <b>ใครได้ประกัน/ชุดอะไร เมื่อไร</b><br>แก้แล้วเลือก <b>วันที่มีผล</b> ได้ (ตั้งล่วงหน้าได้)',
@@ -596,13 +639,57 @@ export const GUIDES = [
         page: 'insurers',
         element: '.ic-add, #head-actions .btn',
         title: 'ขั้นที่ 1 · เพิ่มบริษัทประกัน',
-        text: 'กดแล้วอัปโหลดไฟล์ Excel ที่บริษัทประกันให้มา ระบบหาเองว่าช่องไหนใส่อะไร',
+        text: 'กดปุ่มนี้ จะไปหน้าใส่ข้อมูลบริษัทประกัน',
         side: 'left',
       },
       {
+        page: 'insurer-edit',
+        href: 'insurers.html?id=new',
+        element: '#f-name',
+        title: 'ใส่ชื่อบริษัทประกัน',
+        text: 'ชื่อเต็ม และ <b>ชื่อย่อ</b> (ชื่อย่อใช้แสดงในหน้าส่งออกและชื่อไฟล์)',
+        side: 'bottom',
+        align: 'start',
+      },
+      {
+        page: 'insurer-edit',
+        element: '#drop',
+        title: 'อัปโหลดไฟล์ Excel ของบริษัทประกัน',
+        text: 'ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์ — ใช้ไฟล์ที่เคยส่งจริงได้เลย<br>ระบบหาเองว่าช่องไหนใส่ชื่อ เลขกรมธรรม์ เดือน<br>รายชื่อเดิมในไฟล์จะถูกล้างออกก่อนเก็บ',
+        side: 'right',
+      },
+      {
+        page: 'insurer-edit',
+        href: async (h) => {
+          // ดูแบบฟอร์มที่อัปโหลดแล้ว (ตัวอย่าง) — เห็นตัวอย่างไฟล์ที่เติมรายชื่อ
+          const [f] = await h.api.listInsurers().catch(() => []);
+          return f ? `insurers.html?id=${f.id}` : 'insurers.html';
+        },
+        element: '#ed-right',
+        title: 'ตัวอย่างไฟล์ที่จะส่งออก',
+        text: 'หลังอัปโหลด ด้านขวาแสดงไฟล์ที่เติมรายชื่อตัวอย่างแล้ว<br>ตรวจว่าชื่อ วันที่ เลขกรมธรรม์ ลงช่องถูก',
+        side: 'left',
+      },
+      {
+        page: 'insurer-edit',
+        element: '[data-switch="active"]',
+        title: 'เปิดใช้เมื่อพร้อม',
+        text: 'เปิด = บริษัทประกันนี้ขึ้นในกล่องส่งออกของหน้าประกันกลุ่ม',
+        side: 'right',
+      },
+      {
+        page: 'insurer-edit',
+        element: '#save',
+        title: 'กด “บันทึก”',
+        text: 'แก้อะไรแล้วต้องกดบันทึก ไม่งั้นการแก้หาย',
+        side: 'top',
+        align: 'end',
+      },
+      {
         page: 'insurers',
+        href: 'insurers.html',
         element: '#bindings',
-        title: 'ขั้นที่ 2 · บริษัทไหนส่งกับใคร',
+        title: 'ขั้นสุดท้าย · บริษัทไหนส่งกับใคร',
         text: 'เลือกบริษัทประกันให้แต่ละบริษัทในเครือ และใส่เลขกรมธรรม์ แล้วกด <b>บันทึก</b>',
         side: 'top',
       },
