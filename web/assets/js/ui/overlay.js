@@ -41,7 +41,7 @@ export const errorMessage = (e) => (e instanceof Error ? e.message : 'ทำร�
 // ===================== Modal =====================
 /**
  * เปิด modal — คืน { el, close }
- * @param {{title: string, description?: string, body?: any, footer: any, onClose?: () => void, size?: 'lg'}} opts  size lg = กว้าง 760px เนื้อหาเลื่อนภายใน
+ * @param {{title: string, description?: string, body?: any, footer?: any, onClose?: () => void, size?: 'lg'}} opts  size lg = กว้าง 760px เนื้อหาเลื่อนภายใน
  */
 export function openModal({ title, description = '', body = '', footer, onClose, size = '' }) {
   const prev = document.activeElement;
@@ -57,7 +57,7 @@ export function openModal({ title, description = '', body = '', footer, onClose,
         <button class="btn-icon sm" data-close aria-label="ปิด">${raw(icon('x'))}</button>
       </div>
       ${body ? html`<div class="modal-body">${body}</div>` : ''}
-      <div class="modal-foot">${footer}</div>
+      ${footer ? html`<div class="modal-foot">${footer}</div>` : ''}
     </div>`);
   document.body.append(layer);
 

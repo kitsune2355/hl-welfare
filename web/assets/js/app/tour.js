@@ -340,7 +340,7 @@ export function openGuideMenu() {
         : ''}
       ${others.length ? html`<p class="guide-group other">เรื่องอื่น ๆ</p><div class="guide-others">${others.map(other)}</div>` : ''}
     </div>`,
-    footer: html`${PRACTICE ? html`<button class="btn foot-start" data-exit-practice>${raw(icon('log-out'))} ออกจากโหมดฝึก</button>` : ''}<button class="btn btn-ghost" data-close>ปิด</button>`,
+    // ไม่มี footer — ปิดด้วยกากบาท · ออกจากโหมดฝึกใช้แถบเหลืองด้านบน
   });
   m.el.addEventListener('click', (e) => {
     const b = e.target.closest('[data-guide]');
@@ -348,7 +348,6 @@ export function openGuideMenu() {
       m.close();
       startGuide(b.dataset.guide);
     }
-    if (e.target.closest('[data-exit-practice]')) exitPractice();
   });
 }
 

@@ -2205,6 +2205,10 @@ button.stat:hover {
   font-size: 13px;
   color: var(--muted);
 }
+/* ไม่มี footer (ปิดด้วยกากบาท) — เว้นขอบล่างแทน */
+.modal-body:last-child {
+  padding-bottom: 24px;
+}
 .modal-foot {
   display: flex;
   justify-content: flex-end;
