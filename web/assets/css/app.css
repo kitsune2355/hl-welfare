@@ -2722,7 +2722,7 @@ ol.questions {
   flex: 1 1 260px;
   min-width: 0;
 }
-/* เมนูคู่มือ (openGuideMenu) — มินิมอล: รายการเรียบ ไม่มีกรอบ hover = พื้นจาง */
+/* เมนูคู่มือ (openGuideMenu) — รายการเรียบ ไม่มีกรอบ · สีประจำเรื่อง --gc (tour/guides.js color) */
 .gm {
   display: grid;
   gap: 4px;
@@ -2736,6 +2736,17 @@ ol.questions {
 }
 .gm-label:first-child {
   margin-top: 0;
+}
+.gm-label.here {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary);
+  font-weight: 600;
+}
+.gm-label .icon {
+  width: 14px;
+  height: 14px;
 }
 .gm-list {
   display: grid;
@@ -2762,21 +2773,40 @@ ol.questions {
 }
 .gm-row:hover,
 .gm-row:focus-visible {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--gc) 9%, transparent);
 }
 .gm-ic {
   display: grid;
   flex: none;
   place-items: center;
-  color: var(--muted);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--gc) 15%, var(--surface));
+  color: var(--gc);
+  transition: background 0.12s, color 0.12s;
 }
 .gm-ic .icon {
   width: 18px;
   height: 18px;
 }
+.gm-cols .gm-ic {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.gm-cols .gm-ic .icon {
+  width: 16px;
+  height: 16px;
+}
 .gm-row:hover .gm-ic,
 .gm-row:focus-visible .gm-ic {
-  color: var(--primary);
+  background: var(--gc);
+  color: #fff;
+}
+.gm-row:hover .gm-title,
+.gm-row:focus-visible .gm-title {
+  color: color-mix(in srgb, var(--gc) 75%, var(--fg));
 }
 .gm-text {
   display: grid;
@@ -2814,7 +2844,7 @@ ol.questions {
   height: 14px;
 }
 .modal-md:has(.gm) {
-  max-width: 640px;
+  max-width: 700px;
 }
 @media (max-width: 640px) {
   .gm-cols {

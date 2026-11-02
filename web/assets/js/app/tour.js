@@ -316,8 +316,8 @@ export function openGuideMenu() {
   const list = GUIDES.filter(allowed);
   const here = list.filter((g) => g.pages.some((p) => p === page || page.startsWith(`${p}-`)));
   const others = list.filter((g) => !here.includes(g));
-  // มินิมอล: รายการเรียบ ไม่มีกรอบ/พื้นสี — hover = พื้นจาง · เคยดูแล้ว = ✓ เขียวเล็ก ๆ ข้างเวลา
-  const row = (g, withSummary) => html`<button type="button" class="gm-row" data-guide="${g.id}" title="${g.summary}">
+  // รายการเรียบ + สีประจำเรื่อง (ไอคอนบนพื้นจางสีนั้น · hover = พื้นจางสีนั้น) · เคยดูแล้ว = ✓ เขียวข้างเวลา
+  const row = (g, withSummary) => html`<button type="button" class="gm-row" data-guide="${g.id}" title="${g.summary}" style="--gc:${g.color ?? 'var(--primary)'}">
     <span class="gm-ic">${raw(icon(g.icon))}</span>
     <span class="gm-text"><span class="gm-title">${g.title}</span>${withSummary ? html`<span class="gm-sum">${g.summary}</span>` : ''}</span>
     <span class="gm-meta">${store.get(`hl-guide-done:${g.id}`, localStorage) ? html`<span class="gm-seen" title="เคยดูแล้ว" aria-label="เคยดูแล้ว">${raw(icon('check'))}</span>` : ''}${g.minutes} นาที</span>
@@ -327,7 +327,7 @@ export function openGuideMenu() {
     description: 'ระบบพาทำทีละขั้นกับข้อมูลตัวอย่าง — ไม่กระทบข้อมูลจริง',
     size: 'md',
     body: html`<div class="gm">
-      ${here.length ? html`<p class="gm-label">สำหรับหน้านี้</p><div class="gm-list">${here.map((g) => row(g, true))}</div>` : ''}
+      ${here.length ? html`<p class="gm-label here">${raw(icon('sparkles'))} สำหรับหน้านี้</p><div class="gm-list">${here.map((g) => row(g, true))}</div>` : ''}
       ${others.length ? html`<p class="gm-label">เรื่องอื่น</p><div class="gm-list gm-cols">${others.map((g) => row(g, false))}</div>` : ''}
     </div>`,
     // ไม่มี footer — ปิดด้วยกากบาท · ออกจากโหมดฝึกใช้แถบเหลืองด้านบน
