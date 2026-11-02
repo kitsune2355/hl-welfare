@@ -17,7 +17,7 @@ function perm_defs()
     $all = array('HR_ADMIN', 'HR_COMPANY', 'PAYROLL', 'STOCK', 'EXECUTIVE');
     return array(
         'dashboard.view' => array('group' => 'ภาพรวม & ติดตามงาน', 'kind' => 'view', 'label' => 'เห็นหน้าภาพรวม & คิวงาน', 'page' => 'dashboard',
-            'roles' => $all, 'handlers' => array('api_work_queue')),
+            'roles' => $all, 'handlers' => array('api_work_queue', 'api_monitor_changes')),
         'employees.view' => array('group' => 'พนักงาน', 'kind' => 'view', 'label' => 'เห็นหน้าพนักงาน + สิทธิของแต่ละคน', 'page' => 'employees',
             'roles' => $all, 'handlers' => array('api_employee_benefits')),
         'employees.edit' => array('group' => 'พนักงาน', 'kind' => 'action', 'label' => 'เพิ่ม / แก้ไข / เปิด-ปิดใช้งานพนักงาน',

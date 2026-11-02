@@ -2,9 +2,10 @@
 //   ช่อง: รอบแจ้งประกัน (ใหญ่) · แจ้งออกทันที · ชุดฟอร์มค้าง · พนักงาน · จะครบสิทธิใน 30 วัน
 //         · คิวงาน (#queue — กรองระดับ ด่วน/ต้องทำ/ติดตาม + ประเภท) · บันทึกกิจกรรม (#activity)
 //   ลิงก์เก่า ?tab=queue|activity → เลื่อนไปส่วนนั้น
-// รีเฟรชอัตโนมัติทุก 60 วินาที + เมื่อกลับมาที่แท็บของเบราว์เซอร์
+// มีข้อมูลใหม่ (ใครก็ตามบันทึกอะไร) → วาดใหม่เฉพาะส่วนทันที ไม่โหลดทั้งหน้า — app/liveUpdates.js (jQuery long-polling)
 import { companyColor } from '../domain/catalog.js';
 import { api } from '../app/api.js';
+import { watchChanges } from '../app/liveUpdates.js';
 import { myCompany } from '../app/auth.js';
 import { initPage, refreshCounts } from '../app/shell.js';
 import { progress } from '../ui/loading.js';
@@ -22,8 +23,6 @@ import { openEmployeeDetail } from './_employeeDetail.js';
 const jumpTo = ['queue', 'activity'].includes(getParam('tab')) ? getParam('tab') : '';
 initPage('dashboard', { tour: 'dashboard' });
 
-const REFRESH_MS = 60_000;
-const AUTO_KEY = 'hl-monitor-auto';
 const today = todayISO();
 
 const state = {
@@ -285,8 +284,25 @@ $('#more').onclick = () => {
   loadActivity();
 };
 
-// ===================== โหลด + รีเฟรชอัตโนมัติ =====================
-async function refresh() {
+// ===================== โหลด + อัปเดตเมื่อมีข้อมูลใหม่ =====================
+let running = null;
+let again = false;
+/** โหลดใหม่ระหว่างที่กำลังโหลดอยู่ → รอรอบนี้จบแล้วโหลดอีกรอบเดียว */
+function refresh() {
+  if (running) {
+    again = true;
+    return running;
+  }
+  running = load().finally(() => {
+    running = null;
+    if (again) {
+      again = false;
+      progress.quiet(refresh);
+    }
+  });
+  return running;
+}
+async function load() {
   $('#refresh').disabled = true;
   try {
     const [dash, tasks] = await Promise.all([api.getDashboard(), api.getWorkQueue()]);
@@ -303,29 +319,22 @@ async function refresh() {
   refreshCounts();
 }
 
-let auto = true;
-try {
-  auto = localStorage.getItem(AUTO_KEY) !== 'off';
-} catch {
-  /* ignore */
-}
-let timer = null;
-function setAuto(v) {
-  auto = v;
-  $('#auto').setAttribute('aria-checked', String(v));
-  $('#live-dot').classList.toggle('on', v);
-  clearInterval(timer);
-  if (v) timer = setInterval(() => progress.quiet(refresh), REFRESH_MS); // รีเฟรชเบื้องหลัง ไม่ขึ้น loading กลางจอ
-  try {
-    localStorage.setItem(AUTO_KEY, v ? 'on' : 'off');
-  } catch {
-    /* ignore */
-  }
-}
-$('#auto').onclick = () => setAuto(!auto);
-$('#refresh').onclick = refresh;
-document.addEventListener('visibilitychange', () => auto && document.visibilityState === 'visible' && progress.quiet(refresh));
-setAuto(auto);
+// จุดเขียว = กำลังรอข้อมูลใหม่ · จุดเทา + "ขาดการเชื่อมต่อ" = เชื่อมต่อไม่ได้ (ลองใหม่เองเมื่อเน็ตกลับ / กดรีเฟรช)
+const live = watchChanges(
+  () => {
+    progress.quiet(refresh); // เบื้องหลัง ไม่ขึ้น loading กลางจอ
+    window.dispatchEvent(new Event('hl:notifications-refresh')); // กระดิ่งด้วย
+  },
+  (status) => {
+    $('#live-dot').classList.toggle('on', status === 'live');
+    $('#live-dot').title = status === 'live' ? 'อัปเดตทันทีเมื่อมีข้อมูลใหม่' : 'ขาดการเชื่อมต่อ — กดรีเฟรช';
+    if (status === 'offline') render($('#updated'), 'ขาดการเชื่อมต่อ');
+  },
+);
+$('#refresh').onclick = () => {
+  live.resume();
+  refresh();
+};
 
 refresh().then(() => {
   if (!jumpTo) return;

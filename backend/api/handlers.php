@@ -53,6 +53,27 @@ function api_work_queue($req, $params)
     return build_work_queue(today_iso(), $w['employees'], $w['sites'], $w['rules'], $w['batches'], $w['issues']);
 }
 
+/**
+ * มีข้อมูลใหม่ไหม (long-polling ของหน้าภาพรวม — web/assets/js/app/liveUpdates.js)
+ *  เวอร์ชัน = id ล่าสุดของ audit_log (ทุกการเปลี่ยนข้อมูลเขียน audit_log)
+ *  ?since= ต่างจากปัจจุบัน → ตอบทันที · เท่ากัน → รอ (เช็กทุก 2 วิ) จนเปลี่ยนหรือครบ ?wait= วินาที (สูงสุด 25)
+ *  ไม่ส่ง since = ตอบเวอร์ชันปัจจุบันทันที (เริ่มต้น)
+ */
+function api_monitor_changes($req, $params)
+{
+    $since = req_query($req, 'since');
+    $wait = max(0, min((int)req_query($req, 'wait', 25), 25));
+    @set_time_limit($wait + 15);
+    $deadline = time() + $wait;
+    while (true) {
+        $v = (string)db_value('SELECT MAX(id) FROM audit_log');
+        if ($v === '') { $v = '0'; }
+        if ($since === null || $since !== $v || time() >= $deadline) { break; }
+        sleep(2);
+    }
+    return array('version' => $v, 'changed' => $since !== null && $since !== $v);
+}
+
 function api_activity($req, $params)
 {
     $u = auth_require($req);

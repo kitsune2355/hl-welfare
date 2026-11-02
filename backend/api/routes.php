@@ -20,6 +20,7 @@ function api_routes()
 
     router_add($r, 'GET', '/dashboard', 'api_dashboard');
     router_add($r, 'GET', '/monitor/tasks', 'api_work_queue');
+    router_add($r, 'GET', '/monitor/changes', 'api_monitor_changes');   /* long-polling ภาพรวม */
     router_add($r, 'GET', '/activity', 'api_activity');
 
     /* การแจ้งเตือน (กระดิ่ง) — ทุกคนที่ login เห็นเฉพาะของตัวเอง · usecases/notifications.php */

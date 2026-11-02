@@ -892,6 +892,17 @@ check('HR Admin รีเซ็ตรหัส SUPER_ADMIN ไม่ได้', 
 check('SUPER_ADMIN รีเซ็ตได้ + ตั้งรหัสที่แข็งแรงให้ได้ (ก็ต้องเปลี่ยนเอง)', S($boss->req('POST', '/admin/users/' . $freshId . '/password', array('password' => 'Strong-12345'))) === 200
     && (int)db_value('SELECT must_change_password FROM users WHERE id = ?', array($freshId)) === 1);
 
+section('GET /monitor/changes — long-polling ภาพรวม (เวอร์ชัน = id ล่าสุดของ audit_log)');
+$top = (string)db_value('SELECT MAX(id) FROM audit_log');
+$r = $hr->req('GET', '/monitor/changes');
+check('ไม่ส่ง since → เวอร์ชันปัจจุบันทันที', $r['status'] === 200 && $r['json']['data']['version'] === $top && $r['json']['data']['changed'] === false);
+$r = $hr->req('GET', '/monitor/changes?since=1&wait=25');
+check('since ต่างจากปัจจุบัน → ตอบทันที changed = true', $r['json']['data']['version'] === $top && $r['json']['data']['changed'] === true);
+$t0 = time();
+$r = $hr->req('GET', '/monitor/changes?since=' . $top . '&wait=0');
+check('since = ปัจจุบัน + wait=0 → ไม่รอ changed = false', $r['json']['data']['changed'] === false && time() - $t0 < 2);
+check('ไม่ได้ login → 401', S($anon->req('GET', '/monitor/changes')) === 401);
+
 require dirname(__FILE__) . '/rules_test.php';
 require dirname(__FILE__) . '/scope_test.php';
 require dirname(__FILE__) . '/dept_groups_test.php';

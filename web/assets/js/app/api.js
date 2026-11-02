@@ -21,6 +21,8 @@ export const AUTH_PROVIDER =
 export const UNAUTHORIZED_EVENT = 'hl:unauthorized';
 const serverAuth = AUTH_PROVIDER === 'server' ? new ServerAuth(CONFIG.apiBaseUrl) : null;
 if (serverAuth) serverAuth.onUnauthorized = () => window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+/** ใช้ต่ออายุ session ในคำขอที่ไม่ผ่าน api (app/liveUpdates.js) — null ในโหมด mock */
+export const sessionAuth = serverAuth;
 
 /** โหมดฝึกของคู่มือ (app/practice.js) — ข้อมูลตัวอย่างในเบราว์เซอร์ ไม่แตะข้อมูลจริง/ระบบสต็อกจริง · การเข้าสู่ระบบยังเป็นของจริง */
 export const PRACTICE = isPractice();
