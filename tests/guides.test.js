@@ -30,6 +30,12 @@ describe('คู่มือทีละขั้น', () => {
       });
     }
   });
+  it('ไม่ชี้ทั้งแถวของตาราง (แถวกว้างกว่าจอ → กรอบไฮไลต์หลุดจอ) — ให้ชี้ช่องในแถวแทน', () => {
+    for (const g of GUIDES) g.steps.forEach((s, i) => {
+      const rows = (s.element ?? '').split(',').map((x) => x.trim()).filter((x) => /tbody tr[^ ]*$/.test(x));
+      expect(`${g.id}#${i}:${rows.join('|')}`).toBe(`${g.id}#${i}:`);
+    });
+  });
   it('คำอธิบายสั้น อ่านง่าย (ไม่เกิน 260 ตัวอักษรต่อขั้น ไม่นับแท็ก)', () => {
     for (const g of GUIDES) g.steps.forEach((s, i) => expect(`${g.id}#${i}:${s.text.replace(/<[^>]+>/g, '').length <= 260}`).toBe(`${g.id}#${i}:true`));
   });

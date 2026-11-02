@@ -173,7 +173,7 @@ export const GUIDES = [
           await h.type('#filters input[name="q"]', SAMPLE_EMP_CODE);
           await h.wait('.xgrid tbody tr:first-child td[data-col="empCode"]');
         },
-        element: '.xgrid tbody tr:first-child',
+        element: '.xgrid tbody tr:first-child td[data-col="firstName"]',
         title: 'บันทึกแล้ว ✓',
         text: 'สมชาย ตัวอย่าง อยู่ในระบบแล้ว<br>ช่องค้นหาด้านบนใช้หาพนักงานด้วยชื่อหรือรหัส',
         side: 'bottom',
@@ -589,7 +589,7 @@ export const GUIDES = [
     need: 'users.manage',
     steps: [
       { page: 'admin-users', href: 'admin.html?tab=users', element: '#add-user', title: 'เพิ่มผู้ใช้', text: 'กดเพื่อสร้างบัญชีใหม่ ใส่ชื่อ ชื่อผู้ใช้ และเลือก <b>บทบาท</b>', side: 'bottom' },
-      { page: 'admin-users', element: '#users tbody tr:first-child', title: 'แก้ไขผู้ใช้', text: '<b>ดับเบิลคลิก</b>ที่แถวเพื่อแก้บทบาท รีเซ็ตรหัสผ่าน หรือปิดบัญชี', side: 'bottom' },
+      { page: 'admin-users', element: '#users tbody tr:first-child td:nth-child(2)', title: 'แก้ไขผู้ใช้', text: '<b>ดับเบิลคลิก</b>ที่แถวเพื่อแก้บทบาท รีเซ็ตรหัสผ่าน หรือปิดบัญชี', side: 'bottom' },
     ],
   },
   {

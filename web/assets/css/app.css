@@ -2721,48 +2721,88 @@ ol.questions {
 }
 .guide-menu {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 .guide-group {
-  margin: 8px 0 2px;
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 2px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--primary);
+}
+.guide-group .icon {
+  width: 15px;
+  height: 15px;
+}
+.guide-group.other {
+  margin-top: 10px;
   font-weight: 600;
   color: var(--muted);
 }
-.guide-group:first-child {
-  margin-top: 0;
+/* แนะนำสำหรับหน้านี้ — กล่องพื้นสีหลักอ่อน การ์ดใหญ่ ปุ่ม "เริ่ม" */
+.guide-rec {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
 }
 .guide-item {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 10px 12px;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
   color: var(--fg);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-.guide-item:hover,
-.guide-item:focus-visible {
-  border-color: var(--primary);
-  background: var(--primary-soft);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 .guide-item.rec {
-  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  padding: 12px 14px;
+  border-color: color-mix(in srgb, var(--primary) 25%, var(--border));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+}
+.guide-item.rec:hover,
+.guide-item.rec:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+.guide-item.compact {
+  padding: 8px 10px;
+  gap: 10px;
+}
+.guide-item.compact:hover,
+.guide-item.compact:focus-visible {
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+  background: var(--surface-2);
 }
 .guide-ic {
   display: grid;
   flex: none;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
-  background: var(--primary-soft);
-  color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-fg);
+}
+.guide-item.compact .guide-ic {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.guide-item.compact .guide-ic .icon {
+  width: 16px;
+  height: 16px;
 }
 .guide-text {
   display: grid;
@@ -2773,17 +2813,55 @@ ol.questions {
 .guide-text b {
   font-weight: 600;
 }
+.guide-item.rec .guide-text b {
+  font-size: 15px;
+}
+.guide-item.compact .guide-text b {
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .guide-text small {
   color: var(--muted);
   font-size: 12.5px;
 }
-.guide-meta {
-  display: grid;
-  flex: none;
-  justify-items: end;
-  gap: 2px;
+.guide-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.guide-sub small {
   font-size: 12px;
-  color: var(--muted);
+}
+.guide-go {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px 6px 14px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  font-size: 13px;
+  font-weight: 600;
+}
+.guide-go .icon {
+  width: 16px;
+  height: 16px;
+}
+.guide-others {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+@media (max-width: 640px) {
+  .guide-others {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 /* "เคยดูแล้ว" เป็น chip สีเขียวอ่อน (แบบเดียวกับ .badge.tone-success) เห็นแยกจากเวลาอ่านด้านล่างชัด */
 .guide-done {

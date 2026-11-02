@@ -82,8 +82,10 @@ function find(selector) {
     if (!el.getClientRects().length) continue;
     const s = getComputedStyle(el);
     if (s.visibility === 'hidden' || s.display === 'none') continue;
+    // ในตาราง: ช่องที่เลื่อนออกไปทางซ้าย/ขวายังนับว่ามี (reveal() เลื่อนมาให้เห็นก่อนไฮไลต์)
+    if (el.closest('.xgrid-wrap, .table-wrap')) return el;
     const r = el.getBoundingClientRect();
-    if (r.right > 0 && r.left < window.innerWidth) return el;
+    if (r.right > 0 && r.left < window.innerWidth) return el; // นอกจอแนวนอน = ถูกซ่อน (เช่น เมนูข้างบนมือถือ)
   }
   return undefined;
 }
@@ -148,6 +150,19 @@ function finish(guide) {
   active?.destroy();
 }
 
+/**
+ * เลื่อนสิ่งที่ชี้มากลางจอก่อนไฮไลต์ (หน้าในระบบเลื่อนภายในกล่อง driver.js ไม่รู้)
+ * ในตาราง: ช่องอยู่กลางแนวนอน (ไม่ถูกคอลัมน์ที่ตรึงซ้ายบัง) · ของที่กว้างกว่าตาราง (ทั้งแถว) = เลื่อนกลับซ้ายสุด
+ * ไม่งั้นกรอบไฮไลต์อยู่นอกจอและกล่องคำอธิบายลอยไปมุมจอ
+ */
+function reveal(el) {
+  if (!el?.scrollIntoView) return;
+  const wrap = el.closest('.xgrid-wrap, .table-wrap');
+  const wide = wrap && el.offsetWidth > wrap.clientWidth;
+  el.scrollIntoView({ block: 'center', inline: wrap && !wide ? 'center' : 'nearest', behavior: 'instant' });
+  if (wide) wrap.scrollLeft = 0;
+}
+
 /** เริ่ม/ทำต่อคู่มือจากขั้น i บนหน้านี้ */
 async function drive(guide, i) {
   if (active?.isActive?.()) active.destroy();
@@ -158,6 +173,11 @@ async function drive(guide, i) {
 
   const onAnyScroll = () => active?.refresh();
   document.addEventListener('scroll', onAnyScroll, true);
+  // หน้าวาดใหม่ (เช่น ตารางหลังบันทึก) → element ที่ชี้ถูกแทนด้วยตัวใหม่ → หาใหม่แล้วชี้อีกครั้ง (ไม่งั้นกรอบหาย/ชี้ผิดที่)
+  const watch = setInterval(() => {
+    const el = active?.getActiveElement?.();
+    if (!busy && el && el.id !== 'driver-dummy-element' && !el.isConnected) active.moveTo(active.getActiveIndex());
+  }, 400);
 
   const move = async (to) => {
     if (busy) return;
@@ -197,9 +217,10 @@ async function drive(guide, i) {
       const k = active.getActiveIndex();
       if (k > 0 && !busy) active.moveTo(k - 1);
     },
-    onHighlightStarted: (el) => el?.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'instant' }),
+    onHighlightStarted: (el) => reveal(el),
     onDestroyed: () => {
       document.removeEventListener('scroll', onAnyScroll, true);
+      clearInterval(watch);
       active = null;
       if (leaving) return;
       // ปิดกลางทาง (× / Esc) — ไม่ทำต่อเมื่อเปลี่ยนหน้า
@@ -239,18 +260,29 @@ export function openGuideMenu() {
   const list = GUIDES.filter(allowed);
   const here = list.filter((g) => g.pages.some((p) => p === page || page.startsWith(`${p}-`)));
   const others = list.filter((g) => !here.includes(g));
-  const item = (g, rec) => html`<button type="button" class="guide-item${rec ? ' rec' : ''}" data-guide="${g.id}">
+  const done = (g) => (store.get(`hl-guide-done:${g.id}`, localStorage) ? html`<span class="guide-done">${raw(icon('check'))} เคยดูแล้ว</span>` : '');
+  // แนะนำ = การ์ดใหญ่ ไอคอนสีหลัก ปุ่ม "เริ่ม" ชัด ๆ · เรื่องอื่น = รายการย่อ 2 คอลัมน์ สีเรียบ
+  const rec = (g) => html`<button type="button" class="guide-item rec" data-guide="${g.id}">
     <span class="guide-ic">${raw(icon(g.icon))}</span>
-    <span class="guide-text"><b>${g.title}</b><small>${g.summary}</small></span>
-    <span class="guide-meta">${store.get(`hl-guide-done:${g.id}`, localStorage) ? html`<span class="guide-done">${raw(icon('check'))} เคยดูแล้ว</span>` : ''}<small>${g.minutes} นาที</small></span>
+    <span class="guide-text"><b>${g.title}</b><small>${g.summary}</small><span class="guide-sub">${done(g)}<small>ใช้เวลา ${g.minutes} นาที</small></span></span>
+    <span class="guide-go">เริ่ม ${raw(icon('chevron-right'))}</span>
+  </button>`;
+  const other = (g) => html`<button type="button" class="guide-item compact" data-guide="${g.id}" title="${g.summary}">
+    <span class="guide-ic">${raw(icon(g.icon))}</span>
+    <span class="guide-text"><b>${g.title}</b><span class="guide-sub">${done(g)}<small>${g.minutes} นาที</small></span></span>
   </button>`;
   const m = openModal({
     title: 'อยากทำอะไร?',
     description: 'เลือกเรื่อง แล้วระบบจะพาทำทีละขั้น — ฝึกกับข้อมูลตัวอย่าง ไม่กระทบข้อมูลจริง',
     size: 'md',
     body: html`<div class="guide-menu">
-      ${here.length ? html`<p class="guide-group">แนะนำสำหรับหน้านี้</p>${here.map((g) => item(g, true))}` : ''}
-      ${others.length ? html`<p class="guide-group">เรื่องอื่น</p>${others.map((g) => item(g, false))}` : ''}
+      ${here.length
+        ? html`<section class="guide-rec" aria-label="แนะนำสำหรับหน้านี้">
+            <p class="guide-group">${raw(icon('sparkles'))} แนะนำสำหรับหน้านี้</p>
+            ${here.map(rec)}
+          </section>`
+        : ''}
+      ${others.length ? html`<p class="guide-group other">เรื่องอื่น ๆ</p><div class="guide-others">${others.map(other)}</div>` : ''}
     </div>`,
     footer: html`${PRACTICE ? html`<button class="btn foot-start" data-exit-practice>${raw(icon('log-out'))} ออกจากโหมดฝึก</button>` : ''}<button class="btn btn-ghost" data-close>ปิด</button>`,
   });
