@@ -39,9 +39,18 @@ export function exitPractice({ keepGuide = false, href = '' } = {}) {
   } catch {
     /* ignore */
   }
-  const url = new URL(href || location.href, location.href);
-  url.searchParams.delete('tour');
-  location.href = url.toString();
+  location.href = href ? new URL(href, location.href).toString() : realPageUrl(location.href);
+}
+
+/**
+ * หน้าเดิมแบบที่ใช้กับข้อมูลจริงได้ — ค่าที่ชี้ข้อมูลตัวอย่าง (id / คำค้น / เลขหน้า) ไม่มีในข้อมูลจริง
+ * หน้ารายละเอียดพนักงานตัวอย่าง → หน้ารายชื่อพนักงาน (ไม่งั้นขึ้น "ไม่พบพนักงาน")
+ */
+export function realPageUrl(href) {
+  const url = new URL(href);
+  if (/\/employee\.html$/.test(url.pathname)) url.pathname = url.pathname.replace(/employee\.html$/, 'employees.html');
+  for (const k of ['tour', 'id', 'q', 'page', 'batch']) url.searchParams.delete(k);
+  return url.toString();
 }
 
 /**

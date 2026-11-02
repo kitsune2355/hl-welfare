@@ -2,7 +2,7 @@
 import { describe, it } from 'node:test';
 import { expect } from './_expect.js';
 import { GUIDES } from '../web/assets/js/tour/guides.js';
-import { practiceStock } from '../web/assets/js/app/practice.js';
+import { practiceStock, realPageUrl } from '../web/assets/js/app/practice.js';
 import { MockApi } from '../web/assets/js/infrastructure/mock/mockApi.js';
 
 /** id หน้า/แท็บ ที่ initPage ส่งให้คู่มือ (pages/*.js) */
@@ -44,6 +44,16 @@ describe('คู่มือทีละขั้น', () => {
   });
   it('คำอธิบายสั้น อ่านง่าย (ไม่เกิน 260 ตัวอักษรต่อขั้น ไม่นับแท็ก)', () => {
     for (const g of GUIDES) g.steps.forEach((s, i) => expect(`${g.id}#${i}:${s.text.replace(/<[^>]+>/g, '').length <= 260}`).toBe(`${g.id}#${i}:true`));
+  });
+});
+
+describe('โหมดฝึก: ออกแล้วกลับหน้าที่ใช้กับข้อมูลจริงได้', () => {
+  it('ตัดค่าที่ชี้ข้อมูลตัวอย่าง · รายละเอียดพนักงาน → รายชื่อพนักงาน · คงแท็บไว้', () => {
+    const B = 'http://x/hl-welfare/web/';
+    expect(realPageUrl(B + 'employee.html?id=259')).toBe(B + 'employees.html');
+    expect(realPageUrl(B + 'employees.html?q=HL9001&status=ACTIVE&page=2')).toBe(B + 'employees.html?status=ACTIVE');
+    expect(realPageUrl(B + 'insurers.html?id=3')).toBe(B + 'insurers.html');
+    expect(realPageUrl(B + 'uniform.html?tab=waiting&tour=1')).toBe(B + 'uniform.html?tab=waiting');
   });
 });
 
