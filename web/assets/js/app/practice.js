@@ -60,16 +60,15 @@ export function practiceStock() {
     async catalog({ items }) {
       return {
         department: { department_id: 1, department_name: 'หน่วยงานตัวอย่าง', company_name: 'ตัวอย่าง' },
+        // แบบผู้ชาย / ผู้หญิง เหมือนระบบคลังจริง (คู่มือสอนการเลือกแบบได้)
         items: items.map((code, i) => ({
           item_code: code,
-          variants: [
-            {
-              sub_category_id: i * 10 + 1,
-              sub_category_name: `${code} (ตัวอย่าง)`,
-              variant_label: 'แบบมาตรฐาน',
-              products: SIZES.map((size, k) => ({ product_id: i * 100 + k + 1, product_code: `${code}-${size}`, product_name: `${code} ไซซ์ ${size}`, size, on_hand: 20 })),
-            },
-          ],
+          variants: ['ผู้ชาย', 'ผู้หญิง'].map((label, v) => ({
+            sub_category_id: i * 10 + v + 1,
+            sub_category_name: `${code} ${label} (ตัวอย่าง)`,
+            variant_label: label,
+            products: SIZES.map((size, k) => ({ product_id: i * 100 + v * 10 + k + 1, product_code: `${code}-${v ? 'F' : 'M'}-${size}`, product_name: `${code} ${label} ไซซ์ ${size}`, size, on_hand: 20 - k * 3 })),
+          })),
         })),
       };
     },

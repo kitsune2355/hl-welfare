@@ -75,10 +75,10 @@ const onPage = (page) => {
 const guideById = (id) => GUIDES.find((g) => g.id === id);
 const allowed = (g) => !g.need || can(g.need);
 
-/** element ตัวแรกที่มองเห็น (selector หลายตัวคั่นด้วย ,) */
+/** element ตัวแรกที่มองเห็น — selector หลายตัวคั่นด้วย , = ลองตามลำดับที่เขียน (ตัวแรก = ที่อยากชี้ · ที่เหลือ = สำรอง) */
 function find(selector) {
   if (!selector) return undefined;
-  for (const el of document.querySelectorAll(selector)) {
+  for (const part of selector.split(',')) for (const el of document.querySelectorAll(part)) {
     if (!el.getClientRects().length) continue;
     const s = getComputedStyle(el);
     if (s.visibility === 'hidden' || s.display === 'none') continue;
@@ -113,6 +113,14 @@ const helpers = {
     input.value = text;
     input.dispatchEvent(new Event('input', { bubbles: true }));
     await sleep(450);
+  },
+  /** เลือกตัวเลือกที่ index ใน <select> (ข้ามตัวเลือกว่าง) แล้วแจ้ง change ให้หน้าเว็บรู้ */
+  choose(select, index = 0) {
+    const opts = [...(select?.options ?? [])].filter((o) => o.value);
+    const o = opts[Math.min(index, opts.length - 1)];
+    if (!o) return;
+    select.value = o.value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
   },
   /** กดแท็บ (ui/components.js tabs) แล้วรอวาดใหม่ */
   async clickTab(value) {
@@ -174,9 +182,14 @@ async function drive(guide, i) {
   const onAnyScroll = () => active?.refresh();
   document.addEventListener('scroll', onAnyScroll, true);
   // หน้าวาดใหม่ (เช่น ตารางหลังบันทึก) → element ที่ชี้ถูกแทนด้วยตัวใหม่ → หาใหม่แล้วชี้อีกครั้ง (ไม่งั้นกรอบหาย/ชี้ผิดที่)
+  // ขั้นที่ควรชี้ของแต่ยังชี้กลางจอ (ตอนชี้ หน้ากำลังวาดใหม่พอดี หาไม่เจอชั่วขณะ) → หาเจอแล้วชี้ให้ถูก
   const watch = setInterval(() => {
-    const el = active?.getActiveElement?.();
-    if (!busy && el && el.id !== 'driver-dummy-element' && !el.isConnected) active.moveTo(active.getActiveIndex());
+    if (busy || !active?.isActive?.()) return;
+    const el = active.getActiveElement?.();
+    const step = steps[active.getActiveIndex()];
+    const lost = el && el.id !== 'driver-dummy-element' && !el.isConnected;
+    const late = (!el || el.id === 'driver-dummy-element') && step?.element && find(step.element);
+    if (lost || late) active.moveTo(active.getActiveIndex());
   }, 400);
 
   const move = async (to) => {

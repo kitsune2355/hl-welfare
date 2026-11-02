@@ -426,24 +426,86 @@ export const GUIDES = [
         page: 'uniform',
         element: '#pending [data-stock-request]',
         title: 'ขั้นที่ 2 · กด “ส่งเบิกคลัง”',
-        text: 'เลือก <b>แบบ</b> และ <b>ไซซ์</b> (เสื้อ 2 ตัวคนละไซซ์ได้) แล้วกดส่ง<br>ใบเบิกจะไปที่ระบบคลังให้เอง',
+        text: 'กดที่แถวของพนักงาน จะมีกล่องให้เลือกแบบและไซซ์',
         side: 'left',
+      },
+      // ---- ในกล่อง "ส่งเบิกชุดฟอร์มไปคลัง" (pages/_shared.js openStockRequest) ----
+      {
+        page: 'uniform',
+        before: async (h) => {
+          // คนที่ได้หลายชิ้นที่สุด — ขั้นถัดไปสาธิตการแบ่งไซซ์ได้ (ได้ชิ้นเดียว = ไม่มีปุ่มเพิ่มไซซ์)
+          // ตารางอาจวาดใหม่ (ดึงสถานะจากคลัง) ระหว่างกด = ปุ่มเก่าไม่เปิดกล่อง → ลองใหม่ได้ 3 ครั้ง
+          const qty = (b) => Number(b.closest('[data-issue]')?.dataset.qty) || 0;
+          for (let k = 0; k < 3 && !document.querySelector('.modal [data-stock-body]'); k++) {
+            [...document.querySelectorAll('#pending [data-stock-request]')].sort((a, b) => qty(b) - qty(a))[0]?.click();
+            await h.wait('.modal [data-stock-body]', 1500);
+          }
+          await h.wait('.modal .stock-line', 6000);
+        },
+        element: '.modal .stock-route',
+        title: 'ใบเบิกไปที่ไหน',
+        text: 'ระบบส่งใบเบิกไปที่หน่วยงานของพนักงานในระบบคลังให้เอง → หัวหน้าอนุมัติ → คลังจ่ายของ',
+        side: 'bottom',
+      },
+      {
+        page: 'uniform',
+        element: '.modal .stock-line [data-variant], .modal .stock-line-head',
+        title: 'เลือกแบบ',
+        text: '<b>ผู้ชาย / ผู้หญิง</b> — ระบบเลือกตามเพศของพนักงานไว้ให้แล้ว เปลี่ยนได้ถ้าไม่ตรง',
+        side: 'bottom',
+      },
+      {
+        page: 'uniform',
+        before: (h) => {
+          // เลือกไซซ์ให้ทุกรายการ (แถวแรก) — ตัวอย่าง
+          // กล่องวาดใหม่ทุกครั้งที่เลือก → หาช่องใหม่ทุกรอบ
+          const lines = () => document.querySelectorAll('.modal .stock-line');
+          for (let i = 0; i < lines().length; i++) h.choose(lines()[i].querySelector('[data-product]'), 2);
+        },
+        element: '.modal .stock-line [data-product]',
+        title: 'เลือกไซซ์',
+        text: 'กดช่องแล้วเลือกไซซ์ ตัวเลขด้านหลัง = จำนวนที่เหลือในคลัง<br>ช่องข้างกันคือ <b>จำนวน</b><br><br>(ตัวอย่างนี้เลือกให้แล้ว)',
+        side: 'bottom',
+      },
+      {
+        page: 'uniform',
+        before: async (h) => {
+          // แบ่งเป็น 2 ไซซ์ให้ดู: เพิ่มไซซ์ แล้วเลือกไซซ์ใหญ่ขึ้น 1 ขนาด
+          const line = document.querySelector('.modal .stock-line:has([data-add-row])');
+          if (!line || line.querySelectorAll('.size-row').length > 1) return;
+          const at = [...document.querySelectorAll('.modal .stock-line')].indexOf(line);
+          line.querySelector('[data-add-row]')?.click();
+          await h.sleep(150);
+          const rows = document.querySelectorAll('.modal .stock-line')[at]?.querySelectorAll('[data-product]') ?? [];
+          if (rows[1]) h.choose(rows[1], 3);
+        },
+        element: '.modal .stock-line:has(.size-row + .size-row), .modal .stock-line',
+        title: 'ต่างไซซ์? กด “เพิ่มไซซ์”',
+        text: 'ได้หลายตัวแต่คนละไซซ์ กด <b>+ เพิ่มไซซ์</b> แล้วเลือกไซซ์ของแถวใหม่ (ตัวอย่างนี้แบ่งเป็น 2 ไซซ์ให้แล้ว)<br>ป้ายมุมขวาสีเขียว เช่น <b>2 / 2 ตัว</b> = ครบตามสิทธิ์',
+        side: 'bottom',
+      },
+      {
+        page: 'uniform',
+        element: '.modal [data-ok]',
+        title: 'กด “ส่งเบิกคลัง”',
+        text: 'ปุ่มกดได้เมื่อเลือกไซซ์ครบทุกรายการ',
+        side: 'top',
+        align: 'end',
       },
       {
         href: async (h) => {
-          // ส่งเบิกตัวอย่าง 1 ใบ (ระบบคลังปลอมของโหมดฝึก) ให้เห็นในแท็บ "ส่งเบิกแล้ว"
-          const [p] = await h.api.listUniformPending().catch(() => []);
-          if (p) {
-            const opt = await h.api.getUniformStockOptions(p.employee.id, p.entitlementKey).catch(() => null);
-            const lines = opt?.items.map((it) => ({ itemCode: it.itemCode, productId: it.variants[0]?.products[2]?.productId, qty: it.qty })).filter((l) => l.productId);
-            if (lines?.length) await h.api.requestUniformFromStock({ employeeId: p.employee.id, entitlementKey: p.entitlementKey, lines }).catch(() => {});
+          // กดส่งในกล่องให้ (ระบบคลังปลอมของโหมดฝึก) แล้วไปดูที่แท็บ "ส่งเบิกแล้ว"
+          const ok = document.querySelector('.modal [data-ok]');
+          if (ok && !ok.disabled) {
+            ok.click();
+            await h.until(() => !document.querySelector('.modal [data-stock-body]'), 6000);
           }
           return 'uniform.html?tab=waiting';
         },
         page: 'uniform-waiting',
         element: '#waiting',
         title: 'ขั้นที่ 3 · รอคลังจ่าย',
-        text: 'ส่งเบิกแล้วชื่อย้ายมาแท็บ <b>ส่งเบิกแล้ว</b> (เราส่งตัวอย่างให้ดู 1 ใบ)<br>สถานะเปลี่ยนเองเมื่อคลังอนุมัติ → จ่ายของ → พนักงานเซ็นรับ',
+        text: 'ส่งแล้ว ชื่อย้ายมาอยู่แท็บ <b>ส่งเบิกแล้ว</b><br>สถานะเปลี่ยนเองเมื่อ หัวหน้าอนุมัติ → คลังจ่ายของ → พนักงานเซ็นรับ',
         side: 'top',
       },
       {
