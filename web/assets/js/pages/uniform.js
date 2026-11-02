@@ -11,6 +11,7 @@ import { icon } from '../shared/icons.js';
 import { UNIFORM_EVENT_LABEL } from '../shared/labels.js';
 import { badge, emptyState, employeeCell, errorState, tabs } from '../ui/components.js';
 import { confirmAction, toast } from '../ui/overlay.js';
+import { busy, progress } from '../ui/loading.js';
 import { DataTable } from '../ui/table.js';
 import { isHandedOut, isStockIssue } from '../domain/uniform.js';
 import { alertBox } from '../ui/components.js';
@@ -224,9 +225,11 @@ function drawSummary() {
   );
 }
 
+/** @returns {Promise<{warn: string, changed: number} | null>} ผลการดึงสถานะจากคลัง (null = โหลดไม่สำเร็จ) */
 async function load() {
   try {
-    const warn = await syncStockQuietly();
+    const sync = await syncStockQuietly();
+    const { warn } = sync;
     render($('#stock-warn'), warn ? alertBox({ tone: 'warning', body: warn }) : '');
     const [p, i, emps] = await Promise.all([api.listUniformPending(), api.listUniformIssues(), api.listEmployees()]);
     pending = p;
@@ -238,8 +241,10 @@ async function load() {
     pendingTable.setRows(pending);
     waitingTable.setRows(waiting);
     historyTable.setRows(issues);
+    return sync;
   } catch (e) {
     render($('#pending'), html`<div style="padding:16px">${errorState(e)}</div>`);
+    return null;
   }
 }
 
@@ -268,7 +273,18 @@ on($('#waiting'), 'click', '[data-cancel-issue]', (_e, b) => {
     },
   });
 });
-$('#sync').onclick = () => load();
+// กดแล้วต้องเห็นว่าทำงานอยู่ (spinner บนปุ่ม) และได้ผลอะไร (toast) — ไม่งั้นดูเหมือนกดไม่ติด
+$('#sync').onclick = (e) =>
+  busy(
+    e.currentTarget,
+    async () => {
+      const r = await progress.quiet(load); // spinner อยู่ที่ปุ่มแล้ว ไม่ต้องขึ้น loading กลางจอ
+      if (!r) return toast.error('โหลดรายการไม่สำเร็จ');
+      if (r.warn) return toast.error('ดึงสถานะจากคลังไม่ได้ — แสดงสถานะล่าสุดที่บันทึกไว้');
+      toast.success(r.changed ? `อัปเดตแล้ว — ใบเบิกเปลี่ยนสถานะ ${r.changed} ใบ` : 'ดึงสถานะแล้ว — สถานะเป็นปัจจุบัน ไม่มีใบเบิกที่เปลี่ยน');
+    },
+    { label: 'กำลังดึงสถานะ…' },
+  );
 on($('#history'), 'click', '[data-cancel-issue]', (_e, b) => {
   const i = issues.find((x) => x.id === Number(b.dataset.cancelIssue));
   confirmAction({

@@ -177,7 +177,7 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
 
   async function load() {
     try {
-      const warn = await syncStockQuietly();
+      const { warn } = await syncStockQuietly();
       if (warn) toast.error(warn);
       const [b, activity] = await Promise.all([api.getEmployeeBenefits(id), api.listActivity({ employeeId: id, limit: 30 })]);
       const e = b.employee;

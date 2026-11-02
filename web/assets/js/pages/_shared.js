@@ -227,6 +227,7 @@ async function openStockRequest({ employeeId, entitlementKey, event, name, onDon
  * ดึงสถานะใบเบิกจากระบบสต็อกก่อนแสดงผล — ระบบสต็อกล่มต้องไม่ทำให้หน้าเปิดไม่ได้
  * คืนข้อความเตือน หรือ '' ถ้าสำเร็จ
  */
+/** @returns {Promise<{warn: string, changed: number}>} warn = ข้อความเมื่อดึงไม่ได้ · changed = จำนวนใบที่สถานะเปลี่ยน */
 export async function syncStockQuietly() {
   try {
     const { changed } = await api.syncUniformStock();
@@ -234,9 +235,9 @@ export async function syncStockQuietly() {
       refreshCounts();
       window.dispatchEvent(new Event('hl:notifications-refresh')); // สถานะเปลี่ยน = อาจมีแจ้งเตือนใหม่
     }
-    return '';
+    return { warn: '', changed };
   } catch (err) {
-    return `ดึงสถานะจากระบบสต็อกไม่ได้ (${errorMessage(err)}) — แสดงสถานะล่าสุดที่บันทึกไว้`;
+    return { warn: `ดึงสถานะจากระบบสต็อกไม่ได้ (${errorMessage(err)}) — แสดงสถานะล่าสุดที่บันทึกไว้`, changed: 0 };
   }
 }
 
