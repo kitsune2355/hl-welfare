@@ -261,22 +261,90 @@ export const GUIDES = [
         page: 'employees',
         element: '[data-bulk="terminate"]',
         title: 'ขั้นที่ 3 · กด “บันทึกพ้นสภาพ”',
-        text: 'จะมีกล่องให้เลือก <b>เหตุผล</b> (ลาออก / ขาดงาน 3 วัน / เลิกจ้าง / กระทำผิด) และ <b>วันพ้นสภาพ</b>',
+        text: 'จะมีกล่องให้เลือกเหตุผลและวันที่',
+        side: 'bottom',
+      },
+      // ---- ในกล่อง "บันทึกพ้นสภาพ" (pages/employees.js bulkTerminate) ----
+      {
+        page: 'employees',
+        before: async (h) => {
+          if (!document.querySelector('#bt-reason')) h.click('[data-bulk="terminate"]');
+          await h.wait('#bt-reason', 4000);
+        },
+        element: '#bt-reason',
+        title: 'เลือกเหตุผล',
+        text: '<b>ลาออก</b> · <b>ขาดงาน 3 วันติด</b> · <b>เลิกจ้าง</b> · <b>กระทำผิด</b><br>เลิกจ้าง / กระทำผิด = ต้องแจ้งออกประกันทันที',
         side: 'bottom',
       },
       {
         page: 'employees',
+        element: '#bt-end',
+        title: 'วันพ้นสภาพ',
+        text: 'วันที่ออกจากบริษัท (ระบบใส่วันนี้ไว้ให้ เปลี่ยนได้)',
+        side: 'bottom',
+      },
+      {
+        page: 'employees',
+        element: '#bt-last',
+        title: 'ทำงานวันสุดท้าย',
+        text: 'วันสุดท้ายที่มาทำงาน — ว่างไว้ = วันเดียวกับวันพ้นสภาพ<br><b>ขาดงาน 3 วันติด</b> ต้องกรอกช่องนี้',
+        side: 'bottom',
+      },
+      {
+        page: 'employees',
+        element: '.modal [data-ok]',
+        title: 'กด “ใส่ในตาราง”',
+        text: 'ยังไม่บันทึกเข้าระบบ — ใส่ในตารางเป็นแถวสีเหลืองให้ตรวจก่อน',
+        side: 'top',
+        align: 'end',
+      },
+      // ---- ช่องพ้นสภาพในตาราง ----
+      {
+        page: 'employees',
         before: async (h) => {
-          // ทำแทนกล่อง "บันทึกพ้นสภาพ" ให้ดู: ลาออก วันนี้ → แถวเหลือง (ยังไม่บันทึก)
-          const grid = h.get('grid');
-          const [e] = grid?.selectedEntries() ?? [];
-          if (!e || e.row.status !== 'ACTIVE') return;
-          grid.stage({ edits: [{ key: e.key, row: { ...e.row, status: 'INACTIVE', endReason: 'RESIGN', endDate: today, lastWorkingDate: today } }], onlyPending: false });
+          // กด "ใส่ในตาราง" ให้ (ลาออก วันนี้) · กล่องไม่ได้เปิด = ใส่ให้ตรง ๆ
+          const ok = document.querySelector('.modal [data-ok]');
+          if (ok && document.querySelector('#bt-reason')) {
+            ok.click();
+            await h.until(() => !document.querySelector('#bt-reason'), 3000);
+          } else {
+            const grid = h.get('grid');
+            const [e] = grid?.selectedEntries() ?? [];
+            if (e?.row.status === 'ACTIVE') grid.stage({ edits: [{ key: e.key, row: { ...e.row, status: 'INACTIVE', endReason: 'RESIGN', endDate: today, lastWorkingDate: today } }], onlyPending: false });
+          }
           await h.wait('[data-grid-act="save-all"]');
         },
+        element: '.xgrid tbody tr:first-child td[data-col="status"]',
+        title: 'แถวเปลี่ยนเป็น “พ้นสภาพ”',
+        text: 'แถวสีเหลือง = แก้แล้วแต่ <b>ยังไม่บันทึก</b><br>ตรวจข้อมูลในช่องถัดไปก่อนกดบันทึก',
+        side: 'bottom',
+      },
+      {
+        page: 'employees',
+        element: '.xgrid tbody tr:first-child td[data-col="endReason"]',
+        title: 'เหตุผลพ้นสภาพ — แก้รายคนได้',
+        text: '<b>ดับเบิลคลิก</b>ที่ช่อง แล้วเลือก ลาออก / ขาดงาน 3 วันติด / เลิกจ้าง / กระทำผิด',
+        side: 'bottom',
+      },
+      {
+        page: 'employees',
+        element: '.xgrid tbody tr:first-child td[data-col="lastWorkingDate"]',
+        title: 'ทำงานวันสุดท้าย',
+        text: 'ระบบใช้วันนี้คำนวณวันแจ้งออกประกัน · ดับเบิลคลิกเพื่อแก้',
+        side: 'bottom',
+      },
+      {
+        page: 'employees',
+        element: '.xgrid tbody tr:first-child td[data-col="endDate"]',
+        title: 'วันพ้นสภาพ',
+        text: 'วันที่ออกจากบริษัท · ดับเบิลคลิกเพื่อแก้',
+        side: 'bottom',
+      },
+      {
+        page: 'employees',
         element: '[data-grid-act="save-all"]',
         title: 'ขั้นที่ 4 · กด “บันทึก”',
-        text: '(ตัวอย่างนี้เราเลือก ลาออก วันนี้ ให้แล้ว) แถวเป็นสีเหลือง = ยังไม่บันทึก กดบันทึกแล้วจึงเข้าระบบ<br>ระบบจะใส่ชื่อในรายการ <b>แจ้งออก</b> ของหน้าประกันกลุ่มให้เอง',
+        text: 'กดแล้วจึงเข้าระบบ — ระบบใส่ชื่อในรายการ <b>แจ้งออก</b> ของหน้าประกันกลุ่มให้เอง',
         side: 'bottom',
       },
       {
