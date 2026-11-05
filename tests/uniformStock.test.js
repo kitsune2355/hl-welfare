@@ -72,6 +72,37 @@ describe('ส่งเบิกชุดฟอร์มผ่านระบบ�
     await expect(api.requestUniformFromStock({ employeeId: p.employee.id, entitlementKey: p.entitlementKey, lines })).rejects.toMatchObject({ status: 409 });
     await expect(api.createUniformIssue({ employeeId: p.employee.id, entitlementKey: p.entitlementKey, event: p.event, qty: 1, size: 'L', issuedAt: TODAY })).rejects.toMatchObject({ status: 409 });
   });
+  it('ส่งเบิกล่วงหน้า: รอบที่ยังไม่ถึงกำหนดส่งได้ · ไม่นับค้างแจก · เห็นใบในรอบนั้น · ส่งซ้ำ 409 · ยกเลิกแล้วส่งใหม่ได้', async () => {
+    const { api, stock } = await setup();
+    let target = null;
+    for (const e of await api.listEmployees({})) {
+      if (e.status !== 'ACTIVE') continue;
+      const b = await api.getEmployeeBenefits(e.id);
+      if (b.uniform.upcoming.length) { target = { e, ent: b.uniform.upcoming[0] }; break; }
+    }
+    expect(!!target).toBe(true);
+    const { e, ent } = target;
+    expect(ent.requested).toBe(false);
+    const pending = (await api.listUniformPending()).length;
+    const opt = await api.getUniformStockOptions(e.id, ent.key);
+    const lines = opt.items.map((it) => ({ itemCode: it.itemCode, productId: 31, qty: it.qty }));
+    const issue = await api.requestUniformFromStock({ employeeId: e.id, entitlementKey: ent.key, lines });
+    expect(issue.entitlementKey).toBe(ent.key);
+    expect(stock.calls.includes('submit')).toBe(true);
+    expect((await api.listUniformPending()).length).toBe(pending);
+    const after = (await api.getEmployeeBenefits(e.id)).uniform.upcoming.find((x) => x.key === ent.key);
+    expect(after.requested).toBe(true);
+    expect(after.issueId).toBe(issue.id);
+    expect(after.stockDocNo).toBe(issue.stock.docNo);
+    await expect(api.requestUniformFromStock({ employeeId: e.id, entitlementKey: ent.key, lines })).rejects.toMatchObject({ status: 409 });
+    await api.cancelUniformIssue(issue.id);
+    expect((await api.getEmployeeBenefits(e.id)).uniform.upcoming.find((x) => x.key === ent.key).requested).toBe(false);
+    await api.requestUniformFromStock({ employeeId: e.id, entitlementKey: ent.key, lines });
+  });
+  it('ส่งเบิกรอบที่ไม่มีสิทธิ์จริง → 404', async () => {
+    const { api, p, lines } = await setup();
+    await expect(api.requestUniformFromStock({ employeeId: p.employee.id, entitlementKey: 'ANNUAL-2099', lines })).rejects.toMatchObject({ status: 404 });
+  });
   it('ยังไม่เลือกไซซ์ / จำนวนไม่ถูก → 422 ไม่เรียกระบบสต็อก', async () => {
     const { api, stock, p, lines } = await setup();
     await expect(api.requestUniformFromStock({ employeeId: p.employee.id, entitlementKey: p.entitlementKey, lines: lines.map((l) => ({ ...l, productId: 0 })) })).rejects.toMatchObject({ status: 422 });

@@ -6,12 +6,15 @@ import {
   guessEmployeeType,
   matchDeptGroup,
   matchSite,
+  missingSites,
   parseEmployeeSheet,
   planEmployeeImport,
   planWorkbookImport,
   splitThaiName,
   toIsoDate,
+  withPlannedSites,
 } from '../web/assets/js/application/usecases/employeeImport.js';
+import { parseEmployeeList, planEmployeeList } from '../web/assets/js/application/usecases/employeeList.js';
 
 // เลขวันที่ Excel ของวันที่ ค.ศ. y-m-d (ไฟล์ HR เก็บปี พ.ศ. ในเซลล์วันที่ → serial ของปี 25xx)
 const serial = (y, m, d) => (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86_400_000;
@@ -163,5 +166,58 @@ describe('นำเข้า Excel พนักงาน: ไฟล์ HR 2 ช�
     expect(plan.add[1].issues.some((x) => x.startsWith('เข้าและออกในไฟล์เดียวกัน'))).toBe(true);
     expect(plan.update.map((u) => [u.sheet, u.id, u.row.endDate])).toEqual([['ลาออก', 3, '2026-09-15']]);
     expect(plan.skip.length).toBe(0);
+  });
+});
+
+describe('นำเข้า Excel พนักงาน: หน่วยงานที่ยังไม่มี = สร้างให้อัตโนมัติ', () => {
+  const HEAD = ['รหัส', 'ชื่อ', 'นามสกุล', 'บริษัท', 'หน่วยงาน', 'ประเภท', 'วันเกิด', 'วันเริ่มงาน'];
+  const row = (code, company, site) => [code, 'ทดสอบ', code, company, site, 'รายวัน', '1990-01-02', '2026-01-05'];
+  const list = (...rows) => parseEmployeeList([HEAD, ...rows]);
+  const SITES = [{ id: 1, companyCode: 'CIC', name: 'แผนกธุรการ - ก่อสร้าง', hasGroupInsurance: true, poloColor: 'BLACK' }];
+
+  it('รวมชื่อที่ซ้ำ · แยกตามบริษัท · ข้ามช่องว่างและบริษัทที่ไม่รู้จัก', () => {
+    const p = list(row('A1', 'CNS', 'แผนกบัญชี'), row('A2', 'CNS', ' แผนกบัญชี '), row('A3', 'PRO', 'แผนกบัญชี'), row('A4', 'CNS', ''), row('A5', 'XYZ', 'ที่ไหน'));
+    expect(missingSites([p], [], [])).toEqual([
+      { companyCode: 'CNS', name: 'แผนกบัญชี' },
+      { companyCode: 'PRO', name: 'แผนกบัญชี' },
+    ]);
+  });
+
+  it('ชื่อที่เป็นส่วนหนึ่งของหน่วยงานอื่น ไม่นับว่ามีแล้ว และแถวได้หน่วยงานของตัวเอง ไม่ไปผูกกับหน่วยงานใกล้เคียง', () => {
+    const p = list(row('B1', 'CIC', 'แผนกธุรการ'));
+    const want = missingSites([p], [], SITES);
+    expect(want).toEqual([{ companyCode: 'CIC', name: 'แผนกธุรการ' }]);
+    const real = [...SITES, { id: 2, ...want[0], hasGroupInsurance: true, poloColor: 'BLACK' }];
+    expect(planEmployeeList(p, [], real).add[0].row.siteId).toBe(2);
+  });
+
+  it('มีอยู่แล้ว (ตรงชื่อ หรือต่างแค่ PRO/FM/ นำหน้า) = ไม่สร้างซ้ำ', () => {
+    const sites = [{ id: 5, companyCode: 'PRO', name: 'ไซต์ทดสอบ' }];
+    expect(missingSites([list(row('C1', 'PRO', 'ไซต์ทดสอบ'), row('C2', 'PRO', 'PRO/FM/ไซต์ทดสอบ'))], [], sites)).toEqual([]);
+    expect(missingSites([list(row('C3', 'PRO', 'PRO/FM/ใหม่'), row('C4', 'PRO', 'ใหม่'))], [], sites)).toEqual([{ companyCode: 'PRO', name: 'PRO/FM/ใหม่' }]);
+  });
+
+  it('พนักงานเดิม: ใช้บริษัทจากไฟล์ · ไม่มีคอลัมน์บริษัท = บริษัทในระบบ · รหัสซ้ำในไฟล์ใช้แถวแรก', () => {
+    const emp = [{ id: 9, empCode: 'D1', companyCode: 'CIC', siteId: 1 }];
+    const noCompany = parseEmployeeList([['รหัส', 'ชื่อ', 'นามสกุล', 'หน่วยงาน'], ['D1', 'ก', 'ข', 'ที่ใหม่']]);
+    expect(missingSites([noCompany], emp, [])).toEqual([{ companyCode: 'CIC', name: 'ที่ใหม่' }]);
+    expect(missingSites([list(row('D2', 'CNS', 'แรก'), row('D2', 'CNS', 'ที่สอง'))], [], [])).toEqual([{ companyCode: 'CNS', name: 'แรก' }]);
+  });
+
+  it('ตัวอย่างก่อนนำเข้า: หน่วยงานที่จะสร้าง ไม่ขึ้นเป็นช่องต้องตรวจ · ของจริงยังไม่ถูกแก้', () => {
+    const p = list(row('E1', 'CNS', 'ที่ใหม่'));
+    expect(planEmployeeList(p, [], SITES).add[0].issues.some((i) => i.startsWith('หน่วยงาน'))).toBe(true);
+    const planned = withPlannedSites(SITES, missingSites([p], [], SITES));
+    expect(planEmployeeList(p, [], planned).add[0].issues).toEqual([]);
+    expect(SITES.length).toBe(1);
+    expect(planned[1]).toEqual({ id: -1, companyCode: 'CNS', name: 'ที่ใหม่', hasGroupInsurance: true, poloColor: 'BLACK' });
+  });
+
+  it('ไฟล์เข้าใหม่แบบ HR: เฉพาะคนที่ยังไม่มีในระบบ · ไฟล์ลาออกสร้างเฉพาะเมื่อเลือกเพิ่มคนที่ไม่มีในระบบ', () => {
+    const hrIn = { kind: 'IN', items: [{ empCode: 'F1', companyCode: 'CNS', unit: 'แผนกขาย CNS' }, { empCode: 'E0', companyCode: 'CNS', unit: 'ของคนเดิม' }] };
+    const hrOut = { kind: 'OUT', items: [{ empCode: 'F2', companyCode: 'PRO', unit: 'ที่ลาออก' }] };
+    const emp = [{ id: 1, empCode: 'E0', companyCode: 'CNS' }];
+    expect(missingSites([hrIn, hrOut], emp, [])).toEqual([{ companyCode: 'CNS', name: 'แผนกขาย CNS' }]);
+    expect(missingSites([hrOut], emp, [], { addMissing: true })).toEqual([{ companyCode: 'PRO', name: 'ที่ลาออก' }]);
   });
 });

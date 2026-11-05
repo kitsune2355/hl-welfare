@@ -1,5 +1,6 @@
 // หน้า: เงื่อนไขสวัสดิการ (rules.html?tab=insurance|uniform|settings|pending)
 // แก้กฎได้ผ่านหน้าจอ แบบมีวันที่มีผล — ทุกครั้งที่บันทึก = ฉบับใหม่ของกฎ (domain/ruleVersions.js)
+import { supersededBy } from '../domain/ruleVersions.js';
 import { api } from '../app/api.js';
 import { can } from '../app/auth.js';
 import { initPage } from '../app/shell.js';
@@ -577,6 +578,7 @@ function readUniform(root) {
 function openRuleEditor(kind, id = null, base = null, date = null) {
   const rule = base ?? (kind === 'insurance' ? blankInsurance() : blankUniform());
   const editingPending = !!date && date > hist.today;
+  const current = id === null ? null : hist[kind].find((t) => t.id === id)?.current ?? null;
   const m = openModal({
     size: 'lg',
     title: id === null ? `เพิ่ม${KIND_LABEL[kind]}` : `แก้${KIND_LABEL[kind]} #${id}`,
@@ -590,6 +592,9 @@ function openRuleEditor(kind, id = null, base = null, date = null) {
           <button type="button" class="btn btn-ghost btn-sm" data-quick="month">1 เดือนหน้า</button>
           <button type="button" class="btn btn-ghost btn-sm" data-quick="year">1 ม.ค. ปีหน้า</button>
         </div>
+      </div>
+      <div data-also-wrap hidden style="margin-top:8px">
+        <label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="f-also-current" checked /> <span data-also-text></span></label>
       </div>`,
     footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button>
       <button class="btn btn-primary" data-ok data-label="บันทึก">บันทึก</button>`,
@@ -602,8 +607,15 @@ function openRuleEditor(kind, id = null, base = null, date = null) {
     root.addEventListener('input', (e) => e.target.matches('[data-qty]') && updateQtyTotals(root));
   }
   const from = root.querySelector('#f-from');
-  const refreshHint = () => render(root.querySelector('#f-from-hint'), effectiveHint(from.value));
+  const alsoWrap = root.querySelector('[data-also-wrap]');
+  const refreshHint = () => {
+    render(root.querySelector('#f-from-hint'), effectiveHint(from.value));
+    const later = supersededBy(current, from.value);
+    alsoWrap.hidden = !later;
+    if (later) root.querySelector('[data-also-text]').textContent = `ใช้ค่านี้กับปัจจุบันด้วย — ถ้าไม่เลือก ฉบับที่ใช้อยู่ (มีผล ${thaiDate(later)}) ยังใช้ค่าเดิม และเปิดแก้ครั้งหน้าจะเห็นค่าเดิม`;
+  };
   from.addEventListener('change', refreshHint);
+  refreshHint();
   on(root, 'click', '[data-quick]', (_e, b) => {
     const t = hist.today;
     const [y, mo] = t.split('-').map(Number);
@@ -621,11 +633,20 @@ function openRuleEditor(kind, id = null, base = null, date = null) {
     if (Object.keys(errs).length) return toast.error('กรุณาแก้ช่องที่มีกรอบสีแดง');
     m.busy(true, ok);
     try {
-      const body = { ...values, effectiveFrom: from.value };
+      const later = supersededBy(current, from.value);
+      const alsoCurrent = !!later && root.querySelector('#f-also-current').checked;
+      const body = { ...values, effectiveFrom: from.value, ...(alsoCurrent ? { alsoCurrent } : {}) };
       const h = id === null ? await api.createRule(kind, body) : await api.updateRule(kind, id, body);
       m.busy(false, ok);
       m.close();
-      applyHistory(h, from.value > hist.today ? `บันทึกแล้ว — จะมีผล ${thaiDate(from.value)}` : 'บันทึกแล้ว — มีผลทันที');
+      const message = from.value > hist.today
+        ? `บันทึกแล้ว — จะมีผล ${thaiDate(from.value)}`
+        : alsoCurrent
+          ? `บันทึกแล้ว — ใช้ตั้งแต่ ${thaiDate(from.value)} จนถึงปัจจุบัน`
+          : later
+            ? `บันทึกเฉพาะฉบับย้อนหลัง ${thaiDate(from.value)} — ปัจจุบันยังใช้ฉบับ ${thaiDate(later)}`
+            : 'บันทึกแล้ว — มีผลทันที';
+      applyHistory(h, message);
     } catch (e) {
       m.busy(false, ok);
       if (e.details) showErrors(root, e.details);

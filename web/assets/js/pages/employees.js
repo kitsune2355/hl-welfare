@@ -417,7 +417,7 @@ $('#grid').addEventListener('click', async (e) => {
   const file = await pickExcelFile();
   if (!file) return;
   if (!sites.length) sites = await api.listSites();
-  runEmployeeImport(file, { sites, deptGroups, prepareGrid: showAll, stage: (o) => grid.stage(o) });
+  runEmployeeImport(file, { sites, deptGroups, prepareGrid: showAll, stage: (o) => grid.stage(o), onSitesChanged: (s) => (sites = s) });
 });
 
 fillFilterForm();

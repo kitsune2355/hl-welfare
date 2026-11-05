@@ -18,10 +18,10 @@ import { loader } from '../ui/loading.js';
  * ปุ่มของสิทธิ์ที่ค้างแจก — ต้องเรียก wireIssueActions(root, ...) หนึ่งครั้งต่อ container
  * ส่งเบิกคลัง = ออกใบเบิกในระบบสต็อก Uniform ให้คลังจ่าย (ตัดสต็อกจริง)
  */
-export function issueAction({ employeeId, entitlementKey, event, qty, name = '', itemQty = null }) {
+export function issueAction({ employeeId, entitlementKey, event, qty, name = '', itemQty = null, label = 'ส่งเบิกคลัง' }) {
   if (!can('stock.request')) return html`<span class="small muted">รอแจก</span>`;
   return html`<div class="row" data-issue data-emp="${employeeId}" data-key="${entitlementKey}" data-event="${event}" data-qty="${qty}" data-name="${name}" data-items="${itemQty ? JSON.stringify(itemQty) : ''}" style="justify-content:flex-end;gap:6px">
-    <button class="btn btn-primary btn-sm" data-stock-request>${raw(icon('send'))} ส่งเบิกคลัง</button>
+    <button class="btn btn-primary btn-sm" data-stock-request>${raw(icon('send'))} ${label}</button>
   </div>`;
 }
 

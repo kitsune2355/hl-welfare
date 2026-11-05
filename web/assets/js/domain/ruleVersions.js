@@ -60,5 +60,8 @@ export function ruleTimeline(revisions, asOf) {
 }
 
 /** ฉบับตั้งต้นจากกฎชุดเดียว (seed / ข้อมูลรุ่นก่อน) */
+/** วันที่เลือกเก่ากว่าฉบับที่ใช้อยู่ = บันทึกแล้วฉบับนั้นยังมีผลต่อ · คืนวันมีผลของฉบับนั้น (ไม่ใช่กรณีนี้ = null) */
+export const supersededBy = (current, date) => (current && date && date < current.effectiveFrom ? current.effectiveFrom : null);
+
 export const toRevisions = (rules) =>
   rules.map((r) => ({ ...r, revisionId: r.id, effectiveFrom: r.effectiveFrom ?? RULE_EPOCH, deleted: false }));

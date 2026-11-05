@@ -730,13 +730,14 @@ function api_issue_cancel($req, $params)
     return http_no_content();
 }
 
-/** สิทธิ์ที่ยังไม่ได้แจกและยังไม่ได้ส่งเบิก — 404 ไม่พบ / 409 แจกหรือส่งเบิกไปแล้ว */
+/** สิทธิ์ที่ยังไม่ได้แจกและยังไม่ได้ส่งเบิก (รวมรอบที่ยังไม่ถึงกำหนด — ส่งเบิกล่วงหน้าได้) — 404 ไม่พบ / 409 แจกหรือส่งเบิกไปแล้ว */
 function open_entitlement($employeeId, $key)
 {
     $e = find_or_404(repo_employee($employeeId), 'ไม่พบพนักงาน');
     $site = repo_site($e['siteId']);
     $st = uniform_status($e, $site, repo_rules(), repo_issues(), today_iso());
     $ent = find_by($st['entitlements'], 'key', $key);
+    if (!$ent) { $ent = find_by($st['upcoming'], 'key', $key); }
     if (!$ent) { throw new ApiError('ไม่พบสิทธิ์ชุดฟอร์มรายการนี้', 404); }
     if ($ent['requested']) { throw new ApiError('ส่งเบิกคลังไปแล้ว (ใบ ' . $ent['stockDocNo'] . ') — รอคลังจ่าย', 409); }
     if ($ent['issued']) { throw new ApiError('รายการนี้แจกไปแล้ว', 409); }

@@ -132,13 +132,15 @@ export function parseEmployeeSheet(rows) {
   return { kind, items };
 }
 
+/** ชื่อหน่วยงานสำหรับเทียบ — ตัดส่วนนำหน้าที่ไฟล์ HR ใส่มา */
+const clean = (x) =>
+  norm(x)
+    .replace(/^[A-Z]+\/[A-Z]+\//i, '') // PRO/FM/…
+    .replace(/^pro site\s*[—-]\s*/i, '') // Pro Site — …
+    .toLowerCase();
+
 /** ชื่อหน่วยงานในไฟล์ → หน่วยงานในระบบ (บริษัทเดียวกัน · ตัด "PRO/FM/" นำหน้า · ตรงทั้งชื่อ หรือชื่อหนึ่งอยู่ในอีกชื่อ) */
 export function matchSite(unit, companyCode, sites) {
-  const clean = (x) =>
-    norm(x)
-      .replace(/^[A-Z]+\/[A-Z]+\//i, '') // PRO/FM/…
-      .replace(/^pro site\s*[—-]\s*/i, '') // Pro Site — …
-      .toLowerCase();
   const u = clean(unit);
   if (!u) return null;
   const mine = sites.filter((s) => s.companyCode === companyCode);
@@ -151,6 +153,47 @@ export function matchSite(unit, companyCode, sites) {
     null
   );
 }
+
+/**
+ * หน่วยงานในไฟล์ที่ยังไม่มีในระบบ — สร้างให้อัตโนมัติตอนนำเข้า
+ * "มีแล้ว" = ชื่อตรงกันในบริษัทเดียวกัน (ไม่นับ PRO/FM/ นำหน้า) · ไม่ใช้ "ชื่อหนึ่งอยู่ในอีกชื่อ" ของ matchSite
+ * เพราะ "แผนกธุรการ" กับ "แผนกธุรการ - ก่อสร้าง" เป็นคนละหน่วยงาน ห้ามผูกพนักงานผิดที่
+ * @param {{kind: 'IN'|'OUT'|'LIST', items: object[]}[]} parsedList
+ * @param {object[]} employees  พนักงานทั้งหมดในระบบ
+ * @param {object[]} sites
+ * @param {{addMissing?: boolean}} [opts]  ไฟล์ลาออก: เพิ่มคนที่ไม่มีในระบบด้วย
+ * @returns {{companyCode: string, name: string}[]}
+ */
+export function missingSites(parsedList, employees, sites, { addMissing = false } = {}) {
+  const byCode = new Map(employees.map((e) => [e.empCode, e]));
+  const keyOf = (companyCode, name) => `${companyCode}|${clean(name)}`;
+  const known = new Set(sites.map((s) => keyOf(s.companyCode, s.name)));
+  const out = [];
+  const want = (companyCode, unit) => {
+    const name = norm(unit);
+    if (!clean(name) || !COMPANY_CODES.includes(companyCode)) return;
+    const key = keyOf(companyCode, name);
+    if (known.has(key)) return;
+    known.add(key);
+    out.push({ companyCode, name });
+  };
+  for (const p of parsedList) {
+    const seen = new Set();
+    for (const it of p.items) {
+      if (seen.has(it.empCode)) continue; // รหัสซ้ำในไฟล์ = ใช้แถวแรก แถวหลังไม่ถูกนำเข้า
+      seen.add(it.empCode);
+      const old = byCode.get(it.empCode);
+      if (p.kind === 'LIST') {
+        const code = norm(it.cells.companyCode).toUpperCase();
+        want(COMPANY_CODES.includes(code) ? code : old?.companyCode, it.cells.siteId);
+      } else if (!old && (p.kind === 'IN' || addMissing)) want(it.companyCode, it.unit);
+    }
+  }
+  return out;
+}
+
+/** รายการหน่วยงาน + ที่จะสร้าง (id ติดลบ = ยังไม่มีจริง) ใช้แสดงตัวอย่างก่อนนำเข้า · ค่าตั้งต้นเดียวกับแถวใหม่ในหน้าหน่วยงาน */
+export const withPlannedSites = (sites, missing) => [...sites, ...missing.map((s, i) => ({ id: -(i + 1), ...s, hasGroupInsurance: true, poloColor: 'BLACK' }))];
 
 /**
  * ประเภทพนักงานจากไฟล์ (เดา — แก้ในตารางได้)

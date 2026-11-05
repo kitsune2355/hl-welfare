@@ -5,7 +5,7 @@
  *
  *    GET    /rules/history                          กฎทุกข้อ: ฉบับที่ใช้อยู่ ฉบับที่รอมีผล ประวัติ + ค่าตั้งค่าทุกฉบับ
  *    POST   /rules/{kind}                           เพิ่มกฎ {…ค่าของกฎ, effectiveFrom}
- *    PUT    /rules/{kind}/{id}                      แก้กฎ = เพิ่มฉบับใหม่ที่มีผลตั้งแต่ effectiveFrom
+ *    PUT    /rules/{kind}/{id}                      แก้กฎ = เพิ่มฉบับใหม่ที่มีผลตั้งแต่ effectiveFrom · alsoCurrent = ย้อนหลังแล้วใช้ค่านี้ต่อจนถึงวันนี้ด้วย
  *    DELETE /rules/{kind}/{id}?effectiveFrom=       เลิกใช้กฎตั้งแต่วันที่ (เพิ่มฉบับ "ลบ")
  *    DELETE /rules/{kind}/revisions/{revisionId}    ยกเลิกการเปลี่ยนแปลงที่ยังไม่ถึงวันมีผล
  *    PUT    /rules/settings                         ค่าตั้งค่า {effectiveFrom, values: {key: value}}
@@ -310,8 +310,13 @@ function api_rule_update($req, $params)
     $from = rules_effective_from(arr_get($b, 'effectiveFrom'));
     db_begin();
     rules_write_revision($kind, $key, $from, $cols, false, $u);
+    // ย้อนหลังไปก่อนฉบับที่ใช้อยู่: ฉบับที่ใหม่กว่ายังมีผลต่อ → ถ้าเลือกไว้ เพิ่มฉบับวันนี้ด้วยค่าเดียวกัน (ฉบับเดิมยังเก็บเป็นประวัติ)
+    $today = today_iso();
+    $alsoCurrent = (bool)arr_get($b, 'alsoCurrent', false) && strcmp($from, $today) < 0
+        && (int)db_value('SELECT COUNT(*) FROM ' . rules_table($kind) . ' WHERE rule_key = ? AND effective_from > ? AND effective_from <= ?', array($key, $from, $today)) > 0;
+    if ($alsoCurrent) { rules_write_revision($kind, $key, $today, $cols, false, $u); }
     audit_write('RULE', strtoupper(substr($kind, 0, 3)) . '-' . $key, 'UPDATE',
-        'แก้' . rules_kind_label($kind) . ' #' . $key . ' ' . rules_describe($kind, $cols) . ' มีผล ' . $from, null, $u);
+        'แก้' . rules_kind_label($kind) . ' #' . $key . ' ' . rules_describe($kind, $cols) . ' มีผล ' . $from . ($alsoCurrent ? ' และใช้กับฉบับปัจจุบัน' : ''), null, $u);
     db_commit();
     return rules_saved_payload($kind, $u);
 }

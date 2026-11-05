@@ -150,3 +150,29 @@ $last = end($GLOBALS['stock_log']);
 check('ปิดใช้งานหน่วยงาน → สต็อกปิดใช้งาน (active = false)', $last && $last['action'] === 'sync_master' && $last['sites'][0]['id'] === $newSite
     && $last['sites'][0]['active'] === false);
 db_exec('DELETE FROM sites WHERE id = ?', array($newSite));   // เก็บกวาด
+
+// แก้ย้อนหลังไปก่อนฉบับที่ใช้อยู่ (กฎ 14 ใช้ทั้งเทสต์นี้ ไม่กระทบเทสต์ก่อนหน้า)
+$r14 = rules_find(rules_now($ed), 14);
+$current = $r14;
+$current['note'] = 'ฉบับปัจจุบัน';
+$current['effectiveFrom'] = add_days($today, -10);
+$ed->req('PUT', '/rules/uniform/14', $current);
+$back = $r14;
+$back['companies'] = array('CIC', 'AS');
+$back['effectiveFrom'] = add_days($today, -100);
+$r = $ed->req('PUT', '/rules/uniform/14', $back);
+$now14 = rules_find(rules_now($ed), 14);
+check('ย้อนหลังอย่างเดียว: ได้ฉบับย้อนหลัง · ฉบับปัจจุบันคงเดิม', $r['status'] === 200 && $now14['note'] === 'ฉบับปัจจุบัน' && $now14['companies'] === array('CIC'), json_encode($now14));
+$before = (int)db_value('SELECT COUNT(*) FROM uniform_rules WHERE rule_key = 14');
+$back['alsoCurrent'] = true;
+$back['effectiveFrom'] = add_days($today, -50);
+$r = $ed->req('PUT', '/rules/uniform/14', $back);
+$now14 = rules_find(rules_now($ed), 14);
+check('ใช้กับฉบับปัจจุบันด้วย: ค่าใหม่มีผลวันนี้ · ฉบับเดิมยังอยู่เป็นประวัติ', $r['status'] === 200 && $now14['companies'] === array('CIC', 'AS') && $now14['effectiveFrom'] === $today
+    && (int)db_value('SELECT COUNT(*) FROM uniform_rules WHERE rule_key = 14') === $before + 2, json_encode($now14));
+$before = (int)db_value('SELECT COUNT(*) FROM uniform_rules WHERE rule_key = 19');
+$r19 = rules_find(rules_now($ed), 19);
+$r19['alsoCurrent'] = true;
+$r19['effectiveFrom'] = add_days($today, -5);
+$r = $ed->req('PUT', '/rules/uniform/19', $r19);
+check('ไม่มีฉบับใหม่กว่าให้ทับ: เพิ่มฉบับเดียว', $r['status'] === 200 && (int)db_value('SELECT COUNT(*) FROM uniform_rules WHERE rule_key = 19') === $before + 1);

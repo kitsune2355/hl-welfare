@@ -223,8 +223,19 @@ function uniform_status($emp, $site, $rules, $issues, $today)
     foreach ($ahead as $a) {
         if (strcmp($a[2], $limit) <= 0 || ($emp['endDate'] && strcmp($a[2], $emp['endDate']) > 0)) { continue; }
         $itemQty = $quantities[$a[1]];
+        // ส่งเบิกล่วงหน้าได้ — รอบนี้จึงบอกสถานะใบเหมือนรอบที่ถึงกำหนด (ถึงกำหนดแล้วใบเดิมตามไปที่ entitlements ด้วยรหัสรอบเดียวกัน)
+        $issue = null;
+        foreach ($mine as $i) {
+            if ($i['entitlementKey'] === $a[0]) { $issue = $i; break; }
+        }
+        $stock = ($issue && isset($issue['stock'])) ? $issue['stock'] : null;
         $upcoming[] = array('key' => $a[0], 'event' => $a[1], 'dueDate' => $a[2], 'qty' => sum_qty($itemQty),
-            'qtyLabel' => (string)sum_qty($itemQty), 'items' => array_keys($itemQty), 'itemQty' => $itemQty, 'style' => $style);
+            'qtyLabel' => (string)sum_qty($itemQty), 'items' => array_keys($itemQty), 'itemQty' => $itemQty, 'style' => $style,
+            'issued' => $issue !== null && is_handed_out($issue),
+            'requested' => $issue !== null && !is_handed_out($issue),
+            'issueId' => $issue ? $issue['id'] : null,
+            'stockDocNo' => $stock ? $stock['docNo'] : null,
+            'stock' => $stock);
     }
     return array('ruleId' => $rule['id'], 'style' => $style, 'logo' => uniform_logo($rule, $emp),
         'siteOverride' => site_override($rule, $site) !== null, 'reasons' => array(), 'entitlements' => $ents,

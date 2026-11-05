@@ -4,6 +4,7 @@
 //   renderEmployeeDetail(root, id, o)   วาดลงกล่องที่ให้มา (หน้าเต็มใช้ตัวนี้)
 //
 // แก้ข้อมูลชุดฟอร์มใน popup แล้ว → ส่ง event 'employee:changed' ให้หน้าที่เปิดอยู่รีเฟรชตัวเอง
+import { can } from '../app/auth.js';
 import { api } from '../app/api.js';
 import { refreshCounts } from '../app/shell.js';
 import { typeInfo } from '../domain/catalog.js';
@@ -118,9 +119,13 @@ function renderUniform(box, emp, st) {
         header: '',
         align: 'right',
         cell: (e) =>
-          e.upcoming
-            ? // รอบล่วงหน้า: ยังแจก / ส่งเบิกไม่ได้
-              html`<span class="row" style="justify-content:flex-end;gap:6px"><span class="small muted">${relativeDays(e.dueDate, today)}</span> ${badge('ยังไม่ถึงกำหนด', 'neutral')}</span>`
+          e.upcoming && !e.stock && !e.issued
+            ? // รอบล่วงหน้า: ส่งเบิกก่อนถึงกำหนดได้ (ไม่มีสิทธิ์ส่งเบิก / พ้นสภาพแล้ว = แสดงสถานะอย่างเดียว)
+              html`<span class="row" style="justify-content:flex-end;gap:6px"><span class="small muted">${relativeDays(e.dueDate, today)}</span> ${
+                emp.status === 'ACTIVE' && can('stock.request')
+                  ? issueAction({ employeeId: emp.id, entitlementKey: e.key, event: e.event, qty: e.qty, name: `${emp.firstName} ${emp.lastName}`, itemQty: e.itemQty, label: 'ส่งเบิกล่วงหน้า' })
+                  : badge('ยังไม่ถึงกำหนด', 'neutral')
+              }</span>`
             : e.stock
             ? // ผ่านคลัง: ยกเลิกได้เฉพาะตอนรอคลังจ่าย (คลังจ่ายแล้วต้องยกเลิกที่ระบบสต็อก)
               html`<span class="row" style="justify-content:flex-end;gap:6px">${stockDocLink(e.stock)} ${badge(STOCK_STAGE[e.stock.stage].label, STOCK_STAGE[e.stock.stage].tone)}

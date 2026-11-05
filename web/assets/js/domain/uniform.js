@@ -164,7 +164,23 @@ export function uniformStatus(emp, site, rules, issues, today) {
   const ahead = (key, event, dueDate) => {
     if (dueDate <= limit || (emp.endDate && dueDate > emp.endDate)) return;
     const itemQty = quantities[event];
-    upcoming.push({ key, event, dueDate, qty: sumQty(itemQty), qtyLabel: String(sumQty(itemQty)), items: Object.keys(itemQty), itemQty, style });
+    // ส่งเบิกล่วงหน้าได้ — รอบนี้จึงบอกสถานะใบเหมือนรอบที่ถึงกำหนด (ถึงกำหนดแล้วใบเดิมตามไปที่ entitlements ด้วยรหัสรอบเดียวกัน)
+    const issue = mine.find((i) => i.entitlementKey === key);
+    upcoming.push({
+      key,
+      event,
+      dueDate,
+      qty: sumQty(itemQty),
+      qtyLabel: String(sumQty(itemQty)),
+      items: Object.keys(itemQty),
+      itemQty,
+      style,
+      issued: !!issue && isHandedOut(issue),
+      requested: !!issue && !isHandedOut(issue),
+      issueId: issue?.id ?? null,
+      stockDocNo: issue?.stock?.docNo ?? null,
+      stock: issue?.stock ?? null,
+    });
   };
   if (sumQty(quantities.START) > 0) ahead('START', 'START', emp.startDate);
   if (pass && sumQty(quantities.PROBATION) > 0) ahead('PROBATION', 'PROBATION', pass);

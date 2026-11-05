@@ -9,7 +9,8 @@
 //   → ใส่ในตารางเป็นแถว "ยังไม่บันทึก" (เขียว = เพิ่ม · เหลือง = บันทึกพ้นสภาพ เห็นค่าเดิม) → HR ตรวจช่องแดงแล้วกดบันทึกเอง
 //   ไม่บันทึกอะไรจนกว่า HR กด "บันทึก" ในตาราง (ExcelGrid.stage)
 import { api } from '../app/api.js';
-import { parseEmployeeSheet, planWorkbookImport } from '../application/usecases/employeeImport.js';
+import { can } from '../app/auth.js';
+import { missingSites, parseEmployeeSheet, planWorkbookImport, withPlannedSites } from '../application/usecases/employeeImport.js';
 import { employeeListRows, isListHeader, LEAVE_COLUMNS, LIST_COLUMNS, monthlyMovers, parseEmployeeList, planEmployeeList, TEMPLATE_COLUMNS } from '../application/usecases/employeeList.js';
 import { COMPANY_CODES, THAI_MONTHS_FULL } from '../domain/labels.js';
 import { html, raw } from '../shared/dom.js';
@@ -76,7 +77,7 @@ function planAll(parsed, employees, sites, opts) {
   return plan;
 }
 
-function summaryHtml(plan, file, addMissing, missingCount) {
+function summaryHtml(plan, file, addMissing, missingCount, newSites) {
   const multi = plan.kinds.length > 1;
   const where = (r) => (multi ? `${r.sheet} · ${r.rowNo}` : r.rowNo);
   const rows = [
@@ -97,6 +98,7 @@ function summaryHtml(plan, file, addMissing, missingCount) {
       <span class="chg-tag add">เพิ่ม ${plan.add.length}</span>
       ${plan.kinds.some((k) => k.kind === 'OUT') ? html`<span class="chg-tag edit">บันทึกพ้นสภาพ ${plan.update.filter((u) => !u.changes).length}</span>` : ''}
       ${plan.kinds.some((k) => k.kind === 'LIST') ? html`<span class="chg-tag edit">แก้ไข ${plan.update.filter((u) => u.changes).length}</span>` : ''}
+      ${newSites.length ? html`<span class="chg-tag add">หน่วยงานใหม่ ${newSites.length}</span>` : ''}
       ${plan.unchanged ? html`<span class="imp-skip-tag">เหมือนเดิม ${plan.unchanged}</span>` : ''}
       ${plan.skip.length ? html`<span class="imp-skip-tag">ข้าม ${plan.skip.length}</span>` : ''}
     </div>
@@ -106,6 +108,12 @@ function summaryHtml(plan, file, addMissing, missingCount) {
           <span><b>เพิ่มคนที่ยังไม่มีในระบบ (${missingCount} คน) เป็นพนักงานที่พ้นสภาพ</b>
             <small>ใช้เมื่อพนักงานเหล่านี้เคยอยู่ในประกันกลุ่ม/ชุดฟอร์มก่อนเริ่มใช้ระบบ และต้องแจ้งออก — ไม่ติ๊ก = ข้าม</small></span>
         </label>`
+      : ''}
+    ${newSites.length
+      ? html`<details class="small" style="margin:8px 0">
+          <summary>กด “นำเข้าในตาราง” แล้วระบบจะสร้างหน่วยงานใหม่ ${newSites.length} แห่งทันที (ได้รับประกันกลุ่ม · โปโลสีดำ · แก้ได้ที่แท็บหน่วยงาน) — ดูรายชื่อ</summary>
+          <div style="max-height:160px;overflow:auto;margin-top:6px">${newSites.map((s) => html`<div><b>${s.companyCode}</b> ${s.name}</div>`)}</div>
+        </details>`
       : ''}
     ${issueCount
       ? alertBox({
@@ -144,8 +152,9 @@ function summaryHtml(plan, file, addMissing, missingCount) {
 
 /**
  * @param {File} file
- * @param {{sites: object[], prepareGrid: () => Promise<void>, stage: (o: {add: object[], edits: {key:number,row:object}[]}) => void}} ctx
+ * @param {{sites: object[], prepareGrid: () => Promise<void>, stage: (o: {add: object[], edits: {key:number,row:object}[]}) => void, onSitesChanged?: (sites: object[]) => void}} ctx
  *   prepareGrid = ล้างตัวกรองแล้วโหลดพนักงานทั้งหมด (แถวที่จะแก้ต้องอยู่ในตาราง)
+ *   หน่วยงานที่ยังไม่มี: สร้างตอนกดนำเข้า (ผู้มีสิทธิ์ sites.edit) · ก่อนกดแค่แสดงตัวอย่าง ไม่เขียนอะไร
  */
 export async function runEmployeeImport(file, ctx) {
   const m = openModal({
@@ -169,9 +178,11 @@ export async function runEmployeeImport(file, ctx) {
   const missingCount = planAll(parsed, employees, ctx.sites, { deptGroups: ctx.deptGroups }).skip.filter((s) => s.reason === 'ไม่พบรหัสนี้ในระบบ').length;
   let addMissing = false;
   let plan;
+  const sitesToCreate = () => (can('sites.edit') ? missingSites(parsed, employees, ctx.sites, { addMissing }) : []);
   const draw = () => {
-    plan = planAll(parsed, employees, ctx.sites, { addMissing, deptGroups: ctx.deptGroups });
-    body.innerHTML = String(summaryHtml(plan, file, addMissing, missingCount));
+    const newSites = sitesToCreate();
+    plan = planAll(parsed, employees, withPlannedSites(ctx.sites, newSites), { addMissing, deptGroups: ctx.deptGroups });
+    body.innerHTML = String(summaryHtml(plan, file, addMissing, missingCount, newSites));
     const n = plan.add.length + plan.update.length;
     ok.disabled = n === 0;
     ok.innerHTML = String(html`${raw(icon('upload'))} นำเข้าในตาราง (${n})`);
@@ -185,6 +196,29 @@ export async function runEmployeeImport(file, ctx) {
   ok.onclick = async () => {
     m.busy(true, ok);
     try {
+      const newSites = sitesToCreate();
+      const siteResult = { failed: [], stockWarning: null };
+      let sites = ctx.sites;
+      if (newSites.length) {
+        for (const [i, s] of newSites.entries()) {
+          ok.innerHTML = `${spinner({ size: 'sm', onColor: true })} กำลังสร้างหน่วยงาน ${i + 1}/${newSites.length}`;
+          try {
+            const saved = await api.createSite({ ...s, hasGroupInsurance: true, poloColor: 'BLACK' });
+            siteResult.stockWarning ??= saved?.stockWarning ?? null;
+          } catch (e) {
+            if (e.status !== 409) siteResult.failed.push(`${s.companyCode} ${s.name}: ${errorMessage(e)}`); // 409 = มีคนสร้างไปแล้ว ใช้ของเดิม
+          }
+        }
+        sites = await api.listSites();
+        ctx.sites = sites;
+        ctx.onSitesChanged?.(sites);
+        ok.innerHTML = `${spinner({ size: 'sm', onColor: true })} ${ok.dataset.label}`;
+      }
+      // คำนวณใหม่ด้วยหน่วยงานจริง — แถวได้ id จริง · ที่สร้างไม่สำเร็จเป็นช่องแดงให้เลือกเอง
+      plan = planAll(parsed, employees, sites, { addMissing, deptGroups: ctx.deptGroups });
+      if (siteResult.stockWarning) toast.error(siteResult.stockWarning);
+      if (siteResult.failed.length) toast.error(`สร้างหน่วยงานไม่สำเร็จ ${siteResult.failed.length} แห่ง — ${siteResult.failed[0]}`);
+      else if (newSites.length) toast.success(`สร้างหน่วยงานใหม่แล้ว ${newSites.length} แห่ง`);
       if (plan.update.length) await ctx.prepareGrid();
       ctx.stage({ add: plan.add.map((a) => a.row), edits: plan.update.map((u) => ({ key: u.id, row: u.row })) });
       m.busy(false, ok);
@@ -219,7 +253,7 @@ const isoToDate = (iso) => {
 const HEAD_NOTE = {
   empCode: 'ต้องไม่ซ้ำ — ใช้จับคู่พนักงานในระบบ (มีแล้ว = แก้ · ไม่มี = เพิ่มใหม่)',
   companyCode: () => COMPANY_CODES.join(' / '),
-  siteId: 'ชื่อตามแท็บ "หน่วยงาน" ของบริษัทนั้น',
+  siteId: 'ชื่อตามแท็บ "หน่วยงาน" ของบริษัทนั้น — ยังไม่มี = ระบบสร้างให้ตอนนำเข้า',
   employeeType: 'ว่าง = ระบบเลือกตามบริษัท',
   deptGroup: 'เฉพาะประเภทที่ใช้กลุ่ม/ฝ่าย (เช่น ส่วนกลาง)',
   level: 'ตัวเลข 1–9 (ประเภทที่ใช้ระดับ)',
@@ -236,7 +270,7 @@ const HELP = [
   '• คอลัมน์และลำดับเดียวกับตารางพนักงานในระบบ (template เปล่ามีเฉพาะช่องที่ต้องกรอก)',
   '• จับคู่ตาม "รหัส": มีในระบบ = แก้เฉพาะช่องที่เปลี่ยน · ไม่มีในระบบ = เพิ่มพนักงานใหม่',
   '• ลบคอลัมน์ที่ไม่ต้องการแก้ออกได้ — คอลัมน์ที่ไม่มีในไฟล์ ระบบไม่แตะ',
-  '• หน่วยงาน / ประเภท / กลุ่ม-ฝ่าย ใช้ชื่อตามระบบ · วันที่พิมพ์ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ.)',
+  '• หน่วยงาน: ชื่อที่ยังไม่มีในบริษัทนั้น ระบบสร้างให้ตอนนำเข้า (ต้องมีสิทธิ์แก้หน่วยงาน) · ประเภท / กลุ่ม-ฝ่าย ใช้ชื่อตามระบบ · วันที่พิมพ์ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ.)',
   '• อายุ (หัวสีเทา) ระบบคำนวณจากวันเกิด — แก้ช่องนี้ไม่มีผล',
   '• ไม่มีคอลัมน์ไหน = ระบบเติมให้: เพศ จากคำนำหน้า · ผ่านทดลองงาน = วันเริ่มงาน + 119 วัน · แถวใหม่ = ทำงานอยู่',
   '• ชีตลาออก (template): ใส่รหัส + เหตุผล + วันพ้นสภาพ → ระบบบันทึกพ้นสภาพให้ · ชื่อ-นามสกุลไว้ดูอ้างอิง (ไม่ถูกนำเข้า) · รหัสที่ไม่มีในระบบ = ข้าม',

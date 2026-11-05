@@ -488,7 +488,9 @@ export class MockApi {
     return this.run(() => {
       if (!this.db.ruleHistory[kind].some((r) => r.id === id)) throw new ApiError('ไม่พบกฎ', 404);
       const from = rule.effectiveFrom || this.today();
+      const later = this.db.ruleHistory[kind].some((r) => r.id === id && r.effectiveFrom > from && r.effectiveFrom <= this.today());
       this.writeRevision(kind, id, from, this.cleanRule(kind, rule), false);
+      if (rule.alsoCurrent && later) this.writeRevision(kind, id, this.today(), this.cleanRule(kind, rule), false);
       this.log('RULE', 'UPDATE', `${kind}-${id}`, `แก้${kind === 'insurance' ? 'กฎประกันกลุ่ม' : 'กฎชุดฟอร์ม'} #${id} มีผล ${from}`);
       this.persist();
       return this.ruleHistoryPayload();
@@ -820,12 +822,12 @@ export class MockApi {
         .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt) || b.id - a.id),
     );
   }
-  /** สิทธิ์ที่ยังไม่ได้แจกและยังไม่ได้ส่งเบิก — 404 ไม่พบ / 409 แจกหรือส่งเบิกไปแล้ว */
+  /** สิทธิ์ที่ยังไม่ได้แจกและยังไม่ได้ส่งเบิก (รวมรอบที่ยังไม่ถึงกำหนด — ส่งเบิกล่วงหน้าได้) — 404 ไม่พบ / 409 แจกหรือส่งเบิกไปแล้ว */
   openEntitlement(employeeId, entitlementKey) {
     const e = this.employee(employeeId);
     const site = this.site(e.siteId);
     const st = uniformStatus(e, site, this.db.rules, this.db.issues, this.today());
-    const ent = st.entitlements.find((x) => x.key === entitlementKey);
+    const ent = st.entitlements.find((x) => x.key === entitlementKey) ?? st.upcoming.find((x) => x.key === entitlementKey);
     if (!ent) throw new ApiError('ไม่พบสิทธิ์ชุดฟอร์มรายการนี้', 404);
     if (ent.requested) throw new ApiError(`ส่งเบิกคลังไปแล้ว (ใบ ${ent.stockDocNo}) — รอคลังจ่าย`, 409);
     if (ent.issued) throw new ApiError('รายการนี้แจกไปแล้ว', 409);

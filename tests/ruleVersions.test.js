@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import { expect } from './_expect.js';
-import { activeRules, activeSettings, ruleTimeline } from '../web/assets/js/domain/ruleVersions.js';
+import { activeRules, activeSettings, ruleTimeline, supersededBy } from '../web/assets/js/domain/ruleVersions.js';
 import { MockApi } from '../web/assets/js/infrastructure/mock/mockApi.js';
 
 const TODAY = '2026-10-16';
@@ -53,6 +53,23 @@ describe('MockApi แก้กฎผ่านหน้าจอ', () => {
     expect(h.insurance.find((t) => t.id === 3).pending.length).toBe(1);
     await api.updateRule('insurance', 3, { ...r, waitDays: 90, effectiveFrom: TODAY });
     expect((await api.getRules()).insurance.find((x) => x.id === 3).waitDays).toBe(90);
+  });
+  it('แก้ย้อนหลังก่อนฉบับที่ใช้อยู่: ปกติฉบับปัจจุบันคงเดิม · alsoCurrent = ค่าใหม่มีผลวันนี้', async () => {
+    const api = make();
+    const r = (await api.getRules()).insurance.find((x) => x.id === 3);
+    await api.updateRule('insurance', 3, { ...r, waitDays: 100, effectiveFrom: '2026-01-01' });
+    await api.updateRule('insurance', 3, { ...r, waitDays: 80, effectiveFrom: '2021-01-01' });
+    expect((await api.getRules()).insurance.find((x) => x.id === 3).waitDays).toBe(100);
+    await api.updateRule('insurance', 3, { ...r, waitDays: 70, effectiveFrom: '2021-06-01', alsoCurrent: true });
+    const now = (await api.getRules()).insurance.find((x) => x.id === 3);
+    expect(now.waitDays).toBe(70);
+    expect(now.effectiveFrom ?? TODAY).toBe(TODAY);
+  });
+  it('supersededBy: บอกวันของฉบับที่จะยังมีผลต่อ เมื่อวันที่เลือกเก่ากว่าฉบับที่ใช้อยู่', () => {
+    expect(supersededBy({ effectiveFrom: '2026-10-22' }, '2021-01-01')).toBe('2026-10-22');
+    expect(supersededBy({ effectiveFrom: '2026-10-22' }, '2026-10-22')).toBe(null);
+    expect(supersededBy({ effectiveFrom: '2026-10-01' }, TODAY)).toBe(null);
+    expect(supersededBy(null, '2021-01-01')).toBe(null);
   });
   it('ระดับเกิน 9 → 422 · เลิกใช้กฎ → หายจากกฎที่มีผล', async () => {
     const api = make();

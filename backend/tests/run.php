@@ -497,6 +497,30 @@ check('stock_hr ได้ requested_by_* จาก session', $sent['requested_by
     && $sent['requested_by_emp_code'] === 'HL-0001' && is_int($sent['requested_by_user_id']) && $sent['start_date'] === $p['employee']['startDate'],
     json_encode($sent));
 check('ส่งเบิกซ้ำ → 409 (รอคลังจ่าย)', S($hr->req('POST', '/uniform/stock-requests', $body)) === 409);
+// ส่งเบิกล่วงหน้า: รอบที่ยังไม่ถึงกำหนด
+$earlyEmp = null;
+foreach (repo_employees() as $x) {
+    if ($x['status'] !== 'ACTIVE') { continue; }
+    $st = uniform_status($x, repo_site($x['siteId']), repo_rules(), repo_issues(), today_iso());
+    if (count($st['upcoming'])) { $earlyEmp = $x; $earlyEnt = $st['upcoming'][0]; break; }
+}
+check('มีพนักงานที่มีรอบล่วงหน้า · ยังไม่ส่ง', $earlyEmp !== null && $earlyEnt['requested'] === false && $earlyEnt['issued'] === false);
+$earlyOpt = $hr->req('GET', '/uniform/stock-options?employeeId=' . $earlyEmp['id'] . '&entitlementKey=' . urlencode($earlyEnt['key']));
+check('รอบล่วงหน้า: เปิดตัวเลือกส่งเบิกได้', $earlyOpt['status'] === 200, json_encode($earlyOpt['json']));
+$earlyLines = array();
+foreach ((array)arr_get(arr_get($earlyOpt['json'], 'data', array()), 'items', array()) as $it) {
+    $earlyLines[] = array('itemCode' => $it['itemCode'], 'productId' => 31, 'qty' => (int)$it['qty']);
+}
+$earlyBody = array('employeeId' => $earlyEmp['id'], 'entitlementKey' => $earlyEnt['key'], 'lines' => $earlyLines);
+$er = $hr->req('POST', '/uniform/stock-requests', $earlyBody);
+$earlySt = uniform_status($earlyEmp, repo_site($earlyEmp['siteId']), repo_rules(), repo_issues(), today_iso());
+$earlyAfter = find_by($earlySt['upcoming'], 'key', $earlyEnt['key']);
+check('รอบล่วงหน้า: ส่งเบิกได้ · เห็นใบในรอบนั้น · ไม่เพิ่มในสิทธิถึงกำหนด', $er['status'] === 201 && $earlyAfter['requested'] === true && $earlyAfter['issueId'] === $er['json']['data']['id']
+    && !find_by($earlySt['entitlements'], 'key', $earlyEnt['key']), json_encode($er['json']));
+check('รอบล่วงหน้า: ส่งซ้ำ → 409', S($hr->req('POST', '/uniform/stock-requests', $earlyBody)) === 409);
+check('รอบล่วงหน้า: ยกเลิกได้', S($hr->req('DELETE', '/uniform/issues/' . $er['json']['data']['id'])) === 204);
+$earlyBody['entitlementKey'] = 'ANNUAL-2099';
+check('รอบที่ไม่มีสิทธิ์จริง → 404', S($hr->req('POST', '/uniform/stock-requests', $earlyBody)) === 404);
 $sid2 = $r['json']['data']['id'];
 $ref = $r['json']['data']['stock']['ref'];
 $GLOBALS['stock_status'] = array($ref => array('doc_id' => 77, 'doc_no' => 'WRQ-0077', 'stage' => 'ISSUED', 'issued_at' => '2026-10-20 09:00:00',
