@@ -24,6 +24,11 @@
   background-size: 300% 300%;
   animation: hero-shift calc(18s * var(--login-speed)) ease-in-out infinite;
 }
+/* พื้นไล่สีเข้ม: แถบคลุมโปร่งแสง + ตัวอักษรขาว · บรรทัดที่ถูกแถบเหลื่อมทับก็ยังอ่านได้ */
+.login-hero ::selection {
+  background: rgb(255 255 255 / 0.28);
+  color: #fff;
+}
 .login-hero::after {
   /* ลายจุดบาง ๆ */
   content: '';

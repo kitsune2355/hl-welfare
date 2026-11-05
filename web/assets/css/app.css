@@ -110,8 +110,10 @@ button {
   outline-offset: 2px;
   border-radius: 6px;
 }
+/* ตั้งสีตัวอักษรด้วยเสมอ — ไม่งั้นข้อความสีขาวบนพื้นเข้ม (hero ปุ่มหลัก) กลืนกับแถบคลุมสีอ่อนจนอ่านไม่ออก */
 ::selection {
   background: var(--primary-soft);
+  color: var(--fg);
 }
 .icon {
   width: 1em;
