@@ -546,6 +546,15 @@ export class MockApi {
       return this.ruleHistoryPayload();
     });
   }
+  /** ระบบสัญญาจ้าง (job_db_cns) ต้องต่อผ่าน PHP backend — โหมด mock ไม่มีให้ดึง */
+  previewJobDbEmployees() {
+    return this.run(() => {
+      throw new ApiError('ดึงจากระบบสัญญาจ้างได้เฉพาะโหมดใช้งานจริง (apiMode: http)', 409);
+    });
+  }
+  importJobDbEmployees() {
+    return this.previewJobDbEmployees();
+  }
   /** โหมด mock ไม่มีสต็อกจริงให้ส่ง — ตอบจำนวนที่จะส่งเหมือนฝั่ง PHP */
   syncMasterToStock() {
     return this.run(() => ({

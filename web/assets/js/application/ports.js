@@ -14,6 +14,8 @@
  * @property {(filter?: {q?:string, companyCode?:string, employeeType?:string, status?:string}) => Promise<Employee[]>} listEmployees
  * @property {(id: number) => Promise<import('../domain/types.js').EmployeeBenefits>} getEmployeeBenefits
  * @property {(emp: Omit<Employee,'id'> & {id?: number}) => Promise<Employee>} saveEmployee   ไม่มี id = สร้างใหม่
+ * @property {(source?: 'cns'|'pro') => Promise<{source: string, system: string, company: string, rows: Object[], summary: Object, missingSites: string[], canCreateSites: boolean}>} previewJobDbEmployees   พนักงานจากระบบสัญญาจ้าง (ยังไม่บันทึก)
+ * @property {(body: {source?: 'cns'|'pro', create?: string[], update?: string[], createSites?: boolean}) => Promise<{created: number, updated: number, sitesCreated: number, failed: Object[]}>} importJobDbEmployees
  * @property {() => Promise<Object>} getRules                                  กฎที่มีผล ณ วันนี้
  * @property {() => Promise<Object>} getRuleHistory                            {today, insurance, uniform: [{id, current, pending, history}], settings: [{key, value, effectiveFrom}], uniformItems}
  * @property {(kind: 'insurance'|'uniform', rule: Object) => Promise<Object>} createRule              rule.effectiveFrom (ไม่ส่ง = วันนี้) · คืนประวัติชุดใหม่

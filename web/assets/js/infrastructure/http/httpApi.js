@@ -156,6 +156,13 @@ export class HttpApi {
     return this.send('PUT', `/sites/${siteId}/uniform`, { overrides });
   }
   /** ส่งบริษัท/หน่วยงาน/ชุดฟอร์มรอบเริ่มงานทั้งหมดไปสต็อก Uniform (backend/api/master_sync.php) */
+  /* ดึงพนักงานจากระบบสัญญาจ้าง · backend/api/job_db.php */
+  previewJobDbEmployees(source = 'cns') {
+    return this.req(`/job-db/employees/preview?source=${encodeURIComponent(source)}`);
+  }
+  importJobDbEmployees(body) {
+    return this.send('POST', '/job-db/employees/import', body);
+  }
   syncMasterToStock() {
     return this.send('POST', '/stock/sync-master', {});
   }

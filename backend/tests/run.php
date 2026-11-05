@@ -935,6 +935,7 @@ require dirname(__FILE__) . '/rules_test.php';
 require dirname(__FILE__) . '/scope_test.php';
 require dirname(__FILE__) . '/dept_groups_test.php';
 require dirname(__FILE__) . '/org_test.php';
+require dirname(__FILE__) . '/job_db_test.php';
 
 echo "\nผ่าน " . $GLOBALS['pass'] . ' · ไม่ผ่าน ' . $GLOBALS['fail'] . "\n";
 exit($GLOBALS['fail'] ? 1 : 0);

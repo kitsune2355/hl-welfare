@@ -26,6 +26,7 @@ import { ExcelGrid } from '../ui/datagrid.js';
 import { openModal, toast } from '../ui/overlay.js';
 import { openEmployeeDetail } from './_employeeDetail.js';
 import { exportEmployeeList, importButton, openTemplateDialog, pickExcelFile, runEmployeeImport } from './_employeeImport.js';
+import { jobDbButton, openJobDbImport } from './_jobDbImport.js';
 
 const URGENT = ['TERMINATED', 'MISCONDUCT'];
 
@@ -324,7 +325,7 @@ const grid = new ExcelGrid($('#grid'), {
   rowKey: (e) => e.id,
   readOnly: !can('employees.edit'), // ไม่มีสิทธิ์แก้ = ดูอย่างเดียว
   // นำเข้า Excel (ไฟล์เข้าใหม่ / ลาออกประจำเดือนของ HR) — ใส่เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก
-  toolbar: can('employees.edit') ? importButton() : '',
+  toolbar: can('employees.edit') ? html`${importButton()} ${jobDbButton()}` : '',
   // ตำแหน่งไม่บังคับ ไม่ตรวจ (มาจากไฟล์นำเข้า ใช้จับคู่ชุดฟอร์ม Pro Site) · ระบบไม่เก็บเงินเดือน
   validate: validateEmployee,
   newRow: blankEmployee,
@@ -410,6 +411,8 @@ $('#grid').addEventListener('click', async (e) => {
     if (!sites.length) sites = await api.listSites();
     return openTemplateDialog({ sites, deptGroups });
   }
+  const jobDb = e.target.closest('[data-job-db]');
+  if (jobDb) return openJobDbImport({ source: jobDb.dataset.jobDb, onDone: () => load() });
   if (!e.target.closest('[data-import-excel]')) return;
   const file = await pickExcelFile();
   if (!file) return;

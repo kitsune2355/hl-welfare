@@ -1419,6 +1419,16 @@ scripts/export-seed.mjs      ← สร้าง sql/002, 003 และ golden.j
 
 ---
 
+### 12.6 ดึงพนักงานจากระบบสัญญาจ้าง (`backend/api/job_db.php` · `usecases/job_db_import.php` · `pages/_jobDbImport.js`)
+
+- แหล่งข้อมูล 2 แห่ง ตารางชื่อเดียวกัน คนละฐาน: `cns` (job_db_cns → CNS รายวัน ระดับ 1 · ไฟล์ `connect_job_db.php` · รหัสตำแหน่งคงที่) · `pro` (hr-pro → PRO Pro Site ไม่ใช้ระดับ · ไฟล์ `connect_job_db_pro.php` · ชื่อตำแหน่งจาก `tb_position`)
+
+- การเชื่อมต่อ: `backend/connect_job_db.php` (คัดลอกจาก `connect_job_db.example.php` · อยู่ใน .gitignore · แต่ละเครื่อง/โฮสต์มีของตัวเอง) · อ่านอย่างเดียว ใช้ผู้ใช้ที่มีแค่ SELECT
+- ขอบเขต: สัญญาที่เซ็นแล้ว (`rsmc_status = 'signed'`) → พนักงาน CNS ประเภทรายวัน ระดับ 1 · HR กดปุ่มในหน้าพนักงานเอง · สิทธิ์ `employees.edit`
+- จับคู่ด้วย `rsm_format2` (รหัสพนักงาน) · รหัสซ้ำใช้สัญญาใหม่สุด · ชื่อหน่วยงาน = `ag_format ag_name` จาก `tb_agency` (เชื่อมด้วย `ag_format` → `ag_id` → `rsmc_ag_id` · รหัสซ้ำใช้แถวล่าสุด · ไม่พบ = ใช้ชื่อในสัญญา `ag_name` → `rsm_department`) จับคู่ตรงตัว (ไม่มี = เลือกสร้างใหม่ได้ ต้องมีสิทธิ์ `sites.edit`)
+- ข้อมูลต่างกัน: แสดงให้ HR เลือกรายคน ไม่เขียนทับอัตโนมัติ · ค่าว่างจากต้นทางไม่ลบค่าเดิม · ไม่ลบพนักงาน ไม่เปลี่ยนสถานะ · รหัสที่เป็นบริษัท/ประเภทอื่น = ข้าม
+- บันทึกผ่าน `api_employee_save` / `api_site_create` (ตรวจ + audit ชุดเดียวกับหน้าจอ) · ไม่ดึงเงินเดือนและที่อยู่
+
 ## 13. MySQL Schema (ฐานข้อมูล `hl_welfare` — MySQL 5.0)
 
 ไฟล์จริงคือ **`backend/sql/001_schema.sql`** (แหล่งความจริงแหล่งเดียว — แก้ที่นั่นแล้วเพิ่ม migration ใหม่ `004_…sql` + `_rollback`) · ทุกตารางมีคอลัมน์ audit 4 ตัว `created_at` (DATETIME, แอปส่งค่า), `created_by`, `updated_at` (TIMESTAMP อัตโนมัติ), `updated_by` · InnoDB · utf8

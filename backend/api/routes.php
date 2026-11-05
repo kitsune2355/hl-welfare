@@ -44,6 +44,9 @@ function api_routes()
     router_add($r, 'GET', '/employees', 'api_employees');
     router_add($r, 'POST', '/employees', 'api_employee_save');
     router_add($r, 'PUT', '/employees/{id}', 'api_employee_save');
+    /* ดึงพนักงาน CNS รายวันจากระบบสัญญาจ้าง · api/job_db.php (สิทธิ์ employees.edit — ตรวจใน handler) */
+    router_add($r, 'GET', '/job-db/employees/preview', 'api_job_db_preview');
+    router_add($r, 'POST', '/job-db/employees/import', 'api_job_db_import');
     router_add($r, 'GET', '/employees/{id}/benefits', 'api_employee_benefits');
     router_add($r, 'GET', '/rules', 'api_rules');
     /* แก้เงื่อนไขสวัสดิการแบบมีวันที่มีผล · api/rules_edit.php (สิทธิ์ rules.edit — ตรวจใน handler) */

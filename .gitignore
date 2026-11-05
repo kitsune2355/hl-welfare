@@ -19,3 +19,7 @@ backend/LOCAL_ACCOUNTS.txt
 
 # backend: ไฟล์ชั่วคราว (เวอร์ชันข้อมูล + cache ภาพรวม — lib/changes.php)
 backend/var/
+
+# ค่าเชื่อมต่อฐาน job_db_cns (มีรหัสผ่าน) — คัดลอกจาก backend/connect_job_db.example.php
+backend/connect_job_db.php
+backend/connect_job_db_pro.php
