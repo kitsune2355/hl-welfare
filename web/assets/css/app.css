@@ -744,6 +744,116 @@ button.stat:hover {
 .combo-btn[aria-invalid='true'] {
   border-color: var(--danger);
 }
+/* เลือกตำแหน่งในฟอร์มกฎชุดฟอร์ม (pages/rules.js) — ตัวเลือกเยอะ: ค้นหา + รายการเลื่อนในกล่อง + ที่เลือกแสดงด้านบน */
+.pos-picker {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.pos-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px;
+  background: var(--surface-2);
+}
+.pos-search {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.pos-count {
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.pos-head [data-pos-clear][hidden],
+.pos-list[hidden],
+.pos-none[hidden],
+.pos-opt[hidden] {
+  display: none;
+}
+.pos-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 10px 0;
+}
+.pos-tags:empty {
+  display: none;
+}
+.pos-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 6px 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.pos-tag span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pos-tag .icon {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+.pos-tag:hover,
+.pos-tag:focus-visible {
+  border-color: var(--primary);
+}
+.pos-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 2px 8px;
+  max-height: 220px;
+  padding: 8px 10px;
+  overflow-y: auto;
+}
+.pos-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.pos-opt:hover {
+  background: var(--surface-2);
+}
+.pos-opt:has(input:checked) {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 500;
+}
+.pos-opt input {
+  flex: none;
+  margin-top: 2px;
+}
+.pos-none {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.pos-none b {
+  color: var(--fg);
+  font-weight: 600;
+}
 .input-icon {
   position: relative;
 }

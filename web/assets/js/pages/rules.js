@@ -507,6 +507,9 @@ function positionOptions(selected) {
   return [...[...set].sort((a, b) => a.localeCompare(b, 'th')), OTHER_POSITION];
 }
 
+const positionOption = (p, checked) =>
+  html`<label class="pos-opt"><input type="checkbox" data-pick="positions" value="${p}" ${checked ? raw('checked') : ''} /><span>${p}</span></label>`;
+
 function positionField(r) {
   const selected = splitPositions(r.position);
   const options = positionOptions(selected);
@@ -514,46 +517,106 @@ function positionField(r) {
   const show = !!typeInfo(r.employeeType)?.usesPosition || selected.length > 0;
   return html`<div class="field full" data-field="position" data-pos-field ${show ? '' : raw('hidden')}>
     <label>ตำแหน่ง <span class="muted small">(ไม่เลือก = ทุกตำแหน่ง · “${OTHER_POSITION}” = ตำแหน่งที่ไม่มีกฎของตัวเอง)</span></label>
-    <div data-pos-chips>${chipPicks('positions', options.map((p) => ({ value: p, label: p })), selected)}</div>
-    <div class="row" style="gap:8px;margin-top:8px">
-      <input class="input" id="f-pos-new" list="f-pos-list" maxlength="100" placeholder="ตำแหน่งที่ไม่มีในรายการ" style="max-width:280px" aria-label="เพิ่มตำแหน่ง" />
-      <datalist id="f-pos-list">${options.map((p) => html`<option value="${p}"></option>`)}</datalist>
-      <button type="button" class="btn btn-ghost btn-sm" data-pos-add>${raw(icon('plus'))} เพิ่ม</button>
+    <div class="pos-picker">
+      <div class="pos-head">
+        <div class="input-icon pos-search">
+          ${raw(icon('search'))}
+          <input class="input" type="search" id="f-pos-q" maxlength="100" placeholder="ค้นหาตำแหน่ง" autocomplete="off" aria-label="ค้นหาตำแหน่ง" />
+        </div>
+        <span class="pos-count" data-pos-count role="status"></span>
+        <button type="button" class="btn btn-ghost btn-sm" data-pos-clear>ล้างที่เลือก</button>
+      </div>
+      <div class="pos-tags" data-pos-tags></div>
+      <div class="pos-list" data-pos-list role="group" aria-label="ตำแหน่ง">
+        ${options.map((p) => positionOption(p, selected.includes(p)))}
+      </div>
+      <div class="pos-none" data-pos-none hidden>
+        <span>ไม่พบ “<b data-pos-word></b>” ในรายการ</span>
+        <button type="button" class="btn btn-sm" data-pos-add>${raw(icon('plus'))} เพิ่มตำแหน่งนี้</button>
+      </div>
     </div>
     <span class="hint">ตัวเลือกมาจากตำแหน่งในข้อมูลพนักงาน — พนักงานได้กฎนี้เมื่อตำแหน่งตรงกันทุกตัวอักษร</span>
   </div>`;
 }
 
-/** เพิ่มตำแหน่งจากช่องพิมพ์ — ตรงกับตัวเลือกเดิม (ไม่สนช่องว่าง/ตัวพิมพ์) = ติ๊กตัวเดิม ไม่สร้างซ้ำ */
+const normPosition = (v) => v.replace(/\s+/g, '').toLowerCase();
+
+/** ค้นหา: แสดงเฉพาะที่ตรงคำค้น · ไม่พบ = เสนอเพิ่มตำแหน่งใหม่ */
+function filterPositions(root) {
+  const raw_ = root.querySelector('#f-pos-q').value.trim();
+  const q = normPosition(raw_);
+  let shown = 0;
+  for (const opt of root.querySelectorAll('.pos-opt')) {
+    const hit = !q || normPosition(opt.querySelector('input').value).includes(q);
+    opt.hidden = !hit;
+    if (hit) shown++;
+  }
+  root.querySelector('[data-pos-word]').textContent = raw_;
+  root.querySelector('[data-pos-none]').hidden = shown > 0;
+  root.querySelector('[data-pos-list]').hidden = shown === 0;
+}
+
+/** ตำแหน่งที่เลือกแสดงด้านบนเสมอ (ค้นหาอยู่ก็ยังเห็น) กด × เพื่อเอาออก */
+function drawPositionTags(root) {
+  const chosen = readPicks(root, 'positions');
+  render(
+    root.querySelector('[data-pos-tags]'),
+    html`${chosen.map((p) => html`<button type="button" class="pos-tag" data-pos-remove="${p}" title="เอาออก" aria-label="เอา ${p} ออก"><span>${p}</span>${raw(icon('x'))}</button>`)}`,
+  );
+  root.querySelector('[data-pos-count]').textContent = chosen.length ? `เลือก ${chosen.length} ตำแหน่ง` : 'ทุกตำแหน่ง';
+  root.querySelector('[data-pos-clear]').hidden = !chosen.length;
+}
+
+/** เพิ่มตำแหน่งจากคำค้น — ตรงกับตัวเลือกเดิม (ไม่สนช่องว่าง/ตัวพิมพ์) = ติ๊กตัวเดิม */
 function addPosition(root) {
-  const input = root.querySelector('#f-pos-new');
+  const input = root.querySelector('#f-pos-q');
   const v = input.value.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
   if (!v) return;
-  const same = [...root.querySelectorAll('[data-pick="positions"]')].find((b) => b.value.replace(/\s+/g, '').toLowerCase() === v.replace(/\s+/g, '').toLowerCase());
+  const same = [...root.querySelectorAll('[data-pick="positions"]')].find((b) => normPosition(b.value) === normPosition(v));
   if (same) same.checked = true;
   else {
-    const label = document.createElement('label');
-    label.className = 'chip-pick';
-    const cb = Object.assign(document.createElement('input'), { type: 'checkbox', value: v, checked: true });
-    cb.dataset.pick = 'positions';
-    label.append(cb, ` ${v}`);
-    root.querySelector('[data-pos-chips] .chip-picks').append(label);
+    const tpl = document.createElement('template');
+    tpl.innerHTML = String(positionOption(v, true));
+    const list = root.querySelector('[data-pos-list]');
+    list.insertBefore(tpl.content.firstElementChild, list.lastElementChild); // ก่อน “ตำแหน่งอื่นๆ” ที่อยู่ท้ายเสมอ
   }
   input.value = '';
+  filterPositions(root);
+  drawPositionTags(root);
   input.focus();
 }
 
 function wirePositionField(root) {
   const field = root.querySelector('[data-pos-field]');
+  const input = root.querySelector('#f-pos-q');
   root.querySelector('#f-type').addEventListener('change', (e) => {
     field.hidden = !typeInfo(e.target.value)?.usesPosition && !readPicks(root, 'positions').length;
   });
-  on(root, 'click', '[data-pos-add]', () => addPosition(root));
-  root.querySelector('#f-pos-new').addEventListener('keydown', (e) => {
+  input.addEventListener('input', () => filterPositions(root));
+  input.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
-    e.preventDefault();
-    addPosition(root);
+    e.preventDefault(); // ไม่ส่งฟอร์ม
+    const visible = [...root.querySelectorAll('.pos-opt:not([hidden]) input')];
+    if (!input.value.trim()) return;
+    if (!visible.length) return addPosition(root);
+    if (visible.length !== 1) return; // ตรงหลายตัว — ให้ติ๊กเอง
+    visible[0].checked = true;
+    input.value = '';
+    filterPositions(root);
+    drawPositionTags(root);
   });
+  on(root, 'click', '[data-pos-add]', () => addPosition(root));
+  on(root, 'click', '[data-pos-remove]', (_e, b) => {
+    const box = [...root.querySelectorAll('[data-pick="positions"]')].find((x) => x.value === b.dataset.posRemove);
+    if (box) box.checked = false;
+    drawPositionTags(root);
+  });
+  on(root, 'click', '[data-pos-clear]', () => {
+    root.querySelectorAll('[data-pick="positions"]').forEach((x) => (x.checked = false));
+    drawPositionTags(root);
+  });
+  on(root, 'change', '[data-pick="positions"]', () => drawPositionTags(root));
+  drawPositionTags(root);
 }
 
 function readUniform(root) {
