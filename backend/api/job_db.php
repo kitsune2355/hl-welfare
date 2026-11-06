@@ -5,7 +5,7 @@
  *    GET  /job-db/employees/preview?source=cns|pro   เทียบข้อมูล (ยังไม่บันทึก)
  *    POST /job-db/employees/import    { source, create: [รหัส…], update: [รหัส…], createSites: bool }
  *
- *  hr-pro ตั้งจากหน้า admin.html แท็บตั้งค่าระบบได้ (system_settings ทับไฟล์ทีละค่า)
+ *  ตั้งจากหน้า admin.html แท็บตั้งค่าระบบได้ (system_settings ทับไฟล์ทีละค่า)
  *  การเชื่อมต่ออยู่ใน backend/connect_job_db.php · connect_job_db_pro.php (แต่ละเครื่อง/โฮสต์มีของตัวเอง) · อ่านอย่างเดียว ไม่เขียนกลับต้นทาง
  *  ตอนนำเข้าอ่านต้นทางใหม่อีกครั้ง ไม่เชื่อค่าจากหน้าเว็บ · บันทึกผ่าน api_employee_save / api_site_create (ตรวจ + audit ชุดเดียวกัน)
  * ============================================================ */

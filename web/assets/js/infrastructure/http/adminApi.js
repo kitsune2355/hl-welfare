@@ -78,8 +78,8 @@ export class AdminApi {
     return this.send('PUT', '/admin/permissions', { matrix });
   }
   /** ทดสอบสต็อกด้วย url/secret ที่ยังไม่บันทึก (ไม่ส่ง = ค่าที่บันทึกไว้) */
-  testJobDb(values = {}) {
-    return this.send('POST', '/admin/job-db/test', values);
+  testJobDb(source, values = {}) {
+    return this.send('POST', '/admin/job-db/test', { source, ...values });
   }
   testStock({ url = '', secret = '' } = {}) {
     return this.send('POST', '/admin/stock/test', { url, secret });

@@ -752,7 +752,7 @@ $r = $boss->req('GET', '/admin/settings');
 $items = array();
 foreach ($r['json']['data']['groups'] as $g) { foreach ($g['items'] as $it) { $items[$it['key']] = $it; } }
 $cfgSecret = $hlw_config['stock_api_secret'];
-check('อ่านค่าตั้ง: 4 กลุ่ม · ทุกค่ามาจาก config · ไม่ส่งกุญแจจริง', $r['status'] === 200 && count($r['json']['data']['groups']) === 4
+check('อ่านค่าตั้ง: 5 กลุ่ม · ทุกค่ามาจาก config · ไม่ส่งกุญแจจริง', $r['status'] === 200 && count($r['json']['data']['groups']) === 5
     && $r['json']['data']['ready'] === true && $items['session_idle_minutes']['source'] === 'config' && $items['session_idle_minutes']['value'] === 30
     && !isset($items['stock_api_secret']['value']) && ($cfgSecret === '' || strpos(json_encode($r['json']), $cfgSecret) === false)
     && $items['stock_api_secret']['secret']['set'] === ($cfgSecret !== ''), json_encode($items['stock_api_secret']));

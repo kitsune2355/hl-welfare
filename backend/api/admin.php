@@ -701,10 +701,19 @@ function admin_settings_table_ready()
     return admin_column_type('system_settings', 'value') !== null;
 }
 
+/** ไฟล์ที่เก็บค่าฐานของค่าตั้งนี้ */
+function admin_setting_base_name($d)
+{
+    if (!isset($d['job'])) { return 'config.php'; }
+    $src = job_db_source($d['job'][0]);
+    return $src['file'];
+}
+
 function admin_settings_view()
 {
     $groups = array(
         'stock' => array('key' => 'stock', 'label' => 'การเชื่อมต่อสต็อก Uniform', 'items' => array()),
+        'jobCns' => array('key' => 'jobCns', 'label' => 'ระบบสัญญาจ้าง job_db_cns', 'items' => array()),
         'jobPro' => array('key' => 'jobPro', 'label' => 'ระบบสัญญาจ้าง hr-pro', 'items' => array()),
         'auth' => array('key' => 'auth', 'label' => 'การเข้าสู่ระบบ', 'items' => array()),
         'monitor' => array('key' => 'monitor', 'label' => 'การติดตามระบบ', 'items' => array()),
@@ -719,7 +728,7 @@ function admin_settings_view()
             'hint' => arr_get($d, 'hint', ''), 'min' => arr_get($d, 'min'), 'max' => arr_get($d, 'max'), 'source' => sys_setting_source($k),
             'updatedAt' => isset($meta[$k]) ? admin_stamp($meta[$k]['updated_at']) : null,
             'updatedBy' => isset($meta[$k]) ? $meta[$k]['updated_by'] : null,
-            'baseName' => isset($d['job']) ? 'connect_job_db_pro.php' : 'config.php');
+            'baseName' => admin_setting_base_name($d));
         if ($d['type'] === 'secret') {
             $item['secret'] = sys_secret_info(sys_setting($k), !empty($d['noTail']));       // ไม่ส่งค่าจริงกลับหน้าเว็บ
             $item['baseSecret'] = sys_secret_info(sys_setting_base($k), !empty($d['noTail']));
@@ -780,8 +789,11 @@ function api_admin_settings_save($req, $params)
     if (count($errors)) { throw new ApiError('กรุณาตรวจสอบข้อมูล', 422, $errors); }
 
     /* เปลี่ยนเซิร์ฟเวอร์แล้วใช้รหัสเดิม = ส่งรหัสที่บันทึกไว้ไปเครื่องอื่น */
-    if (isset($write['job_pro_host']) && !isset($write['job_pro_pass']) && (string)sys_setting('job_pro_pass') !== '') {
-        throw new ApiError('กรุณาตรวจสอบข้อมูล', 422, array('job_pro_pass' => 'เปลี่ยนเซิร์ฟเวอร์แล้วต้องกรอกรหัสผ่านใหม่'));
+    foreach (job_db_sources() as $src) {
+        $p = $src['settingsPrefix'];
+        if (isset($write[$p . 'host']) && !isset($write[$p . 'pass']) && (string)sys_setting($p . 'pass') !== '') {
+            throw new ApiError('กรุณาตรวจสอบข้อมูล', 422, array($p . 'pass' => 'เปลี่ยนเซิร์ฟเวอร์แล้วต้องกรอกรหัสผ่านใหม่'));
+        }
     }
 
     $changes = array();
@@ -796,7 +808,7 @@ function api_admin_settings_save($req, $params)
     }
     foreach ($reset as $k) {
         $r = db_exec('DELETE FROM system_settings WHERE `key` = ?', array($k));
-        if ($r['affected']) { $changes[] = $defs[$k]['label'] . ' กลับไปใช้ค่าใน ' . (isset($defs[$k]['job']) ? 'connect_job_db_pro.php' : 'config.php'); }
+        if ($r['affected']) { $changes[] = $defs[$k]['label'] . ' กลับไปใช้ค่าใน ' . admin_setting_base_name($defs[$k]); }
     }
     if (count($changes)) { audit_write('SYSTEM', 'settings', 'SETTINGS', 'ตั้งค่าระบบ: ' . implode(' · ', $changes), null, $me); }
     db_commit();
@@ -836,12 +848,13 @@ function admin_job_db_error($errno)
     return 'เชื่อมต่อไม่ได้ (รหัส ' . $errno . ')';
 }
 
-/** POST /admin/job-db/test {host?, port?, name?, user?, pass?} — ทดสอบ hr-pro ก่อนบันทึก (ไม่ส่ง = ใช้ค่าที่บันทึกไว้) · อ่านแค่ชื่อตาราง */
+/** POST /admin/job-db/test {source, host?, port?, name?, user?, pass?} — ทดสอบก่อนบันทึก (ไม่ส่ง = ใช้ค่าที่บันทึกไว้) · อ่านแค่ชื่อตาราง */
 function api_admin_job_db_test($req, $params)
 {
     cap_require($req, 'system.settings');
     $b = req_json($req);
-    $src = job_db_source('pro');
+    $src = job_db_source(arr_get($b, 'source', ''));
+    $p = $src['settingsPrefix'];
     $saved = job_db_config($src);
     if (!$saved) { $saved = array(); }
     $c = array();
@@ -850,16 +863,16 @@ function api_admin_job_db_test($req, $params)
         $v = trim((string)arr_get($b, $f, ''));
         if ($v === '') { $c[$f] = arr_get($saved, $f, ''); continue; }
         $err = null;
-        sys_setting_validate('job_pro_' . $f, $v, $err);
-        if ($err !== null) { $errors['job_pro_' . $f] = $err; }
+        sys_setting_validate($p . $f, $v, $err);
+        if ($err !== null) { $errors[$p . $f] = $err; }
         $c[$f] = $v;
     }
     /* เครื่องอื่น + รหัสที่บันทึกไว้ = ห้าม (ไม่ส่งรหัสออกไปเครื่องที่ยังไม่ยืนยัน) */
     if (trim((string)arr_get($b, 'pass', '')) === '' && (string)arr_get($saved, 'pass', '') !== '' && (string)$c['host'] !== (string)arr_get($saved, 'host', '')) {
-        $errors['job_pro_pass'] = 'เปลี่ยนเซิร์ฟเวอร์แล้วต้องกรอกรหัสผ่านใหม่';
+        $errors[$p . 'pass'] = 'เปลี่ยนเซิร์ฟเวอร์แล้วต้องกรอกรหัสผ่านใหม่';
     }
     foreach (array('host', 'name', 'user') as $f) {
-        if ((string)$c[$f] === '' && !isset($errors['job_pro_' . $f])) { $errors['job_pro_' . $f] = 'กรุณากรอก'; }
+        if ((string)$c[$f] === '' && !isset($errors[$p . $f])) { $errors[$p . $f] = 'กรุณากรอก'; }
     }
     if (count($errors)) { throw new ApiError('กรุณาตรวจสอบข้อมูล', 422, $errors); }
     $conn = mysqli_init();
@@ -868,7 +881,9 @@ function api_admin_job_db_test($req, $params)
         return array('ok' => false, 'status' => 'error', 'detail' => admin_job_db_error(mysqli_connect_errno()), 'missing' => array());
     }
     $missing = array();
-    foreach (array('tb_resume_contact_info', 'tb_resume_contract', 'tb_agency', 'tb_position') as $t) {
+    $tables = array('tb_resume_contact_info', 'tb_resume_contract', 'tb_agency');
+    if ($src['positionTable']) { $tables[] = 'tb_position'; }
+    foreach ($tables as $t) {
         $res = mysqli_query($conn, "SHOW TABLES LIKE '$t'");
         if (!$res || mysqli_num_rows($res) === 0) { $missing[] = $t; }
         if ($res) { mysqli_free_result($res); }

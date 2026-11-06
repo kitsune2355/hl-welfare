@@ -5,7 +5,7 @@
  *  sys_setting('session_idle_minutes')  → ค่าจาก DB ถ้ามี · ไม่มี → config.php · ไม่มีอีก → ค่าเริ่มต้นใน sys_setting_defs
  *  แก้ได้จากหน้า admin.html (แท็บตั้งค่าระบบ — api/admin.php) เฉพาะ key ใน sys_setting_defs
  *  ค่าที่อยู่ใน config.php เท่านั้น: ฐานข้อมูล, cookie_secure, timezone, today_override (ผิดแล้วอาจเข้าระบบไม่ได้ / ต้องแก้ที่เครื่อง)
- *  การเชื่อมต่อ hr-pro (job_pro_*): ค่าฐาน = ไฟล์ backend/connect_job_db_pro.php แทน config.php (def 'job')
+ *  การเชื่อมต่อระบบสัญญาจ้าง (job_cns_* · job_pro_*): ค่าฐาน = ไฟล์เชื่อมต่อของแหล่งนั้นแทน config.php (def 'job')
  *  ยังไม่ได้รัน migration 006 (ไม่มีตาราง) → ใช้ config.php ทั้งหมด ไม่ error
  *  อ่านจาก DB ครั้งเดียวต่อคำขอ (api_handle ล้าง cache ทุกคำขอ)
  * ============================================================ */
@@ -15,9 +15,26 @@
  * type: int (min/max) | url | text (pattern) | secret (ไม่ส่งค่ากลับหน้าเว็บ) · default = ใช้เมื่อ config.php ไม่มี key นี้
  * job = array(แหล่งข้อมูล, ฟิลด์) ค่าฐานอยู่ในไฟล์เชื่อมต่อของแหล่งนั้น · noTail = secret ที่ห้ามแสดง/บันทึกท้ายรหัส
  */
+function sys_job_db_defs($source, $group)
+{
+    $p = 'job_' . $source . '_';
+    return array(
+        $p . 'host' => array('group' => $group, 'type' => 'text', 'label' => 'เซิร์ฟเวอร์', 'job' => array($source, 'host'),
+            'pattern' => '/^[A-Za-z0-9._-]+$/', 'patternError' => 'ใส่ชื่อเครื่องหรือ IP เช่น 192.168.10.21', 'max' => 100, 'default' => ''),
+        $p . 'port' => array('group' => $group, 'type' => 'int', 'label' => 'พอร์ต', 'job' => array($source, 'port'),
+            'min' => 1, 'max' => 65535, 'default' => 3306),
+        $p . 'name' => array('group' => $group, 'type' => 'text', 'label' => 'ชื่อฐานข้อมูล', 'job' => array($source, 'name'),
+            'pattern' => '/^[A-Za-z0-9_$-]+$/', 'patternError' => 'ใช้ได้เฉพาะตัวอักษรอังกฤษ ตัวเลข และ _ $ -', 'max' => 64, 'default' => ''),
+        $p . 'user' => array('group' => $group, 'type' => 'text', 'label' => 'ผู้ใช้ฐานข้อมูล', 'job' => array($source, 'user'),
+            'pattern' => '/^[\x21-\x7e]+$/', 'patternError' => 'ใช้ได้เฉพาะตัวอักษรอังกฤษ ตัวเลข และสัญลักษณ์', 'max' => 64, 'default' => ''),
+        $p . 'pass' => array('group' => $group, 'type' => 'secret', 'label' => 'รหัสผ่านฐานข้อมูล', 'job' => array($source, 'pass'),
+            'noTail' => true, 'min' => 1, 'max' => 128, 'default' => ''),
+    );
+}
+
 function sys_setting_defs()
 {
-    return array(
+    return array_merge(array(
         /* ---------- สต็อก Uniform (stock_hr/api/welfare.php) ---------- */
         'stock_api_url' => array('group' => 'stock', 'type' => 'url', 'label' => 'URL ของ API สต็อก',
             'hint' => 'เช่น https://develophpg.net/stock_hr/api/welfare.php', 'default' => ''),
@@ -27,17 +44,6 @@ function sys_setting_defs()
             'min' => 1, 'max' => 30, 'default' => 5),
         'stock_timeout' => array('group' => 'stock', 'type' => 'int', 'label' => 'รอคำตอบทั้งหมด', 'unit' => 'วินาที',
             'min' => 5, 'max' => 120, 'default' => 20),
-        /* ---------- ระบบสัญญาจ้าง hr-pro (api/job_db.php) — อ่านอย่างเดียว ---------- */
-        'job_pro_host' => array('group' => 'jobPro', 'type' => 'text', 'label' => 'เซิร์ฟเวอร์', 'job' => array('pro', 'host'),
-            'pattern' => '/^[A-Za-z0-9._-]+$/', 'patternError' => 'ใส่ชื่อเครื่องหรือ IP เช่น 192.168.10.21', 'max' => 100, 'default' => ''),
-        'job_pro_port' => array('group' => 'jobPro', 'type' => 'int', 'label' => 'พอร์ต', 'job' => array('pro', 'port'),
-            'min' => 1, 'max' => 65535, 'default' => 3306),
-        'job_pro_name' => array('group' => 'jobPro', 'type' => 'text', 'label' => 'ชื่อฐานข้อมูล', 'job' => array('pro', 'name'),
-            'pattern' => '/^[A-Za-z0-9_$-]+$/', 'patternError' => 'ใช้ได้เฉพาะตัวอักษรอังกฤษ ตัวเลข และ _ $ -', 'max' => 64, 'default' => ''),
-        'job_pro_user' => array('group' => 'jobPro', 'type' => 'text', 'label' => 'ผู้ใช้ฐานข้อมูล', 'job' => array('pro', 'user'),
-            'pattern' => '/^[\x21-\x7e]+$/', 'patternError' => 'ใช้ได้เฉพาะตัวอักษรอังกฤษ ตัวเลข และสัญลักษณ์', 'max' => 64, 'default' => ''),
-        'job_pro_pass' => array('group' => 'jobPro', 'type' => 'secret', 'label' => 'รหัสผ่านฐานข้อมูล', 'job' => array('pro', 'pass'),
-            'noTail' => true, 'min' => 1, 'max' => 128, 'default' => ''),
         /* ---------- การเข้าสู่ระบบ (สเปกข้อ 10.9.1) ---------- */
         'session_idle_minutes' => array('group' => 'auth', 'type' => 'int', 'label' => 'session หมดเมื่อไม่ใช้งาน', 'unit' => 'นาที',
             'min' => 5, 'max' => 480, 'default' => 30),
@@ -56,7 +62,7 @@ function sys_setting_defs()
             'min' => 1, 'max' => 90, 'default' => 7),
         'cleanup_days' => array('group' => 'monitor', 'type' => 'int', 'label' => 'ล้างข้อมูลการเข้าสู่ระบบที่เก่ากว่า', 'unit' => 'วัน',
             'hint' => 'ค่าเริ่มต้นของปุ่มล้างและ bin/cleanup.php · น้อยสุด = อายุ “จดจำฉัน”', 'min' => 30, 'max' => 3650, 'default' => 90),
-    );
+    ), sys_job_db_defs('cns', 'jobCns'), sys_job_db_defs('pro', 'jobPro'));
 }
 
 /** array(key => value string) จากตาราง — ไม่มีตาราง (ยังไม่รัน 006) = array() */

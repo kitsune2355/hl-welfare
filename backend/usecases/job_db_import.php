@@ -20,7 +20,7 @@ function job_db_sources()
 {
     return array(
         'cns' => array('key' => 'cns', 'system' => 'job_db_cns', 'company' => 'CNS', 'employeeType' => 'DAILY', 'level' => 1,
-            'file' => 'connect_job_db.php', 'global' => 'hlw_job_db', 'positionTable' => false),
+            'file' => 'connect_job_db.php', 'global' => 'hlw_job_db', 'positionTable' => false, 'settingsPrefix' => 'job_cns_'),
         'pro' => array('key' => 'pro', 'system' => 'hr-pro', 'company' => 'PRO', 'employeeType' => 'PRO_SITE', 'level' => null,
             'file' => 'connect_job_db_pro.php', 'global' => 'hlw_job_db_pro', 'positionTable' => true, 'settingsPrefix' => 'job_pro_'),
     );
