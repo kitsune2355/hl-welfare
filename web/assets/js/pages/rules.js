@@ -19,7 +19,7 @@ import { errorMessage, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 
 /** คำแนะนำการใช้งานตามแท็บ (tour/guides.js) — อ่านจาก URL เพราะ tab ประกาศทีหลัง */
-const tourId = () => ({ settings: 'rules-settings', pending: 'rules-pending' })[getParam('tab')] ?? 'rules';
+const tourId = () => ({ uniform: 'rules-uniform', settings: 'rules-settings', pending: 'rules-pending' })[getParam('tab')] ?? 'rules-insurance';
 initPage('rules', { tour: tourId });
 
 const MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];

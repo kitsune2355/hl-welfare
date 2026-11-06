@@ -132,6 +132,47 @@ const practiceEnd = (what) => ({
   text: `ตอนนี้ยังอยู่ใน <b>โหมดฝึก</b> — ลอง${what}ด้วยตัวเองได้ ข้อมูลเป็นตัวอย่าง ไม่กระทบของจริง<br><br>ฝึกเสร็จแล้วกด <b>ออกจากโหมดฝึก</b> ที่แถบสีเหลืองด้านบน`,
 });
 
+/** ตารางของแต่ละแท็บตั้งค่าสวัสดิการ */
+const ORG = (tab) => `[data-org="${tab}"]`;
+const SITES = '#grid';
+/** ทิ้งแถวตัวอย่างที่ยังไม่บันทึก (ปุ่ม "ยกเลิกทั้งหมด" ของตารางนั้น) */
+const discardRows = (scope) => async (h) => {
+  document.querySelector(`${scope} [data-grid-act="discard-all"]`)?.click();
+  await h.sleep(150);
+};
+/** เพิ่มแถวตัวอย่างให้เห็น (ไม่บันทึก) — มีแถวอยู่แล้ว = ไม่เพิ่มซ้ำ */
+const addRow = (scope) => async (h) => {
+  if (document.querySelector(`${scope} tr.is-new`)) return;
+  h.click(`${scope} [data-grid-act="add"]`);
+  await h.wait(`${scope} tr.is-new`, 3000);
+};
+/** ขั้นชี้ช่องหนึ่งในแถวใหม่ */
+const newCell = (page, scope, col, title, text) => ({ page, before: addRow(scope), element: `${scope} tr.is-new td[data-col="${col}"]`, title, text, side: 'bottom' });
+/** ขั้นชี้แท็บ */
+const tabStart = (page, value, label, text) => [
+  { page, before: (h) => h.clickTab(value), element: `.tab[data-tab="${value}"]`, title: `แท็บ “${label}”`, text, side: 'bottom' },
+];
+/** ขั้นบันทึก + ปิดท้าย (ไม่บันทึกจริง ทิ้งแถวตัวอย่างให้) */
+const tabEnd = (page, scope, what) => [
+  { page, before: addRow(scope), element: `${scope} [data-grid-act="save-all"]`, title: 'กด “บันทึก”', text: 'กรอกครบแล้วกดปุ่มนี้ ระบบตรวจให้ก่อนบันทึก ช่องที่ผิดเป็นสีแดง<br>ตัวอย่างนี้เราจะไม่บันทึก', side: 'bottom', align: 'end' },
+  { ...practiceEnd(what), before: discardRows(scope) },
+];
+/** กล่องเพิ่มกฎของแท็บปัจจุบัน */
+const openRuleForm = (h) => h.open('#add', '.modal #f-from');
+
+const SITE_UNIFORM = '#grid tbody tr:first-child [data-site-uniform]';
+/** ช่องตำแหน่งแสดงเฉพาะประเภทที่ใช้ตำแหน่ง — ยังไม่แสดง = เปลี่ยนเป็นประเภทแรกที่ใช้ */
+async function showPositionField(h) {
+  await openRuleForm(h);
+  const field = document.querySelector('.modal [data-pos-field]');
+  const type = document.querySelector('.modal #f-type');
+  for (const o of type?.options ?? []) {
+    if (!field?.hidden) break;
+    type.value = o.value;
+    type.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+}
+
 /** @type {import('../app/tour.js').Guide[]} */
 export const GUIDES = [
   // ------------------------------------------------------------------
@@ -1157,13 +1198,188 @@ export const GUIDES = [
   },
 
   // ------------------------------------------------------------------
+  // ตั้งค่าสวัสดิการ: แท็บละ 1 เรื่อง — เลขตรงกับเลขบนแท็บ (pages/_settingsTabs.js)
+  {
+    id: 'org-companies',
+    title: '1 · ตั้งค่าบริษัท',
+    summary: 'เพิ่มบริษัท ตั้งรหัส ชื่อ ชื่อตามทะเบียน สี และลำดับ',
+    icon: 'building-2',
+    color: '#2563eb',
+    pages: ['sites-companies'],
+    need: 'org.edit',
+    steps: [
+      { page: 'sites-companies', href: 'sites.html', title: 'เริ่มจากแท็บนี้', text: 'หน่วยงาน พนักงาน และกฎทุกอย่างอ้างอิงบริษัท จึงตั้งเป็นอย่างแรก' },
+      ...tabStart('sites-companies', 'companies', 'บริษัท', 'ตารางด้านล่าง = บริษัทในเครือทั้งหมด'),
+      { page: 'sites-companies', before: discardRows(ORG('companies')), element: `${ORG('companies')} [data-grid-act="add"]`, title: 'กด “เพิ่มบริษัท”', text: 'ได้แถวใหม่ในตาราง กดถัดไปแล้วเราเพิ่มให้ดู', side: 'bottom' },
+      newCell('sites-companies', ORG('companies'), 'code', 'รหัสบริษัท', 'ตัวอักษรอังกฤษ/ตัวเลขสั้น ๆ เช่น <b>HL</b><br><b>ตั้งแล้วเปลี่ยนไม่ได้</b> เพราะใช้อ้างอิงทั้งระบบ'),
+      newCell('sites-companies', ORG('companies'), 'name', 'ชื่อ', 'ชื่อสั้นที่แสดงในระบบ<br>ดับเบิลคลิกที่ช่องเพื่อพิมพ์ แล้วกด <b>Enter</b>'),
+      newCell('sites-companies', ORG('companies'), 'legalName', 'ชื่อตามทะเบียน', 'ใช้ในไฟล์แจ้งประกัน ควรตรงกับหนังสือรับรองบริษัท'),
+      newCell('sites-companies', ORG('companies'), 'color', 'สี', 'ดับเบิลคลิกเพื่อเลือกสีป้ายบริษัท หรือใช้สีอัตโนมัติ'),
+      { page: 'sites-companies', before: addRow(ORG('companies')), element: `${ORG('companies')} [data-co-move]:not([disabled])`, title: 'ลำดับ', text: 'ลูกศรขึ้น/ลงจัดลำดับบริษัททั้งระบบ มีผลทันทีกับบริษัทที่บันทึกแล้ว', side: 'right' },
+      newCell('sites-companies', ORG('companies'), 'active', 'ใช้งาน', 'ไม่มีการลบ เลิกใช้ให้เอาติ๊กออก ข้อมูลเดิมยังอยู่ แต่เลือกบริษัทนี้ให้คนใหม่ไม่ได้'),
+      ...tabEnd('sites-companies', ORG('companies'), 'เพิ่มบริษัท'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'org-types',
+    title: '2 · ตั้งค่าประเภทพนักงาน',
+    summary: 'เพิ่มประเภท เลือกบริษัทที่ใช้ได้ และพฤติกรรมของประเภทนั้น',
+    icon: 'users',
+    color: '#0891b2',
+    pages: ['sites-types'],
+    need: 'org.edit',
+    steps: [
+      { page: 'sites-types', href: 'sites.html?tab=types', title: 'ประเภทกำหนดวิธีคิดสิทธิ', text: 'ประเภทพนักงานบอกว่าคนกลุ่มนี้ใช้กฎแบบไหน ต้องกรอกอะไรเพิ่ม และแจ้งประกันรอบไหน' },
+      ...tabStart('sites-types', 'types', 'ประเภทพนักงาน', 'ตารางด้านล่าง = ประเภทที่มีอยู่'),
+      { page: 'sites-types', before: discardRows(ORG('types')), element: `${ORG('types')} [data-grid-act="add"]`, title: 'กด “เพิ่มประเภท”', text: 'ได้แถวใหม่ในตาราง กดถัดไปแล้วเราเพิ่มให้ดู', side: 'bottom' },
+      newCell('sites-types', ORG('types'), 'code', 'รหัส', 'ภาษาอังกฤษ เช่น <b>FIXED_TERM</b> ตั้งแล้วเปลี่ยนไม่ได้'),
+      newCell('sites-types', ORG('types'), 'name', 'ชื่อ', 'ชื่อที่แสดงบนป้ายทั่วระบบ'),
+      newCell('sites-types', ORG('types'), 'tone', 'สี', 'ดับเบิลคลิกเพื่อเลือกสีป้าย'),
+      newCell('sites-types', ORG('types'), 'companies', 'ใช้กับบริษัท', 'ดับเบิลคลิกเพื่อเลือกบริษัท พนักงานบริษัทอื่นจะเลือกประเภทนี้ไม่ได้'),
+      newCell('sites-types', ORG('types'), 'usesDeptGroup', 'ใช้กลุ่ม/ฝ่าย + ระดับ', 'ติ๊ก = พนักงานประเภทนี้ต้องกรอกกลุ่ม/ฝ่ายและระดับ และกฎชุดฟอร์มเลือกตามนี้ได้'),
+      newCell('sites-types', ORG('types'), 'usesPosition', 'ใช้ตำแหน่ง', 'ติ๊ก = กฎชุดฟอร์มเลือกตามตำแหน่งได้'),
+      newCell('sites-types', ORG('types'), 'dailyCycle', 'รอบแจ้งรายวัน', 'ติ๊ก = แจ้งประกันตามรอบของพนักงานรายวัน'),
+      ...tabEnd('sites-types', ORG('types'), 'เพิ่มประเภท'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'org-groups',
+    title: '3 · ตั้งค่ากลุ่ม / ฝ่าย',
+    summary: 'เพิ่มหรือเปลี่ยนชื่อกลุ่มที่ใช้กับพนักงานและกฎชุดฟอร์ม',
+    icon: 'list-checks',
+    color: '#7c3aed',
+    pages: ['sites-groups'],
+    need: 'org.edit',
+    steps: [
+      { page: 'sites-groups', href: 'sites.html?tab=groups', title: 'กลุ่มที่ใช้เลือกในกฎ', text: 'ใช้กับประเภทพนักงานที่ติ๊ก <b>กลุ่ม/ฝ่าย + ระดับ</b> เช่น พนักงานส่วนกลาง' },
+      ...tabStart('sites-groups', 'groups', 'กลุ่ม / ฝ่าย', 'ตารางบอกจำนวนพนักงานและกฎชุดฟอร์มที่ใช้แต่ละกลุ่ม'),
+      { page: 'sites-groups', before: discardRows(ORG('groups')), element: `${ORG('groups')} tbody tr:first-child td[data-col="name"]`, title: 'เปลี่ยนชื่อ = ดับเบิลคลิก', text: 'เปลี่ยนชื่อแล้ว ระบบแก้ชื่อในพนักงานและกฎชุดฟอร์มทุกฉบับให้เอง', side: 'bottom' },
+      { page: 'sites-groups', before: discardRows(ORG('groups')), element: `${ORG('groups')} [data-grid-act="add"]`, title: 'กด “เพิ่มกลุ่ม / ฝ่าย”', text: 'ได้แถวใหม่ในตาราง กดถัดไปแล้วเราเพิ่มให้ดู', side: 'bottom' },
+      newCell('sites-groups', ORG('groups'), 'name', 'ชื่อกลุ่ม / ฝ่าย', 'ดับเบิลคลิก พิมพ์ชื่อ แล้วกด <b>Enter</b> ชื่อห้ามซ้ำกับกลุ่มเดิม'),
+      newCell('sites-groups', ORG('groups'), 'active', 'ใช้งาน', 'ไม่มีการลบ เลิกใช้ให้เอาติ๊กออก พนักงานและกฎเดิมยังอยู่'),
+      ...tabEnd('sites-groups', ORG('groups'), 'เพิ่มกลุ่ม'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'org-sites',
+    title: '4 · ตั้งค่าหน่วยงาน',
+    summary: 'เพิ่มหน่วยงาน กำหนดประกันกลุ่มและสีโปโลของหน่วยงาน',
+    icon: 'building-2',
+    color: '#059669',
+    pages: ['sites-units'],
+    need: 'sites.edit',
+    steps: [
+      { page: 'sites-units', href: 'sites.html?tab=sites', title: 'หน่วยงานที่พนักงานประจำ', text: 'สำนักงาน โครงการ หรือไซต์ ระบบส่งชื่อนี้ไปเป็นแผนกในระบบสต็อกด้วย' },
+      ...tabStart('sites-units', 'sites', 'หน่วยงาน', 'ตารางด้านล่าง = หน่วยงานทั้งหมด'),
+      { page: 'sites-units', before: discardRows(SITES), element: `${SITES} [data-grid-act="add"]`, title: 'กด “เพิ่มหน่วยงาน”', text: 'ได้แถวใหม่ในตาราง กดถัดไปแล้วเราเพิ่มให้ดู', side: 'bottom' },
+      newCell('sites-units', SITES, 'companyCode', 'บริษัท', 'หน่วยงานนี้อยู่บริษัทไหน'),
+      newCell('sites-units', SITES, 'name', 'ชื่อหน่วยงาน', 'ดับเบิลคลิก พิมพ์ชื่อ แล้วกด <b>Enter</b>'),
+      newCell('sites-units', SITES, 'hasGroupInsurance', 'ได้รับประกันกลุ่ม', 'ใช้กับกฎประกันที่ติ๊ก <b>เฉพาะหน่วยงานที่ได้รับประกันกลุ่ม</b>'),
+      newCell('sites-units', SITES, 'poloColor', 'สีโปโล', 'ใช้กับกฎชุดฟอร์มที่ตั้ง <b>ใช้สีตามหน่วยงาน</b> กฎอื่นไม่สนช่องนี้'),
+      newCell('sites-units', SITES, 'active', 'ใช้งาน', 'เลิกใช้ให้เอาติ๊กออก เลือกหน่วยงานนี้ให้พนักงานใหม่ไม่ได้ พนักงานเดิมยังอยู่'),
+      ...tabEnd('sites-units', SITES, 'เพิ่มหน่วยงาน'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'site-uniform',
+    title: '4 · ชุดฟอร์มของหน่วยงาน',
+    summary: 'บางหน่วยงานได้ชุดไม่เท่ากฎกลาง → ตั้งจำนวนเฉพาะหน่วยงานนั้น',
+    icon: 'shirt',
+    color: '#d97706',
+    pages: ['sites-units'],
+    need: 'rules.edit',
+    steps: [
+      { page: 'sites-units', href: 'sites.html?tab=sites', title: 'ต่างจากกฎกลางเฉพาะบางที่', text: 'ถ้าหน่วยงานหนึ่งได้ชุดไม่เท่ากฎชุดฟอร์ม ตั้งจำนวนเฉพาะที่นั้นได้ โดยไม่ต้องแก้กฎกลาง' },
+      ...tabStart('sites-units', 'sites', 'หน่วยงาน', 'ตั้งได้จากคอลัมน์ <b>ชุดฟอร์ม</b> ในตารางนี้'),
+      { page: 'sites-units', before: (h) => h.close(), element: `${SITES} tbody tr:first-child [data-site-uniform]`, title: 'ขั้นที่ 1 · กดปุ่มที่แถวหน่วยงาน', text: 'ข้างปุ่มบอกว่าตอนนี้ <b>ตามกฎกลาง</b> หรือ <b>ตั้งเอง</b> กี่กฎ', side: 'left' },
+      { page: 'sites-units', before: (h) => h.open(SITE_UNIFORM, '.modal [data-override]'), element: '.modal [data-override]', title: 'ขั้นที่ 2 · ติ๊กกฎที่จะตั้งเอง', text: 'แสดงกฎของบริษัทนี้ทั้งหมด กฎที่ไม่ติ๊กยังใช้จำนวนตามกฎกลาง', side: 'bottom' },
+      {
+        page: 'sites-units',
+        before: async (h) => {
+          await h.open(SITE_UNIFORM, '.modal [data-override]');
+          const box = document.querySelector('.modal [data-override]');
+          if (box && !box.checked) box.click();
+          await h.wait('.modal [data-grid-slot] .qty-grid', 2000);
+        },
+        element: '.modal [data-grid-slot] .qty-grid',
+        title: 'ขั้นที่ 3 · แก้จำนวน',
+        text: 'ติ๊กแล้วได้ตารางให้แก้จำนวนต่อรอบ เริ่มจากค่าของกฎกลาง · ต้องได้ชุดอย่างน้อย 1 ชิ้น',
+        side: 'top',
+      },
+      { page: 'sites-units', before: (h) => h.open(SITE_UNIFORM, '.modal [data-override]'), element: '.modal [data-ok]', title: 'ขั้นที่ 4 · กด “บันทึก”', text: 'ระบบส่งข้อมูลไปสต็อกให้เอง ตัวอย่างนี้เราจะไม่บันทึก', side: 'top', align: 'end' },
+      { page: 'sites-units', before: (h) => h.close(), element: '#sync-stock', title: 'ส่งข้อมูลไปสต็อกเอง', text: 'ปกติระบบส่งให้ตอนบันทึก กดปุ่มนี้เมื่อสต็อกเคยล่ม หรือกฎที่ตั้งล่วงหน้าเพิ่งถึงวันมีผล', side: 'bottom', align: 'end' },
+      practiceEnd('ตั้งชุดฟอร์มของหน่วยงาน'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'rule-add-insurance',
+    title: '5 · เพิ่มกฎประกันกลุ่ม',
+    summary: 'กำหนดว่าใครได้ประกัน ทำงานครบกี่วัน และเริ่มใช้เมื่อไร',
+    icon: 'shield-plus',
+    color: '#0d9488',
+    pages: ['rules-insurance'],
+    need: 'rules.edit',
+    steps: [
+      { page: 'rules-insurance', href: 'rules.html', title: 'กฎประกันคือเงื่อนไขได้สิทธิ', text: 'พนักงานตรงกฎข้อไหน ระบบใช้ข้อนั้นคำนวณวันได้สิทธิประกันกลุ่ม' },
+      ...tabStart('rules-insurance', 'insurance', 'ประกันกลุ่ม', 'ตารางด้านล่าง = กฎที่ใช้อยู่ตอนนี้'),
+      { page: 'rules-insurance', before: (h) => h.close(), element: '#add', title: 'กด “เพิ่มกฎประกันกลุ่ม”', text: 'จะมีกล่องให้กรอกเงื่อนไข', side: 'bottom', align: 'end' },
+      { page: 'rules-insurance', before: openRuleForm, element: '.modal [data-field="employeeType"]', title: 'ประเภทพนักงาน', text: 'กฎนี้ใช้กับประเภทไหน', side: 'bottom' },
+      { page: 'rules-insurance', before: openRuleForm, element: '.modal [data-field="waitDays"]', title: 'ทำงานครบกี่วันจึงได้สิทธิ', text: 'นับวันเริ่มงานเป็นวันที่ 1 และได้สิทธิวันถัดจากวันที่ครบ เช่น 30 วัน = ได้สิทธิวันที่ 31', side: 'bottom' },
+      { page: 'rules-insurance', before: openRuleForm, element: '.modal [data-field="companies"]', title: 'บริษัท', text: 'เลือกบริษัทที่ใช้กฎนี้ หรือ <b>ทุกบริษัท</b>', side: 'bottom' },
+      { page: 'rules-insurance', before: openRuleForm, element: '.modal [data-field="excludeContracts"]', title: 'ไม่รวมสัญญา', text: 'ติ๊กสัญญาที่ไม่ได้รับประกันตามกฎนี้', side: 'top' },
+      { page: 'rules-insurance', before: openRuleForm, element: '.modal .field:has(#f-site)', title: 'เฉพาะหน่วยงานที่ได้รับ', text: 'ติ๊ก = เฉพาะหน่วยงานที่เปิด <b>ได้รับประกันกลุ่ม</b> ไว้ในแท็บ 4', side: 'top' },
+      { page: 'rules-insurance', before: openRuleForm, element: '.modal .effective-bar .field', title: 'วันที่มีผล', text: 'กฎเริ่มใช้วันไหน ตั้งล่วงหน้าได้', side: 'top' },
+      { page: 'rules-insurance', before: openRuleForm, element: '.modal [data-ok]', title: 'กด “บันทึก”', text: 'ตัวอย่างนี้เราจะไม่บันทึก ปิดกล่องให้ตอนกดถัดไป', side: 'top', align: 'end' },
+      { ...practiceEnd('เพิ่มกฎ'), before: (h) => h.close() },
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'rule-add-uniform',
+    title: '6 · เพิ่มกฎชุดฟอร์ม',
+    summary: 'กำหนดว่าใครได้ชุดแบบไหน รอบละกี่ตัว และเริ่มใช้เมื่อไร',
+    icon: 'shirt',
+    color: '#ea580c',
+    pages: ['rules-uniform'],
+    need: 'rules.edit',
+    steps: [
+      { page: 'rules-uniform', href: 'rules.html?tab=uniform', title: 'กฎชุดฟอร์มคือสิทธิได้ชุด', text: 'พนักงานตรงกฎข้อไหน ระบบใช้ข้อนั้นคิดว่าได้ชุดอะไร กี่ตัว ในแต่ละรอบ' },
+      ...tabStart('rules-uniform', 'uniform', 'ชุดฟอร์ม', 'ตารางด้านล่าง = กฎที่ใช้อยู่ตอนนี้'),
+      { page: 'rules-uniform', before: (h) => h.close(), element: '#add', title: 'กด “เพิ่มกฎชุดฟอร์ม”', text: 'จะมีกล่องให้กรอกเงื่อนไข', side: 'bottom', align: 'end' },
+      { page: 'rules-uniform', before: openRuleForm, element: '.modal [data-field="employeeType"]', title: 'ประเภทพนักงาน', text: 'เปลี่ยนประเภทแล้ว ช่องตำแหน่งจะแสดงหรือซ่อนตามที่ตั้งไว้ในแท็บ 2', side: 'bottom' },
+      { page: 'rules-uniform', before: openRuleForm, element: '.modal [data-field="style"]', title: 'ชื่อแบบชุดฟอร์ม', text: 'ชื่อที่ HR เห็น เช่น โปโลสีดำ โลโก้ HL', side: 'bottom' },
+      { page: 'rules-uniform', before: openRuleForm, element: '.modal [data-field="companies"]', title: 'บริษัท', text: 'ต้องเลือกอย่างน้อย 1 บริษัท', side: 'bottom' },
+      { page: 'rules-uniform', before: openRuleForm, element: '.modal [data-field="deptGroups"]', title: 'กลุ่ม / ฝ่าย', text: '<b>ทุกกลุ่ม</b> หรือเอาติ๊กออกแล้วเลือกเฉพาะกลุ่ม', side: 'bottom' },
+      { page: 'rules-uniform', before: showPositionField, element: '.modal [data-pos-field] .pos-picker', title: 'ตำแหน่ง', text: 'ไม่เลือก = ทุกตำแหน่ง · ค้นหาในช่องนี้ได้ ไม่พบกด <b>เพิ่มตำแหน่งนี้</b><br>ต้องตรงกับข้อมูลพนักงานทุกตัวอักษร', side: 'top' },
+      { page: 'rules-uniform', before: openRuleForm, element: '.modal [data-field="levelMin"]', title: 'ระดับต่ำสุด / สูงสุด', text: 'เว้นว่าง = ไม่จำกัดระดับ', side: 'top' },
+      { page: 'rules-uniform', before: openRuleForm, element: '.modal .field:has(#f-logo)', title: 'โลโก้บนเสื้อ', text: 'ใช้เลือกแบบในระบบสต็อก ค่าเริ่มต้น = ตามบริษัทของพนักงาน', side: 'top' },
+      { page: 'rules-uniform', before: openRuleForm, element: '.modal .field:has(#f-polo)', title: 'สีโปโลตามหน่วยงาน', text: 'ติ๊ก = ใช้สีโปโลที่ตั้งไว้ในแท็บ 4', side: 'top' },
+      { page: 'rules-uniform', before: openRuleForm, element: '.modal .qty-grid', title: 'จำนวนต่อรอบ', text: 'ใส่จำนวนของแต่ละรายการในรอบ <b>เริ่มงาน / ผ่านทดลองงาน / ประจำปี</b> · 0 = ไม่ได้', side: 'top' },
+      { page: 'rules-uniform', before: openRuleForm, element: '.modal .effective-bar .field', title: 'วันที่มีผล', text: 'กฎเริ่มใช้วันไหน ตั้งล่วงหน้าได้', side: 'top' },
+      { page: 'rules-uniform', before: openRuleForm, element: '.modal [data-ok]', title: 'กด “บันทึก”', text: 'ระบบส่งชุดรอบเริ่มงานไปสต็อกให้เอง ตัวอย่างนี้เราจะไม่บันทึก', side: 'top', align: 'end' },
+      { ...practiceEnd('เพิ่มกฎ'), before: (h) => h.close() },
+    ],
+  },
+
+  // ------------------------------------------------------------------
   {
     id: 'settings',
     title: 'ตั้งค่าสวัสดิการ (สำหรับผู้ดูแล)',
     summary: 'ตั้งบริษัท ประเภท หน่วยงาน และเงื่อนไขประกัน/ชุดฟอร์ม ตามลำดับเลข',
     icon: 'building-2',
     color: '#8b5cf6',
-    pages: ['sites', 'sites-companies', 'sites-types', 'sites-groups', 'rules', 'rules-settings', 'rules-pending'],
+    pages: ['sites', 'rules'],
     need: 'sites.view',
     steps: [
       {
@@ -1226,7 +1442,7 @@ export const GUIDES = [
     summary: 'แก้กฎ → เลือกวันเริ่มใช้ → ก่อนถึงวันยังแก้หรือยกเลิกได้',
     icon: 'calendar-clock',
     color: '#7c3aed',
-    pages: ['rules'],
+    pages: ['rules-insurance', 'rules-uniform'],
     need: 'rules.edit',
     steps: [
       {
@@ -1312,7 +1528,7 @@ export const GUIDES = [
     summary: 'กฎไม่ใช้แล้ว → เลือกวันเลิกใช้ · ประวัติเดิมยังอยู่ครบ',
     icon: 'ban',
     color: '#dc2626',
-    pages: ['rules'],
+    pages: ['rules-insurance', 'rules-uniform'],
     need: 'rules.edit',
     steps: [
       {

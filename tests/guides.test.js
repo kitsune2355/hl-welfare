@@ -9,7 +9,7 @@ import { MockApi } from '../web/assets/js/infrastructure/mock/mockApi.js';
 /** id หน้า/แท็บ ที่ initPage ส่งให้คู่มือ (pages/*.js) */
 const PAGES = [
   'dashboard', 'employees', 'employee', 'insurance', 'insurance-history', 'uniform', 'uniform-upcoming', 'uniform-waiting', 'uniform-history',
-  'sites', 'sites-companies', 'sites-types', 'sites-groups', 'rules', 'rules-settings', 'rules-pending',
+  'sites', 'sites-companies', 'sites-types', 'sites-groups', 'sites-units', 'rules', 'rules-insurance', 'rules-uniform', 'rules-settings', 'rules-pending',
   'insurers', 'insurer-edit', 'account', 'account-password', 'account-font',
   'admin-users', 'admin-permissions', 'admin-access', 'admin-health', 'admin-settings', 'admin-audit',
 ];
@@ -49,6 +49,11 @@ describe('คู่มือทีละขั้น', () => {
       const to = g.steps.findIndex((x) => x.key === s.backTo);
       expect(`${g.id}#${i}:${to >= 0 && to < i}`).toBe(`${g.id}#${i}:true`);
     });
+  });
+  it('ทุกแท็บตั้งค่าสวัสดิการมีคู่มือของแท็บนั้น (การ์ดเข้าแท็บครั้งแรกเสนอเรื่องนี้)', () => {
+    for (const p of ['sites-companies', 'sites-types', 'sites-groups', 'sites-units', 'rules-insurance', 'rules-uniform', 'rules-settings', 'rules-pending']) {
+      expect(`${p}:${GUIDES.some((g) => g.pages.includes(p))}`).toBe(`${p}:true`);
+    }
   });
   it('ไอคอนของทุกเรื่องมีอยู่จริง', () => {
     for (const g of GUIDES) expect(`${g.id}:${g.icon}:${!!icon(g.icon)}`).toBe(`${g.id}:${g.icon}:true`);
