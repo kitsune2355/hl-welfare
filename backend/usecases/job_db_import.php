@@ -13,7 +13,7 @@
 define('JOB_DB_SITE_NAME_MAX', 200);   // ขนาดคอลัมน์ sites.name
 
 /**
- * file = ไฟล์เชื่อมต่อใน backend/ · global = ค่าทับในเทสต์
+ * file = ไฟล์เชื่อมต่อใน backend/ · global = ค่าทับในเทสต์ · settingsPrefix = ค่าจากหน้าตั้งค่าระบบทับไฟล์ (lib/settings.php)
  * positionTable: true = ชื่อตำแหน่งจาก tb_position ของฐานนั้น · false = รหัสคงที่ของ CNS (job_db_position_label)
  */
 function job_db_sources()
@@ -22,7 +22,7 @@ function job_db_sources()
         'cns' => array('key' => 'cns', 'system' => 'job_db_cns', 'company' => 'CNS', 'employeeType' => 'DAILY', 'level' => 1,
             'file' => 'connect_job_db.php', 'global' => 'hlw_job_db', 'positionTable' => false),
         'pro' => array('key' => 'pro', 'system' => 'hr-pro', 'company' => 'PRO', 'employeeType' => 'PRO_SITE', 'level' => null,
-            'file' => 'connect_job_db_pro.php', 'global' => 'hlw_job_db_pro', 'positionTable' => true),
+            'file' => 'connect_job_db_pro.php', 'global' => 'hlw_job_db_pro', 'positionTable' => true, 'settingsPrefix' => 'job_pro_'),
     );
 }
 

@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { expect } from './_expect.js';
 import { GUIDES } from '../web/assets/js/tour/guides.js';
 import { icon } from '../web/assets/js/shared/icons.js';
-import { practiceStock, realPageUrl } from '../web/assets/js/app/practice.js';
+import { practiceJobDb, practiceStock, realPageUrl } from '../web/assets/js/app/practice.js';
 import { MockApi } from '../web/assets/js/infrastructure/mock/mockApi.js';
 
 /** id หน้า/แท็บ ที่ initPage ส่งให้คู่มือ (pages/*.js) */
@@ -81,6 +81,18 @@ describe('คู่มือที่ใส่ข้อมูลตัวอย�
     const api = new Proxy({}, { get: () => async () => { called++; return []; } });
     await GUIDES.find((g) => g.id === 'uniform-cancel').steps[0].before({ api });
     expect(called).toBe(0);
+  });
+});
+
+describe('โหมดฝึก: ระบบสัญญาจ้างตัวอย่าง', () => {
+  it('ดึงรายชื่อตัวอย่างได้ · กดบันทึกไม่เพิ่มพนักงาน · โหมด mock ปกติยังดึงไม่ได้', async () => {
+    const api = new MockApi(() => '2026-10-16', practiceStock(), { storageKey: 'test-practice', jobDb: practiceJobDb() });
+    const plan = await api.previewJobDbEmployees('pro');
+    expect([plan.company, plan.rows.filter((r) => r.action === 'new').length]).toEqual(['PRO', 2]);
+    const before = (await api.listEmployees()).length;
+    const r = await api.importJobDbEmployees({ source: 'pro', create: ['PR9001'], update: [] });
+    expect([r.created, (await api.listEmployees()).length]).toEqual([1, before]);
+    await expect(new MockApi(() => '2026-10-16', practiceStock(), { storageKey: 'test-practice' }).previewJobDbEmployees('pro')).rejects.toMatchObject({ status: 409 });
   });
 });
 

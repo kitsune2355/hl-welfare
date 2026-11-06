@@ -7,7 +7,7 @@ import { ServerAuth } from '../infrastructure/http/serverAuth.js';
 import { StockGateway } from '../infrastructure/http/stockGateway.js';
 import { MockApi } from '../infrastructure/mock/mockApi.js';
 import { progress } from '../ui/loading.js';
-import { isPractice, practiceStock, PRACTICE_STORAGE_KEY } from './practice.js';
+import { isPractice, practiceJobDb, practiceStock, PRACTICE_STORAGE_KEY } from './practice.js';
 
 export const API_MODE = CONFIG.apiMode === 'http' ? 'http' : 'mock';
 
@@ -28,7 +28,7 @@ export const sessionAuth = serverAuth;
 export const PRACTICE = isPractice();
 
 const raw = PRACTICE
-  ? new MockApi(undefined, practiceStock(), { storageKey: PRACTICE_STORAGE_KEY })
+  ? new MockApi(undefined, practiceStock(), { storageKey: PRACTICE_STORAGE_KEY, jobDb: practiceJobDb() })
   : API_MODE === 'http'
     ? new HttpApi(CONFIG.apiBaseUrl, serverAuth)
     : new MockApi(undefined, new StockGateway(CONFIG.stock.bridgeUrl, serverAuth));

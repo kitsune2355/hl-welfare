@@ -54,6 +54,33 @@ export function realPageUrl(href) {
 }
 
 /**
+ * ระบบสัญญาจ้างตัวอย่างของโหมดฝึก (รูปแบบคำตอบเดียวกับ backend/api/job_db.php) — ไม่ต่อฐาน hr-pro / job_db_cns จริง
+ * กด "บันทึกที่เลือก" = ตอบจำนวนเฉย ๆ ไม่เพิ่มรายชื่อ
+ */
+export function practiceJobDb() {
+  const company = { cns: 'CNS', pro: 'PRO' };
+  const site = { cns: 'FM-AV-1 หน่วยงานตัวอย่าง', pro: 'PRO-01 โครงการตัวอย่าง' };
+  const code = { cns: 'CN9', pro: 'PR9' };
+  const row = (source, n, action, name, extra = {}) => ({
+    empCode: `${code[source]}${n}`, name, position: 'ตำแหน่งตัวอย่าง', siteName: site[source], siteExists: false, action, reasons: [], warnings: [], changes: [], ...extra,
+  });
+  return {
+    preview(source) {
+      const rows = [
+        row(source, '001', 'new', 'มานะ ตัวอย่าง'),
+        row(source, '002', 'new', 'มานี ตัวอย่าง'),
+        row(source, '003', 'update', 'ปิติ ตัวอย่าง', { siteExists: true, changes: [{ field: 'phone', label: 'เบอร์โทร', from: '0810000001', to: '0810000002' }] }),
+        row(source, '004', 'skip', 'ชูใจ ตัวอย่าง', { reasons: ['รหัสนี้เป็นพนักงานบริษัทอื่นอยู่แล้ว — ตรวจรหัสในระบบสัญญาจ้าง'] }),
+      ];
+      return { source, system: source, company: company[source], rows, summary: { total: 5, new: 2, update: 1, same: 1, skip: 1 }, missingSites: [site[source]], canCreateSites: true };
+    },
+    import({ create = [], update = [] }) {
+      return { created: create.length, updated: update.length, sitesCreated: 0, failed: [] };
+    },
+  };
+}
+
+/**
  * ระบบสต็อกปลอมของโหมดฝึก — ส่งเบิกได้เหมือนจริงแต่ไม่ออกใบในระบบสต็อกจริง
  * (รูปแบบคำตอบเดียวกับ web/api/stock_bridge.php)
  */

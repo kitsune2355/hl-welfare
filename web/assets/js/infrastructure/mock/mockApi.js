@@ -111,7 +111,8 @@ export class MockApi {
   today;
   stock;
   /** storageKey = ที่เก็บใน localStorage (โหมดฝึกของคู่มือใช้ที่เก็บแยก — app/practice.js) */
-  constructor(today = () => todayISO(), stock = new StockGateway(CONFIG.stock.bridgeUrl), { storageKey = STORAGE_KEY } = {}) {
+  constructor(today = () => todayISO(), stock = new StockGateway(CONFIG.stock.bridgeUrl), { storageKey = STORAGE_KEY, jobDb = null } = {}) {
+    this.jobDb = jobDb; // โหมดฝึก: ระบบสัญญาจ้างตัวอย่าง (app/practice.js) · null = โหมด mock ไม่มีให้ดึง
     this.today = today;
     this.stock = stock;
     this.storageKey = storageKey;
@@ -549,13 +550,14 @@ export class MockApi {
     });
   }
   /** ระบบสัญญาจ้าง (job_db_cns) ต้องต่อผ่าน PHP backend — โหมด mock ไม่มีให้ดึง */
-  previewJobDbEmployees() {
+  previewJobDbEmployees(source = 'cns') {
     return this.run(() => {
+      if (this.jobDb) return this.jobDb.preview(source);
       throw new ApiError('ดึงจากระบบสัญญาจ้างได้เฉพาะโหมดใช้งานจริง (apiMode: http)', 409);
     });
   }
-  importJobDbEmployees() {
-    return this.previewJobDbEmployees();
+  importJobDbEmployees(body) {
+    return this.jobDb ? this.run(() => this.jobDb.import(body)) : this.previewJobDbEmployees();
   }
   /** โหมด mock ไม่มีสต็อกจริงให้ส่ง — ตอบจำนวนที่จะส่งเหมือนฝั่ง PHP */
   syncMasterToStock() {

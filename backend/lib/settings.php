@@ -5,13 +5,15 @@
  *  sys_setting('session_idle_minutes')  → ค่าจาก DB ถ้ามี · ไม่มี → config.php · ไม่มีอีก → ค่าเริ่มต้นใน sys_setting_defs
  *  แก้ได้จากหน้า admin.html (แท็บตั้งค่าระบบ — api/admin.php) เฉพาะ key ใน sys_setting_defs
  *  ค่าที่อยู่ใน config.php เท่านั้น: ฐานข้อมูล, cookie_secure, timezone, today_override (ผิดแล้วอาจเข้าระบบไม่ได้ / ต้องแก้ที่เครื่อง)
+ *  การเชื่อมต่อ hr-pro (job_pro_*): ค่าฐาน = ไฟล์ backend/connect_job_db_pro.php แทน config.php (def 'job')
  *  ยังไม่ได้รัน migration 006 (ไม่มีตาราง) → ใช้ config.php ทั้งหมด ไม่ error
  *  อ่านจาก DB ครั้งเดียวต่อคำขอ (api_handle ล้าง cache ทุกคำขอ)
  * ============================================================ */
 
 /**
  * key ที่แก้จากหน้าเว็บได้
- * type: int (min/max) | url | secret (ไม่ส่งค่ากลับหน้าเว็บ) · default = ใช้เมื่อ config.php ไม่มี key นี้
+ * type: int (min/max) | url | text (pattern) | secret (ไม่ส่งค่ากลับหน้าเว็บ) · default = ใช้เมื่อ config.php ไม่มี key นี้
+ * job = array(แหล่งข้อมูล, ฟิลด์) ค่าฐานอยู่ในไฟล์เชื่อมต่อของแหล่งนั้น · noTail = secret ที่ห้ามแสดง/บันทึกท้ายรหัส
  */
 function sys_setting_defs()
 {
@@ -25,6 +27,17 @@ function sys_setting_defs()
             'min' => 1, 'max' => 30, 'default' => 5),
         'stock_timeout' => array('group' => 'stock', 'type' => 'int', 'label' => 'รอคำตอบทั้งหมด', 'unit' => 'วินาที',
             'min' => 5, 'max' => 120, 'default' => 20),
+        /* ---------- ระบบสัญญาจ้าง hr-pro (api/job_db.php) — อ่านอย่างเดียว ---------- */
+        'job_pro_host' => array('group' => 'jobPro', 'type' => 'text', 'label' => 'เซิร์ฟเวอร์', 'job' => array('pro', 'host'),
+            'pattern' => '/^[A-Za-z0-9._-]+$/', 'patternError' => 'ใส่ชื่อเครื่องหรือ IP เช่น 192.168.10.21', 'max' => 100, 'default' => ''),
+        'job_pro_port' => array('group' => 'jobPro', 'type' => 'int', 'label' => 'พอร์ต', 'job' => array('pro', 'port'),
+            'min' => 1, 'max' => 65535, 'default' => 3306),
+        'job_pro_name' => array('group' => 'jobPro', 'type' => 'text', 'label' => 'ชื่อฐานข้อมูล', 'job' => array('pro', 'name'),
+            'pattern' => '/^[A-Za-z0-9_$-]+$/', 'patternError' => 'ใช้ได้เฉพาะตัวอักษรอังกฤษ ตัวเลข และ _ $ -', 'max' => 64, 'default' => ''),
+        'job_pro_user' => array('group' => 'jobPro', 'type' => 'text', 'label' => 'ผู้ใช้ฐานข้อมูล', 'job' => array('pro', 'user'),
+            'pattern' => '/^[\x21-\x7e]+$/', 'patternError' => 'ใช้ได้เฉพาะตัวอักษรอังกฤษ ตัวเลข และสัญลักษณ์', 'max' => 64, 'default' => ''),
+        'job_pro_pass' => array('group' => 'jobPro', 'type' => 'secret', 'label' => 'รหัสผ่านฐานข้อมูล', 'job' => array('pro', 'pass'),
+            'noTail' => true, 'min' => 1, 'max' => 128, 'default' => ''),
         /* ---------- การเข้าสู่ระบบ (สเปกข้อ 10.9.1) ---------- */
         'session_idle_minutes' => array('group' => 'auth', 'type' => 'int', 'label' => 'session หมดเมื่อไม่ใช้งาน', 'unit' => 'นาที',
             'min' => 5, 'max' => 480, 'default' => 30),
@@ -65,11 +78,16 @@ function sys_settings_reset_cache()
     $GLOBALS['hlw_sys_settings'] = null;
 }
 
-/** ค่าจาก config.php (หรือค่าเริ่มต้นของ def) — ไม่สน DB */
+/** ค่าจาก config.php / ไฟล์เชื่อมต่อ (หรือค่าเริ่มต้นของ def) — ไม่สน DB */
 function sys_setting_base($key)
 {
-    if (array_key_exists($key, $GLOBALS['hlw_config'])) { return $GLOBALS['hlw_config'][$key]; }
     $defs = sys_setting_defs();
+    if (isset($defs[$key]['job'])) {
+        $file = job_db_file_config(job_db_source($defs[$key]['job'][0]));
+        $field = $defs[$key]['job'][1];
+        return ($file && isset($file[$field])) ? $file[$field] : $defs[$key]['default'];
+    }
+    if (array_key_exists($key, $GLOBALS['hlw_config'])) { return $GLOBALS['hlw_config'][$key]; }
     return isset($defs[$key]) ? $defs[$key]['default'] : null;
 }
 
@@ -103,6 +121,11 @@ function sys_setting_validate($key, $value, &$error)
         return (string)$n;
     }
     $s = trim((string)$value);
+    if ($d['type'] === 'text') {
+        if ($s === '') { $error = 'กรุณากรอก'; return null; }
+        if (strlen($s) > $d['max'] || !preg_match($d['pattern'], $s)) { $error = $d['patternError']; return null; }
+        return $s;
+    }
     if ($d['type'] === 'url') {
         if ($s === '') { return ''; }
         $p = @parse_url($s);
@@ -116,8 +139,8 @@ function sys_setting_validate($key, $value, &$error)
 }
 
 /** กุญแจสำหรับแสดง: ไม่ส่งค่าจริง */
-function sys_secret_info($s)
+function sys_secret_info($s, $noTail = false)
 {
     $s = (string)$s;
-    return array('set' => $s !== '', 'length' => strlen($s), 'last4' => strlen($s) >= 12 ? substr($s, -4) : '');
+    return array('set' => $s !== '', 'length' => $noTail ? 0 : strlen($s), 'last4' => !$noTail && strlen($s) >= 12 ? substr($s, -4) : '');
 }

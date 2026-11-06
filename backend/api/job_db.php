@@ -5,6 +5,7 @@
  *    GET  /job-db/employees/preview?source=cns|pro   เทียบข้อมูล (ยังไม่บันทึก)
  *    POST /job-db/employees/import    { source, create: [รหัส…], update: [รหัส…], createSites: bool }
  *
+ *  hr-pro ตั้งจากหน้า admin.html แท็บตั้งค่าระบบได้ (system_settings ทับไฟล์ทีละค่า)
  *  การเชื่อมต่ออยู่ใน backend/connect_job_db.php · connect_job_db_pro.php (แต่ละเครื่อง/โฮสต์มีของตัวเอง) · อ่านอย่างเดียว ไม่เขียนกลับต้นทาง
  *  ตอนนำเข้าอ่านต้นทางใหม่อีกครั้ง ไม่เชื่อค่าจากหน้าเว็บ · บันทึกผ่าน api_employee_save / api_site_create (ตรวจ + audit ชุดเดียวกัน)
  * ============================================================ */
@@ -17,15 +18,29 @@ function job_db_source($key)
     return $all[$key];
 }
 
+/** ค่าในไฟล์เชื่อมต่อ — ไม่มีไฟล์ = false */
+function job_db_file_config($src)
+{
+    $hlw_job_db = null;
+    $file = dirname(dirname(__FILE__)) . '/' . $src['file'];
+    if (is_file($file)) { include $file; }
+    return is_array($hlw_job_db) ? $hlw_job_db : false;
+}
+
+/** ไฟล์เชื่อมต่อ + ค่าจากหน้าตั้งค่าระบบทับทีละค่า · ยังไม่ครบ = false */
 function job_db_config($src)
 {
     $g = $src['global'];
     if (array_key_exists($g, $GLOBALS)) { return $GLOBALS[$g]; }
-    $hlw_job_db = null;
-    $file = dirname(dirname(__FILE__)) . '/' . $src['file'];
-    if (is_file($file)) { include $file; }
-    $GLOBALS[$g] = (is_array($hlw_job_db) && !empty($hlw_job_db['name'])) ? $hlw_job_db : false;
-    return $GLOBALS[$g];
+    $c = job_db_file_config($src);
+    if (!$c) { $c = array(); }
+    if (isset($src['settingsPrefix'])) {
+        $saved = sys_setting_overrides();
+        foreach (array('host', 'port', 'name', 'user', 'pass') as $f) {
+            if (isset($saved[$src['settingsPrefix'] . $f])) { $c[$f] = $saved[$src['settingsPrefix'] . $f]; }
+        }
+    }
+    return (!empty($c['name']) && !empty($c['host'])) ? $c : false;
 }
 
 /** $table / $column เป็นค่าคงที่จากโค้ดเท่านั้น */
@@ -50,12 +65,12 @@ function job_db_source_rows($src)
     $sys = $src['system'];
     $c = job_db_config($src);
     if (!$c) {
-        throw new ApiError('ยังไม่ได้ตั้งค่าการเชื่อมต่อ ' . $sys . ' (backend/' . $src['file'] . ' — คัดลอกจาก ' . str_replace('.php', '.example.php', $src['file']) . ')', 409, null, 'JOB_DB_NOT_CONFIGURED');
+        throw new ApiError('ยังไม่ได้ตั้งค่าการเชื่อมต่อ ' . $sys . ' (backend/' . $src['file'] . ' — คัดลอกจาก ' . str_replace('.php', '.example.php', $src['file']) . ')' . (isset($src['settingsPrefix']) ? ' หรือให้ผู้ดูแลตั้งที่ ระบบ & ความปลอดภัย → ตั้งค่าระบบ' : ''), 409, null, 'JOB_DB_NOT_CONFIGURED');
     }
     $conn = mysqli_init();
     mysqli_options($conn, MYSQLI_OPT_CONNECT_TIMEOUT, 5);
     if (!@mysqli_real_connect($conn, $c['host'], $c['user'], $c['pass'], $c['name'], isset($c['port']) ? (int)$c['port'] : 3306)) {
-        throw new ApiError('เชื่อมต่อฐานข้อมูล ' . $sys . ' ไม่ได้ (รหัส ' . mysqli_connect_errno() . ') — ตรวจ backend/' . $src['file'], 503, null, 'JOB_DB_UNAVAILABLE');
+        throw new ApiError('เชื่อมต่อฐานข้อมูล ' . $sys . ' ไม่ได้ (รหัส ' . mysqli_connect_errno() . ') — ตรวจ ' . (isset($src['settingsPrefix']) ? 'ระบบ & ความปลอดภัย → ตั้งค่าระบบ หรือ ' : '') . 'backend/' . $src['file'], 503, null, 'JOB_DB_UNAVAILABLE');
     }
     mysqli_query($conn, 'SET NAMES utf8');
     $hasInfoAg = job_db_has_column($conn, 'tb_resume_contact_info', 'ag_id');

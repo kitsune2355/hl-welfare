@@ -952,11 +952,11 @@ on($('#cleanup'), 'click', '#cleanup-btn', async () => {
 const cfg = { data: null, tested: null };
 const allItems = () => cfg.data.groups.flatMap((g) => g.items);
 const itemOf = (key) => allItems().find((i) => i.key === key);
-const sourceBadge = (it) => (it.source === 'db' ? badge('ตั้งจากหน้านี้', 'primary', { dot: false }) : badge('config.php', 'neutral', { dot: false }));
+const sourceBadge = (it) => (it.source === 'db' ? badge('ตั้งจากหน้านี้', 'primary', { dot: false }) : badge(it.baseName, 'neutral', { dot: false }));
 
 function settingHint(it, base) {
   return html`${it.hint ? `${it.hint} · ` : ''}${base}${it.source === 'db' && it.updatedBy ? ` · แก้ล่าสุดโดย ${it.updatedBy} ${timeAgo(it.updatedAt)}` : ''}
-    ${it.source === 'db' ? html` · <a href="#" data-reset="${it.key}">ใช้ค่าใน config.php</a>` : ''}`;
+    ${it.source === 'db' ? html` · <a href="#" data-reset="${it.key}">ใช้ค่าใน ${it.baseName}</a>` : ''}`;
 }
 
 function intField(it) {
@@ -1021,6 +1021,45 @@ function stockForm() {
   </form>`;
 }
 
+/** ฟอร์มการเชื่อมต่อ hr-pro — รหัสผ่านไม่ถูกส่งกลับมา เว้นว่าง = ใช้รหัสเดิม */
+function jobProForm() {
+  const off = cfg.data.ready ? '' : 'disabled';
+  const file = (it) => `${it.baseName} = ${it.base === '' ? '(ไม่มี)' : it.base}`;
+  const text = (key, extra = '') => {
+    const it = itemOf(key);
+    return html`<div class="field${extra}" data-field="${key}">
+      <label>${it.label} ${sourceBadge(it)}</label>
+      <input class="input" type="text" name="${key}" value="${it.value}" autocomplete="off" spellcheck="false" ${off} />
+      <span class="hint">${settingHint(it, file(it))}</span>
+      <span class="error"></span>
+    </div>`;
+  };
+  const port = itemOf('job_pro_port');
+  const pass = itemOf('job_pro_pass');
+  return html`<form class="form-grid" data-settings data-job-pro novalidate>
+    ${text('job_pro_host')}
+    <div class="field" data-field="job_pro_port">
+      <label>${port.label} ${sourceBadge(port)}</label>
+      <input class="input num" type="number" name="job_pro_port" min="${port.min}" max="${port.max}" value="${port.value}" ${off} />
+      <span class="hint">${settingHint(port, file(port))}</span>
+      <span class="error"></span>
+    </div>
+    ${text('job_pro_name', ' full')}
+    ${text('job_pro_user')}
+    <div class="field" data-field="job_pro_pass">
+      <label>${pass.label} ${sourceBadge(pass)}</label>
+      <input class="input" type="password" name="job_pro_pass" autocomplete="new-password" placeholder="${pass.secret.set ? 'ตั้งแล้ว — ว่าง = ใช้รหัสเดิม' : 'ยังไม่ได้ตั้ง'}" ${off} />
+      <span class="hint">${settingHint(pass, `${pass.baseName}: ${pass.baseSecret.set ? 'มีรหัสผ่าน' : 'ไม่มีรหัสผ่าน'}`)}</span>
+      <span class="error"></span>
+    </div>
+    <div class="full" id="job-test-result"></div>
+    <div class="row full" style="gap:8px;justify-content:flex-end">
+      <button type="button" class="btn btn-sm" data-job-test data-label="ทดสอบการเชื่อมต่อ">${raw(icon('zap'))} ทดสอบการเชื่อมต่อ</button>
+      <button type="submit" class="btn btn-primary btn-sm" data-label="บันทึก" ${off}>${raw(icon('save'))} บันทึก</button>
+    </div>
+  </form>`;
+}
+
 function drawSettings(d) {
   cfg.data = d;
   render(
@@ -1028,6 +1067,7 @@ function drawSettings(d) {
     d.ready ? '' : html`<div class="mb">${alertBox({ tone: 'warning', title: 'ยังไม่ได้รัน migration 006_system_settings.sql', body: 'ตอนนี้แสดงค่าจาก backend/config.php อย่างเดียว — รัน migration แล้วจึงแก้จากหน้านี้ได้' })}</div>`,
   );
   render($('#stock-settings'), stockForm());
+  render($('#job-pro-settings'), jobProForm());
   render($('#auth-settings'), groupForm('auth'));
   render($('#monitor-settings'), groupForm('monitor'));
   render($('#fixed-settings'), infoList(d.fixed.map((f) => ({ label: f.label, value: html`<span class="num">${f.value}</span>` })), 2));
@@ -1099,9 +1139,9 @@ on($('#tab-settings'), 'click', '[data-reset]', async (e, a) => {
   e.preventDefault();
   const it = itemOf(a.dataset.reset);
   if (await confirmAction({
-    title: `ใช้ค่าใน config.php สำหรับ “${it.label}”?`,
-    description: it.type === 'secret' ? `กุญแจใน config.php: ${secretText(it.baseSecret)} — ต้องตรงกับ stock_hr ด้วย` : `ค่าจะเป็น ${it.base || '(ว่าง)'} ${it.unit}`,
-    confirmLabel: 'ใช้ค่าใน config.php',
+    title: `ใช้ค่าใน ${it.baseName} สำหรับ “${it.label}”?`,
+    description: it.key === 'job_pro_pass' ? `ใน ${it.baseName}: ${it.baseSecret.set ? 'มีรหัสผ่าน' : 'ไม่มีรหัสผ่าน'}` : it.type === 'secret' ? `กุญแจใน config.php: ${secretText(it.baseSecret)} — ต้องตรงกับ stock_hr ด้วย` : `ค่าจะเป็น ${it.base || '(ว่าง)'} ${it.unit}`,
+    confirmLabel: `ใช้ค่าใน ${it.baseName}`,
     danger: it.type === 'secret',
     successMessage: 'คืนค่าแล้ว',
     action: async () => drawSettings(await adminApi.saveSettings({}, [it.key])),
@@ -1146,6 +1186,28 @@ on($('#tab-settings'), 'click', '[data-stock-test]', async (_e, b) => {
           tone: r.ok ? (r.status === 'warn' ? 'warning' : 'success') : 'danger',
           title: r.ok ? 'เชื่อมต่อสต็อก Uniform ได้' : 'เชื่อมต่อสต็อก Uniform ไม่ได้',
           body: `${r.detail} · ${r.url || '(ไม่มี URL)'} · ${r.usedSavedSecret ? 'กุญแจที่บันทึกไว้' : 'กุญแจใหม่ (ยังไม่บันทึก)'}`,
+        }),
+      );
+    });
+  } catch (e) {
+    showFieldErrors(form, e?.details);
+    toast.error(e?.details ? Object.values(e.details)[0] : errorMessage(e));
+  }
+});
+
+on($('#tab-settings'), 'click', '[data-job-test]', async (_e, b) => {
+  const form = b.closest('form');
+  const val = (k) => form.elements[`job_pro_${k}`].value.trim();
+  showFieldErrors(form);
+  try {
+    await busy(b, async () => {
+      const r = await adminApi.testJobDb({ host: val('host'), port: val('port'), name: val('name'), user: val('user'), pass: val('pass') });
+      render(
+        $('#job-test-result'),
+        alertBox({
+          tone: r.ok ? 'success' : r.status === 'warn' ? 'warning' : 'danger',
+          title: r.status === 'error' ? 'เชื่อมต่อ hr-pro ไม่ได้' : 'เชื่อมต่อ hr-pro ได้',
+          body: `${r.detail}${val('pass') ? '' : ' · ใช้รหัสผ่านที่บันทึกไว้'}`,
         }),
       );
     });

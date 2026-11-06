@@ -107,6 +107,7 @@ function api_routes()
     router_add($r, 'GET', '/admin/settings', 'api_admin_settings');
     router_add($r, 'PUT', '/admin/settings', 'api_admin_settings_save');
     router_add($r, 'POST', '/admin/stock/test', 'api_admin_stock_test');
+    router_add($r, 'POST', '/admin/job-db/test', 'api_admin_job_db_test');
     router_add($r, 'GET', '/admin/permissions', 'api_admin_permissions');
     router_add($r, 'PUT', '/admin/permissions', 'api_admin_permissions_save');
     return $r;

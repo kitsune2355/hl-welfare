@@ -128,6 +128,35 @@ check('PRO: รหัสของ CNS รายวัน = ข้าม', $jc['a
 $r = $jb->req('POST', '/job-db/employees/import', array('source' => 'pro', 'create' => array('JBP01')));
 $ep = db_one("SELECT * FROM employees WHERE emp_code = 'JBP01'");
 check('PRO: เพิ่มเป็น PRO / Pro Site · ไม่มีระดับ', $r['json']['data']['created'] === 1 && $ep['company_code'] === 'PRO' && $ep['employee_type'] === 'PRO_SITE' && $ep['level'] === null && $ep['position'] === 'ช่างเทคนิค', json_encode($r['json']));
+/* ---------- ตั้งการเชื่อมต่อ hr-pro จาก admin.html (system_settings ทับไฟล์) ---------- */
+$jbC = array('host' => $hlw_config['db_host'], 'port' => (string)$hlw_config['db_port'], 'name' => $hlw_config['db_name'], 'user' => $hlw_config['db_user'], 'pass' => $hlw_config['db_pass']);
+unset($GLOBALS['hlw_job_db_pro']);
+check('ไม่มีสิทธิ์ตั้งค่าระบบ → ทดสอบการเชื่อมต่อไม่ได้', S($jbPay->req('POST', '/admin/job-db/test', $jbC)) === 403);
+$r = $boss->req('POST', '/admin/job-db/test', array('host' => 'มี ช่องว่าง', 'name' => 'x', 'user' => 'x', 'pass' => 'x'));
+check('ทดสอบ: ค่าผิดรูปแบบ → 422 บอกช่อง', $r['status'] === 422 && isset($r['json']['errors']['job_pro_host']));
+$r = $boss->req('POST', '/admin/job-db/test', array_merge($jbC, array('pass' => 'Wrong-Pass-987')));
+check('ทดสอบ: รหัสผิด → ok = false · ไม่เปิดเผยรหัสหรือข้อความจาก MySQL', $r['status'] === 200 && $r['json']['data']['ok'] === false
+    && strpos(json_encode($r['json']), 'Wrong-Pass-987') === false && strpos(json_encode($r['json']), 'Access denied') === false);
+$r = $boss->req('POST', '/admin/job-db/test', $jbC);
+check('ทดสอบ: ถูกต้อง → ok + เห็นตารางครบ', $r['json']['data']['ok'] === true && $r['json']['data']['missing'] === array());
+$jbSave = array('job_pro_host' => $jbC['host'], 'job_pro_port' => $jbC['port'], 'job_pro_name' => $jbC['name'], 'job_pro_user' => $jbC['user']);
+if ($jbC['pass'] !== '') { $jbSave['job_pro_pass'] = $jbC['pass']; }
+$r = $boss->req('PUT', '/admin/settings', array('values' => $jbSave));
+check('บันทึกค่า hr-pro จากหน้าเว็บ', $r['status'] === 200);
+$r = $jb->req('GET', '/job-db/employees/preview?source=pro');
+check('ดึง hr-pro ใช้ค่าจากหน้าตั้งค่าระบบ', $r['status'] === 200 && $r['json']['data']['company'] === 'PRO');
+$r = $boss->req('GET', '/admin/settings');
+$jbAudit = (string)db_value("SELECT summary FROM audit_log WHERE entity = 'SYSTEM' AND entity_id = 'settings' ORDER BY id DESC LIMIT 1");
+check('รหัสผ่าน hr-pro ไม่ถูกส่งกลับ และไม่อยู่ในบันทึกกิจกรรม (รวมท้ายรหัส)', $jbC['pass'] === '' || (strpos(json_encode($r['json']), '"' . $jbC['pass'] . '"') === false
+    && strpos($jbAudit, $jbC['pass']) === false && strpos($jbAudit, '…') === false));
+$r = $boss->req('PUT', '/admin/settings', array('values' => array('job_pro_host' => 'other-host.example')));
+check('เปลี่ยนเซิร์ฟเวอร์โดยไม่กรอกรหัสใหม่ → 422 (ถ้ามีรหัสเดิม)', $jbC['pass'] === '' || ($r['status'] === 422 && isset($r['json']['errors']['job_pro_pass'])));
+$r = $boss->req('POST', '/admin/job-db/test', array('host' => 'other-host.example'));
+check('ทดสอบเครื่องอื่นด้วยรหัสที่บันทึกไว้ → 422 (ถ้ามีรหัสเดิม)', $jbC['pass'] === '' || ($r['status'] === 422 && isset($r['json']['errors']['job_pro_pass'])));
+$r = $boss->req('PUT', '/admin/settings', array('reset' => array('job_pro_host', 'job_pro_port', 'job_pro_name', 'job_pro_user', 'job_pro_pass')));
+check('คืนค่า hr-pro กลับไปใช้ไฟล์', $r['status'] === 200 && (int)db_value("SELECT COUNT(*) FROM system_settings WHERE `key` LIKE 'job\\_pro\\_%'") === 0);
+$GLOBALS['hlw_job_db_pro'] = $GLOBALS['hlw_job_db'];
+
 // ฐานที่ไม่มีคอลัมน์เสริม (hr-pro เช็กคอลัมน์เหล่านี้ก่อนใช้)
 jb_src(203, 'cancel', 'JBP02', 'ยกเลิก', 'ไม่ดึง', '1990-01-02', '2026-01-05', 'x', array('format' => 'FM-AV-1'));
 jb_src(204, 'signed', 'JBP03', 'ไม่มี', 'คอลัมน์เสริม', '1990-01-02', '2026-01-05', 'x', array('format' => 'FM-AV-1'));
