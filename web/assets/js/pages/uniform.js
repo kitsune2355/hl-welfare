@@ -19,7 +19,7 @@ import { STOCK_STAGE, canCancelIssue, enhanceIssueActions, issueAction, issueSeq
 import { openEmployeeDetail } from './_employeeDetail.js';
 
 /** คำแนะนำการใช้งานตามแท็บ (tour/guides.js) */
-const tourId = () => ({ waiting: 'uniform-waiting', history: 'uniform-history' })[getParam('tab')] ?? 'uniform';
+const tourId = () => ({ upcoming: 'uniform-upcoming', waiting: 'uniform-waiting', history: 'uniform-history' })[getParam('tab')] ?? 'uniform';
 initPage('uniform', { tour: tourId });
 
 const today = todayISO();

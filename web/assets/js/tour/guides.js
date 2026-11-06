@@ -20,8 +20,10 @@
 //     title, text : หัวข้อ / คำอธิบาย (ใส่ <b> <br> ได้) · side / align : ตำแหน่งกล่อง
 //
 // แนวการเขียน: ประโยคสั้น · 1 ขั้น = 1 การกระทำ · บอกว่า "กดอะไร" แล้ว "จะเห็นอะไร" · เลี่ยงศัพท์ระบบ
+import { isPractice } from '../app/practice.js';
 import { addDays, todayISO } from '../domain/date.js';
 import { thaiIdCheckDigit } from '../domain/thaiId.js';
+import { isHandedOut } from '../domain/uniform.js';
 
 const today = todayISO();
 /** เลขบัตรตัวอย่างที่ผ่านการตรวจหลักสุดท้าย */
@@ -37,6 +39,55 @@ async function freeSampleCode(api) {
   let n = 9001;
   while (used.has(`HL${n}`)) n++;
   return `HL${n}`;
+}
+
+/** แก้ชื่อคนแรกให้ดู (ข้อมูลตัวอย่าง ยังไม่บันทึก) — แก้ค้างอยู่แล้ว = ไม่ทำซ้ำ */
+async function stageSampleEdit(h) {
+  const grid = h.get('grid');
+  if (!grid || grid.hasPending()) return;
+  const box = document.querySelector('.xgrid tbody tr:first-child [data-row-check]');
+  if (box && !box.checked) box.click();
+  const [e] = grid.selectedEntries();
+  if (e) grid.stage({ edits: [{ key: e.key, row: { ...e.row, firstName: `${e.row.firstName}ตัวอย่าง` } }] });
+  await h.wait('[data-grid-act="save-all"]');
+}
+
+/** แถวแรกของตารางประวัติการส่งออกประกัน (กดแล้วเปิดกล่องรายละเอียด) + กล่องโหลดเสร็จ */
+const BATCH_ROW = '#batches tbody tr:first-child td:nth-child(2)';
+const BATCH_READY = '.modal [data-batch-file]:not([disabled])';
+
+/** ปิดกล่องที่เปิดอยู่ แล้วติ๊ก n แถวแรกของตาราง (ตารางวาดใหม่ทุกครั้งที่ติ๊ก) — ทำซ้ำได้ */
+async function tickRows(h, table, n = 2) {
+  if (document.querySelector('.modal-layer')) {
+    h.close();
+    await h.sleep(300);
+  }
+  for (let k = 0; k < n; k++) {
+    const box = document.querySelectorAll(`${table} tbody [data-row-check]`)[k];
+    if (box && !box.checked) box.click();
+    await h.sleep(80);
+  }
+  await h.wait(`${table} [data-bulk]`);
+}
+
+/** กล่องส่งเบิกล่วงหน้าของคนแรกในชุด — เปิดอยู่แล้ว = ไม่เปิดซ้ำ · ย้อนกลับมา (ปิดกล่องแล้วการติ๊กหาย) = ติ๊กใหม่ก่อน */
+async function openBulkAdvance(h) {
+  if (document.querySelector('.modal .stock-line')) return;
+  await tickRows(h, '#upcoming');
+  await h.open('#upcoming [data-bulk="stock"]', '.modal .stock-line');
+}
+
+/** ใบเบิกตัวอย่างสำหรับสอนยกเลิก — เฉพาะโหมดฝึก (ห้ามออกใบจริงในระบบสต็อก) · มีใบรอคลังอยู่แล้ว = ไม่สร้างเพิ่ม */
+async function sampleStockRequest(h) {
+  if (!isPractice()) return;
+  if ((await h.api.listUniformIssues()).some((i) => !isHandedOut(i))) return;
+  const [p] = await h.api.listUniformPending();
+  if (!p) return;
+  const opt = await h.api.getUniformStockOptions(p.employee.id, p.entitlementKey);
+  const lines = opt.items.map((it) => ({ itemCode: it.itemCode, productId: it.variants[0].products[1].productId, qty: it.qty }));
+  await h.api.requestUniformFromStock({ employeeId: p.employee.id, entitlementKey: p.entitlementKey, lines });
+  document.dispatchEvent(new Event('employee:changed')); // หน้าชุดฟอร์มโหลดรายการใหม่
+  await h.wait('#waiting [data-cancel-issue]', 6000);
 }
 
 /** ขั้นปิดท้ายของทุกเรื่องที่ฝึกในโหมดฝึก */
@@ -224,6 +275,85 @@ export const GUIDES = [
         side: 'left',
       },
       practiceEnd('เพิ่มพนักงานอีกสักคน'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'employee-edit',
+    title: 'ค้นหาและแก้ข้อมูลพนักงาน',
+    summary: 'ค้นหา → กรอง → แก้ในตาราง → บันทึก → ส่งออก Excel',
+    icon: 'pencil',
+    color: '#2563eb',
+    pages: ['employees', 'employee'],
+    need: 'employees.edit',
+    steps: [
+      {
+        page: 'employees',
+        href: 'employees.html',
+        title: 'หาคน แก้ข้อมูล แล้วบันทึก',
+        text: 'เรื่องนี้สอน: ค้นหา · กรองรายชื่อ · แก้ข้อมูลในตาราง · ส่งออก Excel',
+      },
+      {
+        page: 'employees',
+        element: '#filters .search-box',
+        title: 'ค้นหา',
+        text: 'พิมพ์<b>รหัส</b> หรือ<b>ชื่อ-สกุล</b> รายชื่อจะกรองให้ทันที',
+        side: 'bottom',
+      },
+      {
+        page: 'employees',
+        element: '#quick-tags',
+        title: 'กรองเร็ว',
+        text: 'กดป้ายเพื่อดูเฉพาะกลุ่มนั้น กดซ้ำเพื่อเอาออก',
+        side: 'bottom',
+      },
+      {
+        page: 'employees',
+        element: '.xgrid thead th[data-col="companyCode"] [data-col-filter], .xgrid thead [data-col-filter]',
+        title: 'กรองตามคอลัมน์',
+        text: 'กดรูปกรวยที่หัวคอลัมน์ แล้วติ๊กค่าที่ต้องการดู',
+        side: 'bottom',
+      },
+      {
+        key: 'cell',
+        page: 'employees',
+        before: (h) => h.get('grid')?.discardAll(),
+        element: '.xgrid tbody tr:first-child td[data-col="firstName"]',
+        title: 'แก้ข้อมูล = ดับเบิลคลิก',
+        text: '<b>ดับเบิลคลิก</b>ที่ช่อง พิมพ์ค่าใหม่ แล้วกด <b>Enter</b>',
+        side: 'bottom',
+      },
+      {
+        page: 'employees',
+        before: stageSampleEdit,
+        element: '.xgrid tbody tr:first-child td[data-col="firstName"]',
+        title: 'แถวสีเหลือง = ยังไม่บันทึก',
+        text: 'ตัวอย่างนี้เราแก้ชื่อให้แล้ว สีเหลืองแปลว่าแก้แล้วแต่ยังไม่บันทึก',
+        side: 'bottom',
+      },
+      {
+        page: 'employees',
+        before: stageSampleEdit, // ย้อนกลับมาจากขั้นส่งออก (ล้างตัวอย่างไปแล้ว)
+        element: '[data-grid-act="save-all"]',
+        title: 'กด “บันทึก”',
+        text: 'แก้ครบแล้วกดปุ่มนี้ทีเดียว · แก้ผิดกด <b>ยกเลิกทั้งหมด</b> ข้าง ๆ ได้',
+        side: 'bottom',
+        align: 'end',
+      },
+      {
+        page: 'employees',
+        before: async (h) => {
+          h.get('grid')?.discardAll();
+          await h.wait('#grid [data-export-excel]');
+        },
+        element: '#grid [data-export-excel]',
+        title: 'ส่งออก Excel',
+        text: 'ได้ไฟล์ตามรายชื่อที่กรองอยู่ · ต้องการบางคน ติ๊กแถวแล้วกด <b>Excel ที่เลือก</b>',
+        side: 'bottom',
+        align: 'end',
+      },
+      practiceEnd('ค้นหาและแก้ข้อมูล'),
     ],
   },
 
@@ -561,6 +691,67 @@ export const GUIDES = [
 
   // ------------------------------------------------------------------
   {
+    id: 'insurance-history',
+    title: 'ดาวน์โหลดซ้ำ / ยกเลิกไฟล์แจ้งประกัน',
+    summary: 'ไฟล์หาย หรือส่งผิด → ดูประวัติ → ดาวน์โหลดใหม่หรือยกเลิก',
+    icon: 'history',
+    color: '#0d9488',
+    pages: ['insurance-history'],
+    need: 'insurance.view',
+    steps: [
+      {
+        page: 'insurance-history',
+        href: 'insurance.html?tab=history',
+        title: 'ไฟล์หาย หรือส่งผิด?',
+        text: 'ทุกครั้งที่ส่งออกไฟล์ ระบบเก็บไว้ที่นี่ เปิดดู ดาวน์โหลดใหม่ หรือยกเลิกได้',
+      },
+      {
+        page: 'insurance-history',
+        before: (h) => h.clickTab('history'),
+        element: '.tab[data-tab="history"]',
+        title: 'แท็บ “ประวัติการส่งออก”',
+        text: 'ตอนนี้อยู่แท็บนี้ รายการด้านล่าง = การส่งออกแต่ละครั้ง',
+        side: 'left',
+      },
+      {
+        page: 'insurance-history',
+        before: (h) => h.close(),
+        element: BATCH_ROW,
+        title: 'กดแถวเพื่อดูรายละเอียด',
+        text: 'จะมีกล่องแสดงรายชื่อที่แจ้งในครั้งนั้น',
+        side: 'bottom',
+      },
+      {
+        page: 'insurance-history',
+        before: (h) => h.open(BATCH_ROW, BATCH_READY),
+        element: '.modal [data-batch-file]',
+        title: 'ดาวน์โหลดไฟล์อีกครั้ง',
+        text: 'กดปุ่มนี้เพื่อสร้างไฟล์แจ้งประกันชุดเดิม',
+        side: 'top',
+      },
+      {
+        page: 'insurance-history',
+        before: (h) => h.open(BATCH_ROW, BATCH_READY),
+        element: '.modal [data-batch-cancel]',
+        title: 'ส่งผิด? กด “ยกเลิกการส่งออก”',
+        text: 'รายชื่อจะกลับไปเป็น <b>ยังไม่ส่งออก</b> แล้วส่งออกใหม่ในรอบนั้นได้',
+        side: 'top',
+        align: 'start',
+      },
+      {
+        page: 'insurance-history',
+        before: (h) => tickRows(h, '#batches'),
+        element: '#batches [data-bulk="download"]',
+        title: 'หลายครั้งพร้อมกัน',
+        text: 'ติ๊กหลายแถวแล้วกดปุ่มนี้ ระบบดาวน์โหลดให้ทีละไฟล์',
+        side: 'bottom',
+      },
+      practiceEnd('ดูประวัติการส่งออก'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
     id: 'uniform-request',
     title: 'เบิกชุดฟอร์มให้พนักงาน',
     summary: 'ดูคนที่ต้องได้ชุด → ส่งเบิกคลัง → รอคลังจ่าย',
@@ -673,13 +864,176 @@ export const GUIDES = [
       },
       {
         page: 'uniform-waiting',
+        before: async (h) => {
+          h.click('.tab[data-tab="waiting"]'); // ย้อนกลับมาจากแท็บค้างแจก
+          await h.sleep(300);
+        },
         element: '#sync',
         title: 'อยากรู้สถานะล่าสุด',
         text: 'กด <b>ดึงสถานะจากคลัง</b>',
         side: 'bottom',
         align: 'end',
       },
+      {
+        page: 'uniform-waiting',
+        before: (h) => h.clickTab('pending'),
+        element: '.tab[data-tab="pending"]',
+        title: 'มีหลายคน? กลับมาแท็บ “ค้างแจก”',
+        text: 'ส่งเบิกต่อกันทีละหลายคนได้ที่แท็บนี้',
+        side: 'right',
+      },
+      {
+        page: 'uniform-waiting',
+        before: (h) => tickRows(h, '#pending'),
+        element: '#pending [data-bulk="stock"]',
+        title: 'ติ๊กหลายคน แล้วกดปุ่มนี้',
+        text: 'กด <b>ส่งเบิกคลังทีละคน</b> ระบบเปิดกล่องของแต่ละคนต่อกัน (ตัวอย่างนี้เราติ๊กให้ 2 คน)<br>กด <b>ยกเลิก</b> = หยุด คนที่ส่งแล้วไม่ถูกยกเลิก',
+        side: 'bottom',
+      },
       practiceEnd('ส่งเบิกชุด'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'uniform-advance',
+    title: 'ส่งเบิกชุดฟอร์มล่วงหน้า',
+    summary: 'ยังไม่ถึงกำหนดแต่อยากเบิกก่อน — เลือกคนเดียวหรือหลายคนต่อกัน',
+    icon: 'calendar-clock',
+    color: '#f97316',
+    pages: ['uniform-upcoming', 'employee'],
+    need: 'stock.request',
+    steps: [
+      {
+        page: 'uniform-upcoming',
+        href: 'uniform.html?tab=upcoming',
+        title: 'เบิกก่อนถึงกำหนด',
+        text: 'รอบที่ยังไม่ถึงกำหนดส่งเบิกล่วงหน้าได้ พอถึงกำหนด ใบเดิมจะตามไปด้วย ไม่ขึ้นค้างแจกซ้ำ',
+      },
+      {
+        page: 'uniform-upcoming',
+        before: (h) => h.clickTab('upcoming'),
+        element: '.tab[data-tab="upcoming"]',
+        title: 'แท็บ “ล่วงหน้า”',
+        text: 'รายการด้านล่าง = รอบถัดไปของแต่ละคน เรียงจากใกล้กำหนดที่สุด',
+        side: 'right',
+      },
+      {
+        page: 'uniform-upcoming',
+        before: async (h) => {
+          if (document.querySelector('.modal-layer')) {
+            h.close();
+            await h.sleep(300);
+          }
+        },
+        element: '#upcoming [data-stock-request]',
+        title: 'เบิกคนเดียว',
+        text: 'กดปุ่มที่แถวนั้น แล้วเลือกแบบและไซซ์เหมือนส่งเบิกปกติ<br>ในหน้ารายละเอียดพนักงานก็มีปุ่มนี้',
+        side: 'left',
+      },
+      {
+        page: 'uniform-upcoming',
+        before: (h) => tickRows(h, '#upcoming'),
+        element: '#upcoming tbody tr:first-child td.rownum',
+        title: 'เบิกหลายคน · ติ๊กเลือก',
+        text: 'ติ๊กช่องหน้าชื่อทุกคนที่จะเบิก (ตัวอย่างนี้เราติ๊กให้ 2 คน)<br>ใช้ตัวกรองที่หัวคอลัมน์ช่วยเลือกรอบได้',
+        side: 'right',
+      },
+      {
+        page: 'uniform-upcoming',
+        before: (h) => tickRows(h, '#upcoming'),
+        element: '#upcoming [data-bulk="stock"]',
+        title: 'กด “ส่งเบิกล่วงหน้าทีละคน”',
+        text: 'ระบบเปิดกล่องของแต่ละคนต่อกัน เพราะไซซ์ของแต่ละคนไม่เหมือนกัน',
+        side: 'bottom',
+      },
+      {
+        page: 'uniform-upcoming',
+        before: openBulkAdvance,
+        element: '.modal .modal-head',
+        title: 'ดูว่าถึงคนไหนแล้ว',
+        text: 'หัวกล่องบอกลำดับ เช่น <b>(1/2)</b> และชื่อพนักงานของกล่องนี้',
+        side: 'bottom',
+      },
+      {
+        page: 'uniform-upcoming',
+        before: openBulkAdvance,
+        element: '.modal .modal-foot',
+        title: 'ส่งแล้วไปคนถัดไปเอง',
+        text: 'เลือกไซซ์ครบแล้วกด <b>ส่งเบิกคลัง</b> กล่องของคนถัดไปจะเปิดเอง<br>กด <b>ยกเลิก</b> = หยุด คนที่ส่งไปแล้วไม่ถูกยกเลิก',
+        side: 'top',
+        align: 'end',
+      },
+      {
+        page: 'uniform-upcoming',
+        before: (h) => h.close(),
+        title: 'ส่งแล้วไปอยู่ที่ไหน',
+        text: 'คนที่ส่งแล้วย้ายไปแท็บ <b>ส่งเบิกแล้ว</b> รอคลังจ่าย เหมือนการส่งเบิกปกติ',
+      },
+      practiceEnd('ส่งเบิกล่วงหน้า'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'uniform-cancel',
+    title: 'ยกเลิกใบเบิกชุดฟอร์ม',
+    summary: 'ส่งเบิกผิด หรือบันทึกการแจกผิด — ยกเลิกแล้วกลับไปเป็นค้างแจก',
+    icon: 'undo-2',
+    color: '#ef4444',
+    pages: ['uniform-waiting', 'uniform-history'],
+    need: 'uniform.issue',
+    steps: [
+      {
+        page: 'uniform-waiting',
+        href: 'uniform.html?tab=waiting',
+        before: sampleStockRequest,
+        title: 'ส่งเบิกผิด ยกเลิกได้',
+        text: 'เราส่งเบิกตัวอย่างไว้ให้ 1 ใบแล้ว ลองดูวิธียกเลิกกัน',
+      },
+      {
+        page: 'uniform-waiting',
+        before: (h) => h.close(),
+        element: '#waiting [data-cancel-issue]',
+        title: 'กดปุ่มยกเลิกท้ายแถว',
+        text: 'อยู่ในแท็บ <b>ส่งเบิกแล้ว</b> · ถ้าหลายใบ ติ๊กแถวแล้วกด <b>ยกเลิกการส่งเบิก</b> ด้านบน',
+        side: 'left',
+      },
+      {
+        page: 'uniform-waiting',
+        before: (h) => h.open('#waiting [data-cancel-issue]', '.modal [data-ok]'),
+        element: '.modal [data-ok]',
+        title: 'ยืนยันการยกเลิก',
+        text: 'ใบเบิกในระบบสต็อกถูกยกเลิกด้วย และรายการกลับไปเป็น <b>ค้างแจก</b>',
+        side: 'top',
+        align: 'end',
+      },
+      {
+        page: 'uniform-waiting',
+        before: async (h) => {
+          h.close();
+          h.click('.tab[data-tab="waiting"]'); // ย้อนกลับมาจากแท็บประวัติ
+          await h.sleep(300);
+        },
+        title: 'คลังจ่ายแล้ว ยกเลิกที่นี่ไม่ได้',
+        text: 'ของออกจากคลังแล้ว ระบบจะไม่ให้ยกเลิก ต้องแจ้งคลังให้จัดการในระบบสต็อก',
+      },
+      {
+        page: 'uniform-waiting',
+        before: (h) => h.clickTab('history'),
+        element: '.tab[data-tab="history"]',
+        title: 'ย้ายไปแท็บ “ประวัติการแจก”',
+        text: 'ของที่แจกไปแล้วอยู่ที่แท็บนี้',
+        side: 'right',
+      },
+      {
+        page: 'uniform-waiting',
+        element: '#history [data-cancel-issue]',
+        title: 'บันทึกการแจกผิด',
+        text: 'รายการที่บันทึกเองมีปุ่มนี้ท้ายแถว กดแล้วกลับไปเป็นค้างแจก · รายการที่ผ่านคลังไม่มีปุ่มนี้',
+        side: 'left',
+      },
+      practiceEnd('ยกเลิกรายการ'),
     ],
   },
 
@@ -874,7 +1228,7 @@ export const GUIDES = [
     summary: 'บัญชีที่ถูกล็อก · ใครเข้าระบบอยู่ · ระบบทำงานปกติไหม',
     icon: 'shield-check',
     color: '#3b82f6',
-    pages: ['admin-access', 'admin-health', 'admin-settings', 'admin-audit', 'admin-permissions'],
+    pages: ['admin-access', 'admin-health'],
     practice: false,
     need: 'security.view',
     steps: [

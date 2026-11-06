@@ -7,7 +7,7 @@ import { MockApi } from '../web/assets/js/infrastructure/mock/mockApi.js';
 
 /** id หน้า/แท็บ ที่ initPage ส่งให้คู่มือ (pages/*.js) */
 const PAGES = [
-  'dashboard', 'employees', 'employee', 'insurance', 'insurance-history', 'uniform', 'uniform-waiting', 'uniform-history',
+  'dashboard', 'employees', 'employee', 'insurance', 'insurance-history', 'uniform', 'uniform-upcoming', 'uniform-waiting', 'uniform-history',
   'sites', 'sites-companies', 'sites-types', 'sites-groups', 'rules', 'rules-settings', 'rules-pending',
   'insurers', 'insurer-edit', 'account', 'account-password', 'account-font',
   'admin-users', 'admin-permissions', 'admin-access', 'admin-health', 'admin-settings', 'admin-audit',
@@ -49,6 +49,12 @@ describe('คู่มือทีละขั้น', () => {
       expect(`${g.id}#${i}:${to >= 0 && to < i}`).toBe(`${g.id}#${i}:true`);
     });
   });
+  it('เรื่องของผู้ดูแลระบบแนะนำเฉพาะแท็บที่สอนจริง', () => {
+    for (const g of GUIDES.filter((x) => x.id.startsWith('admin-'))) {
+      const taught = new Set(g.steps.map((st) => st.page));
+      for (const p of g.pages) expect(`${g.id}:${p}:${taught.has(p)}`).toBe(`${g.id}:${p}:true`);
+    }
+  });
   it('คำอธิบายสั้น อ่านง่าย (ไม่เกิน 260 ตัวอักษรต่อขั้น ไม่นับแท็ก)', () => {
     for (const g of GUIDES) g.steps.forEach((s, i) => expect(`${g.id}#${i}:${s.text.replace(/<[^>]+>/g, '').length <= 260}`).toBe(`${g.id}#${i}:true`));
   });
@@ -61,6 +67,16 @@ describe('โหมดฝึก: ออกแล้วกลับหน้า�
     expect(realPageUrl(B + 'employees.html?q=HL9001&status=ACTIVE&page=2')).toBe(B + 'employees.html?status=ACTIVE');
     expect(realPageUrl(B + 'insurers.html?id=3')).toBe(B + 'insurers.html');
     expect(realPageUrl(B + 'uniform.html?tab=waiting&tour=1')).toBe(B + 'uniform.html?tab=waiting');
+  });
+});
+
+describe('คู่มือที่ใส่ข้อมูลตัวอย่าง', () => {
+  it('ขั้นแรกไม่ทำงานกับข้อมูลก่อนเข้าโหมดฝึก (href เป็นข้อความ) · นอกโหมดฝึกไม่ออกใบเบิก', async () => {
+    for (const g of GUIDES) expect(`${g.id}:${typeof g.steps[0].href}`).toBe(`${g.id}:string`);
+    let called = 0;
+    const api = new Proxy({}, { get: () => async () => { called++; return []; } });
+    await GUIDES.find((g) => g.id === 'uniform-cancel').steps[0].before({ api });
+    expect(called).toBe(0);
   });
 });
 
