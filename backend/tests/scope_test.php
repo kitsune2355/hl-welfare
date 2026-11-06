@@ -75,6 +75,14 @@ check('เพิ่มหน่วยงานให้บริษัทอื�
     && S($cns->req('PATCH', '/sites/' . $hlSite['id'], array('active' => false))) === 404);
 
 $pend = $cns->req('GET', '/uniform/pending');
+$up = $cns->req('GET', '/uniform/upcoming');
+$hqUp = $hq->req('GET', '/uniform/upcoming');
+$upExpect = 0;
+foreach ($hqUp['json']['data'] as $p) {
+    if ($p['employee']['companyCode'] === 'CNS') { $upExpect++; }
+}
+check('ชุดฟอร์มล่วงหน้า: เฉพาะพนักงาน CNS ครบทุกแถว', $upExpect > 0 && count($up['json']['data']) === $upExpect
+    && scope_codes($up['json']['data'], 'scope_row_emp_code') === array('CNS'));
 $iss = $cns->req('GET', '/uniform/issues');
 $cnsIds = array();
 foreach (db_all("SELECT id FROM employees WHERE company_code = 'CNS'") as $x) { $cnsIds[(int)$x['id']] = true; }

@@ -667,6 +667,12 @@ function api_pending($req, $params)
     return build_uniform_pending($w['employees'], $w['sites'], $w['rules'], $w['issues'], today_iso());
 }
 
+function api_upcoming($req, $params)
+{
+    $w = repo_world();
+    return build_uniform_upcoming($w['employees'], $w['sites'], $w['rules'], $w['issues'], today_iso());
+}
+
 function issue_insert($i, $u)
 {
     $s = isset($i['stock']) ? $i['stock'] : null;

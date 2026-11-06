@@ -1,7 +1,7 @@
 <?php
 /* ============================================================
  *  backend/usecases/overview.php — คู่แฝดของ
- *    application/usecases/uniformPending.js (buildUniformPending)
+ *    application/usecases/uniformPending.js (buildUniformPending, buildUniformUpcoming)
  *    application/usecases/dashboard.js      (buildDashboard)
  *    application/usecases/workQueue.js      (buildWorkQueue)
  * ============================================================ */
@@ -18,6 +18,31 @@ function build_uniform_pending($employees, $sites, $rules, $issues, $today)
         if ($emp['status'] !== 'ACTIVE') { continue; }
         $st = uniform_status($emp, isset($siteById[$emp['siteId']]) ? $siteById[$emp['siteId']] : null, $rules, $issues, $today);
         foreach ($st['entitlements'] as $e) {
+            if ($e['issued'] || $e['requested']) { continue; }
+            $rows[] = array(
+                'employee' => $emp,
+                'entitlementKey' => $e['key'],
+                'event' => $e['event'],
+                'dueDate' => $e['dueDate'],
+                'qtyLabel' => $e['qtyLabel'],
+                'itemQty' => $e['itemQty'],
+                'style' => $e['style'],
+            );
+        }
+    }
+    stable_usort($rows, '__cmp_due');
+    return $rows;
+}
+
+/** รอบที่ยังไม่ถึงกำหนด และยังไม่ได้แจก/ส่งเบิก — ส่งเบิกล่วงหน้าได้ (เฉพาะพนักงานที่ทำงานอยู่) */
+function build_uniform_upcoming($employees, $sites, $rules, $issues, $today)
+{
+    $siteById = by_key($sites, 'id');
+    $rows = array();
+    foreach ($employees as $emp) {
+        if ($emp['status'] !== 'ACTIVE') { continue; }
+        $st = uniform_status($emp, isset($siteById[$emp['siteId']]) ? $siteById[$emp['siteId']] : null, $rules, $issues, $today);
+        foreach ($st['upcoming'] as $e) {
             if ($e['issued'] || $e['requested']) { continue; }
             $rows[] = array(
                 'employee' => $emp,

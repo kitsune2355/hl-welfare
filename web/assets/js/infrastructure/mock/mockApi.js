@@ -3,7 +3,7 @@ import { buildDashboard } from '../../application/usecases/dashboard.js';
 import { inactiveRefs } from '../../application/activeRules.js';
 import { batchCounts, batchIds, buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex } from '../../application/usecases/insuranceCycle.js';
 import { buildBatchExport, buildInsurerExport } from '../../application/usecases/insurerExport.js';
-import { buildUniformPending } from '../../application/usecases/uniformPending.js';
+import { buildUniformPending, buildUniformUpcoming } from '../../application/usecases/uniformPending.js';
 import { buildStockOptions, stockChange, stockRef, stockSizes, stockSubmitPayload, toStockRequest, uniformLines } from '../../application/usecases/uniformStock.js';
 import { validateBindings, validateInsurerForm } from '../../application/insurerFormRules.js';
 import { deptGroupRuleUsage, renameInGroups, validateDeptGroup } from '../../application/deptGroupRules.js';
@@ -993,6 +993,12 @@ export class MockApi {
     return this.run(() => {
       const { employees, sites, rules, issues } = this.world;
       return buildUniformPending(employees, sites, rules, issues, this.today());
+    });
+  }
+  listUniformUpcoming() {
+    return this.run(() => {
+      const { employees, sites, rules, issues } = this.world;
+      return buildUniformUpcoming(employees, sites, rules, issues, this.today());
     });
   }
   // ---------- เข้าสู่ระบบ (mock) ----------

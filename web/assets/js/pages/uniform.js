@@ -24,9 +24,10 @@ initPage('uniform', { tour: tourId });
 
 const today = todayISO();
 const OVERDUE_DAYS = 30;
-const TABS = ['pending', 'waiting', 'history'];
+const TABS = ['pending', 'upcoming', 'waiting', 'history'];
 let tab = TABS.includes(getParam('tab')) ? getParam('tab') : 'pending';
 let pending = null;
+let upcoming = null; // รอบที่ยังไม่ถึงกำหนด ยังไม่แจก/ส่งเบิก
 let issues = null; // แจกแล้ว (บันทึกเอง + คลังจ่ายแล้ว)
 let waiting = null; // ส่งเบิกคลังแล้ว (รอผู้อนุมัติ / รอคลังจ่าย / รอเซ็นรับ)
 let employees = new Map();
@@ -91,6 +92,42 @@ const pendingTable = new DataTable($('#pending'), {
     },
   ],
   empty: emptyState({ iconName: 'package-check', title: 'แจกครบทุกรายการแล้ว 🎉', description: 'ไม่มีชุดฟอร์มค้างแจก' }),
+});
+
+const upcomingTable = new DataTable($('#upcoming'), {
+  rowKey: (r) => `${r.employee.id}-${r.entitlementKey}`,
+  pageSize: 25,
+  onRender: enhanceIssueActions,
+  onRowDblClick: (r) => openEmp(r.employee.id),
+  // เหมือนแท็บค้างแจก: เลือกหลายคน → เปิดกล่องของแต่ละคนต่อกัน · ยกเลิกกล่องไหน = หยุด
+  bulkActions: can('stock.request') ? [{ id: 'stock', label: 'ส่งเบิกล่วงหน้าทีละคน', icon: 'send', run: async (rows) => seq(rows) }] : [],
+  columns: [
+    { key: 'emp', header: 'พนักงาน', cell: (r) => employeeCell(r.employee, { link: true }) },
+    {
+      key: 'ev',
+      header: 'รอบ / แบบ',
+      text: (r) => UNIFORM_EVENT_LABEL[r.event],
+      cell: (r) => html`<span class="two-line" style="display:block;max-width:240px"
+        ><b style="font-weight:500">${UNIFORM_EVENT_LABEL[r.event]}${r.event === 'ANNUAL' ? annualYear(r.entitlementKey) : ''} · ${r.qtyLabel} ตัว</b><span class="sub truncate">${r.style}</span></span
+      >`,
+    },
+    {
+      key: 'due',
+      header: 'ครบกำหนด',
+      sort: (r) => r.dueDate,
+      text: (r) => thaiDate(r.dueDate),
+      hideOnMobile: true,
+      cls: 'nowrap',
+      cell: (r) => html`<span class="two-line"><span class="num">${thaiDate(r.dueDate)}</span><span class="sub">${relativeDays(r.dueDate, today)}</span></span>`,
+    },
+    {
+      key: 'act',
+      header: '',
+      align: 'right',
+      cell: (r) => issueAction({ ...issueItem(r), label: 'ส่งเบิกล่วงหน้า' }),
+    },
+  ],
+  empty: emptyState({ iconName: 'calendar-clock', title: 'ไม่มีรอบที่รอส่งเบิกล่วงหน้า', description: 'รอบที่ยังไม่ถึงกำหนดส่งเบิกครบแล้ว หรือยังไม่มีรอบถัดไป' }),
 });
 
 const empCol = { key: 'emp', header: 'พนักงาน', mobile: 'title', cell: (i) => (employees.get(i.employeeId) ? employeeCell(employees.get(i.employeeId), { link: true }) : `#${i.employeeId}`) };
@@ -194,6 +231,7 @@ function drawTabs() {
     tabs(
       [
         { value: 'pending', label: 'ค้างแจก', count: pending?.length },
+        { value: 'upcoming', label: 'ล่วงหน้า', count: upcoming?.length },
         { value: 'waiting', label: 'ส่งเบิกแล้ว', count: waiting?.length },
         { value: 'history', label: 'ประวัติการแจก', count: issues?.length },
       ],
@@ -231,14 +269,16 @@ async function load() {
     const sync = await syncStockQuietly();
     const { warn } = sync;
     render($('#stock-warn'), warn ? alertBox({ tone: 'warning', body: warn }) : '');
-    const [p, i, emps] = await Promise.all([api.listUniformPending(), api.listUniformIssues(), api.listEmployees()]);
+    const [p, u, i, emps] = await Promise.all([api.listUniformPending(), api.listUniformUpcoming(), api.listUniformIssues(), api.listEmployees()]);
     pending = p;
+    upcoming = u;
     issues = i.filter(isHandedOut);
     waiting = i.filter((x) => !isHandedOut(x));
     employees = new Map(emps.map((e) => [e.id, e]));
     drawTabs();
     drawSummary();
     pendingTable.setRows(pending);
+    upcomingTable.setRows(upcoming);
     waitingTable.setRows(waiting);
     historyTable.setRows(issues);
     return sync;
@@ -256,6 +296,7 @@ on($('#tabs'), 'click', '[data-tab]', (_e, t) => {
   startTourIfNew(tourId());
 });
 wireIssueActions($('#pending'), { today, onDone: load });
+wireIssueActions($('#upcoming'), { today, onDone: load });
 // แจก/ส่งเบิกจาก popup รายละเอียดพนักงาน → รายการค้างแจกเปลี่ยน
 document.addEventListener('employee:changed', () => load());
 on($('#waiting'), 'click', '[data-cancel-issue]', (_e, b) => {

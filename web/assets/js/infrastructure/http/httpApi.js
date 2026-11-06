@@ -127,6 +127,9 @@ export class HttpApi {
   listUniformPending() {
     return this.req('/uniform/pending');
   }
+  listUniformUpcoming() {
+    return this.req('/uniform/upcoming');
+  }
   cancelUniformIssue(id) {
     return this.del(`/uniform/issues/${id}`);
   }

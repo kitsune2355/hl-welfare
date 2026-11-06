@@ -81,6 +81,7 @@ function api_routes()
     router_add($r, 'POST', '/uniform/issues', 'api_issue_create');
     router_add($r, 'DELETE', '/uniform/issues/{id}', 'api_issue_cancel');
     router_add($r, 'GET', '/uniform/pending', 'api_pending');
+    router_add($r, 'GET', '/uniform/upcoming', 'api_upcoming');
     router_add($r, 'GET', '/uniform/stock-options', 'api_stock_options');
     router_add($r, 'POST', '/uniform/stock-requests', 'api_stock_request');
     router_add($r, 'POST', '/uniform/stock-sync', 'api_stock_sync');

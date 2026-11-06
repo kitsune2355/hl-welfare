@@ -29,7 +29,7 @@ function perm_defs()
         'insurance.submit' => array('group' => 'ประกันกลุ่ม', 'kind' => 'action', 'label' => 'บันทึกว่าแจ้งแล้ว / ยกเลิกการแจ้ง',
             'roles' => $all, 'handlers' => array('api_batch_submit', 'api_batch_cancel')),
         'uniform.view' => array('group' => 'ชุดฟอร์ม', 'kind' => 'view', 'label' => 'เห็นหน้าชุดฟอร์ม (ค้างแจก ประวัติ)', 'page' => 'uniform',
-            'roles' => $all, 'handlers' => array('api_issues', 'api_pending')),
+            'roles' => $all, 'handlers' => array('api_issues', 'api_pending', 'api_upcoming')),
         'uniform.issue' => array('group' => 'ชุดฟอร์ม', 'kind' => 'action', 'label' => 'บันทึกแจกชุดเอง / ยกเลิกการแจก',
             'roles' => $all, 'handlers' => array('api_issue_create', 'api_issue_cancel')),
         'stock.request' => array('group' => 'ชุดฟอร์ม', 'kind' => 'action', 'label' => 'ส่งเบิก / ยกเลิกใบเบิกในสต็อก Uniform',

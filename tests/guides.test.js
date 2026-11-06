@@ -75,4 +75,19 @@ describe('โหมดฝึก: ระบบสต็อกปลอม', () =>
     expect([issue.source, issue.stock.stage, issue.stock.docNo.startsWith('ตัวอย่าง-')]).toEqual(['STOCK', 'REQUESTED', true]);
     expect((await api.syncUniformStock()).changed).toBe(0);
   });
+  it('ส่งเบิกล่วงหน้าจากรายการรวม: ส่งแล้วหายจากรายการ · ไม่นับเป็นค้างแจก', async () => {
+    const api = new MockApi(() => '2026-10-16', practiceStock(), { storageKey: 'test-practice' });
+    const rows = await api.listUniformUpcoming();
+    const pendingBefore = (await api.listUniformPending()).length;
+    expect(rows.length > 1).toBe(true);
+    expect(rows.every((r) => r.dueDate > '2026-10-16' && r.employee.status === 'ACTIVE')).toBe(true);
+    const [p] = rows;
+    const opt = await api.getUniformStockOptions(p.employee.id, p.entitlementKey);
+    const lines = opt.items.map((it) => ({ itemCode: it.itemCode, productId: it.variants[0].products[1].productId, qty: it.qty }));
+    await api.requestUniformFromStock({ employeeId: p.employee.id, entitlementKey: p.entitlementKey, lines });
+    const after = await api.listUniformUpcoming();
+    expect(after.length).toBe(rows.length - 1);
+    expect(after.some((x) => x.employee.id === p.employee.id && x.entitlementKey === p.entitlementKey)).toBe(false);
+    expect((await api.listUniformPending()).length).toBe(pendingBefore);
+  });
 });

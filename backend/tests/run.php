@@ -256,6 +256,7 @@ same_as_golden('POST /insurance/exports (ไม่บันทึก) 2026-10-05
 same_as_golden('GET /uniform/issues', $hr->req('GET', '/uniform/issues'), $g['issues']);
 same_as_golden('GET /uniform/issues?employeeId=1', $hr->req('GET', '/uniform/issues?employeeId=1'), $g['issues?employeeId=1']);
 same_as_golden('GET /uniform/pending', $hr->req('GET', '/uniform/pending'), $g['pending']);
+same_as_golden('GET /uniform/upcoming', $hr->req('GET', '/uniform/upcoming'), $g['upcoming']);
 /* กิจกรรม: เทียบเฉพาะของ seed (login ข้างบนเขียน USER/LOGIN เพิ่ม) */
 $res = $hr->req('GET', '/activity?entity=UNIFORM_ISSUE&limit=15');
 same_as_golden('GET /activity?entity=UNIFORM_ISSUE&limit=15', $res, $g['activity?entity=UNIFORM_ISSUE&limit=15']);

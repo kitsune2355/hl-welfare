@@ -112,6 +112,7 @@ await g('export:2026-10-05:1', () => api.exportInsurance({ cycleDate: '2026-10-0
 await g('issues', () => api.listUniformIssues());
 await g('issues?employeeId=1', () => api.listUniformIssues(1));
 await g('pending', () => api.listUniformPending());
+await g('upcoming', () => api.listUniformUpcoming());
 await g('activity', () => api.listActivity());
 await g('activity?entity=UNIFORM_ISSUE&limit=15', () => api.listActivity({ entity: 'UNIFORM_ISSUE', limit: 15 }));
 await g('activity?employeeId=30', () => api.listActivity({ employeeId: 30 }));
