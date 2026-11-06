@@ -127,7 +127,7 @@ function playSuccess(name) {
   overlay.style.setProperty('--y', `${r.top + r.height / 2}px`);
   $('#welcome').textContent = `ยินดีต้อนรับ, ${name}`;
   setTimeout(() => (overlay.hidden = false), reduced ? 0 : 350);
-  setTimeout(() => location.replace(next), reduced ? 400 : 2200);
+  setTimeout(() => location.replace('index.html'), reduced ? 400 : 2200); // กรอกรหัสเข้าระบบ = เริ่มที่ภาพรวมเสมอ (next ใช้เฉพาะตอนมี session อยู่แล้ว เช่น เปิดลิงก์ในแท็บใหม่)
 }
 
 form.addEventListener('submit', async (e) => {
