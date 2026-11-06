@@ -2956,7 +2956,7 @@ ol.questions {
   height: 14px;
 }
 .modal-md:has(.gm) {
-  max-width: 700px;
+  max-width: 920px;
 }
 @media (max-width: 640px) {
   .gm-cols {
