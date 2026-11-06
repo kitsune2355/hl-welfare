@@ -2,6 +2,7 @@
 import { describe, it } from 'node:test';
 import { expect } from './_expect.js';
 import { GUIDES } from '../web/assets/js/tour/guides.js';
+import { icon } from '../web/assets/js/shared/icons.js';
 import { practiceStock, realPageUrl } from '../web/assets/js/app/practice.js';
 import { MockApi } from '../web/assets/js/infrastructure/mock/mockApi.js';
 
@@ -48,6 +49,9 @@ describe('คู่มือทีละขั้น', () => {
       const to = g.steps.findIndex((x) => x.key === s.backTo);
       expect(`${g.id}#${i}:${to >= 0 && to < i}`).toBe(`${g.id}#${i}:true`);
     });
+  });
+  it('ไอคอนของทุกเรื่องมีอยู่จริง', () => {
+    for (const g of GUIDES) expect(`${g.id}:${g.icon}:${!!icon(g.icon)}`).toBe(`${g.id}:${g.icon}:true`);
   });
   it('เรื่องของผู้ดูแลระบบแนะนำเฉพาะแท็บที่สอนจริง', () => {
     for (const g of GUIDES.filter((x) => x.id.startsWith('admin-'))) {

@@ -90,6 +90,42 @@ async function sampleStockRequest(h) {
   await h.wait('#waiting [data-cancel-issue]', 6000);
 }
 
+/** กฎแถวแรกในตาราง (หน้าเงื่อนไขสวัสดิการ) — ปุ่มแก้ / เลิกใช้ */
+const RULE_EDIT = '#rules-table tbody tr:first-child [data-edit]';
+const RULE_RETIRE = '#rules-table tbody tr:first-child [data-retire]';
+/** วันที่ 1 ของเดือนหน้า = วันที่มีผลตัวอย่าง (เหมือนปุ่ม "1 เดือนหน้า") */
+const nextMonth = () => {
+  const [y, m] = today.split('-').map(Number);
+  return `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`;
+};
+/** กฎที่แก้เป็นตัวอย่าง ("insurance:3") — ใช้หาฉบับรอมีผลของกฎนี้ตอนย้อนกลับ */
+let sampleRule = '';
+/** เปิดกล่องแก้กฎแถวแรก แล้วเลือก "1 เดือนหน้า" ให้ — เปิดอยู่แล้ว = ไม่เปิดซ้ำ */
+async function openRuleSample(h) {
+  if (!document.querySelector('.modal #f-from')) sampleRule = document.querySelector(RULE_EDIT)?.dataset.edit ?? sampleRule;
+  await h.open(RULE_EDIT, '.modal #f-from');
+  h.click('.modal [data-quick="month"]');
+}
+/** ย้อนกลับ: ยกเลิกฉบับตัวอย่างที่บันทึกไป แล้วกลับแท็บกฎ */
+async function undoRuleSample(h) {
+  const item = [...document.querySelectorAll('.rev-item.pending')].find((x) => x.querySelector(`[data-edit-rev^="${sampleRule}:"]`));
+  item?.querySelector('[data-cancel-rev]')?.click();
+  await h.sleep(300);
+  h.click(`.tab[data-tab="${sampleRule.split(':')[0]}"]`);
+  await h.wait(RULE_EDIT);
+}
+/** ย้อนกลับมาขั้นที่อยู่อีกแท็บ — อยู่แท็บนั้นแล้ว = ไม่กดซ้ำ (กดซ้ำแล้วฟอร์มวาดใหม่ ค่าที่กรอกหาย) */
+async function returnToTab(h, value) {
+  if (document.querySelector('.tab.active')?.dataset.tab === value) return;
+  h.click(`.tab[data-tab="${value}"]`);
+  await h.sleep(300);
+}
+/** ตั้งวันที่มีผลของค่าตั้งค่าเป็นเดือนหน้า (ตัวอย่าง) */
+function setSettingsSampleDate() {
+  const from = document.querySelector('#settings-from');
+  if (from) from.value = nextMonth();
+}
+
 /** ขั้นปิดท้ายของทุกเรื่องที่ฝึกในโหมดฝึก */
 const practiceEnd = (what) => ({
   title: 'จบแล้ว ลองทำเองได้เลย 🎉',
@@ -1097,6 +1133,251 @@ export const GUIDES = [
         side: 'bottom',
       },
       practiceEnd('แก้ค่าตั้งค่า'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'rules-edit',
+    title: 'แก้กฎสวัสดิการแบบมีวันที่มีผล',
+    summary: 'แก้กฎ → เลือกวันเริ่มใช้ → ก่อนถึงวันยังแก้หรือยกเลิกได้',
+    icon: 'calendar-clock',
+    color: '#7c3aed',
+    pages: ['rules'],
+    need: 'rules.edit',
+    steps: [
+      {
+        page: 'rules',
+        href: 'rules.html',
+        title: 'แก้กฎโดยไม่กระทบวันนี้',
+        text: 'เลือกได้ว่ากฎใหม่เริ่มใช้เมื่อไร ก่อนถึงวันนั้นระบบยังใช้กฎเดิม<br>ตัวอย่างนี้ใช้กฎประกันกลุ่ม กฎชุดฟอร์มทำแบบเดียวกัน',
+      },
+      {
+        page: 'rules',
+        before: (h) => h.clickTab('insurance'),
+        element: '.tab[data-tab="insurance"]',
+        title: 'แท็บ “ประกันกลุ่ม”',
+        text: 'รายการด้านล่าง = กฎที่ใช้อยู่ตอนนี้',
+        side: 'bottom',
+      },
+      {
+        page: 'rules',
+        before: (h) => h.close(),
+        element: RULE_EDIT,
+        title: 'ขั้นที่ 1 · กดปุ่มดินสอ',
+        text: 'กดที่แถวของกฎที่จะแก้ หรือดับเบิลคลิกที่แถวก็ได้ แล้วแก้ค่าในกล่องที่เปิดขึ้น',
+        side: 'left',
+      },
+      {
+        page: 'rules',
+        before: openRuleSample,
+        element: '.modal .effective-bar .field',
+        title: 'ขั้นที่ 2 · เลือกวันที่มีผล',
+        text: '<b>วันนี้</b> = ใช้ทันที · <b>วันข้างหน้า</b> = รอถึงวันนั้น · <b>ย้อนหลัง</b> = สิทธิที่คำนวณวันนี้ใช้ฉบับนี้ทันที',
+        side: 'top',
+      },
+      {
+        page: 'rules',
+        before: openRuleSample,
+        element: '.modal .effective-bar .row',
+        title: 'ปุ่มลัดเลือกวัน',
+        text: 'กดแทนการเลือกวันเองได้ ตัวอย่างนี้เรากด <b>1 เดือนหน้า</b> ให้แล้ว ดูข้อความข้าง ๆ ว่าจะเริ่มใช้เมื่อไร',
+        side: 'top',
+      },
+      {
+        key: 'rule-save',
+        page: 'rules',
+        before: openRuleSample,
+        element: '.modal [data-ok]',
+        title: 'ขั้นที่ 3 · กด “บันทึก”',
+        text: 'กดถัดไปแล้วเราบันทึกตัวอย่างให้ กฎเดิมยังใช้ต่อจนถึงวันมีผล',
+        side: 'top',
+        align: 'end',
+      },
+      {
+        page: 'rules',
+        before: async (h) => {
+          // บันทึกตัวอย่างให้ (ข้อมูลโหมดฝึก) แล้วไปดูที่แท็บรอมีผล
+          if (document.querySelector('.modal #f-from')) {
+            h.click('.modal [data-ok]');
+            await h.until(() => !document.querySelector('.modal #f-from'), 5000);
+          }
+          await h.clickTab('pending');
+        },
+        backTo: 'rule-save',
+        undo: undoRuleSample,
+        element: '.tab[data-tab="pending"]',
+        title: 'ย้ายมาแท็บ “รอมีผล”',
+        text: 'บันทึกแล้ว การเปลี่ยนแปลงที่ยังไม่ถึงวันมาอยู่แท็บนี้ ตัวเลขบนแท็บ = จำนวนที่รออยู่',
+        side: 'bottom',
+      },
+      {
+        page: 'rules',
+        element: '#content .rev-item.pending',
+        title: 'ก่อนถึงวัน ยังเปลี่ยนใจได้',
+        text: 'กด <b>แก้</b> เพื่อเปลี่ยนค่าหรือวันที่ · กด <b>ยกเลิก</b> แล้วกฎเดิมใช้ต่อ · ถึงวันมีผลแล้วระบบเปลี่ยนให้เอง',
+        side: 'bottom',
+      },
+      practiceEnd('แก้กฎ'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'rules-retire',
+    title: 'เลิกใช้กฎสวัสดิการ',
+    summary: 'กฎไม่ใช้แล้ว → เลือกวันเลิกใช้ · ประวัติเดิมยังอยู่ครบ',
+    icon: 'ban',
+    color: '#dc2626',
+    pages: ['rules'],
+    need: 'rules.edit',
+    steps: [
+      {
+        page: 'rules',
+        href: 'rules.html',
+        title: 'กฎไม่ใช้แล้ว ทำอย่างไร',
+        text: 'ระบบไม่ลบกฎทิ้ง แต่เลิกใช้ตั้งแต่วันที่เลือก ประวัติและการแจ้ง/แจกที่ทำไปแล้วยังอยู่ครบ',
+      },
+      {
+        page: 'rules',
+        before: (h) => h.clickTab('insurance'),
+        element: '.tab[data-tab="insurance"]',
+        title: 'เปิดแท็บของกฎนั้น',
+        text: 'กฎประกันอยู่แท็บนี้ กฎชุดฟอร์มอยู่แท็บ <b>ชุดฟอร์ม</b> ทำแบบเดียวกัน',
+        side: 'bottom',
+      },
+      {
+        page: 'rules',
+        before: (h) => h.close(),
+        element: RULE_RETIRE,
+        title: 'ขั้นที่ 1 · กดปุ่มเลิกใช้',
+        text: 'กดปุ่มสีแดงท้ายแถวของกฎนั้น',
+        side: 'left',
+      },
+      {
+        page: 'rules',
+        before: (h) => h.open(RULE_RETIRE, '.modal #r-from'),
+        element: '.modal .effective-bar',
+        title: 'ขั้นที่ 2 · เลือกวันที่เลิกใช้',
+        text: 'ตั้งแต่วันนี้เป็นต้นไป ระบบจะไม่ใช้กฎนี้คำนวณสิทธิอีก ตั้งล่วงหน้าได้',
+        side: 'top',
+      },
+      {
+        page: 'rules',
+        before: (h) => h.open(RULE_RETIRE, '.modal #r-from'),
+        element: '.modal [data-ok]',
+        title: 'ขั้นที่ 3 · กด “เลิกใช้กฎ”',
+        text: 'ตรวจให้แน่ใจก่อนกด ตัวอย่างนี้เราจะไม่กดให้ ถ้าตั้งล่วงหน้าแล้วเปลี่ยนใจ ยกเลิกได้ที่แท็บ <b>รอมีผล</b>',
+        side: 'top',
+        align: 'end',
+      },
+      {
+        page: 'rules',
+        before: (h) => tickRows(h, '#rules-table'),
+        element: '#rules-table [data-bulk="retire"]',
+        title: 'เลิกใช้หลายกฎพร้อมกัน',
+        text: 'ติ๊กหลายแถวแล้วกดปุ่มนี้ ทุกกฎจะใช้วันที่เลิกใช้เดียวกัน (ตัวอย่างนี้เราติ๊กให้ 2 แถว)',
+        side: 'bottom',
+      },
+      {
+        page: 'rules',
+        before: (h) => h.close(),
+        element: '#rules-table tbody tr:first-child [data-history]',
+        title: 'ดูย้อนหลัง',
+        text: 'ปุ่มนี้แสดงทุกฉบับของกฎ · เลิกใช้ไปแล้วดูได้ที่ปุ่ม <b>กฎที่เลิกใช้</b> เหนือตาราง',
+        side: 'left',
+      },
+      practiceEnd('เลิกใช้กฎ'),
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  {
+    id: 'rules-settings',
+    title: 'ค่าตั้งค่าและรายการรอมีผล',
+    summary: 'เปลี่ยนค่ากลางของระบบ → ตั้งวันเริ่มใช้ → ตรวจที่แท็บรอมีผล',
+    icon: 'list-checks',
+    color: '#0891b2',
+    pages: ['rules-settings', 'rules-pending'],
+    need: 'rules.edit',
+    steps: [
+      {
+        page: 'rules-settings',
+        href: 'rules.html?tab=settings',
+        title: 'ค่ากลางที่ทุกกฎใช้ร่วมกัน',
+        text: 'เช่น วันส่งแจ้งประกัน และเดือนแจกชุดประจำปี เปลี่ยนแล้วมีผลทั้งระบบ จึงเลือกวันเริ่มใช้ได้',
+      },
+      {
+        page: 'rules-settings',
+        before: (h) => h.clickTab('settings'),
+        element: '.tab[data-tab="settings"]',
+        title: 'แท็บ “ค่าตั้งค่า”',
+        text: 'ตอนนี้อยู่แท็บนี้',
+        side: 'bottom',
+      },
+      {
+        page: 'rules-settings',
+        element: '#content .settings-form',
+        title: 'ขั้นที่ 1 · แก้ค่า',
+        text: 'ใต้แต่ละช่องบอกหน่วยและช่วงค่าที่ใส่ได้',
+        side: 'bottom',
+      },
+      {
+        page: 'rules-settings',
+        before: setSettingsSampleDate,
+        element: '#content .effective-bar .field',
+        title: 'ขั้นที่ 2 · เลือกวันที่มีผล',
+        text: 'ก่อนถึงวันนี้ระบบยังใช้ค่าเดิม ตัวอย่างนี้เราเลือกวันที่ 1 ของเดือนหน้าให้',
+        side: 'top',
+      },
+      {
+        key: 'settings-save',
+        page: 'rules-settings',
+        before: setSettingsSampleDate,
+        element: '#save-settings',
+        title: 'ขั้นที่ 3 · กด “บันทึกค่าตั้งค่า”',
+        text: 'กดถัดไปแล้วเราบันทึกตัวอย่างให้',
+        side: 'top',
+        align: 'end',
+      },
+      {
+        page: 'rules-settings',
+        before: async (h) => {
+          await returnToTab(h, 'settings');
+          if (!document.querySelector('#content [data-cancel-setting]')) {
+            h.click('#save-settings');
+            await h.wait('#content [data-cancel-setting]', 5000);
+          }
+        },
+        backTo: 'settings-save',
+        undo: async (h) => {
+          // ยกเลิกค่าตัวอย่างทีละรายการ (หน้าวาดใหม่ทุกครั้ง)
+          for (let k = 0; k < 12 && document.querySelector('#content [data-cancel-setting]'); k++) {
+            h.click('#content [data-cancel-setting]');
+            await h.sleep(150);
+          }
+        },
+        element: '#content .rev-item.pending',
+        title: 'ค่าที่ตั้งไว้ล่วงหน้า',
+        text: 'แสดงค่าที่รอมีผลใต้ฟอร์ม ระบบบันทึกทุกช่องตามวันที่นี้ เปลี่ยนใจกด <b>ยกเลิก</b> ได้',
+        side: 'top',
+      },
+      {
+        page: 'rules-settings',
+        before: (h) => h.clickTab('pending'),
+        element: '.tab[data-tab="pending"]',
+        title: 'ย้ายไปแท็บ “รอมีผล”',
+        text: 'รวมทุกการเปลี่ยนแปลงที่ยังไม่ถึงวัน ทั้งกฎประกัน กฎชุดฟอร์ม และค่าตั้งค่า',
+        side: 'bottom',
+      },
+      {
+        page: 'rules-settings',
+        element: '#content .rev-item.pending',
+        title: 'ตรวจก่อนถึงวันมีผล',
+        text: 'เรียงจากวันที่ใกล้สุด ไม่มีรายการ = ไม่มีอะไรรอเปลี่ยน<br>กด <b>ยกเลิก</b> ได้จนถึงวันมีผล ส่วนกฎกด <b>แก้</b> ได้ด้วย',
+        side: 'bottom',
+      },
+      practiceEnd('ตั้งค่า'),
     ],
   },
 
