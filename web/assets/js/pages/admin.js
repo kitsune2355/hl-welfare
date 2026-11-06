@@ -10,7 +10,7 @@
 import { adminApi } from '../app/api.js';
 import { can, getSession } from '../app/auth.js';
 import { initPage } from '../app/shell.js';
-import { startTourIfNew } from '../app/tour.js';
+import { exposeForTour, startTourIfNew } from '../app/tour.js';
 import { $, debounce, getParam, html, on, raw, render, setParams } from '../shared/dom.js';
 import { clock, int, thaiDate, thaiDateTime, timeAgo } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
@@ -342,6 +342,7 @@ const users = new ExcelGrid($('#users'), {
   ],
   empty: emptyState({ iconName: 'users', title: 'ยังไม่มีผู้ใช้' }),
 });
+exposeForTour('users', users); // คู่มือ "จัดการผู้ใช้ระบบ" เพิ่ม/ทิ้งแถวตัวอย่าง
 async function loadUsers() {
   if (!state.users) render($('#users'), html`<div class="card-body">${raw(String(skeletonLines(5)))}</div>`);
   const d = await adminApi.listUsers();

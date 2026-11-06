@@ -157,6 +157,24 @@ const tabEnd = (page, scope, what) => [
   { page, before: addRow(scope), element: `${scope} [data-grid-act="save-all"]`, title: 'กด “บันทึก”', text: 'กรอกครบแล้วกดปุ่มนี้ ระบบตรวจให้ก่อนบันทึก ช่องที่ผิดเป็นสีแดง<br>ตัวอย่างนี้เราจะไม่บันทึก', side: 'bottom', align: 'end' },
   { ...practiceEnd(what), before: discardRows(scope) },
 ];
+/** แถวตัวอย่างในตารางผู้ใช้จริง (คู่มือ "จัดการผู้ใช้ระบบ") — ไม่บันทึก */
+let sampleUserKey = null;
+async function addSampleUser(h) {
+  const grid = h.get('users');
+  if (!grid || grid.newRows.some((n) => n.key === sampleUserKey)) return;
+  grid.addRow(1);
+  sampleUserKey = grid.newRows[0].key; // แถวใหม่อยู่บนสุด
+  await h.wait('#users tr.is-new', 3000);
+}
+function removeSampleUser(h) {
+  const grid = h.get('users');
+  if (grid && sampleUserKey) {
+    grid.newRows = grid.newRows.filter((n) => n.key !== sampleUserKey);
+    grid.render();
+  }
+  sampleUserKey = null;
+}
+const userCell = (col, title, text) => ({ page: 'admin-users', before: addSampleUser, element: `#users tr.is-new td[data-col="${col}"]`, title, text, side: 'bottom' });
 /** กล่องเพิ่มกฎของแท็บปัจจุบัน */
 const openRuleForm = (h) => h.open('#add', '.modal #f-from');
 
@@ -1791,15 +1809,26 @@ export const GUIDES = [
   {
     id: 'admin-users',
     title: 'จัดการผู้ใช้ระบบ',
-    summary: 'เพิ่มผู้ใช้ · แก้บทบาท · ปิดบัญชี',
+    summary: 'เพิ่มผู้ใช้ทีละขั้น รหัสเริ่มต้น 4123 · แก้บทบาท · ปิดบัญชี',
     icon: 'users',
     color: '#ec4899',
     pages: ['admin-users'],
     practice: false,
     need: 'users.manage',
+    // ใช้ข้อมูลจริง (practice: false) — แถวตัวอย่างอยู่ในหน้าจอเท่านั้น ไม่กดบันทึกให้ · ทิ้งเฉพาะแถวตัวอย่าง (ของที่ผู้ดูแลแก้ค้างไว้ยังอยู่)
     steps: [
-      { page: 'admin-users', href: 'admin.html?tab=users', element: '#users [data-grid-act="add"]', title: 'เพิ่มผู้ใช้', text: 'กดแล้วได้แถวใหม่ กรอก <b>ชื่อผู้ใช้ ชื่อ-สกุล บทบาท</b> ในตาราง แล้วกด <b>บันทึก</b><br>รหัสเริ่มต้นคือ <b>4123</b> ผู้ใช้ต้องตั้งรหัสเองตอนเข้าครั้งแรก', side: 'bottom' },
-      { page: 'admin-users', element: '#users tbody tr:first-child td[data-col="name"]', title: 'แก้ไขผู้ใช้', text: '<b>ดับเบิลคลิก</b>ที่ช่องเพื่อแก้ แถวสีเหลือง = ยังไม่บันทึก · ปุ่มท้ายแถวใช้รีเซ็ตรหัสเป็น 4123 หรือปิดบัญชี', side: 'bottom' },
+      { page: 'admin-users', href: 'admin.html?tab=users', title: 'เพิ่มผู้ใช้ มี 3 ขั้น', text: '① กด <b>เพิ่มผู้ใช้</b><br>② กรอกข้อมูลในตาราง<br>③ กด <b>บันทึก</b><br><br>คู่มือนี้ใช้หน้าจอจริง แต่เราจะไม่บันทึกอะไรให้' },
+      { page: 'admin-users', before: removeSampleUser, element: '#users [data-grid-act="add"]', title: 'ขั้นที่ 1 · กด “เพิ่มผู้ใช้”', text: 'ได้แถวใหม่สีเขียวในตาราง กดถัดไปแล้วเราเพิ่มแถวให้ดู<br>เพิ่มหลายคนพร้อมกัน ใส่จำนวนแถวในช่องข้าง ๆ', side: 'bottom' },
+      userCell('username', 'ขั้นที่ 2 · ชื่อผู้ใช้', 'ใช้ตอนเข้าสู่ระบบ ตัวอังกฤษพิมพ์เล็ก ตัวเลข และ . _ - ยาว 2–50 ตัว<br><b>ตั้งแล้วเปลี่ยนไม่ได้</b> · ควรตรงกับบัญชีใน stock_hr<br>ดับเบิลคลิกที่ช่อง พิมพ์ แล้วกด <b>Enter</b>'),
+      userCell('name', 'ชื่อ-สกุล', 'ชื่อจริงของผู้ใช้ ต้องกรอก'),
+      userCell('role', 'บทบาท', 'กำหนดว่าเห็นเมนูไหนและทำอะไรได้ ดับเบิลคลิกแล้วเลือกจากรายการ'),
+      userCell('companyCode', 'บริษัทที่ดูแล', 'ใช้เฉพาะบทบาท <b>HR บริษัท</b> และต้องเลือก ผู้ใช้จะเห็นเฉพาะพนักงานบริษัทนี้<br>บทบาทอื่นช่องนี้แก้ไม่ได้'),
+      userCell('empCode', 'รหัสพนักงาน', 'ไม่บังคับ ใช้ส่งให้ระบบสต็อกเป็นผู้ขอเบิก'),
+      userCell('status', 'รหัสเริ่มต้น 4123', 'ไม่ต้องตั้งรหัสเอง ผู้ใช้ใหม่ทุกคนได้ <b>4123</b><br>ตอนเข้าครั้งแรกระบบจะบังคับให้ตั้งรหัสใหม่'),
+      { page: 'admin-users', before: addSampleUser, element: '#users [data-grid-act="save-all"]', title: 'ขั้นที่ 3 · กด “บันทึก”', text: 'ถ้ากรอกไม่ครบ ช่องจะเป็นสีแดงและยังไม่บันทึก · บันทึกแล้วแจ้งผู้ใช้ว่าชื่อผู้ใช้คืออะไร และรหัสคือ 4123<br>ตัวอย่างนี้เราจะไม่บันทึก', side: 'bottom', align: 'end' },
+      { page: 'admin-users', before: removeSampleUser, element: '#users tbody tr:first-child td[data-col="name"]', title: 'แก้ไขผู้ใช้', text: '<b>ดับเบิลคลิก</b>ที่ช่องเพื่อแก้ แถวสีเหลือง = ยังไม่บันทึก แล้วกด <b>บันทึก</b>', side: 'bottom' },
+      { page: 'admin-users', before: removeSampleUser, element: '#users [data-action="password"], #users [data-action="toggle"]', title: 'ลืมรหัส / เลิกใช้บัญชี', text: 'ปุ่มท้ายแถว: รีเซ็ตรหัสเป็น 4123 · ให้ออกจากระบบทุกอุปกรณ์ · ปิดบัญชี<br>บัญชีของตัวเองไม่มีปุ่มเหล่านี้', side: 'left' },
+      { before: removeSampleUser, title: 'จบแล้ว ลองทำเองได้เลย 🎉', text: 'แถวตัวอย่างถูกเอาออกแล้ว ไม่มีผู้ใช้ใหม่ในระบบ' },
     ],
   },
   {
