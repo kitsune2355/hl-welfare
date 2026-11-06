@@ -18,6 +18,7 @@ import { ACTIVITY_ENTITY_LABEL } from '../shared/labels.js';
 import { alertBox, badge, emptyState, infoList, skeletonLines, tabs } from '../ui/components.js';
 import { busy } from '../ui/loading.js';
 import { confirmAction, errorMessage, openModal, toast } from '../ui/overlay.js';
+import { ExcelGrid } from '../ui/datagrid.js';
 import { DataTable } from '../ui/table.js';
 import { activityAction, ENTITY_ICON } from './_shared.js';
 
@@ -138,6 +139,8 @@ $('#refresh').addEventListener('click', () => {
 
 // ===================== ผู้ใช้ =====================
 const isMe = (u) => u.id === me?.id;
+/** ป้ายบทบาท — แถวที่เพิ่ง/ยังไม่บันทึกอ่านจากรายการบทบาท */
+const roleLabelOf = (u) => state.roles.find((r) => r.value === u.role)?.label ?? u.roleLabel ?? u.role;
 /** ทำรายการกับผู้ใช้ได้ไหม (ไม่ใช่ตัวเอง · ไม่ใช่ผู้ดูแลระบบสูงสุดที่ป้องกันไว้) */
 const editableUser = (u) => !isMe(u) && !isProtected(u.role);
 const names = (rows) => rows.map((u) => u.username).slice(0, 6).join(', ') + (rows.length > 6 ? ` และอีก ${rows.length - 6} คน` : '');
@@ -155,52 +158,144 @@ async function eachUser(rows, fn, label) {
   if (failed.length) toast.error(`${label}ไม่สำเร็จ ${failed.length} คน — ${failed.join(' · ')}`);
   return rows.length > failed.length ? `${label}แล้ว ${rows.length - failed.length} คน` : '';
 }
-const users = new DataTable($('#users'), {
+const scopedRole = (role) => !!state.roles.find((r) => r.value === role)?.scoped;
+/** แก้ช่องของแถวนี้ได้ไหม — แถวใหม่ได้เสมอ · บัญชีผู้ดูแลระบบสูงสุดแก้ได้เฉพาะผู้ดูแลระบบสูงสุด */
+const editableRow = (u) => !!u.__new || !isProtected(u.role);
+
+/** ตรวจก่อนบันทึก — ข้อความเดียวกับ backend (api_admin_user_create) */
+function validateUser(u) {
+  const e = {};
+  if (u.__new) {
+    if (!/^[a-z0-9._-]{2,50}$/.test(u.username)) e.username = 'ใช้ a-z 0-9 . _ - ยาว 2–50 ตัว';
+    else if (state.users.some((x) => x.username === u.username)) e.username = `มีชื่อผู้ใช้ ${u.username} อยู่แล้ว`;
+  }
+  if (!u.name.trim()) e.name = 'กรุณาระบุชื่อ-สกุล';
+  if (scopedRole(u.role) && !u.companyCode) e.companyCode = 'HR บริษัทต้องเลือกบริษัทที่ดูแล';
+  if ((u.empCode ?? '').length > 20) e.empCode = 'รหัสพนักงานยาวเกิน 20 ตัวอักษร';
+  return e;
+}
+
+/** บันทึกแถว — ผู้ใช้ใหม่ไม่ส่งรหัสผ่าน: backend ตั้งเป็นรหัสตั้งต้นและบังคับเปลี่ยนเอง · แถวเดิมส่งเฉพาะที่เปลี่ยน */
+async function saveUser(u, isNew) {
+  try {
+    if (isNew) return await adminApi.createUser({ username: u.username, name: u.name, role: u.role, empCode: u.empCode ?? '', companyCode: scopedRole(u.role) ? u.companyCode : '' });
+    const was = userById(u.id);
+    const patch = {};
+    if (u.name !== was.name) patch.name = u.name;
+    if ((u.empCode ?? '') !== (was.empCode ?? '')) patch.empCode = u.empCode ?? '';
+    if (u.role !== was.role) patch.role = u.role;
+    if (scopedRole(u.role) && (u.companyCode !== was.companyCode || patch.role)) patch.companyCode = u.companyCode;
+    return await adminApi.updateUser(u.id, patch);
+  } catch (e) {
+    throw e?.details ? new Error(Object.values(e.details)[0]) : e; // แสดงสาเหตุจริงที่แถว (422/409 มีรายช่อง)
+  }
+}
+
+const users = new ExcelGrid($('#users'), {
   rowKey: (u) => u.id,
   pageSize: 25,
   exportName: 'ผู้ใช้ระบบ',
-  rowClass: (u) => `${u.isActive ? '' : 'muted'}${isProtected(u.role) ? '' : ' row-edit'}`,
-  // แถวที่แก้ได้: ดับเบิลคลิก / Enter (โฟกัสด้วย Tab ได้) / แตะบนจอสัมผัส → ฟอร์มแก้ไข (openEditUser)
-  onRender: (root) =>
-    root.querySelectorAll('[data-key].row-edit').forEach((r) => {
-      r.tabIndex = 0;
-      r.title = matchMedia('(hover: none)').matches ? 'แตะเพื่อแก้ไข' : 'ดับเบิลคลิกเพื่อแก้ไข (หรือกด Enter)';
-    }),
+  addLabel: 'เพิ่มผู้ใช้',
+  newRow: () => ({
+    id: 0, __new: true, username: '', name: '', role: state.roles.some((r) => r.value === 'HR_ADMIN') ? 'HR_ADMIN' : state.roles[0]?.value ?? '', roleLabel: '', companyCode: null, empCode: '',
+    isActive: true, locked: false, mustChangePassword: true, activeSessions: 0, devices: 0, lastLoginAt: null, passwordChangedAt: null,
+  }),
+  validate: validateUser,
+  onSave: saveUser,
+  onSaved: ({ added }) => {
+    if (added) toast.success(`แจ้งผู้ใช้ใหม่ว่ารหัสเริ่มต้นคือ ${DEFAULT_PASSWORD} (ต้องตั้งรหัสเองตอนเข้าครั้งแรก)`);
+    reloadAccessToo();
+  },
+  rowClass: (u) => (u.isActive ? '' : 'is-off'),
+  rowLabel: (u) => u.username,
   columns: [
-    { key: 'name', header: 'ผู้ใช้', text: (u) => `${u.name} ${u.username}`, cell: (u) => html`<span class="two-line"><b>${u.name}${isMe(u) ? ' (คุณ)' : ''}</b><span class="sub">${u.username}</span></span>` },
+    {
+      key: 'username',
+      header: 'ชื่อผู้ใช้',
+      width: 150,
+      required: true,
+      hint: 'a-z 0-9 . _ - ตั้งตอนเพิ่มเท่านั้น · ควรตรงกับบัญชีใน stock_hr',
+      editor: 'text',
+      editable: (u) => !!u.__new,
+      value: (u) => u.username,
+      set: (u, v) => ({ ...u, username: String(v ?? '').trim().toLowerCase() }),
+    },
+    {
+      key: 'name',
+      header: 'ชื่อ-สกุล',
+      width: 190,
+      required: true,
+      editor: 'text',
+      editable: editableRow,
+      value: (u) => u.name,
+      display: (u) => html`<b style="font-weight:500">${u.name}${isMe(u) ? ' (คุณ)' : ''}</b>`,
+      set: (u, v) => ({ ...u, name: String(v ?? '').trim() }),
+    },
     {
       key: 'role',
       header: 'บทบาท',
-      text: (u) => u.roleLabel + (u.companyCode ? ` · ${u.companyCode}` : ''),
-      // HR บริษัท: บริษัทที่ดูแลต่อท้าย (เห็นข้อมูลเฉพาะบริษัทนั้น)
-      cell: (u) =>
-        html`<span class="row" style="gap:6px">${badge(u.roleLabel, u.role === 'SUPER_ADMIN' ? 'danger' : 'info')}${u.companyCode
-          ? html`<span class="small" title="ดูแลเฉพาะบริษัท ${u.companyCode}">${u.companyCode}</span>`
-          : ''}</span>`,
+      width: 170,
+      required: true,
+      hint: 'เปลี่ยนบทบาทของตัวเองไม่ได้',
+      editor: 'select',
+      editable: (u) => editableRow(u) && !isMe(u),
+      value: (u) => u.role,
+      text: (u) => roleLabelOf(u),
+      display: (u) => badge(roleLabelOf(u), u.role === 'SUPER_ADMIN' ? 'danger' : 'info'),
+      options: () => state.roles.map((r) => ({ value: r.value, label: r.label })),
+      set: (u, v) => ({ ...u, role: String(v), companyCode: scopedRole(String(v)) ? u.companyCode : null }),
     },
-    { key: 'empCode', header: 'รหัสพนักงาน', text: (u) => u.empCode ?? '', cell: (u) => u.empCode ?? html`<span class="muted">–</span>` },
+    {
+      key: 'companyCode',
+      header: 'บริษัทที่ดูแล',
+      width: 130,
+      hint: 'เฉพาะ HR บริษัท — เห็นและทำรายการได้เฉพาะพนักงานของบริษัทนี้',
+      editor: 'select',
+      editable: (u) => editableRow(u) && scopedRole(u.role),
+      value: (u) => u.companyCode ?? '',
+      display: (u) => u.companyCode ?? html`<span class="muted">${scopedRole(u.role) ? 'เลือกบริษัท' : '–'}</span>`,
+      options: () => state.companies.map((c) => ({ value: c.value, label: c.label })),
+      set: (u, v) => ({ ...u, companyCode: v ? String(v) : null }),
+    },
+    {
+      key: 'empCode',
+      header: 'รหัสพนักงาน',
+      width: 120,
+      hint: 'ส่งให้สต็อกเป็นผู้ขอเบิก',
+      editor: 'text',
+      editable: editableRow,
+      value: (u) => u.empCode ?? '',
+      set: (u, v) => ({ ...u, empCode: String(v ?? '').trim() }),
+    },
     {
       key: 'status',
       header: 'สถานะ',
+      width: 170,
+      value: (u) => u.isActive,
       text: (u) => (u.isActive ? (u.locked ? 'ถูกล็อก' : u.mustChangePassword ? 'รอตั้งรหัสเอง' : 'ใช้งาน') : 'ปิดบัญชี'),
-      cell: (u) =>
-        u.isActive
+      display: (u) =>
+        u.__new
+          ? badge(`รหัสเริ่มต้น ${DEFAULT_PASSWORD}`, 'warning', { dot: false })
+          : u.isActive
           ? html`${u.locked ? badge('ถูกล็อก', 'danger') : badge('ใช้งาน', 'success')}
               ${u.mustChangePassword ? html` ${badge('รอตั้งรหัสเอง', 'warning', { dot: false })}` : ''}`
           : badge('ปิดบัญชี', 'neutral'),
     },
-    { key: 'online', header: 'ออนไลน์ / จดจำ', align: 'center', text: (u) => `${u.activeSessions} / ${u.devices}`, cell: (u) => html`<span class="num">${u.activeSessions} / ${u.devices}</span>` },
-    { key: 'last', header: 'เข้าล่าสุด', sort: (u) => u.lastLoginAt ?? '', text: (u) => when(u.lastLoginAt), cell: (u) => ago(u.lastLoginAt) },
-    { key: 'pw', header: 'เปลี่ยนรหัสล่าสุด', hideOnMobile: true, sort: (u) => u.passwordChangedAt ?? '', text: (u) => when(u.passwordChangedAt), cell: (u) => ago(u.passwordChangedAt) },
+    { key: 'online', header: 'ออนไลน์ / จดจำ', width: 120, align: 'center', value: (u) => u.activeSessions, text: (u) => `${u.activeSessions} / ${u.devices}`, display: (u) => html`<span class="num">${u.activeSessions} / ${u.devices}</span>` },
+    { key: 'last', header: 'เข้าล่าสุด', width: 130, value: (u) => u.lastLoginAt ?? '', text: (u) => when(u.lastLoginAt), display: (u) => ago(u.lastLoginAt) },
+    { key: 'pw', header: 'เปลี่ยนรหัสล่าสุด', width: 140, value: (u) => u.passwordChangedAt ?? '', text: (u) => when(u.passwordChangedAt), display: (u) => ago(u.passwordChangedAt) },
     {
       key: 'actions',
       header: '',
+      width: 140,
       filter: false,
-      cell: (u) =>
-        isProtected(u.role)
+      value: () => '',
+      display: (u) =>
+        u.__new
+          ? ''
+          : isProtected(u.role)
           ? protectedMark()
           : html`<span class="row-actions">
-        <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${u.id}" title="แก้ไขชื่อ / บทบาท / รหัสพนักงาน">${raw(icon('pencil'))} แก้ไข</button>
         ${isMe(u)
           ? ''
           : html`<button class="btn btn-ghost btn-sm" data-action="password" data-id="${u.id}" title="รีเซ็ตรหัสผ่านเป็น ${DEFAULT_PASSWORD}" aria-label="รีเซ็ตรหัสผ่านของ ${u.username} เป็น ${DEFAULT_PASSWORD}">${raw(icon('lock'))}</button>
@@ -248,7 +343,7 @@ const users = new DataTable($('#users'), {
   empty: emptyState({ iconName: 'users', title: 'ยังไม่มีผู้ใช้' }),
 });
 async function loadUsers() {
-  render($('#users'), html`<div class="card-body">${raw(String(skeletonLines(5)))}</div>`);
+  if (!state.users) render($('#users'), html`<div class="card-body">${raw(String(skeletonLines(5)))}</div>`);
   const d = await adminApi.listUsers();
   state.roles = d.roles;
   state.companies = d.companies ?? [];
@@ -259,166 +354,12 @@ async function loadUsers() {
 }
 const userById = (id) => state.users.find((u) => u.id === Number(id));
 
-function field(name, label, input, { required = false, hint = '' } = {}) {
-  return html`<div class="field" data-field="${name}">
-    <label>${label}${required ? html` <span class="req">*</span>` : ''}</label>
-    ${input}
-    ${hint ? html`<span class="hint">${hint}</span>` : ''}
-    <span class="error"></span>
-  </div>`;
-}
-
-/** รหัสผ่านสุ่ม 14 ตัว (ตัด 0 O 1 l I ออก อ่านง่ายเวลาบอกต่อ) */
-function randomPassword() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  const buf = new Uint32Array(14);
-  crypto.getRandomValues(buf);
-  return [...buf].map((n) => chars[n % chars.length]).join('');
-}
-
-function passwordInput() {
-  return html`<div class="row" style="gap:6px">
-      <input class="input" name="password" type="text" autocomplete="new-password" spellcheck="false" style="font-family:var(--font-mono, monospace)" />
-      <button type="button" class="btn btn-sm" data-gen>สุ่ม</button>
-    </div>`;
-}
-
-/**
- * modal ฟอร์ม — save(values) โยน ApiError 422/409 ที่มี details → แสดงใต้ช่อง
- * @returns {Promise<void>}
- */
-function formModal({ title, description = '', fields, values = {}, okLabel = 'บันทึก', save }) {
-  const m = openModal({
-    title,
-    description,
-    body: html`<form class="form-grid" style="grid-template-columns:1fr" novalidate>${fields}</form>`,
-    footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button>
-      <button class="btn btn-primary" data-ok data-label="${okLabel}">${okLabel}</button>`,
-  });
-  const form = m.el.querySelector('form');
-  for (const [k, v] of Object.entries(values)) if (form.elements[k]) form.elements[k].value = v ?? '';
-  form.querySelector('[data-gen]')?.addEventListener('click', () => (form.elements.password.value = randomPassword()));
-  // ช่อง "บริษัทที่ดูแล" แสดงเฉพาะบทบาทที่ดูแลบริษัทเดียว (HR บริษัท)
-  const companyField = form.querySelector('[data-field="companyCode"]');
-  if (companyField && form.elements.role) {
-    const sync = () => companyField.classList.toggle('hidden', !state.roles.find((r) => r.value === form.elements.role.value)?.scoped);
-    form.elements.role.addEventListener('change', sync);
-    sync();
-  }
-  form.querySelector('input:not([readonly]), select')?.focus();
-  const ok = m.el.querySelector('[data-ok]');
-  const submit = async (e) => {
-    e?.preventDefault();
-    form.querySelectorAll('.field').forEach((f) => {
-      f.querySelector('.error').textContent = '';
-      f.querySelector('.input')?.removeAttribute('aria-invalid');
-    });
-    m.busy(true, ok);
-    try {
-      await save(Object.fromEntries(new FormData(form)));
-      m.busy(false, ok);
-      m.close();
-    } catch (err) {
-      m.busy(false, ok);
-      const details = err?.details ?? {};
-      for (const [k, msg] of Object.entries(details)) {
-        const f = form.querySelector(`[data-field="${k}"]`);
-        if (!f) continue;
-        f.querySelector('.error').textContent = msg;
-        f.querySelector('.input')?.setAttribute('aria-invalid', 'true');
-      }
-      toast.error(Object.keys(details).length ? Object.values(details)[0] : errorMessage(err));
-    }
-  };
-  ok.onclick = submit;
-  form.addEventListener('submit', submit);
-}
-
-const companyField = () =>
-  field(
-    'companyCode',
-    'บริษัทที่ดูแล',
-    html`<select class="input" name="companyCode"><option value="">— เลือกบริษัท —</option>${state.companies.map((c) => html`<option value="${c.value}">${c.label}</option>`)}</select>`,
-    { required: true, hint: 'เห็นและทำรายการได้เฉพาะพนักงานของบริษัทนี้' },
-  );
-
-const roleSelect = (disabled = false) =>
-  html`<select class="input" name="role" ${disabled ? 'disabled' : ''}>${state.roles.map((r) => html`<option value="${r.value}">${r.label}</option>`)}</select>`;
-
-$('#add-user').addEventListener('click', () =>
-  formModal({
-    title: 'เพิ่มผู้ใช้',
-    description: `ใช้ชื่อผู้ใช้เดียวกับ stock_hr ถ้ามีบัญชีที่นั่น · รหัสเริ่มต้น ${DEFAULT_PASSWORD} — ผู้ใช้ต้องตั้งรหัสของตัวเองตอนเข้าสู่ระบบครั้งแรก`,
-    fields: html`${field('username', 'ชื่อผู้ใช้', html`<input class="input" name="username" autocomplete="off" spellcheck="false" />`, { required: true, hint: 'a-z 0-9 . _ - (2–50 ตัว)' })}
-      ${field('name', 'ชื่อ-สกุล', html`<input class="input" name="name" />`, { required: true })}
-      ${field('role', 'บทบาท', roleSelect(), { required: true })}
-      ${companyField()}
-      ${field('empCode', 'รหัสพนักงาน', html`<input class="input" name="empCode" />`, { hint: 'ส่งให้สต็อกเป็นผู้ขอเบิก' })}
-      ${field('password', 'รหัสผ่านเริ่มต้น', passwordInput(), { hint: `ว่าง / ${DEFAULT_PASSWORD} = รหัสตั้งต้น · ตั้งเองต้องยาวอย่างน้อย 8 ตัว` })}`,
-    values: { role: 'HR_ADMIN', password: DEFAULT_PASSWORD },
-    okLabel: 'เพิ่มผู้ใช้',
-    save: async (v) => {
-      const u = await adminApi.createUser(v);
-      if (v.password === '' || v.password === DEFAULT_PASSWORD) toast.success(`แจ้ง ${u.username} ว่ารหัสเริ่มต้นคือ ${DEFAULT_PASSWORD} (ต้องเปลี่ยนตอนเข้าครั้งแรก)`);
-      toast.success(`เพิ่มผู้ใช้ ${u.username} แล้ว`);
-      await loadUsers();
-    },
-  }),
-);
-
-/** ฟอร์มแก้ไขชื่อ / บทบาท / รหัสพนักงาน — เปิดจากดับเบิลคลิกแถว, แตะแถว (จอสัมผัส), Enter ที่แถว หรือปุ่มดินสอ */
-function openEditUser(u) {
-  if (isProtected(u.role)) return toast.error('บัญชีผู้ดูแลระบบสูงสุด แก้ไขได้เฉพาะผู้ดูแลระบบสูงสุด');
-  return formModal({
-    title: `แก้ไขผู้ใช้ ${u.username}`,
-    description: isMe(u) ? 'บทบาทของตัวเองเปลี่ยนไม่ได้ — ให้ผู้ดูแลระบบคนอื่นเปลี่ยนให้' : 'เปลี่ยนบทบาทมีผลกับคำขอถัดไปทันที',
-    fields: html`${field('name', 'ชื่อ-สกุล', html`<input class="input" name="name" />`, { required: true })}
-      ${field('role', 'บทบาท', roleSelect(isMe(u)), { required: true })}
-      ${companyField()}
-      ${field('empCode', 'รหัสพนักงาน', html`<input class="input" name="empCode" />`)}`,
-    values: { name: u.name, role: u.role, empCode: u.empCode, companyCode: u.companyCode ?? '' },
-    save: async (v) => {
-      const patch = { name: v.name, empCode: v.empCode };
-      if (!isMe(u)) patch.role = v.role;
-      if (state.roles.find((r) => r.value === (patch.role ?? u.role))?.scoped) patch.companyCode = v.companyCode;
-      await adminApi.updateUser(u.id, patch);
-      toast.success('บันทึกแล้ว');
-      await loadUsers();
-    },
-  });
-}
-
-/** แถวผู้ใช้ (ตาราง tr หรือการ์ดบนมือถือ li) จาก event — ไม่นับการกดปุ่ม/ลิงก์ในแถว */
-function rowUser(e) {
-  if (e.target.closest('button, a, input, select, .popover')) return null;
-  const row = e.target.closest('#users [data-key]');
-  return row ? userById(row.dataset.key) : null;
-}
-// ดับเบิลคลิกแถว = แก้ไข · จอสัมผัส (ไม่มี hover) แตะครั้งเดียว = แก้ไข · คีย์บอร์ด: Tab ไปที่แถวแล้วกด Enter
-$('#users').addEventListener('dblclick', (e) => {
-  const u = rowUser(e);
-  if (u) openEditUser(u);
-});
-$('#users').addEventListener('click', (e) => {
-  if (!matchMedia('(hover: none)').matches) return;
-  const u = rowUser(e);
-  if (u) openEditUser(u);
-});
-$('#users').addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter' || e.target.closest('button, a, input, select')) return;
-  const row = e.target.closest('#users [data-key]');
-  const u = row && userById(row.dataset.key);
-  if (u) {
-    e.preventDefault();
-    openEditUser(u);
-  }
-});
-
-on($('#users'), 'click', '[data-action]', async (_e, b) => {
+// ปุ่มอยู่ในเซลล์ของตาราง — จับก่อนตารางจะถือว่าเป็นการคลิกเพื่อเลือกเซลล์
+on($('#users'), 'click', '[data-action]', async (e, b) => {
+  e.stopPropagation();
   const u = userById(b.dataset.id);
   if (!u) return;
   const act = b.dataset.action;
-  if (act === 'edit') return openEditUser(u);
   if (act === 'password') {
     if (
       await confirmAction({
@@ -451,7 +392,7 @@ on($('#users'), 'click', '[data-action]', async (_e, b) => {
       action: () => adminApi.updateUser(u.id, { isActive: !u.isActive }),
     })) reloadAccessToo();
   }
-});
+}, { capture: true });
 
 /** เปลี่ยนผู้ใช้แล้ว session/อุปกรณ์เปลี่ยนตาม */
 function reloadAccessToo() {

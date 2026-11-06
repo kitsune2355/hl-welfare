@@ -1798,8 +1798,8 @@ export const GUIDES = [
     practice: false,
     need: 'users.manage',
     steps: [
-      { page: 'admin-users', href: 'admin.html?tab=users', element: '#add-user', title: 'เพิ่มผู้ใช้', text: 'กดเพื่อสร้างบัญชีใหม่ ใส่ชื่อ ชื่อผู้ใช้ และเลือก <b>บทบาท</b>', side: 'bottom' },
-      { page: 'admin-users', element: '#users tbody tr:first-child td:nth-child(2)', title: 'แก้ไขผู้ใช้', text: '<b>ดับเบิลคลิก</b>ที่แถวเพื่อแก้บทบาท รีเซ็ตรหัสผ่าน หรือปิดบัญชี', side: 'bottom' },
+      { page: 'admin-users', href: 'admin.html?tab=users', element: '#users [data-grid-act="add"]', title: 'เพิ่มผู้ใช้', text: 'กดแล้วได้แถวใหม่ กรอก <b>ชื่อผู้ใช้ ชื่อ-สกุล บทบาท</b> ในตาราง แล้วกด <b>บันทึก</b><br>รหัสเริ่มต้นคือ <b>4123</b> ผู้ใช้ต้องตั้งรหัสเองตอนเข้าครั้งแรก', side: 'bottom' },
+      { page: 'admin-users', element: '#users tbody tr:first-child td[data-col="name"]', title: 'แก้ไขผู้ใช้', text: '<b>ดับเบิลคลิก</b>ที่ช่องเพื่อแก้ แถวสีเหลือง = ยังไม่บันทึก · ปุ่มท้ายแถวใช้รีเซ็ตรหัสเป็น 4123 หรือปิดบัญชี', side: 'bottom' },
     ],
   },
   {

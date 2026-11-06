@@ -2865,7 +2865,7 @@ ol.questions {
   gap: 2px;
 }
 .gm-cols {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   column-gap: 8px;
 }
 .gm-row {
@@ -2956,7 +2956,12 @@ ol.questions {
   height: 14px;
 }
 .modal-md:has(.gm) {
-  max-width: 920px;
+  max-width: 1040px;
+}
+@media (max-width: 900px) {
+  .gm-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 640px) {
   .gm-cols {
@@ -5783,17 +5788,6 @@ html {
   }
 }
 /* ผู้ใช้ระบบ: แถวที่แก้ได้ — ดับเบิลคลิก / Enter / แตะ = แก้ไข */
-#users .row-edit {
-  cursor: pointer;
-  user-select: none; /* ดับเบิลคลิกไม่เลือกข้อความ */
-}
-#users tr.row-edit:hover td {
-  background: var(--primary-soft);
-}
-#users .row-edit:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: -2px;
-}
 
 /* รายละเอียดพนักงาน — หน้าเต็ม (employee.html) และ popup (ลิงก์ employee.html?id= จากทุกหน้า) */
 .emp-detail {
