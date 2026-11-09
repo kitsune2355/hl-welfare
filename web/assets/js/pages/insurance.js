@@ -50,7 +50,8 @@ let insurers = [];
 const SECTIONS = [
   { id: 'urgent', type: 'URGENT', title: 'แจ้งออกทันที', description: 'เลิกจ้าง / เสียชีวิต — อยู่ในไฟล์ส่งออกทุกรอบจนกว่าจะส่งออก', iconName: 'shield-alert', tone: 'danger' },
   { id: 'in', type: 'IN', title: 'แจ้งเข้า', description: 'พนักงานที่ครบอายุงานแล้ว (รวมที่ตกค้างจากรอบก่อน)', iconName: 'log-in', tone: 'info' },
-  { id: 'out', type: 'OUT', title: 'แจ้งออก', description: 'ลาออก / ขาดงาน 3 วัน (วันทำงานสุดท้าย + 7 วัน)', iconName: 'log-out', tone: 'warning' },
+  { id: 'out', type: 'OUT', title: 'แจ้งออก', description: 'ลาออก / ขาดงาน 3 วัน (วันทำงานสุดท้าย + 7 วัน) / โอนย้าย (มีผลวันก่อนย้าย)', iconName: 'log-out', tone: 'warning' },
+  { id: 'change', type: 'CHANGE', title: 'แจ้งเปลี่ยนแปลง', description: 'เปลี่ยนรหัสพนักงาน (HR ติ๊ก “แจ้งบริษัทประกัน” ตอนเปลี่ยน)', iconName: 'arrow-left-right', tone: 'neutral' },
 ];
 /** บริษัทในเครือ → แบบฟอร์มบริษัทประกันที่เปิดใช้ */
 const insurerOf = (companyCode) => insurers.find((f) => f.active && f.companies.some((c) => c.companyCode === companyCode));
@@ -106,7 +107,7 @@ render(
 const tables = {};
 for (const s of SECTIONS) {
   tables[s.type] = new DataTable($(`#sec-${s.id} [data-table]`), {
-    rowKey: (r) => r.employee.id,
+    rowKey: (r) => `${r.employee.id}|${r.ref ?? 0}`, // คนเดียวมีได้หลายแถว (โอนย้าย)
     pageSize: 25,
     onRowDblClick: (r) => openEmployeeDetail(r.employee.id),
     exportName: s.title,
@@ -141,7 +142,7 @@ for (const s of SECTIONS) {
 /** จำนวนเข้า/ออกในการส่งออก 1 ครั้ง */
 function countLabel(b) {
   const c = batchCounts(b);
-  return [c.in ? `เข้า ${c.in}` : '', c.urgent ? `ออกทันที ${c.urgent}` : '', c.out ? `ออก ${c.out}` : ''].filter(Boolean).join(' · ');
+  return [c.in ? `เข้า ${c.in}` : '', c.urgent ? `ออกทันที ${c.urgent}` : '', c.out ? `ออก ${c.out}` : '', c.change ? `เปลี่ยนแปลง ${c.change}` : ''].filter(Boolean).join(' · ');
 }
 function countChips(b) {
   const c = batchCounts(b);

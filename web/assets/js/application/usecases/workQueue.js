@@ -1,9 +1,10 @@
 import { diffDays, nextCycleDate } from '../../domain/date.js';
 import { PROBATION_DAYS, probationDueDate } from '../../domain/employee.js';
-import { cycleDayOf, insuranceStatus } from '../../domain/insurance.js';
-import { END_REASON_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
+import { cycleDayOf } from '../../domain/insurance.js';
+import { insuranceEvents } from '../../domain/insuranceEvents.js';
+import { UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
 import { matchUniformRule } from '../../domain/uniform.js';
-import { sentIndex } from './insuranceCycle.js';
+import { directionOf, exitReasonText, groupChanges, sentIndex, sentKey } from './insuranceCycle.js';
 import { buildUniformPending } from './uniformPending.js';
 
 const UNIFORM_CRITICAL_DAYS = 30;
@@ -19,31 +20,33 @@ const RANK = { critical: 0, warning: 1, info: 2 };
  * - ชุดฟอร์มค้างแจก (critical ถ้าเกิน 30 วัน)
  * - คุณภาพข้อมูล: ยังไม่บันทึกผ่านทดลองงาน, ไม่พบกฎชุดฟอร์ม
  */
-export function buildWorkQueue(today, employees, sites, rules, batches, issues) {
+export function buildWorkQueue(today, employees, sites, rules, batches, issues, changes = []) {
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const sent = sentIndex(batches, employees);
+  const changesOf = groupChanges(changes);
   const tasks = [];
   const overdue = (due) => Math.max(0, diffDays(due, today));
   const cycleSeverity = (due) =>
     due < today ? 'critical' : diffDays(today, due) <= CYCLE_SOON_DAYS ? 'warning' : 'info';
   for (const e of employees) {
-    const st = insuranceStatus(e, siteById.get(e.siteId) ?? null, rules);
     const cycle = nextCycleDate(today, cycleDayOf(e, rules.settings)); // รอบถัดไปของพนักงานคนนี้ (รายวัน = วันที่ 6)
-    if (st.eligible && st.enrollCycleDate && !sent.IN.has(e.id) && st.enrollCycleDate <= cycle) {
-      tasks.push({
-        id: `INSURANCE_IN:${e.id}`,
-        kind: 'INSURANCE_IN',
-        severity: cycleSeverity(st.enrollCycleDate),
-        employee: e,
-        title: 'แจ้งเข้าประกันกลุ่ม',
-        detail: st.enrollCycleDate < cycle ? 'ตกค้างจากรอบก่อน' : 'รอบถัดไป',
-        dueDate: st.enrollCycleDate,
-        overdueDays: overdue(st.enrollCycleDate),
-      });
-    }
-    if (st.eligible && st.exitDate && st.exitCycleDate && !sent.OUT.has(e.id)) {
-      const reason = st.exitReason === 'AGE' ? `อายุครบ ${rules.settings.insuranceMaxAge} ปี` : e.endReason ? END_REASON_LABEL[e.endReason] : 'พ้นสภาพ';
-      if (st.exitUrgent) {
+    // รายการแจ้งประกันชุดเดียวกับหน้าประกันกลุ่ม (รวมโอนย้าย / เปลี่ยนรหัส) — ref ≠ 0 = เกิดจากการเปลี่ยนแปลง
+    for (const ev of insuranceEvents(e, siteById, rules, changesOf.get(e.id))) {
+      if (sent[directionOf(ev.type)].has(sentKey(e.id, ev.ref))) continue;
+      const suffix = ev.ref ? `:${ev.ref}` : '';
+      const reason = ev.reason ?? exitReasonText(e, ev.exit, rules.settings);
+      if (ev.type === 'IN' && ev.cycleDate <= cycle) {
+        tasks.push({
+          id: `INSURANCE_IN:${e.id}${suffix}`,
+          kind: 'INSURANCE_IN',
+          severity: cycleSeverity(ev.cycleDate),
+          employee: e,
+          title: 'แจ้งเข้าประกันกลุ่ม',
+          detail: ev.ref ? reason : ev.cycleDate < cycle ? 'ตกค้างจากรอบก่อน' : 'รอบถัดไป',
+          dueDate: ev.cycleDate,
+          overdueDays: overdue(ev.cycleDate),
+        });
+      } else if (ev.type === 'URGENT') {
         tasks.push({
           id: `INSURANCE_URGENT:${e.id}`,
           kind: 'INSURANCE_URGENT',
@@ -51,19 +54,20 @@ export function buildWorkQueue(today, employees, sites, rules, batches, issues) 
           employee: e,
           title: 'แจ้งออกประกันทันที',
           detail: reason,
-          dueDate: st.exitDate,
-          overdueDays: overdue(st.exitDate),
+          dueDate: ev.effectiveDate,
+          overdueDays: overdue(ev.effectiveDate),
         });
-      } else if (st.exitCycleDate <= cycle) {
+      } else if ((ev.type === 'OUT' || ev.type === 'CHANGE') && ev.cycleDate <= cycle) {
+        const change = ev.type === 'CHANGE';
         tasks.push({
-          id: `INSURANCE_OUT:${e.id}`,
-          kind: 'INSURANCE_OUT',
-          severity: cycleSeverity(st.exitCycleDate),
+          id: `${change ? 'INSURANCE_CHANGE' : 'INSURANCE_OUT'}:${e.id}${suffix}`,
+          kind: change ? 'INSURANCE_CHANGE' : 'INSURANCE_OUT',
+          severity: cycleSeverity(ev.cycleDate),
           employee: e,
-          title: 'แจ้งออกประกันกลุ่ม',
+          title: change ? 'แจ้งเปลี่ยนแปลงประกันกลุ่ม' : 'แจ้งออกประกันกลุ่ม',
           detail: reason,
-          dueDate: st.exitCycleDate,
-          overdueDays: overdue(st.exitCycleDate),
+          dueDate: ev.cycleDate,
+          overdueDays: overdue(ev.cycleDate),
         });
       }
     }

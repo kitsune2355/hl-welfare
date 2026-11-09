@@ -183,7 +183,7 @@
  * @property {number} uniformPending
  */
 
-/** @typedef {'INSURANCE_URGENT'|'INSURANCE_IN'|'INSURANCE_OUT'|'UNIFORM_ISSUE'|'PROBATION_MISSING'|'UNIFORM_RULE_MISSING'} TaskKind */
+/** @typedef {'INSURANCE_URGENT'|'INSURANCE_IN'|'INSURANCE_OUT'|'INSURANCE_CHANGE'|'UNIFORM_ISSUE'|'PROBATION_MISSING'|'UNIFORM_RULE_MISSING'} TaskKind */
 /** @typedef {'critical'|'warning'|'info'} TaskSeverity */
 
 /**

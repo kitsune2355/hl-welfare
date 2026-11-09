@@ -42,7 +42,7 @@ function api_dashboard($req, $params)
 function dashboard_build()
 {
     $w = repo_world();
-    $d = build_dashboard(today_iso(), $w['employees'], $w['sites'], $w['rules'], $w['batches'], $w['issues']);
+    $d = build_dashboard(today_iso(), $w['employees'], $w['sites'], $w['rules'], $w['batches'], $w['issues'], $w['changes']);
     if (data_scope() !== null) {     // HR บริษัท: กราฟแยกบริษัทเหลือบริษัทของตัวเอง
         $keep = array();
         foreach ($d['activeByCompany'] as $c) {
@@ -61,7 +61,7 @@ function api_work_queue($req, $params)
 function work_queue_build()
 {
     $w = repo_world();
-    return build_work_queue(today_iso(), $w['employees'], $w['sites'], $w['rules'], $w['batches'], $w['issues']);
+    return build_work_queue(today_iso(), $w['employees'], $w['sites'], $w['rules'], $w['batches'], $w['issues'], $w['changes']);
 }
 
 /**
@@ -409,7 +409,7 @@ function api_insurance_cycle($req, $params)
 {
     $date = assert_iso_date($params['date']);
     $w = repo_world();
-    return build_insurance_cycle($date, $w['employees'], $w['sites'], $w['rules'], $w['batches']);
+    return build_insurance_cycle($date, $w['employees'], $w['sites'], $w['rules'], $w['batches'], $w['changes']);
 }
 
 function __cmp_id_desc($a, $b) { return $b['id'] - $a['id']; }
@@ -433,7 +433,7 @@ function api_batch($req, $params)
 {
     $w = repo_world();
     $b = find_or_404(find_by($w['batches'], 'id', param_id($params)), 'ไม่พบรายการส่งแจ้ง');
-    return build_batch_detail($b, $w['employees'], $w['sites'], $w['rules'], $w['batches']);
+    return build_batch_detail($b, $w['employees'], $w['sites'], $w['rules'], $w['batches'], $w['changes']);
 }
 
 function api_batch_export($req, $params)
@@ -445,7 +445,7 @@ function api_batch_export($req, $params)
         throw new ApiError('ไม่พบแบบฟอร์มของ' . ($batch['insurerName'] !== null ? $batch['insurerName'] : 'บริษัทประกัน')
             . 'แล้ว — ดาวน์โหลดเป็น CSV จากหน้ารายชื่อแทน', 404);
     }
-    return build_batch_export($batch, $insurer, $w['employees'], $w['sites'], $w['rules'], $w['batches'], repo_companies());
+    return build_batch_export($batch, $insurer, $w['employees'], $w['sites'], $w['rules'], $w['batches'], repo_companies(), $w['changes']);
 }
 
 /** บันทึก batch + items (ลำดับตามที่ส่งมา) → InsuranceBatch */
@@ -455,10 +455,17 @@ function batch_insert($cycleDate, $insurerId, $insurerName, $items, $u)
     $res = db_exec('INSERT INTO insurance_batches (cycle_date, insurer_id, insurer_name, submitted_at, submitted_by_user_id,
                     submitted_by_name, created_at, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         array($cycleDate, $insurerId, $insurerName, $now, $u['id'], $u['name'], $now, $u['username'], $u['username']));
+    $withChange = db_has_column('insurance_batch_items', 'change_id');
     foreach ($items as $i => $it) {
-        db_exec('INSERT INTO insurance_batch_items (batch_id, seq, employee_id, type, direction, created_at, created_by, updated_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            array($res['id'], $i + 1, $it['employeeId'], $it['type'], direction_of($it['type']), $now, $u['username'], $u['username']));
+        if ($withChange) {
+            db_exec('INSERT INTO insurance_batch_items (batch_id, seq, employee_id, change_id, type, direction, created_at, created_by, updated_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                array($res['id'], $i + 1, $it['employeeId'], item_change_id($it), $it['type'], direction_of($it['type']), $now, $u['username'], $u['username']));
+        } else {
+            db_exec('INSERT INTO insurance_batch_items (batch_id, seq, employee_id, type, direction, created_at, created_by, updated_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                array($res['id'], $i + 1, $it['employeeId'], $it['type'], direction_of($it['type']), $now, $u['username'], $u['username']));
+        }
     }
     return array('id' => $res['id'], 'cycleDate' => $cycleDate, 'insurerId' => $insurerId, 'insurerName' => $insurerName,
         'items' => $items, 'submittedAt' => stamp_from_db($now), 'submittedBy' => $u['name']);
@@ -483,7 +490,7 @@ function api_batch_submit($req, $params)
     $sent = sent_index(repo_batches(), array_values($byId));
     $already = 0;
     foreach ($items as $it) {
-        if (isset($sent[$type === 'IN' ? 'IN' : 'OUT'][$it['employeeId']])) { $already++; }
+        if (isset($sent[$type === 'IN' ? 'IN' : 'OUT'][sent_key($it['employeeId'])])) { $already++; }
     }
     if ($already > 0) { throw new ApiError('มีพนักงานที่ถูกแจ้งไปแล้ว ' . $already . ' ราย', 409); }
     $batch = batch_insert($cycleDate, int_or_null(arr_get($b, 'insurerId')), arr_get($b, 'insurerName'), $items, $u);
@@ -520,7 +527,7 @@ function api_insurance_export($req, $params)
     $insurer = find_or_404(repo_insurer($insurerId), 'ไม่พบแบบฟอร์มบริษัทประกัน');
     $companies = repo_companies();
     $w = repo_world();
-    $data = build_insurer_export($cycleDate, $insurer, $w['employees'], $w['sites'], $w['rules'], $w['batches'], $companies);
+    $data = build_insurer_export($cycleDate, $insurer, $w['employees'], $w['sites'], $w['rules'], $w['batches'], $companies, $w['changes']);
     if (empty($b['record'])) {
         $data['batches'] = array();
         return $data;
@@ -541,24 +548,32 @@ function api_insurance_export($req, $params)
     foreach ($data['companies'] as $c) {
         foreach ($c['in'] as $r) { $all[] = $r; }
         foreach ($c['out'] as $r) { $all[] = $r; }
+        foreach ($c['change'] as $r) { $all[] = $r; }
     }
     $created = array();
     if (count($all)) {
         $items = array();
-        foreach ($all as $r) { $items[] = array('employeeId' => $r['employee']['id'], 'type' => $r['type']); }
+        foreach ($all as $r) {
+            $it = array('employeeId' => $r['employee']['id'], 'type' => $r['type']);
+            if (!empty($r['ref'])) { $it['changeId'] = $r['ref']; }
+            $items[] = $it;
+        }
         $created[] = batch_insert($cycleDate, $insurerId, $insurer['shortName'], $items, $u);
     }
     $nIn = 0;
+    $nChange = 0;
     foreach ($all as $r) {
         if ($r['type'] === 'IN') { $nIn++; }
+        if ($r['type'] === 'CHANGE') { $nChange++; }
     }
     $ids = array();
     foreach ($created as $c) { $ids[] = $c['id']; }
     audit_write('INSURANCE_BATCH', count($ids) ? implode(',', $ids) : '-', 'CREATE',
-        'ส่งออกไฟล์แจ้ง' . $insurer['shortName'] . ' รอบ ' . $cycleDate . ': เข้า ' . $nIn . ' · ออก ' . (count($all) - $nIn) . ' ราย'
+        'ส่งออกไฟล์แจ้ง' . $insurer['shortName'] . ' รอบ ' . $cycleDate . ': เข้า ' . $nIn . ' · ออก ' . (count($all) - $nIn - $nChange)
+        . ($nChange ? ' · เปลี่ยนแปลง ' . $nChange : '') . ' ราย'
         . (count($replaced) ? ' (แทนที่ไฟล์เดิมของรอบนี้)' : ''), count($all) === 1 ? $all[0]['employee']['id'] : null, $u);
     db_commit();
-    $out = build_insurer_export($cycleDate, $insurer, $w['employees'], $w['sites'], $w['rules'], repo_batches(), $companies);
+    $out = build_insurer_export($cycleDate, $insurer, $w['employees'], $w['sites'], $w['rules'], repo_batches(), $companies, $w['changes']);
     $out['batches'] = $created;
     return $out;
 }

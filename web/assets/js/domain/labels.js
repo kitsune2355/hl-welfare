@@ -50,6 +50,7 @@ export const BATCH_TYPE_LABEL = {
   IN: 'แจ้งเข้า',
   OUT: 'แจ้งออก',
   URGENT: 'แจ้งออกทันที',
+  CHANGE: 'แจ้งเปลี่ยนแปลง',
 };
 
 export const UNIFORM_EVENT_LABEL = {

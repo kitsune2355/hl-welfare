@@ -61,7 +61,7 @@ function build_uniform_upcoming($employees, $sites, $rules, $issues, $today)
 
 define('UPCOMING_DAYS', 30);
 
-function build_dashboard($today, $employees, $sites, $rules, $batches, $issues)
+function build_dashboard($today, $employees, $sites, $rules, $batches, $issues, $changes = array())
 {
     $active = array();
     foreach ($employees as $e) {
@@ -76,7 +76,7 @@ function build_dashboard($today, $employees, $sites, $rules, $batches, $issues)
     }
     $pending = array();
     foreach ($cycles as $c) {
-        $cy = build_insurance_cycle($c, $employees, $sites, $rules, $batches);
+        $cy = build_insurance_cycle($c, $employees, $sites, $rules, $batches, $changes);
         foreach ($cy['rows'] as $r) {
             if (!$r['submitted']) { $pending[] = $r; }
         }
@@ -135,29 +135,32 @@ function __cmp_task($a, $b)
 }
 
 /** คิวงานรวมของ HR — ทุกเรื่องที่ต้องทำ ณ วันนี้ เรียงตามความเร่งด่วน */
-function build_work_queue($today, $employees, $sites, $rules, $batches, $issues)
+function build_work_queue($today, $employees, $sites, $rules, $batches, $issues, $changes = array())
 {
     $siteById = by_key($sites, 'id');
     $sent = sent_index($batches, $employees);
+    $changesOf = group_changes($changes);
     $tasks = array();
     foreach ($employees as $e) {
-        $st = insurance_status($e, isset($siteById[$e['siteId']]) ? $siteById[$e['siteId']] : null, $rules);
         $cycle = next_cycle_date($today, cycle_day_of($e, $rules['settings']));
-        if ($st['eligible'] && $st['enrollCycleDate'] && !isset($sent['IN'][$e['id']]) && strcmp($st['enrollCycleDate'], $cycle) <= 0) {
-            $tasks[] = array(
-                'id' => 'INSURANCE_IN:' . $e['id'],
-                'kind' => 'INSURANCE_IN',
-                'severity' => __wq_cycle_severity($st['enrollCycleDate'], $today),
-                'employee' => $e,
-                'title' => 'แจ้งเข้าประกันกลุ่ม',
-                'detail' => strcmp($st['enrollCycleDate'], $cycle) < 0 ? 'ตกค้างจากรอบก่อน' : 'รอบถัดไป',
-                'dueDate' => $st['enrollCycleDate'],
-                'overdueDays' => __wq_overdue($st['enrollCycleDate'], $today),
-            );
-        }
-        if ($st['eligible'] && $st['exitDate'] && $st['exitCycleDate'] && !isset($sent['OUT'][$e['id']])) {
-            $reason = insurance_exit_reason_text($e, $st, $rules['settings']);
-            if ($st['exitUrgent']) {
+        /* รายการแจ้งประกันชุดเดียวกับหน้าประกันกลุ่ม (รวมโอนย้าย / เปลี่ยนรหัส) — ref <> 0 = เกิดจากการเปลี่ยนแปลง */
+        $mine = isset($changesOf[$e['id']]) ? $changesOf[$e['id']] : array();
+        foreach (insurance_events($e, $siteById, $rules, $mine) as $ev) {
+            if (isset($sent[direction_of($ev['type'])][sent_key($e['id'], $ev['ref'])])) { continue; }
+            $suffix = $ev['ref'] ? ':' . $ev['ref'] : '';
+            $reason = $ev['reason'] !== null ? $ev['reason'] : insurance_exit_reason_text($e, $ev['exit'], $rules['settings']);
+            if ($ev['type'] === 'IN' && strcmp($ev['cycleDate'], $cycle) <= 0) {
+                $tasks[] = array(
+                    'id' => 'INSURANCE_IN:' . $e['id'] . $suffix,
+                    'kind' => 'INSURANCE_IN',
+                    'severity' => __wq_cycle_severity($ev['cycleDate'], $today),
+                    'employee' => $e,
+                    'title' => 'แจ้งเข้าประกันกลุ่ม',
+                    'detail' => $ev['ref'] ? $reason : (strcmp($ev['cycleDate'], $cycle) < 0 ? 'ตกค้างจากรอบก่อน' : 'รอบถัดไป'),
+                    'dueDate' => $ev['cycleDate'],
+                    'overdueDays' => __wq_overdue($ev['cycleDate'], $today),
+                );
+            } elseif ($ev['type'] === 'URGENT') {
                 $tasks[] = array(
                     'id' => 'INSURANCE_URGENT:' . $e['id'],
                     'kind' => 'INSURANCE_URGENT',
@@ -165,19 +168,20 @@ function build_work_queue($today, $employees, $sites, $rules, $batches, $issues)
                     'employee' => $e,
                     'title' => 'แจ้งออกประกันทันที',
                     'detail' => $reason,
-                    'dueDate' => $st['exitDate'],
-                    'overdueDays' => __wq_overdue($st['exitDate'], $today),
+                    'dueDate' => $ev['effectiveDate'],
+                    'overdueDays' => __wq_overdue($ev['effectiveDate'], $today),
                 );
-            } elseif (strcmp($st['exitCycleDate'], $cycle) <= 0) {
+            } elseif (($ev['type'] === 'OUT' || $ev['type'] === 'CHANGE') && strcmp($ev['cycleDate'], $cycle) <= 0) {
+                $change = $ev['type'] === 'CHANGE';
                 $tasks[] = array(
-                    'id' => 'INSURANCE_OUT:' . $e['id'],
-                    'kind' => 'INSURANCE_OUT',
-                    'severity' => __wq_cycle_severity($st['exitCycleDate'], $today),
+                    'id' => ($change ? 'INSURANCE_CHANGE:' : 'INSURANCE_OUT:') . $e['id'] . $suffix,
+                    'kind' => $change ? 'INSURANCE_CHANGE' : 'INSURANCE_OUT',
+                    'severity' => __wq_cycle_severity($ev['cycleDate'], $today),
                     'employee' => $e,
-                    'title' => 'แจ้งออกประกันกลุ่ม',
+                    'title' => $change ? 'แจ้งเปลี่ยนแปลงประกันกลุ่ม' : 'แจ้งออกประกันกลุ่ม',
                     'detail' => $reason,
-                    'dueDate' => $st['exitCycleDate'],
-                    'overdueDays' => __wq_overdue($st['exitCycleDate'], $today),
+                    'dueDate' => $ev['cycleDate'],
+                    'overdueDays' => __wq_overdue($ev['cycleDate'], $today),
                 );
             }
         }

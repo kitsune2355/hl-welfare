@@ -28,6 +28,7 @@ import { openModal, toast } from '../ui/overlay.js';
 import { openEmployeeDetail } from './_employeeDetail.js';
 import { exportEmployeeList, importButton, openTemplateDialog, pickExcelFile, runEmployeeImport } from './_employeeImport.js';
 import { jobDbButton, openJobDbImport } from './_jobDbImport.js';
+import { openTransferDialog } from './_employeeTransfer.js';
 
 const URGENT = URGENT_END_REASONS;
 
@@ -302,6 +303,12 @@ function bulkTerminate(rows) {
   });
 }
 
+/** โอนย้าย / เปลี่ยนรหัส (บันทึกทันที) — มีแถวที่แก้ค้างไว้ = ให้บันทึก/ยกเลิกก่อน (ข้อมูลจะไม่ตรงกัน) */
+function transfer(rows) {
+  if (grid.hasPending()) return toast.error('มีรายการที่ยังไม่บันทึก — กด “บันทึก” หรือ “ยกเลิกทั้งหมด” ก่อน แล้วค่อยโอนย้าย');
+  openTransferDialog(rows, { sites, onDone: () => load() });
+}
+
 function blankEmployee() {
   const f = filter();
   const company = f.companyCode || myCompany() || COMPANY_CODES[0];
@@ -363,7 +370,12 @@ const grid = new ExcelGrid($('#grid'), {
   },
   // เลือกหลายคน → บันทึกพ้นสภาพ / เปิด-ปิดใช้งาน พร้อมกัน (เป็นแถวยังไม่บันทึก ตรวจแล้วกดบันทึก)
   bulkActions: can('employees.edit')
-    ? [{ id: 'terminate', label: 'บันทึกพ้นสภาพ', icon: 'user-x', when: (e) => e.status === 'ACTIVE', run: (rows) => bulkTerminate(rows) }, ...activeBulkActions('คน')]
+    ? [
+        { id: 'terminate', label: 'บันทึกพ้นสภาพ', icon: 'user-x', when: (e) => e.status === 'ACTIVE', run: (rows) => bulkTerminate(rows) },
+        // ย้ายจริง (มีวันที่มีผล + ประวัติ + แจ้งประกัน) — บันทึกทันที · แก้ที่กรอกผิดยังแก้ในตารางได้
+        { id: 'transfer', label: 'โอนย้าย / เปลี่ยนรหัส', icon: 'arrow-left-right', when: (e) => e.status === 'ACTIVE', run: (rows) => transfer(rows) },
+        ...activeBulkActions('คน'),
+      ]
     : [],
   // มือถือก็ใช้ตารางเดียวกัน (เลื่อนแนวนอน) — เพิ่ม/แก้ได้ในตารางทุกขนาดจอ
   // ไม่มีการลบ — ปิดใช้งานแทน (คอลัมน์ "ใช้งาน"): ไม่อยู่ในการคำนวณใดเลย เปิดกลับได้

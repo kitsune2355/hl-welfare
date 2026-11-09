@@ -9,25 +9,23 @@
 // ส่งออกรอบเดิมซ้ำ = แทนที่ batch เดิมของรอบ + บริษัทประกันนั้น
 import { COLUMN_SOURCES, requiredEmployeeFields } from '../../domain/insurerForm.js';
 import { EMPLOYEE_TYPE_LABEL, GENDER_LABEL, THAI_MONTHS_FULL } from '../../domain/labels.js';
-import { buildInsuranceCycle, sentIndex } from './insuranceCycle.js';
-
-const directionOf = (t) => (t === 'IN' ? 'IN' : 'OUT');
+import { buildInsuranceCycle, directionOf, itemKey, rowKey, sentIndex, sentKey } from './insuranceCycle.js';
 const byCode = (a, b) => a.employee.empCode.localeCompare(b.employee.empCode);
 
 /**
  * รายชื่อที่ต้องอยู่ในไฟล์ของบริษัทประกัน `insurer` รอบ `cycleDate`
  * = รายการที่ยังไม่ส่งออก (รวมที่ตกค้างจากรอบก่อน) + ที่ส่งออกให้บริษัทประกันนี้ในรอบนี้แล้ว (ส่งออกซ้ำได้)
  */
-export function buildInsurerExport({ cycleDate, insurer, employees, sites, rules, batches, companies = [] }) {
+export function buildInsurerExport({ cycleDate, insurer, employees, sites, rules, batches, companies = [], changes = [] }) {
   const sent = sentIndex(batches, employees);
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const companyName = new Map(companies.map((c) => [c.code, c.legalName ?? c.name]));
   const codes = new Set(insurer.companies.map((c) => c.companyCode));
-  const rows = buildInsuranceCycle(cycleDate, employees, sites, rules, batches)
+  const rows = buildInsuranceCycle(cycleDate, employees, sites, rules, batches, changes)
     .rows.filter((r) => codes.has(r.employee.companyCode))
     .filter((r) => {
       if (!r.submitted) return true;
-      const b = sent[directionOf(r.type)].get(r.employee.id);
+      const b = sent[directionOf(r.type)].get(sentKey(r.employee.id, r.ref));
       return b?.cycleDate === cycleDate && (b.insurerId ?? insurer.id) === insurer.id;
     })
     .map((r) => ({ ...r, employee: { ...r.employee, siteName: siteById.get(r.employee.siteId)?.name ?? '' } }));
@@ -40,16 +38,17 @@ export function buildInsurerExport({ cycleDate, insurer, employees, sites, rules
  * = รายชื่อเฉพาะใน batch นั้น (ไม่รวมที่เพิ่มขึ้นทีหลัง) · ไม่บันทึกอะไรเพิ่ม
  * ข้อมูลพนักงาน/การผูกบริษัท/แบบฟอร์ม = ปัจจุบัน (บริษัทที่เลิกผูกแล้วแต่มีรายชื่อใน batch ยังได้ชีตของตัวเอง)
  */
-export function buildBatchExport({ batch, insurer, employees, sites, rules, batches, companies = [] }) {
-  const cycleRow = new Map(buildInsuranceCycle(batch.cycleDate, employees, sites, rules, batches).rows.map((r) => [`${r.employee.id}|${directionOf(r.type)}`, r]));
+export function buildBatchExport({ batch, insurer, employees, sites, rules, batches, companies = [], changes = [] }) {
+  const cycleRow = new Map(buildInsuranceCycle(batch.cycleDate, employees, sites, rules, batches, changes).rows.map((r) => [rowKey(r), r]));
   const empById = new Map(employees.map((e) => [e.id, e]));
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const companyName = new Map(companies.map((c) => [c.code, c.legalName ?? c.name]));
   const rows = batch.items
     .filter((it) => empById.has(it.employeeId))
-    .map(({ employeeId, type }) => {
-      const e = empById.get(employeeId);
-      const r = cycleRow.get(`${employeeId}|${directionOf(type)}`);
+    .map((it) => {
+      const { type } = it;
+      const r = cycleRow.get(itemKey(it));
+      const e = r?.employee ?? empById.get(it.employeeId); // แจ้งออกจากที่เดิม = ข้อมูลเดิม
       return { type, employee: { ...e, siteName: siteById.get(e.siteId)?.name ?? '' }, effectiveDate: r?.effectiveDate ?? null, reason: r?.reason ?? '', submitted: true };
     });
   const bound = new Set(insurer.companies.map((c) => c.companyCode));
@@ -75,7 +74,8 @@ function exportData(cycleDate, insurer, rows, companyName, cos) {
         ...c,
         companyName: c.holderName?.trim() || companyName.get(c.companyCode) || c.companyCode,
         in: mine.filter((r) => r.type === 'IN').sort(byCode),
-        out: mine.filter((r) => r.type !== 'IN').sort(byCode),
+        out: mine.filter((r) => r.type === 'OUT' || r.type === 'URGENT').sort(byCode),
+        change: mine.filter((r) => r.type === 'CHANGE').sort(byCode), // แจ้งเปลี่ยนแปลง (เปลี่ยนรหัส) — ต่อท้ายแถวออก
       };
     }),
     missing,
@@ -102,8 +102,10 @@ export function cellValue(col, row, seq, form, company, cycleDate) {
   const e = row.employee;
   const date = (d) => formatFormDate(d, form.dateFormat, form.dateEra);
   const isIn = row.type === 'IN';
+  const isChange = row.type === 'CHANGE';
+  const isOut = !isIn && !isChange;
   if (col.only === 'IN' && !isIn) return '';
-  if (col.only === 'OUT' && isIn) return '';
+  if (col.only === 'OUT' && !isOut) return '';
   switch (col.source) {
     case 'seq': return seq;
     case 'empCode': return e.empCode;
@@ -123,10 +125,12 @@ export function cellValue(col, row, seq, form, company, cycleDate) {
     case 'siteName': return e.siteName ?? '';
     case 'plan': return isIn ? (company.plan ?? '') : '';
     case 'inMark': return isIn ? form.inMark : '';
-    case 'outMark': return isIn ? '' : form.outMark;
+    case 'outMark': return isOut ? form.outMark : '';
+    case 'changeMark': return isChange ? (form.changeMark || form.inMark) : '';
     case 'effectiveDate': return date(row.effectiveDate);
     case 'inEffectiveDate': return isIn ? date(row.effectiveDate) : '';
-    case 'outEffectiveDate': return isIn ? '' : date(row.effectiveDate);
+    case 'outEffectiveDate': return isOut ? date(row.effectiveDate) : '';
+    case 'changeEffectiveDate': return isChange ? date(row.effectiveDate) : '';
     case 'cycleDate': return date(cycleDate);
     case 'reason': return row.reason ?? '';
     case 'text': return col.text ?? '';
@@ -142,7 +146,7 @@ export function exportCsvRows(data) {
   const rows = [];
   for (const company of data.companies) {
     let seq = 0;
-    for (const row of [...company.in, ...company.out]) {
+    for (const row of [...company.in, ...company.out, ...(company.change ?? [])]) {
       seq++;
       rows.push([company.companyCode, ...cols.map((col) => cellValue(col, row, seq, form, company, data.cycleDate))]);
     }

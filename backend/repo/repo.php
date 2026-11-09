@@ -13,6 +13,59 @@ function row_active($r)
     return isset($r['active']) ? (bool)$r['active'] : true;
 }
 
+/** ตารางมีคอลัมน์นี้ไหม (จำไว้ทั้งคำขอ) */
+function db_has_column($table, $column)
+{
+    static $seen = array();
+    $k = $table . '.' . $column;
+    if (!isset($seen[$k])) {
+        $seen[$k] = db_value('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            array($table, $column)) > 0;
+    }
+    return $seen[$k];
+}
+
+/** รัน sql/021 แล้วหรือยัง (ประวัติโอนย้าย / เปลี่ยนรหัส + change_id ในรายการแจ้งประกัน) */
+function db_has_employee_changes()
+{
+    return db_table_exists('employee_changes') && db_has_column('insurance_batch_items', 'change_id');
+}
+
+function map_employee_change($r)
+{
+    return array(
+        'id' => (int)$r['id'],
+        'employeeId' => (int)$r['employee_id'],
+        'kind' => $r['kind'],
+        'effectiveDate' => $r['effective_date'],
+        'from' => array('companyCode' => $r['from_company_code'], 'siteId' => (int)$r['from_site_id'],
+            'employeeType' => $r['from_employee_type'], 'empCode' => $r['from_emp_code']),
+        'to' => array('companyCode' => $r['to_company_code'], 'siteId' => (int)$r['to_site_id'],
+            'employeeType' => $r['to_employee_type'], 'empCode' => $r['to_emp_code']),
+        'notifyInsurer' => (bool)$r['notify_insurer'],
+        'note' => $r['note'],
+        'createdAt' => stamp_from_db($r['created_at']),
+        'createdBy' => $r['created_by'],
+    );
+}
+
+/** ประวัติโอนย้าย / เปลี่ยนรหัส (ยังไม่ได้รัน sql/021 = ว่าง) — employeeId = เฉพาะคนนั้น */
+function repo_employee_changes($employeeId = null)
+{
+    if (!db_has_employee_changes()) { return array(); }
+    $s = data_scope();
+    $where = array();
+    $params = array();
+    if ($employeeId !== null) { $where[] = 'c.employee_id = ?'; $params[] = (int)$employeeId; }
+    if ($s !== null) { $where[] = 'e.company_code = ?'; $params[] = $s; }
+    $out = array();
+    foreach (db_all('SELECT c.* FROM employee_changes c JOIN employees e ON e.id = c.employee_id'
+        . (count($where) ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY c.effective_date, c.id', $params) as $r) {
+        $out[] = map_employee_change($r);
+    }
+    return $out;
+}
+
 /** มีคอลัมน์ employees.note และเหตุผลพ้นสภาพชุดใหม่ไหม (sql/020) */
 function db_has_employee_note()
 {
@@ -275,10 +328,13 @@ function repo_batches()
 {
     $items = array();
     $s = data_scope();
-    foreach (db_all('SELECT i.batch_id, i.employee_id, i.type FROM insurance_batch_items i'
+    $withChange = db_has_column('insurance_batch_items', 'change_id');
+    foreach (db_all('SELECT i.batch_id, i.employee_id, i.type' . ($withChange ? ', i.change_id' : '') . ' FROM insurance_batch_items i'
         . ($s !== null ? ' JOIN employees e ON e.id = i.employee_id WHERE e.company_code = ?' : '') . ' ORDER BY i.batch_id, i.seq',
         $s !== null ? array($s) : array()) as $r) {
-        $items[(int)$r['batch_id']][] = array('employeeId' => (int)$r['employee_id'], 'type' => $r['type']);
+        $it = array('employeeId' => (int)$r['employee_id'], 'type' => $r['type']);
+        if ($withChange && (int)$r['change_id']) { $it['changeId'] = (int)$r['change_id']; }   // 0 = แบบเดิม ไม่ใส่
+        $items[(int)$r['batch_id']][] = $it;
     }
     $out = array();
     foreach (db_all('SELECT * FROM insurance_batches ORDER BY id') as $r) {
@@ -393,6 +449,7 @@ function repo_world()
         'rules' => repo_rules(),
         'batches' => repo_batches(),
         'issues' => repo_issues(),
+        'changes' => repo_employee_changes(),
     );
 }
 

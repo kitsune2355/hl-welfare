@@ -37,7 +37,7 @@ $admin = mysqli_connect($c['db_host'], $c['db_user'], $c['db_pass'], '', (int)$c
 mysqli_query($admin, 'DROP DATABASE IF EXISTS `' . $c['db_name'] . '`');
 mysqli_query($admin, 'CREATE DATABASE `' . $c['db_name'] . '` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci');
 mysqli_select_db($admin, $c['db_name']);
-foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications', '014_dept_groups', '015_org_settings', '016_issue_size_length', '017_drop_salary', '018_active_flags', '019_fixed_term_type', '020_end_reasons') as $f) {
+foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications', '014_dept_groups', '015_org_settings', '016_issue_size_length', '017_drop_salary', '018_active_flags', '019_fixed_term_type', '020_end_reasons', '021_employee_changes') as $f) {
     $sql = file_get_contents($root . '/backend/sql/' . $f . '.sql');
     if (!mysqli_multi_query($admin, $sql)) { die("$f: " . mysqli_error($admin) . "\n"); }
     do {
@@ -609,6 +609,60 @@ check('"กระทำผิด" (MISCONDUCT) ใช้ไม่ได้แล
 $body['endReason'] = 'RESIGN'; $body['note'] = str_repeat('ก', 256);
 $r = $hr->req('PUT', '/employees/' . $emps[1]['id'], $body);
 check('หมายเหตุเกิน 255 ตัวอักษร → 422', $r['status'] === 422 && isset($r['json']['errors']['note']), json_encode($r['json']));
+
+section('โอนย้าย / เปลี่ยนรหัส มีวันที่มีผล (sql/021) — ประกันนับต่อ · ออกวันก่อนย้าย + เข้าวันย้าย');
+$mv = db_one("SELECT e.id, e.emp_code, e.site_id FROM employees e WHERE e.status = 'ACTIVE' AND e.company_code = 'HL' AND e.employee_type = 'CENTRAL'
+    AND e.start_date < '2026-01-01' AND EXISTS (SELECT 1 FROM insurance_batch_items i WHERE i.employee_id = e.id AND i.direction = 'IN') ORDER BY e.id LIMIT 1");
+$cnsSite = db_one("SELECT id, name FROM sites WHERE company_code = 'CNS' AND has_group_insurance = 1 ORDER BY id LIMIT 1");
+/** แถวของพนักงานคนเดียวในรอบ (PHP 5.2 — ไม่มี closure) */
+function cycle_rows_of($date, $empId)
+{
+    $res = $GLOBALS['hr']->req('GET', '/insurance/cycles/' . $date);
+    $out = array();
+    foreach ($res['json']['data']['rows'] as $r) {
+        if ($r['employee']['id'] === $empId) { $out[] = array($r['type'], isset($r['ref']) ? 'chg' : 0, $r['effectiveDate'], $r['employee']['companyCode'], $r['employee']['empCode'], $r['submitted']); }
+    }
+    return $out;
+}
+$req = array('effectiveDate' => '2026-11-20', 'companyCode' => 'CNS', 'siteId' => (int)$cnsSite['id'], 'employeeType' => 'CENTRAL', 'empCode' => 'CNSX01', 'notifyInsurer' => true, 'note' => 'ย้ายตามโครงการ');
+check('ไม่ login → 401', S($anon->req('POST', '/employees/' . $mv['id'] . '/changes', $req)) === 401);
+check('วันที่มีผลก่อนวันเริ่มงาน → 422', S($hr->req('POST', '/employees/' . $mv['id'] . '/changes', array_merge($req, array('effectiveDate' => '2000-01-01')))) === 422);
+check('หน่วยงานไม่อยู่ในบริษัทที่เลือก → 422', S($hr->req('POST', '/employees/' . $mv['id'] . '/changes', array_merge($req, array('siteId' => (int)$mv['site_id'])))) === 422);
+$r = $hr->req('POST', '/employees/' . $mv['id'] . '/changes', $req);
+$chg = $r['json']['data']['change'];
+check('ย้าย HL → CNS + รหัสใหม่ → 201 · ข้อมูลพนักงานเป็นค่าใหม่ · เก็บค่าเดิม', $r['status'] === 201 && $chg['kind'] === 'TRANSFER'
+    && $chg['from']['empCode'] === $mv['emp_code'] && $r['json']['data']['employee']['empCode'] === 'CNSX01' && $r['json']['data']['employee']['companyCode'] === 'CNS'
+    && $chg['notifyInsurer'] === true && $chg['note'] === 'ย้ายตามโครงการ', json_encode($r['json']));
+check('รอบ 5 ธ.ค.: แจ้งออกจาก HL (รหัสเดิม) มีผล 19 พ.ย. + แจ้งเข้า CNS (รหัสใหม่) มีผล 20 พ.ย.',
+    cycle_rows_of('2026-12-05', (int)$mv['id']) === array(array('OUT', 'chg', '2026-11-19', 'HL', $mv['emp_code'], false), array('IN', 'chg', '2026-11-20', 'CNS', 'CNSX01', false)),
+    json_encode(cycle_rows_of('2026-12-05', (int)$mv['id'])));
+check('ลำดับวันที่: ครั้งต่อไปต้องหลังครั้งนี้ → 422', S($hr->req('POST', '/employees/' . $mv['id'] . '/changes', array_merge($req, array('effectiveDate' => '2026-11-20', 'empCode' => 'CNSX02')))) === 422);
+$r = $hr->req('POST', '/insurance/exports', array('cycleDate' => '2026-12-05', 'insurerId' => 1, 'record' => true));
+$hl = $cns = null;
+foreach ($r['json']['data']['companies'] as $co) { if ($co['companyCode'] === 'HL') { $hl = $co; } if ($co['companyCode'] === 'CNS') { $cns = $co; } }
+$inHl = false; $inCns = false;
+foreach ($hl['out'] as $x) { if ($x['employee']['id'] === (int)$mv['id']) { $inHl = $x['employee']['empCode'] === $mv['emp_code']; } }
+foreach ($cns['in'] as $x) { if ($x['employee']['id'] === (int)$mv['id']) { $inCns = $x['employee']['empCode'] === 'CNSX01'; } }
+check('ไฟล์แจ้งประกัน: ชีต HL มีแถวออก (รหัสเดิม) · ชีต CNS มีแถวเข้า (รหัสใหม่)', $r['status'] === 200 && $inHl && $inCns);
+check('บันทึกว่าแจ้งแล้ว: รายการเก็บ change_id · รอบนี้แสดงว่าส่งออกแล้ว',
+    (int)db_value('SELECT COUNT(*) FROM insurance_batch_items WHERE employee_id = ? AND change_id = ?', array($mv['id'], $chg['id'])) === 2
+    && cycle_rows_of('2026-12-05', (int)$mv['id']) === array(array('OUT', 'chg', '2026-11-19', 'HL', $mv['emp_code'], true), array('IN', 'chg', '2026-11-20', 'CNS', 'CNSX01', true)));
+check('ไม่ค้างไปรอบถัดไป · แจ้งเข้าครั้งแรก (ส่งไปนานแล้ว) ไม่ถูกแจ้งซ้ำ', cycle_rows_of('2027-01-05', (int)$mv['id']) === array());
+$batchId = (int)db_value('SELECT batch_id FROM insurance_batch_items WHERE employee_id = ? AND change_id = ?', array($mv['id'], $chg['id']));
+check('ลบการย้ายที่อยู่ในไฟล์ส่งออกแล้ว → 409', S($hr->req('DELETE', '/employees/' . $mv['id'] . '/changes/' . $chg['id'])) === 409);
+$st = S($hr->req('DELETE', '/insurance/batches/' . $batchId));
+check('ยกเลิกการส่งออกครั้งนั้น', ($st === 200 || $st === 204) && (int)db_value('SELECT COUNT(*) FROM insurance_batches WHERE id = ?', array($batchId)) === 0, 'status ' . $st);
+$r = $hr->req('DELETE', '/employees/' . $mv['id'] . '/changes/' . $chg['id']);
+check('ลบการย้าย → ข้อมูลกลับเป็นค่าเดิม · รายการแจ้งตอนย้ายหายไป', $r['status'] === 200 && $r['json']['data']['empCode'] === $mv['emp_code']
+    && $r['json']['data']['companyCode'] === 'HL' && cycle_rows_of('2026-12-05', (int)$mv['id']) === array(), json_encode($r['json']));
+$r = $hr->req('POST', '/employees/' . $mv['id'] . '/changes', array('effectiveDate' => '2026-11-20', 'companyCode' => 'HL', 'siteId' => (int)$mv['site_id'],
+    'employeeType' => 'CENTRAL', 'empCode' => 'HLX99', 'notifyInsurer' => true));
+check('เปลี่ยนรหัสอย่างเดียว + แจ้งประกัน → แถว "แจ้งเปลี่ยนแปลง" ในรอบ 5 ธ.ค.', $r['status'] === 201 && $r['json']['data']['change']['kind'] === 'CODE'
+    && cycle_rows_of('2026-12-05', (int)$mv['id']) === array(array('CHANGE', 'chg', '2026-11-20', 'HL', 'HLX99', false)), json_encode(cycle_rows_of('2026-12-05', (int)$mv['id'])));
+$list = $hr->req('GET', '/employees/' . $mv['id'] . '/changes');
+check('ประวัติ: 1 รายการ (ที่ลบไปแล้วไม่อยู่)', $list['status'] === 200 && count($list['json']['data']) === 1 && $list['json']['data'][0]['to']['empCode'] === 'HLX99');
+check('ลบได้ (ยังไม่ส่งออก) → รหัสกลับ', S($hr->req('DELETE', '/employees/' . $mv['id'] . '/changes/' . $list['json']['data'][0]['id'])) === 200
+    && db_value('SELECT emp_code FROM employees WHERE id = ?', array($mv['id'])) === $mv['emp_code']);
 
 section('ตัวกลาง /stock/bridge (หน้าเว็บโหมด mock)');
 check('ไม่ login → 401', S($anon->req('POST', '/stock/bridge', array('action' => 'catalog'))) === 401);

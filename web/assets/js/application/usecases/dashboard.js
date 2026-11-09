@@ -6,13 +6,13 @@ import { buildUniformPending } from './uniformPending.js';
 
 const UPCOMING_DAYS = 30;
 
-export function buildDashboard(today, employees, sites, rules, batches, issues) {
+export function buildDashboard(today, employees, sites, rules, batches, issues, changes = []) {
   const active = employees.filter((e) => e.status === 'ACTIVE');
   const siteById = new Map(sites.map((s) => [s.id, s]));
   // รอบถัดไปของแต่ละกลุ่ม (วันที่ 5 ทั่วไป · วันที่ 6 รายวัน) — แสดงรอบที่ใกล้ที่สุด นับรายการรวมทุกกลุ่ม
   const cycles = cycleDays(rules.settings).map((d) => nextCycleDate(today, d));
   const cycleDate = cycles.reduce((a, b) => (a < b ? a : b));
-  const pending = cycles.flatMap((c) => buildInsuranceCycle(c, employees, sites, rules, batches).rows).filter((r) => !r.submitted);
+  const pending = cycles.flatMap((c) => buildInsuranceCycle(c, employees, sites, rules, batches, changes).rows).filter((r) => !r.submitted);
   const horizon = addDays(today, UPCOMING_DAYS);
   const upcoming = [];
   for (const emp of active) {

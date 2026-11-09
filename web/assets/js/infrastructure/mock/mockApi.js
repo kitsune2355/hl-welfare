@@ -1,7 +1,8 @@
 import { ApiError } from '../../application/errors.js';
 import { buildDashboard } from '../../application/usecases/dashboard.js';
 import { inactiveRefs } from '../../application/activeRules.js';
-import { batchCounts, batchIds, buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex } from '../../application/usecases/insuranceCycle.js';
+import { batchCounts, batchIds, buildBatchDetail, buildInsuranceCycle, employeeLite, sentIndex, sentKey } from '../../application/usecases/insuranceCycle.js';
+import { buildEmployeeChange, changeSummary, changeUndoBlock, validateEmployeeChange } from '../../application/usecases/employeeChange.js';
 import { buildBatchExport, buildInsurerExport } from '../../application/usecases/insurerExport.js';
 import { buildUniformPending, buildUniformUpcoming } from '../../application/usecases/uniformPending.js';
 import { buildStockOptions, stockChange, stockRef, stockSizes, stockSubmitPayload, toStockRequest, uniformLines } from '../../application/usecases/uniformStock.js';
@@ -194,7 +195,7 @@ export class MockApi {
   }
   /** ข้อมูลที่ use-case คำนวณ (= repo_world ฝั่ง PHP) — พนักงานที่ปิดใช้งานไม่อยู่ในการคำนวณใดเลย */
   get world() {
-    return { ...this.db, employees: this.db.employees.filter((e) => e.active !== false) };
+    return { ...this.db, employees: this.db.employees.filter((e) => e.active !== false), changes: this.db.changes ?? [] };
   }
   /**
    * เปิด/ปิดการใช้งานในคำขอบันทึกนี้ (= org_active_change) — คืนค่าใหม่ หรือ null = ไม่เปลี่ยน
@@ -208,14 +209,14 @@ export class MockApi {
   // ---------- Dashboard / Monitor ----------
   getDashboard() {
     return this.run(() => {
-      const { employees, sites, rules, batches, issues } = this.world;
-      return buildDashboard(this.today(), employees, sites, rules, batches, issues);
+      const { employees, sites, rules, batches, issues, changes } = this.world;
+      return buildDashboard(this.today(), employees, sites, rules, batches, issues, changes);
     });
   }
   getWorkQueue() {
     return this.run(() => {
-      const { employees, sites, rules, batches, issues } = this.world;
-      return buildWorkQueue(this.today(), employees, sites, rules, batches, issues);
+      const { employees, sites, rules, batches, issues, changes } = this.world;
+      return buildWorkQueue(this.today(), employees, sites, rules, batches, issues, changes);
     });
   }
   listActivity(filter = {}) {
@@ -386,6 +387,43 @@ export class MockApi {
             (!filter.status || e.status === filter.status),
         )
         .sort((a, b) => a.empCode.localeCompare(b.empCode));
+    });
+  }
+  // ---------- โอนย้าย / เปลี่ยนรหัส (มีวันที่มีผล) = backend/api/employee_changes.php ----------
+  listEmployeeChanges(employeeId) {
+    return this.run(() => {
+      this.employee(employeeId);
+      return (this.db.changes ?? []).filter((c) => c.employeeId === employeeId).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate) || b.id - a.id);
+    });
+  }
+  createEmployeeChange(employeeId, input) {
+    return this.run(() => {
+      const e = this.employee(employeeId);
+      this.db.changes ??= [];
+      const errors = validateEmployeeChange(e, input, { sites: this.db.sites, employees: this.db.employees, changes: this.db.changes });
+      if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
+      const c = buildEmployeeChange(e, input, { id: nextId(this.db.changes), at: nowStamp(), by: this.actor });
+      this.db.changes.push(c);
+      Object.assign(e, c.to);
+      const siteName = (id) => this.db.sites.find((s) => s.id === id)?.name ?? `#${id}`;
+      this.log('EMPLOYEE', 'UPDATE', e.id, `${c.kind === 'TRANSFER' ? 'โอนย้าย' : 'เปลี่ยนรหัส'} ${fullName(e)}: ${changeSummary(c, siteName)} มีผล ${c.effectiveDate}${c.notifyInsurer ? ' (แจ้งบริษัทประกัน)' : ''}`, e.id);
+      this.persist();
+      return { change: c, employee: e };
+    });
+  }
+  deleteEmployeeChange(employeeId, changeId) {
+    return this.run(() => {
+      const e = this.employee(employeeId);
+      const c = (this.db.changes ?? []).find((x) => x.id === changeId && x.employeeId === employeeId);
+      if (!c) throw new ApiError('ไม่พบรายการเปลี่ยนแปลง', 404);
+      const block = changeUndoBlock(c, this.db.changes, this.db.batches);
+      if (block) throw new ApiError(block, 409);
+      if (this.db.employees.some((x) => x.empCode === c.from.empCode && x.id !== e.id)) throw new ApiError(`ใช้รหัสเดิม ${c.from.empCode} ไม่ได้ — มีพนักงานอื่นใช้แล้ว`, 409);
+      this.db.changes = this.db.changes.filter((x) => x !== c);
+      Object.assign(e, c.from);
+      this.log('EMPLOYEE', 'UPDATE', e.id, `ยกเลิกการ${c.kind === 'TRANSFER' ? 'โอนย้าย' : 'เปลี่ยนรหัส'} ${fullName(e)} (มีผล ${c.effectiveDate}) — กลับเป็นข้อมูลเดิม`, e.id);
+      this.persist();
+      return e;
     });
   }
   getEmployeeBenefits(id) {
@@ -591,8 +629,8 @@ export class MockApi {
   // ---------- Insurance ----------
   getInsuranceCycle(cycleDate) {
     return this.run(() => {
-      const { employees, sites, rules, batches } = this.world;
-      return buildInsuranceCycle(cycleDate, employees, sites, rules, batches);
+      const { employees, sites, rules, batches, changes } = this.world;
+      return buildInsuranceCycle(cycleDate, employees, sites, rules, batches, changes);
     });
   }
   listInsuranceBatches() {
@@ -611,16 +649,16 @@ export class MockApi {
       if (!batch) throw new ApiError('ไม่พบรายการส่งออก', 404);
       const insurer = this.db.insurers.find((x) => x.id === batch.insurerId);
       if (!insurer) throw new ApiError(`ไม่พบแบบฟอร์มของ${batch.insurerName ?? 'บริษัทประกัน'}แล้ว — ดาวน์โหลดเป็น CSV จากหน้ารายชื่อแทน`, 404);
-      const { employees, sites, rules, batches, companies } = this.world;
-      return buildBatchExport({ batch, insurer, employees, sites, rules, batches, companies });
+      const { employees, sites, rules, batches, companies, changes } = this.world;
+      return buildBatchExport({ batch, insurer, employees, sites, rules, batches, companies, changes });
     });
   }
   getInsuranceBatch(id) {
     return this.run(() => {
       const b = this.db.batches.find((x) => x.id === id);
       if (!b) throw new ApiError('ไม่พบรายการส่งแจ้ง', 404);
-      const { employees, sites, rules, batches } = this.world;
-      return buildBatchDetail(b, employees, sites, rules, batches);
+      const { employees, sites, rules, batches, changes } = this.world;
+      return buildBatchDetail(b, employees, sites, rules, batches, changes);
     });
   }
   submitInsuranceBatch(input) {
@@ -628,7 +666,7 @@ export class MockApi {
       if (input.employeeIds.length === 0) throw new ApiError('ไม่มีรายการที่เลือก', 422);
       input.employeeIds.forEach((id) => this.employee(id));
       const sent = sentIndex(this.db.batches, this.db.employees)[input.type === 'IN' ? 'IN' : 'OUT'];
-      const already = input.employeeIds.filter((id) => sent.has(id)).length;
+      const already = input.employeeIds.filter((id) => sent.has(sentKey(id))).length;
       if (already > 0) throw new ApiError(`มีพนักงานที่ถูกแจ้งไปแล้ว ${already} ราย`, 409);
       const batch = {
         id: nextId(this.db.batches),
@@ -780,12 +818,12 @@ export class MockApi {
   exportInsurance({ cycleDate, insurerId, record = false }) {
     return this.run(() => {
       const insurer = this.insurer(insurerId);
-      const { employees, sites, rules, companies } = this.world;
-      const data = buildInsurerExport({ cycleDate, insurer, employees, sites, rules, batches: this.db.batches, companies });
+      const { employees, sites, rules, companies, changes } = this.world;
+      const data = buildInsurerExport({ cycleDate, insurer, employees, sites, rules, batches: this.db.batches, companies, changes });
       if (!record) return { ...data, batches: [] };
       const replaced = this.db.batches.filter((b) => b.cycleDate === cycleDate && b.insurerId === insurerId);
       this.db.batches = this.db.batches.filter((b) => !replaced.includes(b));
-      const all = data.companies.flatMap((c) => [...c.in, ...c.out]);
+      const all = data.companies.flatMap((c) => [...c.in, ...c.out, ...c.change]);
       // ส่งออก 1 ครั้ง = ประวัติ 1 รายการ (มีทั้งคนเข้าและคนออก)
       const created = [];
       if (all.length) {
@@ -794,7 +832,7 @@ export class MockApi {
           cycleDate,
           insurerId,
           insurerName: insurer.shortName,
-          items: all.map((r) => ({ employeeId: r.employee.id, type: r.type })),
+          items: all.map((r) => ({ employeeId: r.employee.id, type: r.type, ...(r.ref ? { changeId: r.ref } : {}) })),
           submittedAt: nowStamp(),
           submittedBy: this.actor,
         };
@@ -806,13 +844,13 @@ export class MockApi {
         'INSURANCE_BATCH',
         'CREATE',
         created.map((b) => b.id).join(',') || '-',
-        `ส่งออกไฟล์แจ้ง${insurer.shortName} รอบ ${cycleDate}: เข้า ${all.filter((r) => r.type === 'IN').length} · ออก ${all.filter((r) => r.type !== 'IN').length} ราย${replaced.length ? ' (แทนที่ไฟล์เดิมของรอบนี้)' : ''}`,
+        `ส่งออกไฟล์แจ้ง${insurer.shortName} รอบ ${cycleDate}: เข้า ${all.filter((r) => r.type === 'IN').length} · ออก ${all.filter((r) => r.type === 'OUT' || r.type === 'URGENT').length}${all.some((r) => r.type === 'CHANGE') ? ` · เปลี่ยนแปลง ${all.filter((r) => r.type === 'CHANGE').length}` : ''} ราย${replaced.length ? ' (แทนที่ไฟล์เดิมของรอบนี้)' : ''}`,
         n === 1 ? all[0].employee.id : null,
       );
       this.persist();
       // ข้อมูลหลังบันทึก: ทุกแถวเป็น "ส่งออกแล้ว"
       return {
-        ...buildInsurerExport({ cycleDate, insurer, employees, sites, rules, batches: this.db.batches, companies }),
+        ...buildInsurerExport({ cycleDate, insurer, employees, sites, rules, batches: this.db.batches, companies, changes }),
         batches: created,
       };
     });

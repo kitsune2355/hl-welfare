@@ -3239,6 +3239,32 @@ th:hover .th-filter,
   margin: 6px 6px 0;
   font-weight: 500;
 }
+/* ประวัติโอนย้าย / เปลี่ยนรหัส (รายละเอียดพนักงาน) */
+.moves {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.moves li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.moves-date {
+  min-width: 110px;
+  font-weight: 500;
+}
+.moves .grow {
+  flex: 1;
+  min-width: 200px;
+}
+
 /* ช่วงวันที่ (คอลัมน์วันที่) */
 .cf-range {
   display: grid;

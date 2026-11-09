@@ -68,6 +68,15 @@ export class HttpApi {
     const s = qs.toString();
     return this.req(`/employees${s ? `?${s}` : ''}`);
   }
+  listEmployeeChanges(employeeId) {
+    return this.req(`/employees/${employeeId}/changes`);
+  }
+  createEmployeeChange(employeeId, input) {
+    return this.send('POST', `/employees/${employeeId}/changes`, input);
+  }
+  deleteEmployeeChange(employeeId, changeId) {
+    return this.send('DELETE', `/employees/${employeeId}/changes/${changeId}`);
+  }
   getEmployeeBenefits(id) {
     return this.req(`/employees/${id}/benefits`);
   }

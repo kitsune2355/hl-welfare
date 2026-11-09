@@ -48,6 +48,10 @@ function api_routes()
     router_add($r, 'GET', '/job-db/employees/preview', 'api_job_db_preview');
     router_add($r, 'POST', '/job-db/employees/import', 'api_job_db_import');
     router_add($r, 'GET', '/employees/{id}/benefits', 'api_employee_benefits');
+    /* โอนย้าย / เปลี่ยนรหัส มีวันที่มีผล · api/employee_changes.php (ต้องรัน sql/021) */
+    router_add($r, 'GET', '/employees/{id}/changes', 'api_employee_changes');
+    router_add($r, 'POST', '/employees/{id}/changes', 'api_employee_change_create');
+    router_add($r, 'DELETE', '/employees/{id}/changes/{changeId}', 'api_employee_change_delete');
     router_add($r, 'GET', '/rules', 'api_rules');
     /* แก้เงื่อนไขสวัสดิการแบบมีวันที่มีผล · api/rules_edit.php (สิทธิ์ rules.edit — ตรวจใน handler) */
     router_add($r, 'GET', '/rules/history', 'api_rules_history');

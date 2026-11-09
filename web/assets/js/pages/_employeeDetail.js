@@ -29,6 +29,8 @@ import { loader } from '../ui/loading.js';
 import { confirmAction, openModal, toast } from '../ui/overlay.js';
 import { DataTable } from '../ui/table.js';
 import { STOCK_STAGE, activityFeed, canCancelIssue, enhanceIssueActions, issueAction, stockDocLink, syncStockQuietly, wireIssueActions } from './_shared.js';
+import { openTransferDialog } from './_employeeTransfer.js';
+import { changeSummary } from '../application/usecases/employeeChange.js';
 
 const today = todayISO();
 const part = (root, name) => root.querySelector(`[data-part="${name}"]`);
@@ -146,10 +148,30 @@ function renderUniform(box, emp, st) {
   t.setRows([...st.entitlements, ...upcoming].reverse());
 }
 
+/** ประวัติโอนย้าย / เปลี่ยนรหัส (ใหม่ → เก่า) · รายการล่าสุดลบได้ (ข้อมูลกลับเป็นค่าเดิม) */
+function movesCard(e, moves, sites) {
+  if (!moves.length) return '';
+  const siteName = (sid) => sites.find((s) => s.id === sid)?.name ?? `#${sid}`;
+  return card({
+    title: 'โอนย้าย / เปลี่ยนรหัส',
+    description: 'อายุงานประกันกลุ่มนับต่อจากวันเริ่มงานเดิม · แจ้งบริษัทประกัน = แจ้งออกที่เดิม (วันก่อนย้าย) + แจ้งเข้าที่ใหม่',
+    iconName: 'arrow-left-right',
+    body: html`<ul class="moves">${moves.map(
+      (c, i) => html`<li>
+        <span class="num moves-date">${thaiDateFull(c.effectiveDate)}</span>
+        <span class="grow">${changeSummary(c, siteName)}${c.note ? html`<small class="muted"> · ${c.note}</small>` : ''}</span>
+        ${c.notifyInsurer ? badge('แจ้งบริษัทประกัน', 'info') : badge('ไม่แจ้ง', 'neutral')}
+        ${i === 0 && can('employees.edit') ? html`<button class="btn btn-ghost btn-sm" data-undo-move="${c.id}" title="ลบรายการนี้ — ข้อมูลกลับเป็นค่าเดิม (ทำได้ถ้ายังไม่อยู่ในไฟล์ที่ส่งออกแล้ว)">${raw(icon('undo-2'))} ยกเลิก</button>` : ''}
+      </li>`,
+    )}</ul>`,
+  });
+}
+
 /** โครงของรายละเอียด (ตำแหน่งแต่ละส่วนเรียกด้วย data-part — ไม่ใช้ id เพราะ popup เปิดซ้อนบนหน้าอื่นได้) */
 const skeleton = (inModal) => html`<div class="emp-detail${inModal ? ' in-modal' : ''}">
   <div class="page-head" data-part="head"><div class="skeleton" style="height:56px;width:320px"></div></div>
   <section class="card"><div class="card-body" data-part="info"><div class="skeleton sk-line"></div></div></section>
+  <div data-part="moves"></div>
   <div data-part="insurance"><div class="skeleton sk-block"></div></div>
   <div data-part="uniform"></div>
   <section class="card">
@@ -184,7 +206,13 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
     try {
       const { warn } = await syncStockQuietly();
       if (warn) toast.error(warn);
-      const [b, activity] = await Promise.all([api.getEmployeeBenefits(id), api.listActivity({ employeeId: id, limit: 30 })]);
+      // ประวัติโอนย้าย / เปลี่ยนรหัส — ยังไม่ได้รัน sql/021 (503) = ไม่มี
+      const [b, activity, moves, siteList] = await Promise.all([
+        api.getEmployeeBenefits(id),
+        api.listActivity({ employeeId: id, limit: 30 }),
+        api.listEmployeeChanges(id).catch(() => []),
+        api.listSites().catch(() => []),
+      ]);
       const e = b.employee;
       // ข้อมูลที่ไฟล์แจ้งประกันใช้ แต่ยังว่าง
       const missing = () => html`<span class="muted">– ยังไม่กรอก</span>`;
@@ -200,6 +228,7 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
             </div>
           </div>
           <div class="page-actions">
+            ${e.status === 'ACTIVE' && can('employees.edit') ? html`<button class="btn" data-transfer>${raw(icon('arrow-left-right'))} โอนย้าย / เปลี่ยนรหัส</button>` : ''}
             <a class="btn" href="employees.html?q=${encodeURIComponent(e.empCode)}">${raw(icon('pencil'))} ${e.status === 'ACTIVE' ? 'แก้ไข / บันทึกพ้นสภาพ' : 'แก้ไข'} ในตาราง</a>
           </div>`,
       );
@@ -227,6 +256,9 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
           ...(e.note ? [{ label: 'หมายเหตุ', value: e.note }] : []),
         ]),
       );
+      const transferBtn = part(root, 'head').querySelector('[data-transfer]');
+      if (transferBtn) transferBtn.onclick = () => openTransferDialog([e], { sites: siteList, onDone: changed });
+      render(part(root, 'moves'), movesCard(e, moves, siteList));
       render(part(root, 'insurance'), insuranceCard(e, b.insurance));
       renderUniform(part(root, 'uniform'), e, b.uniform);
       render(part(root, 'activity'), activityFeed(activity, { linkEmployee: false }));
@@ -242,6 +274,18 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
     }
   }
 
+  on(part(root, 'moves'), 'click', '[data-undo-move]', (_e, b) =>
+    confirmAction({
+      title: 'ยกเลิกการโอนย้าย / เปลี่ยนรหัสนี้?',
+      body: 'ข้อมูลพนักงาน (บริษัท หน่วยงาน ประเภท รหัส) กลับเป็นค่าก่อนเปลี่ยน และรายการแจ้งประกันที่เกิดจากครั้งนี้หายไป — ใช้เมื่อบันทึกผิด',
+      confirmLabel: 'ยกเลิกรายการนี้',
+      successMessage: 'ยกเลิกแล้ว — ข้อมูลกลับเป็นค่าเดิม',
+      action: async () => {
+        await api.deleteEmployeeChange(id, Number(b.dataset.undoMove));
+        changed();
+      },
+    }),
+  );
   const uniformBox = part(root, 'uniform');
   wireIssueActions(uniformBox, { today, onDone: changed });
   on(uniformBox, 'click', '[data-cancel-issue]', (_e, b) =>

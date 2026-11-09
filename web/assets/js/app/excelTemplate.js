@@ -319,8 +319,8 @@ const summaryValue = (source, row, seq) => {
     case 'companyCode': return row.companyCode;
     case 'in': return dash(row.in.length);
     case 'out': return dash(row.out.length);
-    case 'change': return '-';
-    case 'total': return row.in.length + row.out.length;
+    case 'change': return dash(row.change?.length ?? 0);
+    case 'total': return row.in.length + row.out.length + (row.change?.length ?? 0);
     default: return null;
   }
 };
@@ -372,7 +372,7 @@ export async function fillTemplate(buffer, data, { exportDate }) {
 
   const sheets = [];
   for (const company of companies) {
-    const rows = [...company.in, ...company.out];
+    const rows = [...company.in, ...company.out, ...(company.change ?? [])]; // แจ้งเปลี่ยนแปลงต่อท้าย
     if (!rows.length && !form.includeEmptySheets) continue;
     const vars = {
       ...base,

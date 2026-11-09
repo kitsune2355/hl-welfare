@@ -1,6 +1,6 @@
 export * from '../domain/labels.js';
 export const STATUS_TONE = { ACTIVE: 'success', INACTIVE: 'neutral' };
-export const BATCH_TONE = { IN: 'info', OUT: 'warning', URGENT: 'danger' };
+export const BATCH_TONE = { IN: 'info', OUT: 'warning', URGENT: 'danger', CHANGE: 'neutral' };
 export { EMPLOYEE_TYPE_TONE } from '../domain/catalog.js';
 export const UNIFORM_ITEM_LABEL = {
   POLO_BLACK: 'โปโลสีดำ',
@@ -30,6 +30,7 @@ export const TASK_KIND_LABEL = {
   INSURANCE_URGENT: 'แจ้งออกทันที',
   INSURANCE_IN: 'แจ้งเข้าประกัน',
   INSURANCE_OUT: 'แจ้งออกประกัน',
+  INSURANCE_CHANGE: 'แจ้งเปลี่ยนแปลงประกัน',
   UNIFORM_ISSUE: 'แจกชุดฟอร์ม',
   PROBATION_MISSING: 'ข้อมูลไม่ครบ',
   UNIFORM_RULE_MISSING: 'รอ HR ยืนยัน',
