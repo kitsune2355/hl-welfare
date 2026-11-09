@@ -63,6 +63,7 @@ function validate_employee($e)
         if (arr_get($e, 'endReason') === 'ABSENT_3D' && !arr_get($e, 'lastWorkingDate')) {
             $x['lastWorkingDate'] = 'ขาดงาน 3 วันต้องระบุวันทำงานสุดท้าย';
         }
+        if (arr_get($e, 'endReason') && !array_key_exists($e['endReason'], end_reason_labels())) { $x['endReason'] = 'เหตุผลพ้นสภาพไม่ถูกต้อง'; }
         if (arr_get($e, 'endDate') && $start && strcmp($e['endDate'], $start) < 0) { $x['endDate'] = 'ต้องไม่ก่อนวันเริ่มงาน'; }
     }
     return $x;

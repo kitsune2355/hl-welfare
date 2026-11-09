@@ -1,5 +1,6 @@
 import { defaultTypeFor, typeAllows, typeInfo } from '../domain/catalog.js';
 import { probationDueDate } from '../domain/employee.js';
+import { END_REASON_LABEL } from '../domain/labels.js';
 import { digitsOnly, isValidThaiId } from '../domain/thaiId.js';
 
 /**
@@ -33,8 +34,10 @@ export function validateEmployee(e) {
     if (!e.endReason) x.endReason = 'กรุณาเลือกเหตุผล';
     if (!e.endDate) x.endDate = 'กรุณาระบุวันพ้นสภาพ';
     if (e.endReason === 'ABSENT_3D' && !e.lastWorkingDate) x.lastWorkingDate = 'ขาดงาน 3 วันต้องระบุวันทำงานสุดท้าย';
+    if (e.endReason && !(e.endReason in END_REASON_LABEL)) x.endReason = 'เหตุผลพ้นสภาพไม่ถูกต้อง';
     if (e.endDate && e.endDate < e.startDate) x.endDate = 'ต้องไม่ก่อนวันเริ่มงาน';
   }
+  if (e.note && String(e.note).length > 255) x.note = 'หมายเหตุยาวเกิน 255 ตัวอักษร';
   return x;
 }
 /**

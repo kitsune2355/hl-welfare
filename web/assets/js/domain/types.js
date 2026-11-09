@@ -8,7 +8,7 @@
 /** @typedef {'CENTRAL'|'PRO_SITE'|'DAILY'|'MAID_CNS'} EmployeeType */
 /** @typedef {'REGULAR'|'SHORT_3PCT'} ContractType */
 /** @typedef {'ACTIVE'|'INACTIVE'} EmployeeStatus */
-/** @typedef {'RESIGN'|'ABSENT_3D'|'TERMINATED'|'MISCONDUCT'} EndReason */
+/** @typedef {'RESIGN'|'ABSENT_3D'|'CONTRACT_END'|'TERMINATED'|'RETIRED'|'DECEASED'|'TRANSFERRED'} EndReason */
 /** @typedef {string} ISODate  รูปแบบ YYYY-MM-DD */
 
 /** @typedef {{ code: CompanyCode, name: string }} Company */
@@ -52,7 +52,7 @@
  * @property {ISODate|null} enrollCycleDate รอบวันที่ 5 ที่จะแจ้งเข้า
  * @property {ISODate|null} exitDate
  * @property {ISODate|null} exitCycleDate
- * @property {boolean} exitUrgent          เลิกจ้าง/ทำผิด = แจ้งทันที
+ * @property {boolean} exitUrgent          เลิกจ้าง/เสียชีวิต = แจ้งทันที
  * @property {number|null} ruleId
  */
 

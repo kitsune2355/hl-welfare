@@ -7,6 +7,7 @@ import { exposeForTour } from '../app/tour.js';
 import { normalizeEmployee, validateEmployee } from '../application/employeeRules.js';
 import { todayISO } from '../domain/date.js';
 import { ageOf, probationDueDate } from '../domain/employee.js';
+import { URGENT_END_REASONS } from '../domain/insurance.js';
 import { digitsOnly, formatThaiId } from '../domain/thaiId.js';
 import { $, debounce, getParam, html, setParams } from '../shared/dom.js';
 import { thaiDate } from '../shared/format.js';
@@ -28,7 +29,7 @@ import { openEmployeeDetail } from './_employeeDetail.js';
 import { exportEmployeeList, importButton, openTemplateDialog, pickExcelFile, runEmployeeImport } from './_employeeImport.js';
 import { jobDbButton, openJobDbImport } from './_jobDbImport.js';
 
-const URGENT = ['TERMINATED', 'MISCONDUCT'];
+const URGENT = URGENT_END_REASONS;
 
 initPage('employees');
 
@@ -247,6 +248,13 @@ const columns = [
     display: (e) => (e.endDate ? thaiDate(e.endDate) : ''),
     set: setField('endDate', (v) => str(v) || null),
   },
+  {
+    key: 'note',
+    header: 'หมายเหตุ',
+    width: 200,
+    value: (e) => e.note ?? '',
+    set: setField('note', (v) => str(v).slice(0, 255) || null),
+  },
   activeColumn('ปิด = ไม่อยู่ในการคำนวณใดเลย (ประกัน ชุดฟอร์ม ภาพรวม) — สำหรับแถวที่กรอกผิด · คนที่ออกจากงานใช้ "พ้นสภาพ" · มีประวัติแจ้งประกัน/แจกชุดแล้วปิดไม่ได้'),
 ];
 
@@ -270,6 +278,10 @@ function bulkTerminate(rows) {
           <input class="input" type="date" id="bt-last" />
           <span class="hint">ว่าง = วันพ้นสภาพ (ขาดงาน 3 วันต้องกรอก)</span>
         </div>
+        <div class="field full">
+          <label for="bt-note">หมายเหตุ</label>
+          <input class="input" id="bt-note" maxlength="255" placeholder="ไม่บังคับ — ว่าง = คงหมายเหตุเดิมของแต่ละคน" />
+        </div>
       </div>
       <p class="small muted" style="margin-top:12px">${rows.map((r) => `${r.empCode} ${r.firstName}`).slice(0, 8).join(' · ')}${rows.length > 8 ? ` และอีก ${rows.length - 8} คน` : ''}</p>`,
       footer: html`<button class="btn btn-ghost" data-close>ยกเลิก</button><button class="btn btn-primary" data-ok>ใส่ในตาราง</button>`,
@@ -279,9 +291,10 @@ function bulkTerminate(rows) {
       const endReason = m.el.querySelector('#bt-reason').value;
       const endDate = m.el.querySelector('#bt-end').value;
       const last = m.el.querySelector('#bt-last').value || null;
+      const note = m.el.querySelector('#bt-note').value.trim() || null;
       if (!endDate) return toast.error('กรุณาเลือกวันพ้นสภาพ');
       grid.stage({
-        edits: rows.map((r) => ({ key: r.id, row: { ...r, status: 'INACTIVE', endReason, endDate, lastWorkingDate: last ?? (endReason === 'ABSENT_3D' ? null : endDate) } })),
+        edits: rows.map((r) => ({ key: r.id, row: { ...r, status: 'INACTIVE', endReason, endDate, lastWorkingDate: last ?? (endReason === 'ABSENT_3D' ? null : endDate), note: note ?? r.note ?? null } })),
       });
       m.close();
       toast.success(`ใส่ในตารางแล้ว ${rows.length} คน (ยังไม่บันทึก) — ตรวจแล้วกด “บันทึก”`);
@@ -315,6 +328,7 @@ function blankEmployee() {
       lastWorkingDate: null,
       endDate: null,
       endReason: null,
+      note: null,
     },
     sites,
   );

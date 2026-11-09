@@ -37,7 +37,7 @@ $admin = mysqli_connect($c['db_host'], $c['db_user'], $c['db_pass'], '', (int)$c
 mysqli_query($admin, 'DROP DATABASE IF EXISTS `' . $c['db_name'] . '`');
 mysqli_query($admin, 'CREATE DATABASE `' . $c['db_name'] . '` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci');
 mysqli_select_db($admin, $c['db_name']);
-foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications', '014_dept_groups', '015_org_settings', '016_issue_size_length', '017_drop_salary', '018_active_flags', '019_fixed_term_type') as $f) {
+foreach (array('001_schema', '002_seed_master', '003_seed_demo', '004_super_admin', '005_admin_monitor', '006_system_settings', '007_uniform_quantities', '008_role_capabilities', '009_must_change_password', '011_stock_waiting_stage', '013_notifications', '014_dept_groups', '015_org_settings', '016_issue_size_length', '017_drop_salary', '018_active_flags', '019_fixed_term_type', '020_end_reasons') as $f) {
     $sql = file_get_contents($root . '/backend/sql/' . $f . '.sql');
     if (!mysqli_multi_query($admin, $sql)) { die("$f: " . mysqli_error($admin) . "\n"); }
     do {
@@ -569,6 +569,46 @@ check('เลิกจ้าง → แจ้งคนอื่นที่แ�
     && (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent' AND user_id = ?", array($victimId)) === 0
     && (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent' AND user_id = ?", array($hrId)) === 0
     && (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent'") > $before, json_encode($r['json']));
+
+section('เหตุผลพ้นสภาพ 7 ข้อ + หมายเหตุ (sql/020)');
+check('020: "กระทำผิด" เดิม (seed) → เลิกจ้าง + หมายเหตุ · ไม่มี MISCONDUCT เหลือ',
+    db_value("SELECT COUNT(*) FROM employees WHERE end_reason = 'TERMINATED' AND note = 'กระทำผิด'") > 0
+    && (int)db_value("SELECT COUNT(*) FROM employees WHERE end_reason = 'MISCONDUCT'") === 0);
+$emps = db_all("SELECT id FROM employees WHERE status = 'ACTIVE' ORDER BY id LIMIT 3 OFFSET 1");
+$cur = $hr->req('GET', '/employees/' . $emps[0]['id'] . '/benefits');
+$body = $cur['json']['data']['employee'];
+$body['status'] = 'INACTIVE'; $body['endReason'] = 'DECEASED'; $body['endDate'] = '2026-10-19'; $body['lastWorkingDate'] = '2026-10-18';
+$body['note'] = '  แจ้งโดยญาติ  ';
+$before = (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent'");
+$r = $hr->req('PUT', '/employees/' . $emps[0]['id'], $body);
+check('เสียชีวิต → บันทึกได้ · หมายเหตุตัดช่องว่าง · แจ้งออกประกันทันที (แจ้งเตือน)', $r['status'] === 200
+    && $r['json']['data']['endReason'] === 'DECEASED' && $r['json']['data']['note'] === 'แจ้งโดยญาติ'
+    && (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent'") > $before, json_encode($r['json']));
+unset($body['note']);
+$body['phone'] = '0812345678';
+$r = $hr->req('PUT', '/employees/' . $emps[0]['id'], $body);
+check('ไม่ส่ง note มา = คงหมายเหตุเดิม', $r['status'] === 200 && $r['json']['data']['note'] === 'แจ้งโดยญาติ', json_encode($r['json']));
+$body['note'] = '';
+$r = $hr->req('PUT', '/employees/' . $emps[0]['id'], $body);
+check('ส่งหมายเหตุว่าง = ล้าง', $r['status'] === 200 && $r['json']['data']['note'] === null);
+$cur = $hr->req('GET', '/employees/' . $emps[1]['id'] . '/benefits');
+$body = $cur['json']['data']['employee'];
+$body['status'] = 'INACTIVE'; $body['endDate'] = '2026-10-19'; $body['lastWorkingDate'] = '2026-10-19';
+$before = (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent'");
+$ok = true;
+foreach (array('CONTRACT_END', 'RETIRED', 'TRANSFERRED') as $reason) {
+    $body['endReason'] = $reason;
+    $r = $hr->req('PUT', '/employees/' . $emps[1]['id'], $body);
+    $ok = $ok && $r['status'] === 200 && $r['json']['data']['endReason'] === $reason;
+}
+check('สิ้นสุดการจ้าง / เกษียณ / โอนย้าย บันทึกได้ · ไม่แจ้งออกทันที', $ok
+    && (int)db_value("SELECT COUNT(*) FROM notifications WHERE type = 'insurance_urgent'") === $before);
+$body['endReason'] = 'MISCONDUCT';
+$r = $hr->req('PUT', '/employees/' . $emps[1]['id'], $body);
+check('"กระทำผิด" (MISCONDUCT) ใช้ไม่ได้แล้ว → 422', $r['status'] === 422 && isset($r['json']['errors']['endReason']), json_encode($r['json']));
+$body['endReason'] = 'RESIGN'; $body['note'] = str_repeat('ก', 256);
+$r = $hr->req('PUT', '/employees/' . $emps[1]['id'], $body);
+check('หมายเหตุเกิน 255 ตัวอักษร → 422', $r['status'] === 422 && isset($r['json']['errors']['note']), json_encode($r['json']));
 
 section('ตัวกลาง /stock/bridge (หน้าเว็บโหมด mock)');
 check('ไม่ login → 401', S($anon->req('POST', '/stock/bridge', array('action' => 'catalog'))) === 401);

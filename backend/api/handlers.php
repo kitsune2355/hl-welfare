@@ -276,6 +276,7 @@ function employee_input($b)
         'nationalId' => arr_get($b, 'nationalId') ? digits_only($b['nationalId']) : null,
         'phone' => arr_get($b, 'phone') ? digits_only($b['phone']) : null,
         'email' => blank_null(arr_get($b, 'email')),
+        'note' => blank_null(trim((string)arr_get($b, 'note', ''))),
         'active' => array_key_exists('active', $b) ? (bool)$b['active'] : null,   // null = คงค่าเดิม (ใหม่ = เปิด)
     );
 }
@@ -313,19 +314,36 @@ function employee_values($e)
         $e['nationalId'], $e['phone'], $e['email']);
 }
 
+/** คอลัมน์ note มีเมื่อรัน sql/020 แล้ว — ก่อนนั้นไม่เขียน (หมายเหตุที่ส่งมาถูกข้าม) */
+function employee_note_sql($withNote)
+{
+    return $withNote ? ', note = ?' : '';
+}
+
 function api_employee_save($req, $params)
 {
     $u = auth_require($req);
     $id = isset($params['id']) ? param_id($params) : 0;
-    $in = employee_input(req_json($req));
+    $body = req_json($req);
+    $in = employee_input($body);
     if (!$in['probationPassDate'] && $in['startDate']) { $in['probationPassDate'] = probation_due_date($in['startDate']); }
     if (!in_array($in['employeeType'], employee_type_codes(), true)) {
         throw new ApiError('ประเภทพนักงานไม่ถูกต้อง', 422, array('employeeType' => 'ประเภทพนักงานไม่ถูกต้อง'));
     }
-    if ($in['endReason'] !== null && !in_array($in['endReason'], array('RESIGN', 'ABSENT_3D', 'TERMINATED', 'MISCONDUCT'), true)) {
+    if ($in['endReason'] !== null && !array_key_exists($in['endReason'], end_reason_labels())) {
         throw new ApiError('เหตุผลพ้นสภาพไม่ถูกต้อง', 422, array('endReason' => 'เหตุผลพ้นสภาพไม่ถูกต้อง'));
     }
+    $withNote = db_has_employee_note();
+    /* ยังไม่ได้รัน sql/020: ENUM เดิมเก็บเหตุผลใหม่ไม่ได้ (MySQL จะเก็บเป็นค่าว่างเงียบ ๆ) → บอกให้รันก่อน */
+    if (!$withNote && $in['endReason'] !== null && !in_array($in['endReason'], array('RESIGN', 'ABSENT_3D', 'TERMINATED'), true)) {
+        $m = 'ฐานข้อมูลยังไม่รองรับเหตุผล "' . label_end_reason($in['endReason']) . '" — ผู้ดูแลระบบต้องรัน backend/sql/020_end_reasons.sql ก่อน';
+        throw new ApiError($m, 422, array('endReason' => $m));
+    }
+    if ($in['note'] !== null && (function_exists('mb_strlen') ? mb_strlen($in['note'], 'UTF-8') : strlen(utf8_decode($in['note']))) > 255) {
+        throw new ApiError('หมายเหตุยาวเกิน 255 ตัวอักษร', 422, array('note' => 'หมายเหตุยาวเกิน 255 ตัวอักษร'));
+    }
     $prev = $id ? find_or_404(repo_employee($id), 'ไม่พบพนักงาน') : null;     // พนักงานนอกบริษัทของ HR บริษัท = ไม่พบ
+    if (!array_key_exists('note', $body)) { $in['note'] = $prev ? $prev['note'] : null; }   // ไม่ส่งมา = คงหมายเหตุเดิม
     $errors = validate_employee($in);
     if (count($errors)) {
         $first = reset($errors);
@@ -350,23 +368,25 @@ function api_employee_save($req, $params)
     if ($id) {
         $old = find_or_404(repo_employee($id), 'ไม่พบพนักงาน');
         $vals = employee_values($in);
+        if ($withNote) { $vals[] = $in['note']; }
         $vals[] = $u['username'];
         $vals[] = $id;
         db_exec('UPDATE employees SET emp_code = ?, first_name = ?, last_name = ?, company_code = ?, site_id = ?, employee_type = ?,
                  contract_type = ?, dept_group = ?, position = ?, level = ?, birth_date = ?, start_date = ?,
                  probation_pass_date = ?, status = ?, last_working_date = ?, end_date = ?, end_reason = ?, title = ?, gender = ?,
-                 national_id = ?, phone = ?, email = ?, updated_by = ? WHERE id = ?', $vals);
+                 national_id = ?, phone = ?, email = ?' . employee_note_sql($withNote) . ', updated_by = ? WHERE id = ?', $vals);
         $terminated = $old['status'] === 'ACTIVE' && $in['status'] === 'INACTIVE';
         audit_write('EMPLOYEE', $id, 'UPDATE', ($terminated ? 'บันทึกพ้นสภาพ ' : 'แก้ไขข้อมูล ') . full_name($in) . ' (' . $in['empCode'] . ')', $id, $u);
-        /* เลิกจ้าง / กระทำผิด = ต้องแจ้งออกประกันทันที → แจ้ง HR ที่แจ้งประกันของบริษัทนี้ (หลัง commit) */
-        $urgent = $terminated && in_array($in['endReason'], array('TERMINATED', 'MISCONDUCT'), true);
+        /* เลิกจ้าง / เสียชีวิต = ต้องแจ้งออกประกันทันที → แจ้ง HR ที่แจ้งประกันของบริษัทนี้ (หลัง commit) */
+        $urgent = $terminated && in_array($in['endReason'], urgent_end_reasons(), true);
     } else {
         $vals = employee_values($in);
+        if ($withNote) { $vals[] = $in['note']; }
         array_push($vals, db_now(), $u['username'], $u['username']);
         $res = db_exec('INSERT INTO employees (emp_code, first_name, last_name, company_code, site_id, employee_type, contract_type,
                  dept_group, position, level, birth_date, start_date, probation_pass_date, status, last_working_date,
-                 end_date, end_reason, title, gender, national_id, phone, email, created_at, created_by, updated_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', $vals);
+                 end_date, end_reason, title, gender, national_id, phone, email' . ($withNote ? ', note' : '') . ', created_at, created_by, updated_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?' . ($withNote ? ', ?' : '') . ', ?, ?, ?)', $vals);
         $id = $res['id'];
         audit_write('EMPLOYEE', $id, 'CREATE', 'เพิ่มพนักงาน ' . full_name($in) . ' (' . $in['empCode'] . ')', $id, $u);
     }

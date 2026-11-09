@@ -70,7 +70,7 @@ function insuranceCard(emp, st) {
         ${st.enrollCycleDate && st.enrollCycleDate >= today && !leaving
           ? html`<p class="small muted">แจ้งเข้า <b style="color:var(--fg)">${thaiDateFull(st.enrollCycleDate)}</b> · ${relativeDays(st.enrollCycleDate, today)}</p>`
           : ''}
-        ${st.exitUrgent ? alertBox({ tone: 'danger', title: 'ต้องแจ้งออกทันที', body: 'เลิกจ้าง/กระทำผิด — ไม่รอรอบวันที่ 5' }) : ''} ${timeline(steps)}
+        ${st.exitUrgent ? alertBox({ tone: 'danger', title: 'ต้องแจ้งออกทันที', body: 'เลิกจ้าง/เสียชีวิต — ไม่รอรอบวันที่ 5' }) : ''} ${timeline(steps)}
       </div>`
     : reasons(st.reasons);
   return card({ title: 'ประกันกลุ่ม', iconName: 'shield-plus', actions: b, body });
@@ -224,6 +224,7 @@ export function renderEmployeeDetail(root, id, { inModal = false, onLoaded, onNo
                 { label: 'วันพ้นสภาพ', value: thaiDateFull(e.endDate) },
               ]
             : []),
+          ...(e.note ? [{ label: 'หมายเหตุ', value: e.note }] : []),
         ]),
       );
       render(part(root, 'insurance'), insuranceCard(e, b.insurance));

@@ -38,13 +38,16 @@ export function insuranceExit(emp, settings) {
   return { exitDate: ageDate, exitCycleDate: nextCycleDate(ageDate, cycleDayOf(emp, settings)), exitUrgent: false, exitReason: 'AGE' };
 }
 
+/** เหตุผลพ้นสภาพที่ต้องแจ้งออกประกันทันที (ไม่รอรอบ) — ที่เหลือ (ลาออก สิ้นสุดการจ้าง เกษียณ โอนย้าย) ออกรอบถัดไป */
+export const URGENT_END_REASONS = ['TERMINATED', 'DECEASED'];
+
 /** วันมีผลออกเพราะพ้นสภาพ — null ถ้ายังไม่พ้นสภาพ */
 function employmentExit(emp, settings) {
   if (!emp.endReason && !emp.endDate) return null;
   const day = cycleDayOf(emp, settings);
   switch (emp.endReason) {
     case 'TERMINATED':
-    case 'MISCONDUCT': {
+    case 'DECEASED': {
       const exitDate = emp.endDate ?? emp.lastWorkingDate;
       if (!exitDate) return null;
       return { exitDate, exitCycleDate: exitDate, exitUrgent: true, exitReason: emp.endReason };
@@ -56,7 +59,7 @@ function employmentExit(emp, settings) {
       return { exitDate, exitCycleDate: nextCycleDate(exitDate, day), exitUrgent: false, exitReason: emp.endReason };
     }
     default: {
-      // RESIGN หรือพ้นสภาพโดยไม่ระบุเหตุผล
+      // ลาออก · สิ้นสุดการจ้าง · เกษียณ · โอนย้าย หรือพ้นสภาพโดยไม่ระบุเหตุผล
       const exitDate = emp.endDate ?? emp.lastWorkingDate;
       if (!exitDate) return null;
       return { exitDate, exitCycleDate: nextCycleDate(exitDate, day), exitUrgent: false, exitReason: emp.endReason ?? null };

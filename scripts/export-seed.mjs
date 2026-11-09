@@ -68,12 +68,21 @@ master += insert('insurer_forms', ['id', 'name', 'short_name', 'active', 'form_j
 writeFileSync('backend/sql/002_seed_master.sql', master);
 
 // ---------- 003 ข้อมูลจำลอง ----------
+// 003 ใช้โครงสร้างก่อน sql/020 (ยังไม่มีคอลัมน์ note · ENUM เหตุผลเดิม) → 020 แปลงเหมือนระบบจริง:
+//   seed "เลิกจ้าง + หมายเหตุ กระทำผิด" เขียนเป็น MISCONDUCT · เหตุผลใหม่ / หมายเหตุอื่น ใช้ใน seed ไม่ได้ (003 เก็บไม่ได้)
+const OLD_END_REASONS = ['RESIGN', 'ABSENT_3D', 'TERMINATED'];
+function legacyEndReason(e) {
+  if (e.endReason === 'TERMINATED' && e.note === 'กระทำผิด') return 'MISCONDUCT';
+  if (e.note) throw new Error(`seed: หมายเหตุใช้ได้เฉพาะ "กระทำผิด" ของเลิกจ้าง (${e.empCode})`);
+  if (e.endReason && !OLD_END_REASONS.includes(e.endReason)) throw new Error(`seed: เหตุผล ${e.endReason} ใช้ใน 003 ไม่ได้ (${e.empCode})`);
+  return e.endReason;
+}
 let demo = header('003_seed_demo.sql', 'พนักงานและประวัติจำลอง (ทดลอง/เทสต์เท่านั้น ไม่ต้องรันบนระบบจริง)');
 demo += insert('employees',
   ['id', 'emp_code', 'first_name', 'last_name', 'company_code', 'site_id', 'employee_type', 'contract_type', 'dept_group', 'position', 'level',
     'birth_date', 'start_date', 'probation_pass_date', 'status', 'last_working_date', 'end_date', 'end_reason', 'title', 'gender', 'national_id', 'phone', 'email'],
   db.employees.map((e) => [e.id, e.empCode, e.firstName, e.lastName, e.companyCode, e.siteId, e.employeeType, e.contractType, e.deptGroup, e.position, e.level,
-    e.birthDate, e.startDate, e.probationPassDate, e.status, e.lastWorkingDate, e.endDate, e.endReason, e.title, e.gender, e.nationalId, e.phone, e.email]));
+    e.birthDate, e.startDate, e.probationPassDate, e.status, e.lastWorkingDate, e.endDate, legacyEndReason(e), e.title, e.gender, e.nationalId, e.phone, e.email]));
 demo += insert('insurance_batches', ['id', 'cycle_date', 'insurer_id', 'insurer_name', 'submitted_at', 'submitted_by_user_id', 'submitted_by_name'],
   db.batches.map((b) => [b.id, b.cycleDate, b.insurerId, b.insurerName, b.submittedAt.replace('T', ' '), null, b.submittedBy]));
 demo += insert('insurance_batch_items', ['batch_id', 'seq', 'employee_id', 'type', 'direction'],

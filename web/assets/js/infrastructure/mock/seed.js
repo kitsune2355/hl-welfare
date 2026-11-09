@@ -258,7 +258,8 @@ export function buildSeed(today) {
       level: 2,
       startDays: 500,
       status: 'INACTIVE',
-      endReason: 'MISCONDUCT',
+      endReason: 'TERMINATED', // "กระทำผิด" เดิม — sql/020 แปลงเป็นเลิกจ้าง + หมายเหตุ (003 เขียนเป็น MISCONDUCT ให้ 020 แปลง)
+      note: 'กระทำผิด',
       endDate: ago(1),
       lastWorkingDate: ago(1),
       firstName: 'วีระ',
@@ -369,6 +370,7 @@ export function buildSeed(today) {
       lastWorkingDate: d.lastWorkingDate ?? null,
       endDate: d.endDate ?? null,
       endReason: d.endReason ?? null,
+      note: d.note ?? null,
       ...personalInfo(id, firstName),
     };
   });

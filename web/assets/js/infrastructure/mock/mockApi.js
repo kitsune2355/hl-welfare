@@ -22,6 +22,7 @@ import { normalizePositions, quantitiesError, validateInsuranceRule, validateSet
 import { withTotals } from './rules.js';
 import { CONFIG } from '../../config.js';
 import { StockGateway } from '../http/stockGateway.js';
+import { URGENT_END_REASONS } from '../../domain/insurance.js';
 import { BATCH_TYPE_LABEL, END_REASON_LABEL, UNIFORM_EVENT_LABEL } from '../../domain/labels.js';
 import { buildSeed } from './seed.js';
 import { MOCK_USERS } from './users.js';
@@ -418,7 +419,7 @@ export class MockApi {
         const wasActive = e.status === 'ACTIVE';
         Object.assign(e, input);
         const terminated = wasActive && e.status === 'INACTIVE';
-        if (terminated && (e.endReason === 'TERMINATED' || e.endReason === 'MISCONDUCT')) {
+        if (terminated && URGENT_END_REASONS.includes(e.endReason)) {
           this.notify(insuranceUrgentNotice(e, END_REASON_LABEL[e.endReason]), e.id);
         }
         this.log(

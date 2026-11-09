@@ -11,7 +11,7 @@ import { ageOf, probationDueDate } from '../../domain/employee.js';
 import { todayISO } from '../../domain/date.js';
 import { defaultTypeFor, typeAllows } from '../../domain/catalog.js';
 import { normalizeEmployee } from '../employeeRules.js';
-import { matchDeptGroup, matchSite, toIsoDate } from './employeeImport.js';
+import { endReasonOf, matchDeptGroup, matchSite, toIsoDate } from './employeeImport.js';
 
 const norm = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
 const byLabel = (map, v) => {
@@ -66,9 +66,10 @@ export const LIST_COLUMNS = [
   { key: 'phone', head: 'โทรศัพท์มือถือ', kind: 'code', width: 13, out: (e) => e.phone ?? '', in: (v) => norm(v).replace(/\D/g, '') || null },
   { key: 'email', head: 'อีเมล', width: 24, out: (e) => e.email ?? '', in: (v) => norm(v) || null },
   { key: 'status', head: 'สถานะ', width: 11, template: false, list: () => Object.values(STATUS_LABEL), out: (e) => STATUS_LABEL[e.status] ?? e.status, in: (v) => byLabel(STATUS_LABEL, v) ?? (norm(v) ? undefined : 'ACTIVE') },
-  { key: 'endReason', head: 'เหตุผลพ้นสภาพ', width: 15, template: false, list: () => Object.values(END_REASON_LABEL), out: (e) => END_REASON_LABEL[e.endReason] ?? '', in: (v) => byLabel(END_REASON_LABEL, v) },
+  { key: 'endReason', head: 'เหตุผลพ้นสภาพ', width: 15, template: false, list: () => Object.values(END_REASON_LABEL), out: (e) => END_REASON_LABEL[e.endReason] ?? '', in: (v) => byLabel(END_REASON_LABEL, v) ?? endReasonOf(v) }, // ชื่อเหตุผลเดิม (ไฟล์เก่า) → เหตุผลใหม่
   { key: 'lastWorkingDate', head: 'ทำงานวันสุดท้าย', kind: 'date', width: 14, template: false, out: (e) => e.lastWorkingDate || null, in: (v) => (norm(v) ? toIsoDate(v) ?? undefined : null) },
   { key: 'endDate', head: 'วันพ้นสภาพ', kind: 'date', width: 12, template: false, out: (e) => e.endDate || null, in: (v) => (norm(v) ? toIsoDate(v) ?? undefined : null) },
+  { key: 'note', head: 'หมายเหตุ', width: 30, out: (e) => e.note ?? '', in: (v) => norm(v).slice(0, 255) || null },
 ];
 const COL = Object.fromEntries(LIST_COLUMNS.map((c) => [c.key, c]));
 /**
@@ -86,6 +87,7 @@ export const LEAVE_COLUMNS = [
   COL.endReason,
   COL.lastWorkingDate,
   COL.endDate,
+  COL.note,
 ];
 /** คำนำหน้า → เพศ (ไม่ชัด เช่น ว่าที่ ร.ต. = ไม่เดา) */
 const genderOfTitle = (t) => (t === 'นาย' ? 'M' : t === 'นาง' || t === 'นางสาว' ? 'F' : null);
@@ -169,7 +171,7 @@ export function planEmployeeList(parsed, employees, sites, { deptGroups = [] } =
       : {
           id: 0, empCode: it.empCode, title: null, firstName: '', lastName: '', gender: null, birthDate: '', companyCode: COMPANY_CODES[0], siteId: 0,
           employeeType: null, contractType: 'REGULAR', deptGroup: null, level: null, position: null, startDate: '', probationPassDate: null,
-          nationalId: null, phone: null, email: null, status: 'ACTIVE', endReason: null, lastWorkingDate: null, endDate: null,
+          nationalId: null, phone: null, email: null, status: 'ACTIVE', endReason: null, lastWorkingDate: null, endDate: null, note: null,
         };
     const issues = [];
     let skip = null;

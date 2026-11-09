@@ -77,14 +77,22 @@ export function splitThaiName(full) {
   };
 }
 
-/** หมายเหตุในไฟล์ลาออก → เหตุผลพ้นสภาพในระบบ */
+/**
+ * หมายเหตุในไฟล์ลาออก (หรือชื่อเหตุผลเดิม) → เหตุผลพ้นสภาพในระบบ · ไม่ตรงคำไหน = ลาออก
+ * ทุจริต / กระทำผิด / ไล่ออก = เลิกจ้าง (ไม่มีเหตุผล "กระทำผิด" แล้ว — ข้อความเก็บในหมายเหตุ)
+ */
 export function endReasonOf(note) {
   const s = norm(note);
+  if (/เสียชีวิต|ถึงแก่กรรม/.test(s)) return 'DECEASED';
   if (/ขาดงาน|ขางาน/.test(s)) return 'ABSENT_3D';
-  if (/ทุจริต|กระทำผิด|ไล่ออก/.test(s)) return 'MISCONDUCT';
-  if (/เลิกจ้าง/.test(s)) return 'TERMINATED';
+  if (/เกษียณ/.test(s)) return 'RETIRED';
+  if (/โอนย้าย|ย้ายสังกัด|โอนสังกัด|ย้ายบริษัท/.test(s)) return 'TRANSFERRED';
+  if (/ทุจริต|กระทำผิด|ไล่ออก|เลิกจ้าง/.test(s)) return 'TERMINATED';
+  if (/สิ้นสุด.*(จ้าง|สัญญา)|ครบสัญญา|หมดสัญญา|ครบกำหนดสัญญา/.test(s)) return 'CONTRACT_END';
   return 'RESIGN';
 }
+/** หมายเหตุจากไฟล์ → ช่องหมายเหตุ (ว่าง = คงของเดิม) */
+const noteOf = (it, prev = null) => (it.note ? it.note.slice(0, 255) : prev);
 
 /**
  * @param {any[][]} rows  แถวจาก SheetJS (header: 1, raw: true)
@@ -246,7 +254,7 @@ export function planEmployeeImport(parsed, employees, sites, { addMissing = fals
         else {
           const a = newEmployee(it, sites, deptGroups);
           const endReason = endReasonOf(it.note);
-          out.add.push({ rowNo: it.rowNo, issues: a.issues, row: { ...a.row, status: 'INACTIVE', endDate: it.endDate, lastWorkingDate: it.endDate, endReason } });
+          out.add.push({ rowNo: it.rowNo, issues: a.issues, row: { ...a.row, status: 'INACTIVE', endDate: it.endDate, lastWorkingDate: it.endDate, endReason, note: noteOf(it) } });
         }
       } else if (existing.status === 'INACTIVE') skip('พ้นสภาพในระบบแล้ว');
       else if (!it.endDate) skip('ไม่มีวันพ้นสภาพ / อ่านวันที่ไม่ได้');
@@ -257,7 +265,7 @@ export function planEmployeeImport(parsed, employees, sites, { addMissing = fals
         out.update.push({
           rowNo: it.rowNo,
           id: existing.id,
-          row: { ...existing, status: 'INACTIVE', endDate: it.endDate, lastWorkingDate: it.endDate, endReason },
+          row: { ...existing, status: 'INACTIVE', endDate: it.endDate, lastWorkingDate: it.endDate, endReason, note: noteOf(it, existing.note ?? null) },
           issues,
         });
       }
@@ -343,7 +351,7 @@ export function planWorkbookImport(parsedList, employees, sites, opts = {}) {
         out.skip.push({ rowNo: it.rowNo, sheet: p.sheet, empCode: it.empCode, name: `${it.firstName} ${it.lastName}`.trim(), reason: 'ไม่มีวันพ้นสภาพ / อ่านวันที่ไม่ได้' });
         continue;
       }
-      a.row = { ...a.row, status: 'INACTIVE', endDate: it.endDate, lastWorkingDate: it.endDate, endReason: endReasonOf(it.note) };
+      a.row = { ...a.row, status: 'INACTIVE', endDate: it.endDate, lastWorkingDate: it.endDate, endReason: endReasonOf(it.note), note: noteOf(it) };
       a.issues = [...a.issues, 'เข้าและออกในไฟล์เดียวกัน — เพิ่มเป็นพนักงานที่พ้นสภาพแล้ว'];
     }
     const rest = { ...p, items: p.items.filter((it) => !addedByCode.has(it.empCode)) };

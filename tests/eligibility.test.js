@@ -122,6 +122,11 @@ describe('ประกันกลุ่ม', () => {
     expect(s.exitUrgent).toBe(true);
     expect(s.exitCycleDate).toBe('2026-10-14');
   });
+  it('เสียชีวิต → แจ้งทันที · สิ้นสุดการจ้าง / เกษียณ / โอนย้าย → รอบวันที่ 5 ถัดไป', () => {
+    const at = (endReason) => insuranceStatus(emp({ status: 'INACTIVE', endReason, endDate: '2026-10-14' }), site(), rules);
+    expect([at('DECEASED').exitUrgent, at('DECEASED').exitCycleDate]).toEqual([true, '2026-10-14']);
+    for (const r of ['CONTRACT_END', 'RETIRED', 'TRANSFERRED', 'RESIGN']) expect([r, at(r).exitUrgent, at(r).exitCycleDate]).toEqual([r, false, '2026-11-05']);
+  });
   it('ลาออกก่อนถึงรอบแจ้งเข้า → ไม่ต้องแจ้ง', () => {
     const s = insuranceStatus(
       emp({ startDate: '2026-09-20', status: 'INACTIVE', endReason: 'RESIGN', endDate: '2026-10-25' }),

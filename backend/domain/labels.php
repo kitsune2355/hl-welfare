@@ -75,9 +75,22 @@ function thai_date_short($d)
     return (int)$p[2] . ' ' . $m[(int)$p[1] - 1] . ' ' . substr((string)((int)$p[0] + 543), -2);
 }
 
+/** เหตุผลพ้นสภาพ (คู่กับ END_REASON_LABEL ใน web/assets/js/domain/labels.js) — "กระทำผิด" เดิมรวมเป็นเลิกจ้าง + หมายเหตุ (sql/020) */
+function end_reason_labels()
+{
+    return array('RESIGN' => 'ลาออก', 'ABSENT_3D' => 'ขาดงานต่อเนื่องเกิน 3 วัน', 'CONTRACT_END' => 'สิ้นสุดระยะเวลาการจ้าง',
+        'TERMINATED' => 'เลิกจ้าง', 'RETIRED' => 'เกษียณอายุ', 'DECEASED' => 'เสียชีวิต', 'TRANSFERRED' => 'โอนย้ายสังกัดบริษัท');
+}
+
+/** ต้องแจ้งออกประกันทันที (ไม่รอรอบ) */
+function urgent_end_reasons()
+{
+    return array('TERMINATED', 'DECEASED');
+}
+
 function label_end_reason($r)
 {
-    $m = array('RESIGN' => 'ลาออก', 'ABSENT_3D' => 'ขาดงาน 3 วันติด', 'TERMINATED' => 'เลิกจ้าง', 'MISCONDUCT' => 'กระทำผิด');
+    $m = end_reason_labels();
     return isset($m[$r]) ? $m[$r] : null;
 }
 

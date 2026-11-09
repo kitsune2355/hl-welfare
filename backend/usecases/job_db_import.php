@@ -110,7 +110,7 @@ function job_db_new_employee($f, $siteId, $src)
 {
     return array_merge($f, array('companyCode' => $src['company'], 'siteId' => $siteId, 'employeeType' => $src['employeeType'],
         'contractType' => 'REGULAR', 'deptGroup' => null, 'probationPassDate' => null, 'status' => 'ACTIVE',
-        'lastWorkingDate' => null, 'endDate' => null, 'endReason' => null, 'email' => null));
+        'lastWorkingDate' => null, 'endDate' => null, 'endReason' => null, 'email' => null, 'note' => null));
 }
 
 /** ค่าที่จะบันทึกของพนักงานเดิม: ต้นทางมีค่า = ใช้ค่าต้นทาง · ค่าอื่นคงเดิม · วันผ่านทดลองงานที่ระบบคำนวณไว้ คำนวณใหม่ตามวันเริ่มงาน */

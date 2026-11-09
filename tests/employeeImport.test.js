@@ -15,6 +15,7 @@ import {
   withPlannedSites,
 } from '../web/assets/js/application/usecases/employeeImport.js';
 import { parseEmployeeList, planEmployeeList } from '../web/assets/js/application/usecases/employeeList.js';
+import { END_REASON_LABEL } from '../web/assets/js/domain/labels.js';
 
 // เลขวันที่ Excel ของวันที่ ค.ศ. y-m-d (ไฟล์ HR เก็บปี พ.ศ. ในเซลล์วันที่ → serial ของปี 25xx)
 const serial = (y, m, d) => (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86_400_000;
@@ -68,9 +69,16 @@ describe('นำเข้า Excel พนักงาน: อ่านค่า'
     expect(endReasonOf('ลาออก (ผิดกฎ ขาดงานเกิน 3 วัน)')).toBe('ABSENT_3D');
     expect(endReasonOf('ลาออก (ผิดกฎ ขางานเกิน 3 วัน)')).toBe('ABSENT_3D');
     expect(endReasonOf('ลาออก (ผิดกฎ ไม่แจ้งล่วงหน้า 30 วัน)')).toBe('RESIGN');
-    expect(endReasonOf('สิ้นสุดระยะการจ้าง 15/5/69-30/09/69')).toBe('RESIGN');
+    expect(endReasonOf('สิ้นสุดระยะการจ้าง 15/5/69-30/09/69')).toBe('CONTRACT_END');
     expect(endReasonOf('เลิกจ้าง')).toBe('TERMINATED');
-    expect(endReasonOf('กระทำผิดวินัย')).toBe('MISCONDUCT');
+    expect(endReasonOf('กระทำผิดวินัย')).toBe('TERMINATED'); // ไม่มี "กระทำผิด" แล้ว
+    expect(endReasonOf('เกษียณอายุ')).toBe('RETIRED');
+    expect(endReasonOf('เสียชีวิต')).toBe('DECEASED');
+    expect(endReasonOf('โอนย้ายสังกัดบริษัท')).toBe('TRANSFERRED');
+    // ชื่อเหตุผลในตัวเลือก (ไฟล์ที่ระบบส่งออก) อ่านกลับได้ค่าเดิม
+    for (const [code, label] of Object.entries(END_REASON_LABEL)) expect(endReasonOf(label)).toBe(code);
+    // ชื่อเดิม (ไฟล์เก่า)
+    expect(endReasonOf('ขาดงาน 3 วันติด')).toBe('ABSENT_3D');
   });
   it('หน่วยงาน / ประเภท / ฝ่าย', () => {
     expect(matchSite('PRO/FM/ไซต์ทดสอบ', 'PRO', sites)?.id).toBe(10);

@@ -99,7 +99,7 @@ function drawSummary(d) {
   urgent.classList.toggle('is-alert', d.urgentPending > 0);
   render(
     urgent,
-    html`${tileHead('shield-alert', 'แจ้งออกทันทีค้าง', 'เลิกจ้าง / กระทำผิด — ไม่รอรอบวันที่ 5')}
+    html`${tileHead('shield-alert', 'แจ้งออกทันทีค้าง', 'เลิกจ้าง / เสียชีวิต — ไม่รอรอบวันที่ 5')}
       <div class="tile-big"><b class="num">${int(d.urgentPending)}</b><span>${d.urgentPending ? 'ราย ต้องแจ้งวันนี้' : 'ไม่มีรายการค้าง'}</span></div>
       ${d.urgentPending
         ? html`<a class="btn btn-danger btn-sm" href="insurance.html?tab=urgent">ไปส่งออกไฟล์ ${raw(icon('chevron-right'))}</a>`

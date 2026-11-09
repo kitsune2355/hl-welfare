@@ -79,7 +79,7 @@ function employment_exit($emp, $settings)
     $day = cycle_day_of($emp, $settings);
     switch ($emp['endReason']) {
         case 'TERMINATED':
-        case 'MISCONDUCT':
+        case 'DECEASED':
             $exitDate = $emp['endDate'] !== null ? $emp['endDate'] : $emp['lastWorkingDate'];
             if (!$exitDate) { return null; }
             return array('exitDate' => $exitDate, 'exitCycleDate' => $exitDate, 'exitUrgent' => true,
@@ -91,7 +91,7 @@ function employment_exit($emp, $settings)
             return array('exitDate' => $exitDate, 'exitCycleDate' => next_cycle_date($exitDate, $day), 'exitUrgent' => false,
                          'exitReason' => $emp['endReason']);
         default:
-            // RESIGN หรือพ้นสภาพโดยไม่ระบุเหตุผล
+            // ลาออก · สิ้นสุดการจ้าง · เกษียณ · โอนย้าย หรือพ้นสภาพโดยไม่ระบุเหตุผล
             $exitDate = $emp['endDate'] !== null ? $emp['endDate'] : $emp['lastWorkingDate'];
             if (!$exitDate) { return null; }
             return array('exitDate' => $exitDate, 'exitCycleDate' => next_cycle_date($exitDate, $day), 'exitUrgent' => false,

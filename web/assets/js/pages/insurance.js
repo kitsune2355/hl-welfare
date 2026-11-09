@@ -48,7 +48,7 @@ let insurers = [];
 
 /** แท็บของหน้า — id ใช้ใน URL (?tab=) */
 const SECTIONS = [
-  { id: 'urgent', type: 'URGENT', title: 'แจ้งออกทันที', description: 'เลิกจ้าง / กระทำผิด — อยู่ในไฟล์ส่งออกทุกรอบจนกว่าจะส่งออก', iconName: 'shield-alert', tone: 'danger' },
+  { id: 'urgent', type: 'URGENT', title: 'แจ้งออกทันที', description: 'เลิกจ้าง / เสียชีวิต — อยู่ในไฟล์ส่งออกทุกรอบจนกว่าจะส่งออก', iconName: 'shield-alert', tone: 'danger' },
   { id: 'in', type: 'IN', title: 'แจ้งเข้า', description: 'พนักงานที่ครบอายุงานแล้ว (รวมที่ตกค้างจากรอบก่อน)', iconName: 'log-in', tone: 'info' },
   { id: 'out', type: 'OUT', title: 'แจ้งออก', description: 'ลาออก / ขาดงาน 3 วัน (วันทำงานสุดท้าย + 7 วัน)', iconName: 'log-out', tone: 'warning' },
 ];

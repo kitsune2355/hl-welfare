@@ -113,7 +113,7 @@ function notify_stock_change($kind, $senderId, $employee, $prevStock, $next, $ac
     return notify_users($to, $type, $title, $message, $link, $empId, $actor);
 }
 
-/** บันทึกพ้นสภาพแบบต้องแจ้งออกประกันทันที (เลิกจ้าง / กระทำผิด) */
+/** บันทึกพ้นสภาพแบบต้องแจ้งออกประกันทันที (เลิกจ้าง / เสียชีวิต — urgent_end_reasons()) */
 function notify_insurance_urgent($employee, $actor)
 {
     if (!notify_ready()) { return 0; }

@@ -13,6 +13,17 @@ function row_active($r)
     return isset($r['active']) ? (bool)$r['active'] : true;
 }
 
+/** มีคอลัมน์ employees.note และเหตุผลพ้นสภาพชุดใหม่ไหม (sql/020) */
+function db_has_employee_note()
+{
+    static $seen = null;
+    if ($seen === null) {
+        $seen = db_value('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            array('employees', 'note')) > 0;
+    }
+    return $seen;
+}
+
 /** ตารางนี้มีคอลัมน์ active ไหม (sql/018) */
 function db_has_active($table)
 {
@@ -110,7 +121,9 @@ function map_employee($r)
         'status' => $r['status'],
         'lastWorkingDate' => $r['last_working_date'],
         'endDate' => $r['end_date'],
-        'endReason' => $r['end_reason'],
+        // ยังไม่ได้รัน sql/020: "กระทำผิด" เดิม = เลิกจ้าง + หมายเหตุ (020 แปลงข้อมูลแบบเดียวกัน)
+        'endReason' => $r['end_reason'] === 'MISCONDUCT' ? 'TERMINATED' : $r['end_reason'],
+        'note' => array_key_exists('note', $r) ? $r['note'] : ($r['end_reason'] === 'MISCONDUCT' ? 'กระทำผิด' : null),
         'title' => $r['title'],
         'gender' => $r['gender'],
         'nationalId' => $r['national_id'],
