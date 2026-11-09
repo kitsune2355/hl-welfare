@@ -3239,6 +3239,96 @@ th:hover .th-filter,
   margin: 6px 6px 0;
   font-weight: 500;
 }
+/* ช่วงวันที่ (คอลัมน์วันที่) */
+.cf-range {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.cf-range-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.cf-range-h > .icon {
+  color: var(--primary);
+}
+.cf-range-n {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+.cf-range-x {
+  display: none;
+  padding: 2px;
+  border-radius: 4px;
+  color: var(--muted);
+}
+.cf-range-x:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+.has-range .cf-range-x {
+  display: inline-flex;
+}
+.cf-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.cf-preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.cf-preset:hover {
+  background: var(--surface-2);
+}
+.cf-preset.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.cf-preset.on .cf-n {
+  color: inherit;
+}
+.cf-range-in {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.cf-range-in label {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.cf-range-in .input {
+  height: 32px;
+  padding: 0 6px;
+  font-size: 13px;
+}
+.cf-or {
+  padding: 6px 10px 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+/* ใช้ช่วงอยู่ = รายการทีละวันไม่มีผล (ติ๊กเมื่อไร ช่วงถูกล้าง) */
+.has-range .cf-list,
+.has-range .cf-all,
+.has-range .popover-search {
+  opacity: 0.45;
+}
+.col-filter.is-date .cf-list {
+  max-height: 180px;
+}
 .cf-foot {
   display: flex;
   justify-content: flex-end;

@@ -9,7 +9,11 @@
 // ตรึงคอลัมน์ไว้ด้านซ้าย: ชี้ที่หัวคอลัมน์ → ไอคอนหมุด (headerPinButton) · จำแยกต่อตาราง/ต่อเครื่อง (localStorage hl-pins:<หน้า>#<id ตาราง>)
 // ปรับความกว้างคอลัมน์: ลากขอบขวาของหัวคอลัมน์ (resizeHandle + wireColumnResize) · ดับเบิลคลิกขอบ = กลับเป็นความกว้างเดิม
 //   จำต่อตาราง/ต่อเครื่อง (localStorage hl-colw:<หน้า>#<id ตาราง>)
+// คอลัมน์วันที่ (ค่าที่ใช้เรียงเป็น ISO — ตรวจเอง): กล่องกรองมี "ช่วงวันที่" (ปุ่มลัด + ตั้งแต่/ถึง) เหนือรายการค่า
+//   ตัวกรองของคอลัมน์ = Set ของค่าที่ติ๊ก หรือ { from, to } (domain/dateRange.js) อย่างใดอย่างหนึ่ง
+import { datePresets, inRange, isDateColumn, isoDay, isRange, makeRange, rangeLabel } from '../domain/dateRange.js';
 import { cssRect, esc, html, raw } from '../shared/dom.js';
+import { thaiDate } from '../shared/format.js';
 import { icon } from '../shared/icons.js';
 
 const ENT = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
@@ -138,7 +142,7 @@ export function compareValues(a, b) {
 /** สถานะตัวกรองของตาราง 1 ตาราง */
 export class FilterState {
   constructor() {
-    /** @type {Map<string, Set<string>>} key คอลัมน์ → ค่าที่อนุญาตให้แสดง */
+    /** @type {Map<string, Set<string> | {from: string, to: string}>} key คอลัมน์ → ค่าที่อนุญาตให้แสดง หรือช่วงวันที่ */
     this.filters = new Map();
     /** @type {{key: string, dir: 1|-1} | null} */
     this.sort = null;
@@ -168,7 +172,9 @@ export class FilterState {
    */
   apply(rows, textOf, sortOf, keep, except) {
     let out = rows.filter(
-      (r) => keep?.(r) || [...this.filters].every(([k, set]) => k === except || set.has(textOf(r, k) || EMPTY)),
+      (r) =>
+        keep?.(r) ||
+        [...this.filters].every(([k, f]) => k === except || (isRange(f) ? inRange(sortOf(r, k), f) : f.has(textOf(r, k) || EMPTY))),
     );
     if (this.sort && except === undefined) {
       const { key, dir } = this.sort;
@@ -229,7 +235,7 @@ export function filterChips(state, labelOf, valuesOf) {
     <span class="fb-label">${raw(icon('funnel'))} ${state.filters.size ? 'กรองอยู่' : 'เรียงอยู่'}</span>
     ${[...state.filters].map(([k, set]) => {
       const label = labelOf(k);
-      const v = chipValues(set, valuesOf?.(k));
+      const v = isRange(set) ? { text: rangeLabel(set, thaiDate), title: rangeLabel(set, thaiDate) } : chipValues(set, valuesOf?.(k));
       return html`<span class="fchip" title="${label}: ${v.title}">
         <span class="fchip-k">${label}</span><span class="fchip-v">${v.text}</span>
         <button type="button" class="fchip-x" data-clear-filter="${k}" aria-label="เอาตัวกรอง ${label} ออก" title="เอาตัวกรองนี้ออก">${raw(icon('x'))}</button>
@@ -248,24 +254,49 @@ export function filterChips(state, labelOf, valuesOf) {
 
 /**
  * เปิดกล่องกรองใต้หัวคอลัมน์
- * @param {{anchor: HTMLElement, label: string, values: string[], selected: Set<string>|null,
- *   sortDir: 0|1|-1, onApply: (r: {selected: Set<string>|null, sortDir: 0|1|-1}) => void}} o
+ * @param {{anchor: HTMLElement, label: string, values: string[], sortValues?: any[], selected: Set<string>|{from:string,to:string}|null,
+ *   sortDir: 0|1|-1, onApply: (r: {selected: Set<string>|{from:string,to:string}|null, sortDir: 0|1|-1}) => void}} o
+ *   values = ข้อความของแต่ละแถว · sortValues = ค่าที่ใช้เรียงของแถวเดียวกัน (ส่งมา + เป็นวันที่ทั้งหมด = มีส่วน "ช่วงวันที่")
  */
-export function openColumnFilter({ anchor, label, values, selected, sortDir, onApply }) {
+export function openColumnFilter({ anchor, label, values, sortValues, selected, sortDir, onApply }) {
   document.querySelector('.popover.col-filter')?.remove();
+  const dateMode = !!sortValues && isDateColumn(sortValues);
   const counts = new Map();
-  for (const v of values) counts.set(v || EMPTY, (counts.get(v || EMPTY) ?? 0) + 1);
-  const all = [...counts.keys()].sort((a, b) => (a === EMPTY ? 1 : b === EMPTY ? -1 : collator.compare(a, b)));
-  const checked = new Set(selected ?? all);
+  const dayOf = new Map(); // ข้อความ → วันที่ ISO (เรียงรายการตามวันที่ ใหม่ → เก่า)
+  values.forEach((v, i) => {
+    const k = v || EMPTY;
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+    if (dateMode && !dayOf.has(k)) dayOf.set(k, isoDay(sortValues[i]) ?? '');
+  });
+  const all = [...counts.keys()].sort((a, b) =>
+    a === EMPTY ? 1 : b === EMPTY ? -1 : dateMode ? (dayOf.get(b) ?? '').localeCompare(dayOf.get(a) ?? '') || collator.compare(a, b) : collator.compare(a, b),
+  );
+  const checked = new Set(selected instanceof Set ? selected : all);
+  const range = isRange(selected) ? { from: selected.from, to: selected.to } : { from: '', to: '' };
+  const days = dateMode ? sortValues.map(isoDay) : [];
+  const countIn = (r) => days.filter((d) => d && (!r.from || d >= r.from) && (!r.to || d <= r.to)).length;
+  const presets = dateMode ? datePresets().map((p) => ({ ...p, n: countIn(p) })).filter((p) => p.n > 0) : [];
 
   const pop = document.createElement('div');
-  pop.className = 'popover col-filter';
+  pop.className = `popover col-filter${dateMode ? ' is-date' : ''}`;
   pop.setAttribute('role', 'dialog');
   pop.setAttribute('aria-label', `กรองคอลัมน์ ${label}`);
   pop.innerHTML = String(html`<div class="cf-sort">
-      <button type="button" class="cf-btn${sortDir === 1 ? ' on' : ''}" data-sort="1">${raw(icon('arrow-up-narrow-wide'))} เรียงน้อย → มาก</button>
-      <button type="button" class="cf-btn${sortDir === -1 ? ' on' : ''}" data-sort="-1">${raw(icon('arrow-down-wide-narrow'))} เรียงมาก → น้อย</button>
+      <button type="button" class="cf-btn${sortDir === 1 ? ' on' : ''}" data-sort="1">${raw(icon('arrow-up-narrow-wide'))} ${dateMode ? 'เรียงเก่า → ใหม่' : 'เรียงน้อย → มาก'}</button>
+      <button type="button" class="cf-btn${sortDir === -1 ? ' on' : ''}" data-sort="-1">${raw(icon('arrow-down-wide-narrow'))} ${dateMode ? 'เรียงใหม่ → เก่า' : 'เรียงมาก → น้อย'}</button>
     </div>
+    ${dateMode
+      ? html`<div class="cf-range">
+            <div class="cf-range-h">${raw(icon('calendar-range'))} <b>ช่วงวันที่</b><span class="cf-range-n" data-range-n></span>
+              <button type="button" class="cf-range-x" data-range-clear title="ล้างช่วงวันที่" aria-label="ล้างช่วงวันที่">${raw(icon('x'))}</button></div>
+            ${presets.length ? html`<div class="cf-presets">${presets.map((p) => html`<button type="button" class="cf-preset" data-preset="${p.id}" title="${rangeLabel(p, thaiDate)}">${p.label}<span class="cf-n">${p.n}</span></button>`)}</div>` : ''}
+            <div class="cf-range-in">
+              <label><span>ตั้งแต่</span><input type="date" class="input" data-from value="${range.from}" /></label>
+              <label><span>ถึง</span><input type="date" class="input" data-to value="${range.to}" /></label>
+            </div>
+          </div>
+          <div class="cf-or">หรือเลือกทีละวัน</div>`
+      : ''}
     <div class="popover-search">${raw(icon('search'))}<input type="text" placeholder="ค้นหาค่าใน ${label}…" aria-label="ค้นหาค่า" autocomplete="off" /></div>
     <label class="cf-item cf-all"><input type="checkbox" data-all /> <span>(เลือกทั้งหมด)</span></label>
     <div class="cf-list"></div>
@@ -277,10 +308,24 @@ export function openColumnFilter({ anchor, label, values, selected, sortDir, onA
   const input = pop.querySelector('input[type="text"]');
   const list = pop.querySelector('.cf-list');
   const allBox = pop.querySelector('[data-all]');
+  const fromIn = pop.querySelector('[data-from]');
+  const toIn = pop.querySelector('[data-to]');
+  /** ช่วงที่กรอกอยู่ (null = ไม่ได้ใช้ช่วง → ใช้รายการที่ติ๊ก) */
+  const currentRange = () => (dateMode ? makeRange(fromIn.value, toIn.value) : null);
 
   const shown = () => {
     const q = input.value.trim().toLowerCase();
     return q ? all.filter((v) => v.toLowerCase().includes(q)) : all;
+  };
+  const drawRange = () => {
+    if (!dateMode) return;
+    const r = currentRange();
+    pop.classList.toggle('has-range', !!r);
+    pop.querySelector('[data-range-n]').textContent = r ? `ตรง ${countIn(r).toLocaleString('th-TH')} รายการ` : '';
+    pop.querySelectorAll('[data-preset]').forEach((b) => {
+      const p = presets.find((x) => x.id === b.dataset.preset);
+      b.classList.toggle('on', !!r && p.from === r.from && p.to === r.to);
+    });
   };
   const draw = () => {
     const vs = shown();
@@ -296,14 +341,21 @@ export function openColumnFilter({ anchor, label, values, selected, sortDir, onA
     const n = vs.filter((v) => checked.has(v)).length;
     allBox.checked = n === vs.length && n > 0;
     allBox.indeterminate = n > 0 && n < vs.length;
+    drawRange();
+  };
+  const clearRange = () => {
+    if (!dateMode) return;
+    fromIn.value = '';
+    toIn.value = '';
   };
 
-  // ตำแหน่ง: ใต้หัวคอลัมน์ ไม่ล้นขอบจอ
+  // ตำแหน่ง: ใต้หัวคอลัมน์ ไม่ล้นขอบจอ (วัดความสูงจริงหลังใส่ในหน้า)
   const r = cssRect(anchor); // หน่วย CSS px (รองรับขนาดตัวอักษรของระบบ)
-  const width = 260;
+  const width = dateMode ? 300 : 260;
   pop.style.width = `${width}px`;
   pop.style.left = `${Math.max(8, Math.min(r.left, r.vw - width - 8))}px`;
-  pop.style.top = `${Math.min(r.bottom + 4, r.vh - 420)}px`;
+  draw();
+  pop.style.top = `${Math.max(8, Math.min(r.bottom + 4, r.vh - pop.offsetHeight - 8))}px`;
 
   const close = () => {
     document.removeEventListener('mousedown', outside, true);
@@ -311,8 +363,9 @@ export function openColumnFilter({ anchor, label, values, selected, sortDir, onA
     pop.remove();
   };
   const apply = (sort = sortDir) => {
+    const rg = currentRange();
     const everything = all.every((v) => checked.has(v));
-    onApply({ selected: everything ? null : new Set(checked), sortDir: sort });
+    onApply({ selected: rg ?? (everything ? null : new Set(checked)), sortDir: sort });
     close();
   };
   const outside = (e) => !pop.contains(e.target) && !anchor.contains(e.target) && close();
@@ -322,7 +375,7 @@ export function openColumnFilter({ anchor, label, values, selected, sortDir, onA
       close();
     } else if (e.key === 'Enter' && pop.contains(document.activeElement)) {
       e.preventDefault();
-      apply();
+      if (currentRange() || checked.size) apply();
     }
   };
 
@@ -331,12 +384,33 @@ export function openColumnFilter({ anchor, label, values, selected, sortDir, onA
     const v = e.target.dataset.v;
     if (e.target.checked) checked.add(v);
     else checked.delete(v);
+    clearRange(); // ติ๊กทีละวัน = เลิกใช้ช่วง
     draw();
   });
   allBox.addEventListener('change', () => {
     for (const v of shown()) allBox.checked ? checked.add(v) : checked.delete(v);
+    clearRange();
     draw();
   });
+  if (dateMode) {
+    fromIn.addEventListener('input', drawRange);
+    toIn.addEventListener('input', drawRange);
+    pop.querySelector('[data-range-clear]').onclick = () => {
+      clearRange();
+      drawRange();
+    };
+    pop.querySelectorAll('[data-preset]').forEach(
+      (b) =>
+        (b.onclick = () => {
+          const p = presets.find((x) => x.id === b.dataset.preset);
+          const r0 = currentRange();
+          const again = r0 && r0.from === p.from && r0.to === p.to;
+          fromIn.value = again ? '' : p.from; // กดซ้ำ = ยกเลิก
+          toIn.value = again ? '' : p.to;
+          drawRange();
+        }),
+    );
+  }
   pop.querySelectorAll('[data-sort]').forEach(
     (b) =>
       (b.onclick = () => {
@@ -349,11 +423,10 @@ export function openColumnFilter({ anchor, label, values, selected, sortDir, onA
     close();
   };
   pop.querySelector('[data-ok]').onclick = () => {
-    if (checked.size === 0) return; // ต้องเลือกอย่างน้อย 1 ค่า
+    if (!currentRange() && checked.size === 0) return; // ต้องเลือกอย่างน้อย 1 ค่า
     apply();
   };
 
-  draw();
   input.focus();
   document.addEventListener('mousedown', outside, true);
   document.addEventListener('keydown', onKey, true);

@@ -305,6 +305,7 @@ export class ExcelGrid {
       anchor: btn.closest('th') ?? btn,
       label: c.header,
       values: base.map((r) => this.textOf(r, key)),
+      sortValues: base.map((r) => this.sortOf(r, key)), // เป็นวันที่ทั้งหมด = มีตัวกรองช่วงวันที่
       selected: this.filter.filters.get(key) ?? null,
       sortDir: this.filter.sort?.key === key ? this.filter.sort.dir : 0,
       onApply: ({ selected, sortDir }) => {
