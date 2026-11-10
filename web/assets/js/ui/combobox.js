@@ -1,6 +1,10 @@
 // Select ที่พิมพ์ค้นหาได้
 //
-// วิธีใช้แบบ HTML ล้วน (แนะนำ):
+// ทุก <select> ในระบบค้นหาได้อัตโนมัติ — autoEnhanceSelects() (เรียกใน app/shell.js) แปลงทุกตัวในหน้า และตัวที่เกิดใหม่ทีหลัง (popup / วาดใหม่)
+//   ยกเว้น <select data-native> และ <select multiple> · select เดิมยังอยู่ (ซ่อน): อ่าน/ตั้ง .value, ฟัง change, เปลี่ยน option ด้วย JS ได้ตามปกติ
+//   (ตั้ง .value / .selectedIndex / แก้ option / disabled → หน้าตาอัปเดตเอง ไม่ต้องเรียก refreshCombobox)
+//
+// วิธีใช้แบบ HTML ล้วน:
 //   <select name="company" data-combobox data-placeholder="ทุกบริษัท">
 //     <option value="">ทุกบริษัท</option>      ← มี option ค่าว่าง = ล้างค่าได้ (ปุ่ม ×)
 //     <option value="HL">HL</option>
@@ -8,7 +12,7 @@
 //   แล้วเรียก enhanceSelects() — select เดิมยังอยู่ (ซ่อนไว้) อ่านค่า/ฟัง 'change' ได้ตามปกติ
 //   data-creatable = พิมพ์ค่าใหม่ที่ไม่มีในรายการได้ · data-size="sm" = ขนาดเล็ก · <option disabled> = ไม่แสดง
 //
-// ถ้าเปลี่ยน option ด้วย JS ภายหลัง ให้เรียก select.refreshCombobox()
+// select.refreshCombobox() ยังเรียกได้ (ไม่จำเป็นแล้ว)
 import { cssRect, esc, html, raw } from '../shared/dom.js';
 import { icon } from '../shared/icons.js';
 
@@ -235,27 +239,51 @@ export function createCombobox(container, o) {
   };
 }
 
-/** แปลง <select data-combobox> ทุกตัวใน root เป็น combobox ที่ค้นหาได้ */
+/** select ที่ยังไม่ได้แปลง (ยกเว้น data-native / multiple) */
+const TODO = 'select:not([data-enhanced]):not([data-native]):not([multiple])';
+
+/** แปลงทุก <select> ใน root (รวม root เอง) เป็น combobox ที่ค้นหาได้ */
 export function enhanceSelects(root = document) {
-  root.querySelectorAll('select[data-combobox]:not([data-enhanced])').forEach(enhanceSelect);
+  if (root.matches?.(TODO)) enhanceSelect(root);
+  root.querySelectorAll?.(TODO).forEach(enhanceSelect);
 }
+
+let watcher = null;
+/** แปลงทุก select ในหน้า + ตัวที่เพิ่มเข้ามาทีหลัง (popup, ตารางวาดใหม่) — เรียกครั้งเดียวต่อหน้า */
+export function autoEnhanceSelects() {
+  enhanceSelects(document);
+  if (watcher || typeof MutationObserver === 'undefined') return;
+  watcher = new MutationObserver((list) => {
+    for (const m of list) for (const n of m.addedNodes) if (n.nodeType === 1) enhanceSelects(n);
+  });
+  watcher.observe(document.body, { childList: true, subtree: true });
+}
+
+const SELECT_PROTO = typeof HTMLSelectElement === 'undefined' ? null : HTMLSelectElement.prototype; // ไม่มีใน Node (เทสต์)
+const SELECT_VALUE = SELECT_PROTO && Object.getOwnPropertyDescriptor(SELECT_PROTO, 'value');
+const SELECT_INDEX = SELECT_PROTO && Object.getOwnPropertyDescriptor(SELECT_PROTO, 'selectedIndex');
 
 /** @param {HTMLSelectElement} select */
 export function enhanceSelect(select) {
   select.dataset.enhanced = '1';
   // option ที่ disabled จะไม่แสดงในรายการ
   const readOptions = () => [...select.options].filter((op) => op.value !== '' && !op.disabled).map((op) => ({ value: op.value, label: op.textContent.trim(), hint: op.dataset.hint }));
-  const blank = [...select.options].find((op) => op.value === '');
+  const blankOf = () => [...select.options].find((op) => op.value === '');
+  const placeholderOf = () => select.dataset.placeholder ?? blankOf()?.textContent.trim() ?? 'เลือก…';
   const wrap = document.createElement('div');
-  wrap.className = select.className;
+  // คลาสของ select ไปที่ตัวครอบ (ยกเว้น input — ปุ่ม combobox มีกรอบของตัวเองแล้ว) · ความกว้างที่ตั้งไว้ตามไปด้วย
+  wrap.className = [...select.classList].filter((k) => k !== 'input' && k !== 'hidden').join(' ');
+  wrap.style.cssText = select.style.cssText;
+  if (select.style.width === 'auto') wrap.style.minWidth = '170px'; // ช่องกรองที่กว้างตามเนื้อหา — ปุ่มไม่มีเนื้อหาให้วัด
   select.classList.add('hidden');
   select.after(wrap);
   const label = select.id ? document.querySelector(`label[for="${select.id}"]`) : null;
-  const combo = createCombobox(wrap, {
+  // option มักเติมทีหลัง (วาดใหม่ / โหลดจาก API) → ข้อความว่าง + ปุ่มล้าง คำนวณใหม่ทุกครั้งที่ refresh
+  const cfg = {
     options: readOptions(),
     value: select.value,
-    placeholder: select.dataset.placeholder ?? blank?.textContent.trim() ?? 'เลือก…',
-    clearable: !!blank,
+    placeholder: placeholderOf(),
+    clearable: !!blankOf(),
     creatable: select.hasAttribute('data-creatable'),
     size: select.dataset.size === 'sm' ? 'sm' : 'md',
     ariaLabel: select.getAttribute('aria-label') ?? label?.textContent.trim(),
@@ -263,19 +291,38 @@ export function enhanceSelect(select) {
     onChange: (v) => {
       if (v && ![...select.options].some((op) => op.value === v)) select.add(new Option(v, v)); // ค่าที่พิมพ์ใหม่
       select.value = v;
+      // เหมือน select ปกติ: input แล้วตามด้วย change (บางหน้าฟัง input ของฟอร์ม เช่น ตัวกรองบันทึกการใช้งาน)
+      select.dispatchEvent(new Event('input', { bubbles: true }));
       select.dispatchEvent(new Event('change', { bubbles: true }));
     },
-  });
+  };
+  const combo = createCombobox(wrap, cfg);
   if (select.id) {
     combo.el.id = `${select.id}__combo`;
     label?.setAttribute('for', combo.el.id);
   }
   /** เรียกหลังเปลี่ยน option/ค่า/disabled ของ select ด้วย JS */
   select.refreshCombobox = () => {
+    cfg.placeholder = placeholderOf();
+    cfg.clearable = !!blankOf();
     combo.setOptions(readOptions());
     combo.setValue(select.value);
     combo.setDisabled(select.disabled);
     combo.setInvalid(select.getAttribute('aria-invalid') === 'true');
   };
+  // โค้ดเดิมเปลี่ยน select ตรง ๆ (ตั้งค่า / เปลี่ยน option / disabled) → หน้าตาตาม (รวบเป็นครั้งเดียวต่อรอบ)
+  let queued = false;
+  const sync = () => {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      select.refreshCombobox();
+    });
+  };
+  Object.defineProperty(select, 'value', { configurable: true, get: () => SELECT_VALUE.get.call(select), set: (v) => (SELECT_VALUE.set.call(select, v), sync()) });
+  Object.defineProperty(select, 'selectedIndex', { configurable: true, get: () => SELECT_INDEX.get.call(select), set: (v) => (SELECT_INDEX.set.call(select, v), sync()) });
+  select.form?.addEventListener('reset', () => setTimeout(sync)); // form.reset() คืนค่าเดิมโดยไม่มีเหตุการณ์
+  new MutationObserver(sync).observe(select, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'aria-invalid'] });
   return combo;
 }

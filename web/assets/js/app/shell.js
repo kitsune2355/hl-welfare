@@ -4,7 +4,7 @@
 // แล้วใส่เนื้อหาใน <main id="page" class="page"> ของไฟล์ HTML
 import { getParam, html, raw, setParams } from '../shared/dom.js';
 import { hydrateIcons, icon } from '../shared/icons.js';
-import { enhanceSelects } from '../ui/combobox.js';
+import { autoEnhanceSelects } from '../ui/combobox.js';
 import { avatar, emptyState } from '../ui/components.js';
 import { toast } from '../ui/overlay.js';
 import { API_MODE, api } from './api.js';
@@ -141,7 +141,7 @@ function navLink(item, active) {
 }
 
 /**
- * สร้าง sidebar + topbar รอบ <main id="page"> แล้วแปลง <i data-icon> และ <select data-combobox> ในหน้า
+ * สร้าง sidebar + topbar รอบ <main id="page"> แล้วแปลง <i data-icon> และทุก <select> (ค้นหาได้) ในหน้า
  * @param {string} active  id ของเมนูที่เลือก
  * @param {{ tour?: string | (() => string) }} [opts]  tour = id ของหน้า/แท็บ ที่คู่มือใน tour/guides.js อ้าง (ค่าเริ่มต้น = active)
  *   ใส่เป็นฟังก์ชันได้ เมื่อหน้ามีหลายแท็บและแต่ละแท็บมีคำแนะนำของตัวเอง
@@ -247,7 +247,7 @@ export function initPage(active, { tour = active } = {}) {
   });
 
   hydrateIcons(main);
-  enhanceSelects(main);
+  autoEnhanceSelects(); // ทุก <select> ค้นหาได้ — รวมใน popup และที่วาดใหม่ทีหลัง
   refreshCounts();
   // ถูกพามาจากหน้าที่ไม่มีสิทธิ์
   if (getParam('denied')) {

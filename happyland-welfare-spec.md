@@ -198,7 +198,7 @@ hl-welfare/
 │           │   ├── components.js      ← badge, card, statCard, emptyState, alertBox, avatar, tabs …
 │           │   ├── table.js           ← DataTable (อ่านอย่างเดียว) + pager
 │           │   ├── datagrid.js        ← ExcelGrid (แก้ไขในตาราง)
-│           │   ├── combobox.js        ← <select data-combobox> ค้นหาได้
+│           │   ├── combobox.js        ← ทุก <select> ค้นหาได้ (แปลงอัตโนมัติ)
 │           │   ├── columnFilter.js    ← กรอง/เรียงที่หัวคอลัมน์ (ใช้ใน table.js และ datagrid.js) · ช่วงวันที่ใช้ domain/dateRange.js
 │           │   ├── loading.js         ← progress (loading กลางจอ · quiet = งานเบื้องหลัง), loader, spinner, busy
 │           │   ├── sheetPreview.js    ← แสดงชีต Excel เป็นตาราง (ระบายสีส่วน/คอลัมน์/เซลล์อัตโนมัติ)
@@ -994,7 +994,7 @@ req(path, init) {
 | หัวคอลัมน์ตาราง | `app.css` | สีพื้นชัดเจนทุกตาราง (`--th-bg` ฟ้าอ่อน / ตัวอักษร `--th-fg` เข้ม · โหมดมืดใช้ค่าคู่กัน) ตัวหนา เส้นล่าง 2px |
 | ตรึงคอลัมน์ไว้ด้านซ้าย | `columnFilter.js` (`headerPinButton`, `loadPins`, `savePins`, `orderByPins`, `tableId`) | **เปิดอัตโนมัติทุกตาราง** — **ชี้ที่หัวคอลัมน์ → ปุ่มหมุด** (ข้างปุ่มกรวย · ลอยทับท้ายชื่อคอลัมน์ ไม่ดันความกว้าง) กด = ตรึง / กดอีกครั้ง = เลิกตรึง · คอลัมน์ที่ตรึงแสดงหมุดสีหลักตลอด · จอสัมผัสแสดงหมุดจาง ๆ ตลอด · ตรึงได้หลายคอลัมน์ (ย้ายไปต่อจากเลขแถวตามลำดับเดิม) · ติดอยู่กับที่เมื่อเลื่อนแนวนอน มีเงาที่ขอบคอลัมน์สุดท้าย · จำแยกต่อตาราง/ต่อเครื่องใน `localStorage` คีย์ `hl-pins:<ไฟล์หน้า>#<id ตาราง>` (ระบุเองได้ด้วย `opts.id`) |
 | ปรับความกว้างคอลัมน์ | `columnFilter.js` (`resizeHandle`, `wireColumnResize`, `loadWidths`, `saveWidths`) | **เปิดอัตโนมัติทุกตาราง** — ลากขอบขวาของหัวคอลัมน์ (เคอร์เซอร์ ↔ · เส้นสีหลักขณะลาก) ซ้าย = แคบ / ขวา = กว้าง · ขั้นต่ำ 48px · ดับเบิลคลิกขอบ = กลับเป็นความกว้างเดิม · DataTable: เซลล์ที่แคบกว่าเนื้อหาตัดด้วย … · ExcelGrid: ทับค่า `width` ของคอลัมน์ · จำแยกต่อตาราง/ต่อเครื่องใน `localStorage` คีย์ `hl-colw:<ไฟล์หน้า>#<id ตาราง>` · รองรับขนาดตัวอักษรของระบบ (zoom) |
-| `<select data-combobox>` + `enhanceSelects()` | `combobox.js` | **select ทุกจุดพิมพ์ค้นหาได้** · มี `<option value="">` = ล้างค่าได้ · `data-creatable` = พิมพ์ค่าใหม่ได้ · `data-size="sm"` · `<option disabled>` = ไม่แสดง · แก้ option ด้วย JS แล้วเรียก `select.refreshCombobox()` |
+| **ทุก `<select>`** (อัตโนมัติ) · `autoEnhanceSelects()` / `enhanceSelects()` | `combobox.js` | **select ทุกจุดในระบบพิมพ์ค้นหาได้อัตโนมัติ** — `app/shell.js` เรียก `autoEnhanceSelects()` ครั้งเดียว: แปลงทุก select ในหน้า + ที่เกิดใหม่ทีหลัง (popup, วาดใหม่ — MutationObserver) · ยกเว้น `<select data-native>` / `multiple` · select เดิมซ่อนไว้ = ค่าจริง: อ่าน/ตั้ง `.value` · `.selectedIndex` · เปลี่ยน option · `disabled` · `aria-invalid` ด้วย JS แล้วหน้าตาตามเอง · เลือกแล้วส่ง `input` + `change` (เหมือน select ปกติ) · `form.reset()` ตามด้วย · `<option value="">` = ข้อความตอนว่าง + ปุ่มล้าง (คำนวณใหม่ทุกครั้งที่ option เปลี่ยน) · คลาสของ select ไปที่ตัวครอบ (ยกเว้น `input`) · `style="width:auto"` = กว้างขั้นต่ำ 170px · คู่มือที่ชี้ select ชี้ช่องค้นหาแทนให้เอง (`tour.js` `find`) · ช่องในตาราง Excel ใช้ `openPicker` (ค้นหาได้อยู่แล้ว) |
 | `openPicker({anchor, options, value, onPick})` | `combobox.js` | รายการค้นหาได้ลอยใต้ element (ใช้ในเซลล์ตาราง) |
 | `toast.success(msg)`, `toast.error(msg)` | `overlay.js` | |
 | `confirmAction({ title, description, body, confirmLabel, danger, successMessage, action })` | `overlay.js` | ยืนยัน → รัน `action()` → Toast ทั้งสำเร็จ/ล้มเหลว · ปิดไม่ได้ระหว่างบันทึก |

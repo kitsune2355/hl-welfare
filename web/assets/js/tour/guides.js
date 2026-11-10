@@ -336,7 +336,9 @@ export const GUIDES = [
             await h.until(() => !grid.newRows.length && !grid.saving, 5000);
           }
           await h.type('#filters input[name="q"]', sampleCode);
-          await h.wait('.xgrid tbody tr:first-child td[data-col="empCode"]');
+          // รอผลค้นหาจริง (ตารางวาดใหม่หลังพิมพ์ 250ms) — แถวเดิมยังอยู่ระหว่างรอ ไฮไลต์แล้วจะหลุด
+          await h.until(() => document.querySelector('.xgrid tbody tr:first-child td[data-col="empCode"]')?.textContent.trim() === sampleCode, 5000);
+          await h.sleep(600); // ตารางวาดใหม่อีกรอบหลังบันทึก (นับแท็ก/โหลดซ้ำ) — รอให้นิ่งก่อนไฮไลต์
         },
         backTo: 'add', // บันทึกไปแล้ว (ปุ่มบันทึกหายแล้ว) — ย้อนกลับ = เริ่มเพิ่มแถวใหม่อีกรอบ
         element: '.xgrid tbody tr:first-child td[data-col="firstName"]',

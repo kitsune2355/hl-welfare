@@ -79,7 +79,9 @@ const allowed = (g) => !g.need || can(g.need);
 /** element ตัวแรกที่มองเห็น — selector หลายตัวคั่นด้วย , = ลองตามลำดับที่เขียน (ตัวแรก = ที่อยากชี้ · ที่เหลือ = สำรอง) */
 function find(selector) {
   if (!selector) return undefined;
-  for (const part of selector.split(',')) for (const el of document.querySelectorAll(part)) {
+  for (const part of selector.split(',')) for (const found of document.querySelectorAll(part)) {
+    // select ที่แปลงเป็นช่องค้นหาแล้ว (ui/combobox.js) ถูกซ่อน — ชี้ที่ช่องค้นหาแทน
+    const el = found.matches('select[data-enhanced]') ? (found.nextElementSibling ?? found) : found;
     if (!el.getClientRects().length) continue;
     const s = getComputedStyle(el);
     if (s.visibility === 'hidden' || s.display === 'none') continue;
