@@ -20,8 +20,17 @@ export const CONFIG = {
   stock: {
     /** ตัวกลางสำหรับโหมด mock (ต้องเข้าสู่ระบบกับ backend — auth.provider 'server') */
     bridgeUrl: 'api/index.php/stock/bridge',
-    /** ลิงก์ใบเบิกในระบบสต็อก ต่อท้ายด้วย doc_id */
-    docUrl: 'http://localhost/stock_hr/print_doc.php?doc_id=',
+    /**
+     * ลิงก์ใบเบิกในระบบสต็อก ต่อท้ายด้วย doc_id
+     * เลือกปลายทางตามเครื่องที่เปิดหน้าเว็บ — กติกาเดียวกับ stock_api_url ใน backend/config.php
+     *  เครื่องพัฒนา (localhost / 127.x / 192.168.x) = เครื่องเดียวกับที่เปิดอยู่ (เข้าด้วย IP ก็ไปถูก)
+     *  เซิร์ฟเวอร์จริง                              = https://develophpg.net/stock_hr
+     * เดิมเขียนตายตัวเป็น localhost ทำให้บน production เปิดใบเบิกไม่ได้
+     */
+    // globalThis.location = window.location ในเบราว์เซอร์ · ไม่มีใน Node (เทสต์) = ถือเป็นเครื่องพัฒนา
+    docUrl: (/^(localhost|127\.|192\.168\.|\[?::1\]?$)/.test(globalThis.location?.hostname ?? 'localhost')
+      ? (globalThis.location ? globalThis.location.protocol + '//' + globalThis.location.host : 'http://localhost')
+      : 'https://develophpg.net') + '/stock_hr/print_doc.php?doc_id=',
   },
 
   /** การเข้าสู่ระบบ (หน้า login.html) */
