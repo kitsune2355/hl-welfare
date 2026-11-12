@@ -38,6 +38,8 @@ function sys_setting_defs()
         /* ---------- สต็อก Uniform (stock_hr/api/welfare.php) ---------- */
         'stock_api_url' => array('group' => 'stock', 'type' => 'url', 'label' => 'URL ของ API สต็อก',
             'hint' => 'เช่น https://develophpg.net/stock_hr/api/welfare.php', 'default' => ''),
+        'stock_doc_url' => array('group' => 'stock', 'type' => 'url', 'label' => 'ลิงก์เปิดใบเบิก (ต่อท้ายด้วยเลขใบเบิก)',
+            'hint' => 'เช่น https://develophpg.net/stock_hr/print_doc.php?doc_id= · ว่าง = สร้างจาก URL ของ API (…/api/welfare.php → …/print_doc.php?doc_id=)', 'default' => ''),
         'stock_api_secret' => array('group' => 'stock', 'type' => 'secret', 'label' => 'กุญแจเซ็นคำขอ (HMAC)',
             'hint' => 'ต้องตรงกับ stock_hr/config_ctrl/welfare_key.php · อย่างน้อย 32 ตัว', 'default' => '', 'min' => 32, 'max' => 200),
         'stock_connect_timeout' => array('group' => 'stock', 'type' => 'int', 'label' => 'รอเชื่อมต่อ', 'unit' => 'วินาที',
@@ -63,6 +65,18 @@ function sys_setting_defs()
         'cleanup_days' => array('group' => 'monitor', 'type' => 'int', 'label' => 'ล้างข้อมูลการเข้าสู่ระบบที่เก่ากว่า', 'unit' => 'วัน',
             'hint' => 'ค่าเริ่มต้นของปุ่มล้างและ bin/cleanup.php · น้อยสุด = อายุ “จดจำฉัน”', 'min' => 30, 'max' => 3650, 'default' => 90),
     ), sys_job_db_defs('cns', 'jobCns'), sys_job_db_defs('pro', 'jobPro'));
+}
+
+/**
+ * ลิงก์เปิดใบเบิกในระบบสต็อก (ต่อท้ายด้วย doc_id) — ตั้งที่ ระบบ & ความปลอดภัย › สต็อก
+ * ว่าง = สร้างจาก URL ของ API: .../stock_hr/api/welfare.php → .../stock_hr/print_doc.php?doc_id= · สร้างไม่ได้ = ''
+ */
+function stock_doc_url_base()
+{
+    $v = trim((string)sys_setting('stock_doc_url'));
+    if ($v !== '') { return $v; }
+    $api = trim((string)sys_setting('stock_api_url'));
+    return preg_match('#^(https?://.+?)/api/welfare\.php$#i', $api, $m) ? $m[1] . '/print_doc.php?doc_id=' : '';
 }
 
 /** array(key => value string) จากตาราง — ไม่มีตาราง (ยังไม่รัน 006) = array() */

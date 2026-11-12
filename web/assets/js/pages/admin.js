@@ -929,6 +929,7 @@ function secretText(s) {
 
 function stockForm() {
   const url = itemOf('stock_api_url');
+  const doc = itemOf('stock_doc_url');
   const sec = itemOf('stock_api_secret');
   const off = cfg.data.ready ? '' : 'disabled';
   return html`<form class="form-grid" data-settings data-stock novalidate>
@@ -938,6 +939,14 @@ function stockForm() {
       <span class="hint">${settingHint(url, `config.php = ${url.base || '(ว่าง)'}`)}</span>
       <span class="error"></span>
     </div>
+    ${doc
+      ? html`<div class="field full" data-field="stock_doc_url">
+          <label>${doc.label} ${sourceBadge(doc)}</label>
+          <input class="input" type="url" name="stock_doc_url" value="${doc.value}" spellcheck="false" placeholder="ว่าง = สร้างจาก URL ของ API" ${off} />
+          <span class="hint">${settingHint(doc, `config.php = ${doc.base || '(ไม่ได้ตั้ง)'}`)}</span>
+          <span class="error"></span>
+        </div>`
+      : ''}
     <div class="field full" data-field="stock_api_secret">
       <label>${sec.label} ${sourceBadge(sec)}</label>
       <span class="row" style="gap:8px;flex-wrap:wrap">

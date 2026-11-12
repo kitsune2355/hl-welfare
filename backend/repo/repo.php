@@ -371,6 +371,8 @@ function map_issue($r)
             'ref' => $r['stock_ref'],
             'docId' => int_or_null($r['stock_doc_id']),
             'docNo' => $r['stock_doc_no'],
+            // ลิงก์เปิดใบเบิก (ตามค่าตั้งปัจจุบัน) — ไม่มีเลขใบ / ไม่ได้ตั้ง = null (หน้าเว็บใช้ config.js แทน)
+            'docUrl' => ($r['stock_doc_id'] !== null && stock_doc_url_base() !== '') ? stock_doc_url_base() . (int)$r['stock_doc_id'] : null,
             'stage' => $r['stock_stage'],
             'issuedAt' => $r['stock_issued_at'],
             'receivedAt' => $r['stock_received_at'],

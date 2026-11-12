@@ -894,6 +894,19 @@ check('กุญแจว่าง = ไม่เปลี่ยน', $r['status
 $sum = (string)db_value("SELECT summary FROM audit_log WHERE action = 'SETTINGS' ORDER BY id DESC LIMIT 1");
 check('audit SETTINGS ไม่มีกุญแจเต็ม', strpos($sum, '…WXYZ') !== false && strpos($sum, $newSecret) === false
     && strpos($sum, 'รอคำตอบทั้งหมด 20 วินาที → 30 วินาที') !== false, $sum);
+/* ลิงก์เปิดใบเบิก: ไม่ได้ตั้ง = สร้างจาก URL ของ API · ตั้งเอง = ใช้ค่านั้น (ใบ WRQ-0088 doc_id 88 จากข้างบน) */
+function doc_url_of_88($b)
+{
+    $res = $b->req('GET', '/uniform/issues');
+    foreach ($res['json']['data'] as $i) { if ($i['stock'] && $i['stock']['docId'] === 88) { return $i['stock']['docUrl']; } }
+    return 'ไม่พบ';
+}
+check('ลิงก์ใบเบิก (ไม่ได้ตั้ง) = สร้างจาก URL ของ API', doc_url_of_88($hr) === 'https://stock.example/print_doc.php?doc_id=88', doc_url_of_88($hr));
+check('ลิงก์ใบเบิก: ไม่ใช่ URL → 422', S($boss->req('PUT', '/admin/settings', array('values' => array('stock_doc_url' => 'print_doc.php')))) === 422);
+$r = $boss->req('PUT', '/admin/settings', array('values' => array('stock_doc_url' => 'https://docs.example/stock_hr/print_doc.php?doc_id=')));
+check('ตั้งลิงก์ใบเบิกเอง → ทุกใบใช้ค่าใหม่ทันที', $r['status'] === 200 && doc_url_of_88($hr) === 'https://docs.example/stock_hr/print_doc.php?doc_id=88', doc_url_of_88($hr));
+$boss->req('PUT', '/admin/settings', array('values' => array(), 'reset' => array('stock_doc_url')));
+check('คืนค่า (ใช้ config.php) → กลับไปสร้างจาก URL ของ API', doc_url_of_88($hr) === 'https://stock.example/print_doc.php?doc_id=88', doc_url_of_88($hr));
 $hrAct = $hr->req('GET', '/activity?limit=1000');
 $sys = 0;
 foreach ($hrAct['json']['data'] as $a) { if ($a['entity'] === 'SYSTEM') { $sys++; } }

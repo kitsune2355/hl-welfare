@@ -62,7 +62,7 @@ const roundLabel = (event, key) => `${UNIFORM_EVENT_LABEL[event]}${event === 'AN
 
 /** ลิงก์ใบเบิกในระบบสต็อก Uniform */
 export const stockDocLink = (stock) =>
-  html`<a class="num" href="${CONFIG.stock.docUrl}${stock.docId}" target="_blank" rel="noopener" title="เปิดใบเบิกในระบบสต็อก">${stock.docNo} ${raw(icon('external-link'))}</a>`;
+  html`<a class="num" href="${stock.docUrl ?? `${CONFIG.stock.docUrl}${stock.docId}`}" target="_blank" rel="noopener" title="เปิดใบเบิกในระบบสต็อก">${stock.docNo} ${raw(icon('external-link'))}</a>`;
 
 /** ป้ายสถานะใบเบิกในคลัง */
 export const STOCK_STAGE = {

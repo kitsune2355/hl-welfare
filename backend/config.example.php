@@ -41,6 +41,8 @@ $hlw_config = array(
 
     /* ---------- ระบบสต็อก Uniform (stock_hr) — กุญแจต้องตรงกับ stock_hr/config_ctrl/welfare_key.php ---------- */
     'stock_api_url'    => $cfg_is_local ? 'http://192.168.10.39/stock_hr/api/welfare.php' : 'https://develophpg.net/stock_hr/api/welfare.php',
+    /* ลิงก์เปิดใบเบิก (ต่อท้ายด้วย doc_id) — ไม่ใส่ = สร้างจาก stock_api_url · แก้ได้ที่ ระบบ & ความปลอดภัย › สต็อก */
+    // 'stock_doc_url' => 'https://develophpg.net/stock_hr/print_doc.php?doc_id=',
     'stock_api_secret' => 'd542dc95971ca160b2d3b3ad04d880dd1b2c1889c93141be33ee62fd0b495c83',
 
     /* เทสต์เท่านั้น: บังคับ "วันนี้" (YYYY-MM-DD) — ระบบจริงต้องว่าง */

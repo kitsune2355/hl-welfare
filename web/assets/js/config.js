@@ -21,7 +21,8 @@ export const CONFIG = {
     /** ตัวกลางสำหรับโหมด mock (ต้องเข้าสู่ระบบกับ backend — auth.provider 'server') */
     bridgeUrl: 'api/index.php/stock/bridge',
     /**
-     * ลิงก์ใบเบิกในระบบสต็อก ต่อท้ายด้วย doc_id
+     * ลิงก์ใบเบิกในระบบสต็อก ต่อท้ายด้วย doc_id — ค่าสำรอง (โหมด mock / backend ยังไม่ส่ง)
+     * ระบบจริงใช้ค่าที่ตั้งที่ ระบบ & ความปลอดภัย › สต็อก (backend ส่งมาเป็น stock.docUrl ของแต่ละใบ)
      * เลือกปลายทางตามเครื่องที่เปิดหน้าเว็บ — กติกาเดียวกับ stock_api_url ใน backend/config.php
      *  เครื่องพัฒนา (localhost / 127.x / 192.168.x) = เครื่องเดียวกับที่เปิดอยู่ (เข้าด้วย IP ก็ไปถูก)
      *  เซิร์ฟเวอร์จริง                              = https://develophpg.net/stock_hr
