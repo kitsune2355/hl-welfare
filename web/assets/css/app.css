@@ -1088,6 +1088,16 @@ button.stat:hover {
 .combo {
   position: relative;
 }
+/* ตัวครอบได้คลาสของ select เดิม (ui/combobox.js) — ความสูง/padding ที่เขียนไว้ให้ select ไม่ใช้กับตัวครอบ (ปุ่มข้างในมีขนาดของตัวเอง) */
+div.combo {
+  height: auto;
+  padding: 0;
+}
+/* ช่อง "แบบ" ในกล่องส่งเบิกคลัง — ขนาดเล็กเท่า select เดิม */
+.combo.stock-variant .combo-btn {
+  height: 32px;
+  font-size: 13px;
+}
 .combo-btn {
   display: flex;
   align-items: center;
